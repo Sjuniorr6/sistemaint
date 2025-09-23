@@ -28,14 +28,14 @@ class FaturamentoListView(PermissionRequiredMixin, LoginRequiredMixin, ListView)
     def get_queryset(self):
         queryset = super().get_queryset()
         queryset = queryset.exclude(status='Reprovado pelo CEO')
-        
+
         # Aplicar ordenação
         ordenacao = self.request.GET.get('ordenacao')
         if ordenacao:
             queryset = queryset.order_by(ordenacao)
         else:
             queryset = queryset.order_by('-id')  # Ordenação padrão por ID em ordem decrescente
-        
+
         # Obter parâmetros dos filtros
         data = self.request.GET.get('data')
         data_inicio = self.request.GET.get('data_inicio')
@@ -50,48 +50,81 @@ class FaturamentoListView(PermissionRequiredMixin, LoginRequiredMixin, ListView)
         comercial = self.request.GET.get('comercial')
         cnpj = self.request.GET.get('cnpj')
         busca = self.request.GET.get('busca')
-        
 
-        # Aplicar filtros
+        # Aplicar filtros de data sem usar lookups __date (evita UDF no SQLite)
+        from datetime import datetime, time, timedelta
+        from django.utils import timezone
+
+        def to_aware(dt):
+            try:
+                # Só torna aware se USE_TZ estiver ativo e dt for naive
+                if timezone.is_naive(dt) and timezone.is_aware(timezone.now()):
+                    return timezone.make_aware(dt, timezone.get_current_timezone())
+            except Exception:
+                pass
+            return dt
+
         if data:
-            queryset = queryset.filter(data__date=data)
+            try:
+                d = datetime.strptime(data, '%Y-%m-%d').date()
+                start_dt = to_aware(datetime.combine(d, time.min))
+                end_dt = to_aware(datetime.combine(d + timedelta(days=1), time.min))
+                queryset = queryset.filter(data__gte=start_dt, data__lt=end_dt)
+            except ValueError:
+                pass
         elif data_inicio and data_fim:
-            queryset = queryset.filter(data__date__range=[data_inicio, data_fim])
+            try:
+                di = datetime.strptime(data_inicio, '%Y-%m-%d').date()
+                df = datetime.strptime(data_fim, '%Y-%m-%d').date()
+                start_dt = to_aware(datetime.combine(di, time.min))
+                end_dt = to_aware(datetime.combine(df + timedelta(days=1), time.min))
+                queryset = queryset.filter(data__gte=start_dt, data__lt=end_dt)
+            except ValueError:
+                pass
         elif data_inicio:
-            queryset = queryset.filter(data__date__gte=data_inicio)
+            try:
+                di = datetime.strptime(data_inicio, '%Y-%m-%d').date()
+                start_dt = to_aware(datetime.combine(di, time.min))
+                queryset = queryset.filter(data__gte=start_dt)
+            except ValueError:
+                pass
         elif data_fim:
-            queryset = queryset.filter(data__date__lte=data_fim)
-            
+            try:
+                df = datetime.strptime(data_fim, '%Y-%m-%d').date()
+                end_dt = to_aware(datetime.combine(df + timedelta(days=1), time.min))
+                queryset = queryset.filter(data__lt=end_dt)
+            except ValueError:
+                pass
+
         if status_faturamento:
             queryset = queryset.filter(status_faturamento=status_faturamento)
-            
+
         if cliente:
             queryset = queryset.filter(nome_id=cliente)
-            
+
         if motivo:
             queryset = queryset.filter(motivo=motivo)
-            
+
         if tipo_produto:
             queryset = queryset.filter(tipo_produto_id=tipo_produto)
-            
+
         if contrato_tipo:
             queryset = queryset.filter(contrato=contrato_tipo)
-            
+
         if fatura_tipo:
             queryset = queryset.filter(tipo_fatura=fatura_tipo)
-            
+
         if status:
             queryset = queryset.filter(status=status)
-            
+
         if comercial:
             queryset = queryset.filter(comercial=comercial)
-            
+
         if cnpj:
             queryset = queryset.filter(cnpj__icontains=cnpj)
-            
+
         if busca:
             queryset = queryset.filter(nome__nome__icontains=busca)
-        
 
         return queryset
     def get_context_data(self, **kwargs):
