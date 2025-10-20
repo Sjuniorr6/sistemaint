@@ -573,6 +573,13 @@ Destacamos que, para evitar problemas semelhantes no futuro, é essencial que o 
 Informamos também que, em função do dano identificado, será necessário realizar a troca do equipamento com custo adicional. O valor será informado antes da execução do serviço, em conformidade com nossa política de manutenção.
 Estamos à disposição para fornecer qualquer esclarecimento adicional. Recomendamos que, após a conclusão da tratativa, sejam seguidas rigorosamente as orientações de cuidados e utilização para evitar problemas semelhantes.
 """,
+        "Antena 4G danificada":"""Gostaríamos de informá-lo(a) que, após a análise técnica do equipamento que nos foi encaminhado para manutenção, foi constatado que a antena 4G apresenta danos físicos e funcionais. Essa situação impossibilita a transmissão e recepção de dados de forma adequada, comprometendo o desempenho do sistema.
+Após uma inspeção detalhada, concluímos que o dano à antena pode ter sido causado por manuseio inadequado, como quedas ou impactos. Esses fatores contribuíram para a degradação da funcionalidade da antena e, consequentemente, do equipamento.
+Uma antena 4G danificada pode resultar em perda total ou parcial de conectividade, comprometendo o acesso à rede móvel, além de causar interrupções na comunicação de dados. Isso impacta diretamente o desempenho de sistemas dependentes de conectividade e limita as funcionalidades do equipamento.
+Destacamos que, para evitar problemas semelhantes no futuro, é fundamental manusear o equipamento com cuidado, evitando quedas ou impactos. Seguir as orientações de uso descritas no manual do usuário é essencial para preservar a funcionalidade e prolongar a vida útil do equipamento.
+Informamos também que, em função do dano identificado, será necessário a troca do equipamento com custo adicional. O valor será informado antes da execução do serviço, em conformidade com nossa política de manutenção.
+Estamos à disposição para fornecer qualquer esclarecimento adicional. Recomendamos que, após a conclusão da tratativa , sejam seguidas rigorosamente as orientações de cuidados e utilização para prevenir problemas semelhantes
+ """,
         "Sem problemas Identificados": "Nenhum problema identificado no equipamento após a análise.",
 "Avarias Fisicas Graves" : """
         Durante a inspeção técnica constatou-se que os equipamentos apresentam avarias físicas de caráter grave, evidenciadas por fraturas estruturais, deformações mecânicas e desprendimento de componentes internos e externos. Tais danos comprometem integralmente a integridade funcional dos dispositivos,
@@ -976,7 +983,13 @@ O dano identificado pode ocasionar interrupções na comunicação do equipament
 Destacamos que, para evitar problemas semelhantes no futuro, é essencial que o equipamento seja manuseado com cuidado, evitando impactos ou a aplicação de força excessiva. Seguir as orientações de uso descritas no manual do usuário contribui significativamente para a preservação da antena e do desempenho geral do sistema.
 Informamos também que, em função do dano identificado, será necessário realizar a troca do equipamento com custo adicional. O valor será informado antes da execução do serviço, em conformidade com nossa política de manutenção.
 Estamos à disposição para fornecer qualquer esclarecimento adicional. Recomendamos que, após a conclusão da tratativa, sejam seguidas rigorosamente as orientações de cuidados e utilização para evitar problemas semelhantes.
-""",
+""", "Antena 4G danificada":"""Gostaríamos de informá-lo(a) que, após a análise técnica do equipamento que nos foi encaminhado para manutenção, foi constatado que a antena 4G apresenta danos físicos e funcionais. Essa situação impossibilita a transmissão e recepção de dados de forma adequada, comprometendo o desempenho do sistema.
+Após uma inspeção detalhada, concluímos que o dano à antena pode ter sido causado por manuseio inadequado, como quedas ou impactos. Esses fatores contribuíram para a degradação da funcionalidade da antena e, consequentemente, do equipamento.
+Uma antena 4G danificada pode resultar em perda total ou parcial de conectividade, comprometendo o acesso à rede móvel, além de causar interrupções na comunicação de dados. Isso impacta diretamente o desempenho de sistemas dependentes de conectividade e limita as funcionalidades do equipamento.
+Destacamos que, para evitar problemas semelhantes no futuro, é fundamental manusear o equipamento com cuidado, evitando quedas ou impactos. Seguir as orientações de uso descritas no manual do usuário é essencial para preservar a funcionalidade e prolongar a vida útil do equipamento.
+Informamos também que, em função do dano identificado, será necessário a troca do equipamento com custo adicional. O valor será informado antes da execução do serviço, em conformidade com nossa política de manutenção.
+Estamos à disposição para fornecer qualquer esclarecimento adicional. Recomendamos que, após a conclusão da tratativa , sejam seguidas rigorosamente as orientações de cuidados e utilização para prevenir problemas semelhantes
+ """,
         "Sem problemas Identificados": "Nenhum problema identificado no equipamento após a análise.",
 "Avarias Fisicas Graves" : """
         Durante a inspeção técnica constatou-se que os equipamentos apresentam avarias físicas de caráter grave, evidenciadas por fraturas estruturais, deformações mecânicas e desprendimento de componentes internos e externos. Tais danos comprometem integralmente a integridade funcional dos dispositivos,
