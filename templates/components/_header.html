@@ -157,370 +157,244 @@
                 <div class="collapse navbar-collapse" id="navbarNav">
                     <ul class="navbar-nav" style="width:100%;">
 
-                    <!--<li class="nav-item">
-                        <a class="nav-link" href="{% url 'lembretes' %}">
-                            <i class="bi bi-grid-fill"></i> Painel
-                        </a>
-                    </li>-->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="dropdownAcompanhamento" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                         <i class="bi bi-ticket-perforated-fill"></i> Ticket
-                        </a>
-                        <ul class="dropdown-menu" aria-labelledby="dropdownAcompanhamento">
-                            <li><a class="dropdown-item" href="{% url 'ticketCreateView' %}">Ticket</a></li>
-                            <li><a class="dropdown-item" href="{% url 'ticketListView' %}">Ticket List </a></li>                          
-                         
-                         </ul>
-                           
-
-
-
-			{% if perms.t42.view_t42model %}
-
-
-                    </li>
-                      
-
-                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="dropdownAcompanhamento" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                          <i class="bi bi-alarm"></i> Horas
-                        </a>
-                        <ul class="dropdown-menu" aria-labelledby="dropdownAcompanhamento">
-                          <li><a class="dropdown-item" href="{% url 'cadastrar_horas' %}">Cadastrar Horas</a></li>
-                          <li><a class="dropdown-item" href="{% url 'consultar_horas' %}">Listar Horas</a></li>
-                   
-                        </ul>
-                      </li>
-
-
-
-{% endif %}
-
-
-                       
+                    <!-- Home -->
                     <li class="nav-item">
                         <a class="nav-link" href="{% url 'home' %}">
                             <i class="bi bi-house-door-fill"></i> Home
                         </a>
                     </li>
-               
-                    <li class="nav-item">
-                        {% if perms.produto.view_produto %}
-                            <a class="nav-link" href="{% url 'produto_list' %}">
-                                <i class="bi bi-box-seam"></i> Produtos
-                            </a>
-                            {% endif %}
-                    </li>
-                    <li class="nav-item">
-                        {% if perms.produto.view_produto %}
-                            <a class="nav-link" href="{% url 'cliente_list' %}">
-                                <i class="bi bi-people-fill"></i> Clientes
-                            </a>
-                            {% endif %}
+
+                    <!-- Ticket (Acessível para todos) -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="dropdownTicket" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-ticket-perforated-fill"></i> Ticket
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="dropdownTicket">
+                            <li><a class="dropdown-item" href="{% url 'ticketCreateView' %}">Criar Ticket</a></li>
+                            <li><a class="dropdown-item" href="{% url 'ticketListView' %}">Lista de Tickets</a></li>
+                        </ul>
                     </li>
 
-                    <!-- Projeto Nestle -->
-                  
+                    <!-- Compras -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="dropdownCompras" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-cart-fill"></i> Compras
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="dropdownCompras">
+                            <li><a class="dropdown-item" href="{% url 'compras:cadastro_tipo_produto' %}">Cadastrar Produto</a></li>
+                            <li><a class="dropdown-item" href="{% url 'compras:entrada_produto' %}">Entrada de Produto</a></li>
+                        </ul>
+                    </li>
 
-                   <!-- <li class="nav-item dropdown">
-                    -->
-                    
+                    <!-- Estoque (Produtos) -->
+                    {% if perms.produto.view_produto %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'produto_list' %}">
+                            <i class="bi bi-box-seam"></i> Estoque
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    <!-- Recepção -->
                     {% if perms.registrodemanutencao.view_registrodemanutencao %}
-                    {% if perms.registrodemanutencao.add_registrodemanutencao %}
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="dropdownAcompanhamento" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-building-fill-x"></i> Departamentos 
+                        <a class="nav-link dropdown-toggle" href="#" id="dropdownRecepcao" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-inbox-fill"></i> Recepção
                         </a>
-                        {% endif %}
-                        {% endif %}
-                        
-                        <ul class="dropdown-menu" aria-labelledby="dropdownAcompanhamento">
-                            {% if manutencao and manutencao.id %}
-                                <li><a class="dropdown-item" href="{% url 'rejeitadas' manutencao.id %}">Manutenções Rejeitadas</a></li>
-                            {% else %}
-                                
-                            {% endif %}
-                            {% if perms.requisicao.add_requisicoes %}
+                        <ul class="dropdown-menu" aria-labelledby="dropdownRecepcao">
                             {% if perms.registrodemanutencao.add_registrodemanutencao %}
-				{% if perms.projetos.add_registro %}
-                            <li><a class="dropdown-item" href="{% url 'FormulariosCreateView' %}">Entrada / Manutenção</a></li>
-			   <li><a class="dropdown-item" href="{% url 'historicoListViews' %}">Historico Requisiçoes</a></li>
-                            {% endif %}
-                            {% endif %}
-				{% endif %}
-                            {% if perms.requisicao.view_requisicoes %}
-                            {% if perms.requisicao.delete_requisicoes %}
-                            
-                            <li><a class="dropdown-item" href="{% url 'ConfiguracaoListView' %}">Departamento de Configuração </a></li>
-                            <li><a class="dropdown-item" href="{% url 'controle' %}">Controle </a></li>
-                            <li><a class="dropdown-item" href="{% url 'controleList' %}">Lista de Controle </a></li>
-                            <li><a class="dropdown-item" href="{% url 'expedicaoListViews' %}">Departamento de Expedição</a></li>
-				{% endif %}
-                            {% endif %}
-                           
-                            {% if perms.requisicao.view_requisicoes %}
-                                {% if perms.requisicao.add_requisicoes %}
-                                {% if perms.produto.change_produto %}
-                            <li><a class="dropdown-item" href="{% url 'entradasListView' %}">Departamento de Manutenção</a></li>
- 			                                   
-                            <li><a class="dropdown-item" href="{% url 'lista_retornos' %}">Protocolo de Retorno</a></li>
-                            <li><a class="dropdown-item" href="{% url 'historico_manutencaoListView' %}">Historico de Manutenção</a></li>                         
-                            {% endif %}
-                            {% endif %}
+                            <li><a class="dropdown-item" href="{% url 'FormulariosCreateView' %}">Entrada de Manutenção</a></li>
                             {% endif %}
                             {% if perms.requisicao.view_requisicoes %}
-                            {% if perms.acompanhamento.delete_clientes %}
-                            
-                            
+                            <li><a class="dropdown-item" href="{% url 'expedicaoListViews' %}">Expedição de Pedidos</a></li>
                             {% endif %}
+                            {% if perms.qualit.view_qualit %}
+                            <li><a class="dropdown-item" href="{% url 'listar_qualits' %}">Consulta de Iscas</a></li>
                             {% endif %}
-                           
-                           
-                                                           
-                            
-                            
                         </ul>
                     </li>
-                    {% if perms.registrodemanutencao.change_registrodemanutencao %}
-                    {% if perms.requisicao.add_requisicoes %}
-                    {% if perms.produto.add_produto %}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="dropdownAcompanhamento" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-globe-europe-africa"></i>Corporativo
-                        </a>
-                        <ul class="dropdown-menu" aria-labelledby="dropdownAcompanhamento">
-                            {% if perms.saidas.delete_saidas %}
-                            <li><a class="dropdown-item" href="{% url 'diretoriaListViews' %}">Diretoria</a></li>
-                            
-                            <li><a class="dropdown-item" href="{% url 'ceoListViews' %}">CEO</a></li>
-                            <li><a class="dropdown-item" href="{% url 'admin_dashboard' %}">Controle</a></li>
-                            {% endif %} 
-                            <!-- <li><a class="dropdown-item" href="{% url 'FinanceiroListViews' %}">Acionamentos</a></li> -->
-                            <!-- <li><a class="dropdown-item" href="{% url 'FinanceirohListViews' %}">Historico de Acionamentos</a></li> -->
-                            
-                        </ul> 
-                        {% endif %} 
-                        {% endif %} 
-                        {% endif %} 
-                    </li>
-                    {% if perms.reativacao.view_reativacao %}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="dropdownAcompanhamento" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-journal-text"></i>Formulario de Reativação
-                        </a>
-                        {% endif %}
-                        <ul class="dropdown-menu" aria-labelledby="dropdownAcompanhamento">
-                           
-                            
+                    {% endif %}
 
-                            <li><a class="dropdown-item" href="{% url 'reativacao_id_iccid_adicionar' %}">Formulario de Reativação</a></li>
+                    <!-- Configuração -->
+                    {% if perms.requisicao.view_requisicoes %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="dropdownConfiguracao" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-gear-fill"></i> Configuração
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="dropdownConfiguracao">
+                            {% if perms.requisicao.delete_requisicoes %}
+                            <li><a class="dropdown-item" href="{% url 'ConfiguracaoListView' %}">Requisições Abertas</a></li>
+                            {% endif %}
+                            <li><a class="dropdown-item" href="{% url 'historicoListViews' %}">Histórico de Requisições</a></li>
+                            <!-- COMENTADO: Controle e Lista de Controle
+                            <li><a class="dropdown-item" href="{% url 'controle' %}">Controle</a></li>
+                            <li><a class="dropdown-item" href="{% url 'controleList' %}">Lista de Controle</a></li>
+                            -->
                         </ul>
                     </li>
-                    <!-- Menu Drop-down para "Acompanhamento" -->
+                    {% endif %}
+
+                    <!-- Manutenção -->
+                    {% if perms.requisicao.view_requisicoes %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="dropdownManutencao" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-tools"></i> Manutenção
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="dropdownManutencao">
+                            {% if perms.requisicao.add_requisicoes %}
+                            {% if perms.produto.change_produto %}
+                            <li><a class="dropdown-item" href="{% url 'entradasListView' %}">Realizar a Manutenção</a></li>
+                            <li><a class="dropdown-item" href="{% url 'historico_manutencaoListView' %}">Histórico de Manutenção</a></li>
+                            {% endif %}
+                            {% endif %}
+                            <!-- Aprovação de manutenções (CEO) -->
+                            {% if perms.requisicao.add_requisicoes %}
+                            {% if perms.produto.add_produto %}
+                            {% if perms.saidas.delete_saidas %}
+                            <li><a class="dropdown-item" href="{% url 'ceoListViews' %}">Aprovação de Manutenções</a></li>
+                            {% endif %}
+                            {% endif %}
+                            {% endif %}
+                            <!-- COMENTADO: Protocolo de Retorno
+                            <li><a class="dropdown-item" href="{% url 'lista_retornos' %}">Protocolo de Retorno</a></li>
+                            -->
+                        </ul>
+                    </li>
+                    {% endif %}
+
+                    <!-- Comercial -->
                     {% if perms.requisicao.add_requisicoes %}
                     {% if perms.requisicao.view_requisicoes %}
                     {% if perms.faturamento.view_formulario %}
                     {% if perms.reativacao.view_reativacao %}
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="dropdownAcompanhamento" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-graph-up"></i> Formulario de Vendas
+                        <a class="nav-link dropdown-toggle" href="#" id="dropdownComercial" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-graph-up"></i> Comercial
                         </a>
-                        <ul class="dropdown-menu" aria-labelledby="dropdownAcompanhamento">
-                            <li><a class="dropdown-item" href="{% url 'requisicoes' %}">Requisiçao</a></li>
-                            {% if perms.t42.view_t42model %}
-                          
-                         
-                            <li><a class="dropdown-item" href="{% url 'RegistrarEstoqueantenistaView' %}">Estoque - Antenista</a></li>
+                        <ul class="dropdown-menu" aria-labelledby="dropdownComercial">
+                            <li><a class="dropdown-item" href="{% url 'requisicoes' %}">Criação de Requisições</a></li>
+                            <li><a class="dropdown-item" href="{% url 'historicoListViews' %}">Histórico de Requisições</a></li>
+                            {% if perms.produto.change_produto %}
+                            <li><a class="dropdown-item" href="{% url 'historico_manutencaoListView' %}">Histórico de Manutenções</a></li>
                             {% endif %}
-                            
-                            <li><a class="dropdown-item" href="{% url 'historicoListViews' %}">Historico Requisiçoes</a></li>
-                        </li>
-                        </ul>
-                    {% endif %}
-                    {% endif %}
-                    {% endif %}
-                    {% endif %}
-                  
-                   {% if perms.requisicao.add_requisicoes %}
-                   {% if perms.requisicao.view_requisicoes %}
-                   {% if perms.faturamento.view_formulario %}
-                   {% if perms.reativacao.view_reativacao %}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="dropdownAcompanhamento" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-calendar-check"></i> Faturamento
-                        </a>
-                        <ul class="dropdown-menu" aria-labelledby="dropdownAcompanhamento">
-                            <li><a class="dropdown-item" href="{% url 'faturamento_list' %}">Faturamento</a></li>
-                           <!-- <li><a class="dropdown-item" href="{% url 'Contrato_list' %}">Contratos</a></li> -->
-                           <!-- <li><a class="dropdown-item" href="{% url 'formulario_create' %}">Formulario de Contratos</a></li> -->
-                            <li><a class="dropdown-item" href="{% url 'reativacao_list' %}">Reativações</a></li>
-
-                            <!-- <li><a class="dropdown-item" href="{% url 'FinanceirohListViews' %}">Historico de Acionamentos</a></li> -->
-                            <li><a class="dropdown-item" href="{% url 'requisicoes_list' %}">Requisições</a></li>
-                            <li><a class="dropdown-item" href="{% url 'faturamento_interativo' %}">Nova Tabela</a></li>                            
-                          
-                            
+                            {% if perms.t42.view_t42model %}
+                            <li><a class="dropdown-item" href="{% url 'RegistrarEstoqueantenistaView' %}">Registro e Histórico de Estoque Antenista</a></li>
+                            {% endif %}
+                            {% if perms.produto.view_produto %}
+                            <li><a class="dropdown-item" href="{% url 'cliente_list' %}">Cadastro de Clientes</a></li>
+                            {% endif %}
                         </ul>
                     </li>
-
                     {% endif %}
                     {% endif %}
                     {% endif %}
                     {% endif %}
-                   
-{% if perms.qualit.view_qualit %}
-    <li class="nav-item dropdown">
-        <a class="nav-link dropdown-toggle" href="#" id="dropdownAcompanhamento" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="bi bi-card-checklist"></i> Quality
-        </a>
-        <ul class="dropdown-menu" aria-labelledby="dropdownAcompanhamento">
-            {% if perms.pparada.delete_paradasegura %}
-                <li>
-                    <a class="dropdown-item" href="{% url 'listar_qualits' %}">
-                        Consulta de Iscas
-                    </a>
-                </li>
-             
-            {% endif %}
 
-            {% if perms.qualit.delete_qualit %}
-               
-                <li>
-                    <a class="dropdown-item" href="{% url 'novo_antenista' %}">
-                        Antenistas
-                    </a>
-                </li>
-                <li>
-                    <a class="dropdown-item" href="{% url 'lista_antenistas' %}">
-                        Lista de Saídas
-                    </a>
-                </li>
-                <li>
-                    <a class="dropdown-item" href="{% url 'RegistrarEstoqueantenistaView' %}">
-                        Estoque - Antenista
-                    </a>
-                </li>
-            {% endif %}
-
-            {% if perms.reativacao.view_reativacao %}
-                <li>
-                    <a class="dropdown-item" href="{% url 'historico_manutencaoListView' %}">
-                        Histórico de Manutenção
-                    </a>
-                </li>
-                <li><a class="dropdown-item" href="{% url 'reativacao_list' %}">Historico de Reativações</a></li>
-            {% endif %}
-        </ul>
-    </li>
-{% endif %}
-            
-                   {% if perms.t42.view_t42model %}
-                   <li class="nav-item dropdown">
-                       <a class="nav-link dropdown-toggle" href="#" id="dropdownAcompanhamento" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                           <i class="bi bi-airplane"></i> Projeto Nestle
-                       </a>
-                          <ul class="dropdown-menu" aria-labelledby="dropdownAcompanhamento">
-                           <li><a class="dropdown-item" href="{% url 'grid_internacional_list' %}">Lista Grid</a></li>
-                           <li><a class="dropdown-item" href="{% url 'grid_internacional_create' %}">Novo Grid</a></li>
-                           <li><a class="dropdown-item" href="{% url 'clientes_nestle_list' %}">Lista de Clientes</a></li>
-                           <li><a class="dropdown-item" href="{% url 'clientes_nestle_create' %}">Novo Cliente</a></li>
-                           <li><a class="dropdown-item" href="{% url 'carga-list' %}">Cotaçoes</a></li>
-			   <li><a class="dropdown-item" href="{% url 'valores_mensais' %}">Envios Mensais</a></li>
-                           
-                       </ul>
-                   </li>
-               {% endif %}
-
-                   {% if perms.t42.change_t42model %}
-                   <li class="nav-item dropdown">
-                       <a class="nav-link dropdown-toggle" href="#" id="dropdownAcompanhamento" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="bi bi-cpu"></i> Setor Tecnico
-                       </a>
-                       <ul class="dropdown-menu" aria-labelledby="dropdownAcompanhamento">
-                           <li><a class="dropdown-item" href="{% url 'tecnicoListView' %}">Configurão Área Técnica</a></li>
-                           </ul>
-                   </li>
-               {% endif %}
-                   {% if perms.pparada.view_paradasegura %}
-<!---
-                   <li class="nav-item dropdown">
-                       <a class="nav-link dropdown-toggle" href="#" id="dropdownAcompanhamento" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="bi bi-bank2"></i> Parada Segura 
-                       </a>
-                       <ul class="dropdown-menu" aria-labelledby="dropdownAcompanhamento">
-                           <li><a class="dropdown-item" href="{% url 'passagemCreateView' %}">Formulario de Passagem de Serviço </a></li>
-                           <li><a class="dropdown-item" href="{% url 'paradaseguraform' %}">Formulario PA </a></li>
-                           <li><a class="dropdown-item" href="{% url 'paradaseguralist' %}">Lista de PA </a></li>                           
-                           <li><a class="dropdown-item" href="{% url 'historico_parada' %}">Historico de parada </a></li>
-                           
-                        
-                        </ul>
-                          
-                   </li>--->
-                   {% endif %}
-                 
-			{% if perms.t42.view_t42model %}
-		  <!---<li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" id="dropdownAcompanhamento" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                     <i class="bi bi-bank2"></i> GoldenX 
-                    </a>
-                    <ul class="dropdown-menu" aria-labelledby="dropdownAcompanhamento">
-                        <li><a class="dropdown-item" href="{% url 'cadastro_create' %}">Cadastro </a></li>
-                        <li><a class="dropdown-item" href="{% url 'cadastro_list' %}">Lista - Cadastro </a></li>
-                        <li><a class="dropdown-item" href="{% url 'pesquisa_create' %}">Pesquisa </a></li>
-                        <li><a class="dropdown-item" href="{% url 'pesquisa_list' %}">Lista - Pesquisa </a></li>
-                       
-                     
-                     </ul>
-                       
-                </li>
-
-
-		 </li>
---->
-{% endif %}
-                   <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" id="dropdownAcompanhamento" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                     <i class="bi bi-bank2"></i>Documentos 
-                    </a>
-                    <ul class="dropdown-menu" aria-labelledby="dropdownAcompanhamento">
-                        <li><a class="dropdown-item" href="{% url 'pdf_list' %}">Documentações </a></li>
-                      
-                     
-                     </ul>
-                       
-                </li>
-                <li class="nav-item">
-                    {% if perms.saidas.delete_saidas %}
-                        <a class="nav-link" href="{% url 'corte:requisicoes_descartavel_list' %}">
-                            <i class="bi bi-postage"></i> Corte
+                    <!-- Operacional -->
+                    {% if perms.qualit.view_qualit %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="dropdownOperacional" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-card-checklist"></i> Operacional
                         </a>
-                        {% endif %}
-                </li>
-                
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" id="dropdownCompras" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="bi bi-cart-fill"></i> Compras
-                    </a>
-                    <ul class="dropdown-menu" aria-labelledby="dropdownCompras">
-                        <li><a class="dropdown-item" href="{% url 'compras:cadastro_tipo_produto' %}">
-                            <i class="bi bi-box"></i> Cadastrar Produto
-                        </a></li>
-                        <li><a class="dropdown-item" href="{% url 'compras:entrada_produto' %}">
-                            <i class="bi bi-box-arrow-in-down"></i> Entrada de Produto
-                        </a></li>
-                    </ul>
-                </li>
-                
-                 
-                  <li class="nav-item">
-    <form id="logout-form" action="{% url 'logout' %}" method="post" style="display: none;">
-        {% csrf_token %}
-        </form>
-        <a class="nav-link" href="#" onclick="document.getElementById('logout-form').submit();">
-        <i class="bi bi-box-arrow-right"></i> Logout
-        </a>
-        </li>
+                        <ul class="dropdown-menu" aria-labelledby="dropdownOperacional">
+                            {% if perms.pparada.delete_paradasegura %}
+                            <li><a class="dropdown-item" href="{% url 'listar_qualits' %}">Consulta de Isca</a></li>
+                            {% endif %}
+                            <!-- PENDENTE: Acionamentos (Novo sistema) -->
+                            {% if perms.qualit.delete_qualit %}
+                            <li><a class="dropdown-item" href="{% url 'novo_antenista' %}">Requisição de Equipamentos Antenista</a></li>
+                            <li><a class="dropdown-item" href="{% url 'lista_antenistas' %}">Lista de Saídas para Antenistas</a></li>
+                            <li><a class="dropdown-item" href="{% url 'RegistrarEstoqueantenistaView' %}">Estoque Antenista</a></li>
+                            {% endif %}
+                            {% if perms.reativacao.view_reativacao %}
+                            <li><a class="dropdown-item" href="{% url 'reativacao_id_iccid_adicionar' %}">Formulário de Reativação</a></li>
+                            <li><a class="dropdown-item" href="{% url 'reativacao_list' %}">Histórico de Reativação</a></li>
+                            {% endif %}
+                        </ul>
+                    </li>
+                    {% endif %}
+
+                    <!-- Inteligência -->
+                    {% if perms.t42.view_t42model %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="dropdownInteligencia" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-lightbulb-fill"></i> Inteligência
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="dropdownInteligencia">
+                            <!-- Registro de horas extras -->
+                            <li><a class="dropdown-item" href="{% url 'cadastrar_horas' %}">Cadastrar Horas Extras</a></li>
+                            <li><a class="dropdown-item" href="{% url 'consultar_horas' %}">Listar Horas Extras</a></li>
+                            
+                            <!-- Documentações -->
+                            <li><a class="dropdown-item" href="{% url 'pdf_list' %}">Documentações</a></li>
+                            
+                            <!-- Corte de chip -->
+                            {% if perms.saidas.delete_saidas %}
+                            <li><a class="dropdown-item" href="{% url 'corte:requisicoes_descartavel_list' %}">Corte de Chip</a></li>
+                            {% endif %}
+                            
+                            <!-- Operação Nestlé -->
+                            <li class="dropdown-divider"></li>
+                            <li class="dropdown-header">Operação Nestlé</li>
+                            <li><a class="dropdown-item" href="{% url 'grid_internacional_list' %}">Lista Grid</a></li>
+                            <li><a class="dropdown-item" href="{% url 'grid_internacional_create' %}">Novo Grid</a></li>
+                            <li><a class="dropdown-item" href="{% url 'clientes_nestle_list' %}">Lista de Clientes</a></li>
+                            <li><a class="dropdown-item" href="{% url 'clientes_nestle_create' %}">Novo Cliente</a></li>
+                            <li><a class="dropdown-item" href="{% url 'carga-list' %}">Cotações</a></li>
+                            <li><a class="dropdown-item" href="{% url 'valores_mensais' %}">Envios Mensais</a></li>
+                            
+                            <!-- PENDENTE: Anotações -->
+                        </ul>
+                    </li>
+                    {% endif %}
+
+                    <!-- Faturamento -->
+                    {% if perms.requisicao.add_requisicoes %}
+                    {% if perms.requisicao.view_requisicoes %}
+                    {% if perms.faturamento.view_formulario %}
+                    {% if perms.reativacao.view_reativacao %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="dropdownFaturamento" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-calendar-check"></i> Faturamento
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="dropdownFaturamento">
+                            <li><a class="dropdown-item" href="{% url 'reativacao_list' %}">Histórico de Reativações</a></li>
+                            <li><a class="dropdown-item" href="{% url 'requisicoes_list' %}">Histórico de Requisições</a></li>
+                            <li><a class="dropdown-item" href="{% url 'faturamento_list' %}">Planilha de Faturamento</a></li>
+                            <!-- Aprovação de requisições (CEO) -->
+                            {% if perms.produto.add_produto %}
+                            {% if perms.saidas.delete_saidas %}
+                            <li><a class="dropdown-item" href="{% url 'ceoListViews' %}">Aprovação de Requisições</a></li>
+                            {% endif %}
+                            {% endif %}
+                        </ul>
+                    </li>
+                    {% endif %}
+                    {% endif %}
+                    {% endif %}
+                    {% endif %}
+
+                    <!-- Departamento Técnico -->
+                    {% if perms.t42.change_t42model %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="dropdownTecnico" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-cpu"></i> Departamento Técnico
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="dropdownTecnico">
+                            <li><a class="dropdown-item" href="{% url 'tecnicoListView' %}">Histórico de Requisição</a></li>
+                        </ul>
+                    </li>
+                    {% endif %}
+
+                    <!-- Logout -->
+                    <li class="nav-item">
+                        <form id="logout-form" action="{% url 'logout' %}" method="post" style="display: none;">
+                            {% csrf_token %}
+                        </form>
+                        <a class="nav-link" href="#" onclick="document.getElementById('logout-form').submit();">
+                            <i class="bi bi-box-arrow-right"></i> Logout
+                        </a>
+                    </li>
                 </ul>
             </div>
         </div>

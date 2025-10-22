@@ -232,7 +232,7 @@
         <h4 class="mb-0">Quantidade Mensal por Cliente</h4>
         <div>
             <select id="ano-select" class="form-select" onchange="window.location.href='?ano=' + this.value">
-                {% for ano in "2025,2024,2023,2022"|split:"," %}
+                {% for ano in "2026,2025,2024,2023,2022"|split:"," %}
                     <option value="{{ ano }}" {% if ano == ano_atual %}selected{% endif %}>{{ ano }}</option>
                 {% endfor %}
             </select>

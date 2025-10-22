@@ -1127,6 +1127,7 @@ class ValoresMensaisView(ListView):
             print(f"Registro: cliente_id={valor.cliente_id}, mes={valor.mes}, valor={valor.valor}, enviado={valor.enviado}")
         
         context['ano'] = ano
+        context['ano_atual'] = ano  # Passar o ano selecionado como ano_atual para o template
         context['meses'] = ValorMensalCliente.MESES_CHOICES
         context['clientes'] = clientesNestle.objects.all()
         context['valores'] = valores  # Adicionar os valores ao contexto

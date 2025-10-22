@@ -1,266 +1,600 @@
 {% extends 'base.html' %}
-{% block title %}| Faturamento |{% endblock %}
+{% block title %}| Tickets |{% endblock %}
 {% block content %}
 
 <style>
-    body {
-        background-color: #0f0f0fbe;
-        margin: 0;
-        min-height: 100vh;
-        overflow-x: hidden;
+  @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+
+  body {
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+      sans-serif;
+    margin: 0;
+    padding: 0;
+  }
+
+  .dashboard-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+  }
+
+  /* Header moderno */
+  .dashboard-header {
+    text-align: center;
+    margin-bottom: 3rem;
+    animation: fadeInDown 0.6s ease-out;
+  }
+
+  .dashboard-header h1 {
+    font-size: 3rem;
+    font-weight: 800;
+    color: #665b1d;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+  }
+
+  .dashboard-header h1 i {
+    color: #bfa16c;
+  }
+
+  .dashboard-header p {
+    color: #ffffff;
+    font-size: 1.2rem;
+    font-weight: 500;
+  }
+
+  /* Cards de estatísticas */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+    animation: fadeIn 0.8s ease-out;
+  }
+
+  .stat-card {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 1.75rem;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+  }
+
+  .stat-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 15px 50px rgba(0, 0, 0, 0.3);
+    border-color: rgba(255, 255, 255, 0.5);
+  }
+
+  .stat-card.warning {
+    background: linear-gradient(135deg, #ff9a3c 0%, #ff6b6b 100%);
+    color: white;
+  }
+
+  .stat-card.success {
+    background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+    color: white;
+  }
+
+  .stat-card.setor {
+    background: linear-gradient(90deg, #665b1d 0%, #bfa16c 100%);
+    color: white;
+  }
+
+  .stat-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0.9;
+    margin-bottom: 0.5rem;
+  }
+
+  .stat-value {
+    font-size: 2.5rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  /* Grid de tickets */
+  .tickets-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 2rem;
+    margin-bottom: 3rem;
+  }
+
+  /* Card de ticket moderno */
+  .ticket-card {
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
+    padding: 0;
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    overflow: hidden;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    position: relative;
+    animation: fadeInUp 0.6s ease-out backwards;
+  }
+
+  .ticket-card:hover {
+    transform: translateY(-12px) scale(1.02);
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.35);
+  }
+
+  .ticket-status-bar {
+    height: 6px;
+    width: 100%;
+    background: linear-gradient(90deg, #665b1d 0%, #bfa16c 100%);
+  }
+
+  .ticket-status-bar.pendente {
+    background: linear-gradient(90deg, #fbbf24 0%, #f59e0b 100%);
+  }
+
+  .ticket-status-bar.atualizado {
+    background: linear-gradient(90deg, #4ade80 0%, #22c55e 100%);
+  }
+
+  .ticket-status-bar.negado {
+    background: linear-gradient(90deg, #ff6b6b 0%, #ef4444 100%);
+  }
+
+  .ticket-content {
+    padding: 2rem;
+  }
+
+  .ticket-id-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: linear-gradient(90deg, #665b1d 0%, #bfa16c 100%);
+    color: white;
+    padding: 0.5rem 1.2rem;
+    border-radius: 50px;
+    font-weight: 700;
+    font-size: 1.1rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 15px rgba(191, 161, 108, 0.4);
+  }
+
+  .ticket-setor {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #64748b;
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+  }
+
+  .ticket-setor i {
+    color: #bfa16c;
+    font-size: 1.1rem;
+  }
+
+  .ticket-info {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 2px solid #f1f5f9;
+  }
+
+  .ticket-info-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.95rem;
+    color: #475569;
+  }
+
+  .ticket-info-item i {
+    color: #bfa16c;
+    font-size: 1rem;
+    width: 20px;
+  }
+
+  .ticket-info-item strong {
+    color: #1e293b;
+  }
+
+  .ticket-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.25rem;
+    border-radius: 50px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  }
+
+  .ticket-status-badge.pendente {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    color: #92400e;
+  }
+
+  .ticket-status-badge.atualizado {
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+    color: #065f46;
+  }
+
+  .ticket-status-badge.negado {
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+    color: #991b1b;
+  }
+
+  .ticket-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .btn-action {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    border: none;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .btn-update {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    color: white;
+    box-shadow: 0 4px 15px rgba(251, 191, 36, 0.3);
+  }
+
+  .btn-update:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(251, 191, 36, 0.4);
+    color: white;
+  }
+
+  .btn-deny {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ef4444 100%);
+    color: white;
+    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+  }
+
+  .btn-deny:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+    color: white;
+  }
+
+  .ticket-details-toggle {
+    width: 100%;
+    padding: 0.75rem;
+    background: transparent;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    color: #665b1d;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .ticket-details-toggle:hover {
+    background: #f8fafc;
+    border-color: #bfa16c;
+  }
+
+  .ticket-details {
+    display: none;
+    margin-top: 1rem;
+    padding: 1.5rem;
+    background: #f8fafc;
+    border-radius: 12px;
+    border-left: 4px solid #bfa16c;
+  }
+
+  .ticket-details.show {
+    display: block;
+    animation: slideDown 0.3s ease-out;
+  }
+
+  .ticket-details strong {
+    display: block;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .ticket-details p {
+    color: #475569;
+    line-height: 1.6;
+    margin-bottom: 1rem;
+  }
+
+  /* Animações */
+  @keyframes fadeInDown {
+    from {
+      opacity: 0;
+      transform: translateY(-30px);
     }
-    .bg-setor-personalizada {
-        background-color: #23446e !important;
-        color: #fff !important;
+    to {
+      opacity: 1;
+      transform: translateY(0);
     }
-    .main-content {
-        min-height: 92vh;
-        padding: 1.5rem 0.5rem;
-        background-color: #f0f2f5;
-        border-radius: 20px;
-        max-width: 1200px;
-        margin: 0 auto;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
+  }
+
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
     }
-    .badge-status {
-        font-size: 1.1em;
-        padding: 4px 10px;
-        border-radius: 12px;
-        font-weight: 600;
-        display: inline-block;
-        margin-bottom: 6px;
-        color: #0e0d0d;
+    to {
+      opacity: 1;
+      transform: translateY(0);
     }
-    .card-status.text-white .count {
-        color: #fff !important;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
     }
-    .card {
-        transition: box-shadow 0.3s;
-        border: none;
-        margin-bottom: 32px;
-        border-radius: 18px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        background: #cccacaaf;
-        min-height: 320px;
-        width: 100%;
-        max-width: 400px;
-        position: relative;
-        overflow: hidden;
-        color: #0e0d0d;
-        padding: 18px 12px 24px 16px;
-        box-sizing: border-box;
-        font-size: 1.15em;
+    to {
+      opacity: 1;
     }
-    .card:hover {
-        box-shadow: 0 6px 24px #bfc7d1;
+  }
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      max-height: 0;
     }
-    .card-title {
-        font-size: 1.35em;
-        margin-bottom: 0.5em;
-        color: #222;
+    to {
+      opacity: 1;
+      max-height: 500px;
     }
-    .dropdown-details {
-        display: none;
-        background: #f7f8fa;
-        padding: 12px 18px;
-        border-top: 1px solid #e0e3e8;
-        margin-top: 10px;
-        border-radius: 0 0 12px 12px;
-        font-size: 1.08em;
-        color: #444;
+  }
+
+  /* Adiciona delay nas animações dos cards */
+  .ticket-card:nth-child(1) {
+    animation-delay: 0.1s;
+  }
+  .ticket-card:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+  .ticket-card:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+  .ticket-card:nth-child(4) {
+    animation-delay: 0.4s;
+  }
+  .ticket-card:nth-child(5) {
+    animation-delay: 0.5s;
+  }
+  .ticket-card:nth-child(6) {
+    animation-delay: 0.6s;
+  }
+
+  /* Responsivo */
+  @media (max-width: 1024px) {
+    .tickets-grid {
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.5rem;
     }
-    .dropdown-toggle {
-        cursor: pointer;
-        color: #1976d2;
-        text-decoration: underline;
-        font-size: 1.08em;
-        font-weight: 500;
+  }
+
+  @media (max-width: 768px) {
+    .dashboard-container {
+      padding: 1.5rem 1rem;
     }
-    .status-bar {
-        width: 14px;
-        border-radius: 18px 0 0 18px;
-        margin-right: 0;
-        margin-left: 0;
-        position: absolute;
-        left: 0;
-        top: 0;
-        height: 100%;
-        flex-shrink: 0;
-        z-index: 1;
+
+    .dashboard-header h1 {
+      font-size: 2.2rem;
     }
-    .status-circle {
-        display: none;
+
+    .stats-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
     }
-    .status-pendente { background: #fff9c4; }
-    .status-atualizado { background: #7be495; }
-    .status-negado { background: #ff8a80; }
-    .avatar-circle {
-        width: 90px;
-        height: 90px;
-        border-radius: 50%;
-        border: 3px solid #bfa76a;
-        background: #232323;
-        margin: 0 auto 16px auto;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2.2em;
-        color: #bfa76a;
+
+    .tickets-grid {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
     }
-    .status-pendente { background: linear-gradient(180deg, #eedd42 80%, #fff9c4 100%); }
-    .status-atualizado { background: linear-gradient(180deg, #7be495 80%, #c8f7c5 100%); }
-    .status-negado { background: linear-gradient(180deg, #ff8a80 80%, #ffcdd2 100%); }
-    .card-status {
-        border-radius: 12px;
-        padding: 18px 0 10px 0;
-        margin: 0 8px 18px 0;
-        box-shadow: 0 2px 8px #0001;
-        font-weight: 500;
-        font-size: 1em;
-        background: #fff;
-        color: #222;
-        border-left: 6px solid #4caf50;
-        min-width: 180px;
-        max-width: 220px;
-        display: inline-block;
-        text-align: left;
+
+    .ticket-content {
+      padding: 1.5rem;
     }
-    .card-status .count {
-        font-size: 1.9em;
-        font-weight: bold;
-        margin-bottom: 2px;
-        margin-left: 8px;
-        color: #222;
+  }
+
+  @media (max-width: 576px) {
+    .dashboard-header h1 {
+      font-size: 1.8rem;
+      flex-direction: column;
+      gap: 0.5rem;
     }
-    .card-status .label {
-        font-size: 1.08em;
-        margin-left: 8px;
-        color: #444;
-        font-weight: 400;
+
+    .dashboard-header p {
+      font-size: 1rem;
     }
-    .card-status.text-white .label {
-        color: #fff !important;
+
+    .stats-grid {
+      grid-template-columns: 1fr;
     }
-    .card-status.bg-warning,
-    .card-status.bg-info,
-    .card-status.bg-setor-personalizada {
-        border-left: none !important;
+
+    .stat-card {
+      padding: 1.25rem;
     }
-    .card-status.bg-secondary { border-left: 6px solid #6c757d; }
-    .card-status.bg-primary { border-left: 6px solid #007bff; }
-    .card-status.bg-success { border-left: 6px solid #4caf50; }
-    .card-status.bg-danger { border-left: 6px solid #dc3545; }
-    .card-status.bg-dark { border-left: 6px solid #343a40; }
-    .card-status.bg-light { border-left: 6px solid #e0e0e0; }
-    /* Notebook */
-    @media (min-width: 1024px) and (max-width: 1366px) {
-        .main-content { padding: 1.2rem 0.3rem; border-radius: 16px; }
-        .card { min-height: 260px; font-size: 1.08em; }
-        .card-status { min-width: 140px; max-width: 180px; font-size: 1em; }
+
+    .stat-value {
+      font-size: 2rem;
     }
-    /* Tablet e celular */
-    @media (max-width: 991px) {
-        .main-content { padding: 1rem 0.1rem; border-radius: 10px; }
-        .card { min-height: 180px; font-size: 0.95em; padding: 8px 2px 10px 4px; max-width: 100%; }
-        .card-status { min-width: 90px; max-width: 120px; font-size: 0.9em; }
-        .row { gap: 0.5rem !important; }
+
+    .ticket-actions {
+      flex-direction: column;
     }
-    @media (max-width: 576px) {
-        .main-content { padding: 0.3rem 0.01rem; border-radius: 6px; }
-        .card { min-height: 100px; font-size: 0.9em; padding: 4px 1px 6px 2px; max-width: 100%; }
-        .card-status { min-width: 60px; max-width: 90px; font-size: 0.85em; }
-        .row { gap: 0.3rem !important; }
-    }
+  }
 </style>
 
-<main class="main-content">
-    <div class="container-fluid px-0">
-        <div class="d-flex flex-row flex-wrap justify-content-center align-items-center mb-3 gap-3">
-            <div class="card-status bg-warning text-white text-center">
-                <div class="label">Negado</div>
-                <div class="count">{{ qtd_negado }}</div>
-            </div>
-            <div class="card-status bg-info text-white text-center">
-                <div class="label">Atualizado</div>
-                <div class="count">{{ qtd_atualizado }}</div>
-            </div>
-            {% for setor in tickets_por_setor %}
-                <div class="card-status text-white text-center bg-setor-personalizada d-flex flex-column justify-content-center align-items-center" style="height:110px;">
-                    <div class="label">{{ setor.setor }}</div>
-                    <div class="count">{{ setor.total }}</div>
-                </div>
-            {% endfor %}
-        </div>
-    <div class="row gx-3 gy-4 justify-content-center">
-            {% for item in ticket %}
-                {% if item.setor != 'Faturamento' or perms.faturamento.delete_formulario %}
-                    <div class="col-12 col-sm-6 col-md-4 col-lg-3 d-flex align-items-stretch mb-4">
-                        <div class="card w-100 h-100" style="position:relative;">
-                            <div class="status-bar 
-                                {% if item.status == 'Pendente' %}status-pendente
-                                {% elif item.status == 'Atualizado' %}status-atualizado
-                                {% elif item.status == 'Negado' %}status-negado
-                                {% endif %}">
-                            </div>
-                            <div class="avatar-circle">
-                                <i class="fas fa-ticket-alt"></i>
-                            </div>
-                            <div class="text-center mb-2">
-                                <span style="font-weight:600; font-size:1.1em;">#{{ item.id }}</span><br>
-                                <span style="font-size:1em; color:#75753e;">
-                                    <i class="fas fa-users"></i> {{ item.setor }}
-                                </span>
-                            </div>
-                            <div class="text-center mb-2">
-                                <span style="font-weight:600;">Responsável:</span> {{ item.usuario.username }}<br>
-                                <span style="font-size:0.98em;">
-                                    <i class="far fa-calendar-alt"></i> {{ item.data_criacao|date:"d/m/Y H:i" }}
-                                </span>
-                            </div>
-                            <div class="text-center mb-2">
-                                <span class="badge-status 
-                                    {% if item.status == 'Pendente' %}badge-pendente
-                                    {% elif item.status == 'Atualizado' %}badge-atualizado
-                                    {% elif item.status == 'Negado' %}badge-negado
-                                    {% endif %}">
-                                    {% if item.status == 'Pendente' %}⏳ Pendente
-                                    {% elif item.status == 'Atualizado' %}✅ Atualizado
-                                    {% elif item.status == 'Negado' %}❌ Negado
-                                    {% else %}{{ item.status }}
-                                    {% endif %}
-                                </span>
-                            </div>
-                            <div class="d-flex justify-content-center" style="gap:10px;">
-                                {% if perms.ticket.change_ticketmodel %}
-                                    <a class="btn btn-warning btn-sm" style="color:#fff;font-weight:600;" href="{% url 'atualizar_status' item.id %}">Atualizar</a>
-                                    <a class="btn btn-danger btn-sm" style="font-weight:600;" href="{% url 'atualizar_status2' item.id %}">Negado</a>
-                                {% endif %}
-                            </div>
-                            <div class="text-center mt-2">
-                                <span class="dropdown-toggle" onclick="toggleDetails('{{ item.id }}')">Detalhes</span>
-                            </div>
-                            <div id="details-{{ item.id }}" class="dropdown-details">
-                                <strong>Erro:</strong> {{ item.erro }}<br>
-                                <br>
-                                <strong>Correção:</strong> {{ item.correcao }}<br>
-                            </div>
-                        </div>
-                    </div>
-                {% endif %}
-            {% endfor %}
-            {% include 'components/_pagination.html' %}
-        </div>
+<div class="dashboard-container">
+  <!-- Header -->
+  <div class="dashboard-header">
+    <h1>
+      <i class="bi bi-ticket-perforated-fill"></i>
+      <span>Central de Tickets</span>
+    </h1>
+    <p>Gerencie todos os chamados em um só lugar</p>
+  </div>
+
+  <!-- Estatísticas
+  <div class="stats-grid">
+    <div class="stat-card warning">
+      <div class="stat-label"><i class="bi bi-x-circle"></i> Negados</div>
+      <div class="stat-value">{{ qtd_negado }}</div>
     </div>
-</main>
+
+    <div class="stat-card success">
+      <div class="stat-label">
+        <i class="bi bi-check-circle"></i> Atualizados
+      </div>
+      <div class="stat-value">{{ qtd_atualizado }}</div>
+    </div>
+
+    {% for setor in tickets_por_setor %}
+    <div class="stat-card setor">
+      <div class="stat-label">
+        <i class="bi bi-building"></i> {{ setor.setor }}
+      </div>
+      <div class="stat-value">{{ setor.total }}</div>
+    </div>
+    {% endfor %}
+  </div> -->
+
+  <!-- Grid de Tickets -->
+  <div class="tickets-grid">
+    {% for item in ticket %}
+    {% if item.setor != 'Faturamento' or perms.faturamento.delete_formulario %}
+    <div class="ticket-card">
+      <div
+        class="ticket-status-bar {% if item.status == 'Pendente' %}pendente {% elif item.status == 'Atualizado' %}atualizado {% elif item.status == 'Negado' %}negado {% endif %}"
+      ></div>
+
+      <div class="ticket-content">
+        <div class="ticket-id-badge">
+          <i class="bi bi-hash"></i>
+          <span>{{ item.id }}</span>
+        </div>
+
+        <div class="ticket-setor">
+          <i class="bi bi-building-fill"></i>
+          <span>{{ item.setor }}</span>
+        </div>
+
+        <div class="ticket-info">
+          <div class="ticket-info-item">
+            <i class="bi bi-person-fill"></i>
+            <span><strong>Responsável:</strong> {{ item.usuario.username }}</span>
+          </div>
+          <div class="ticket-info-item">
+            <i class="bi bi-calendar-check"></i>
+            <span><strong>Criado:</strong> {{ item.data_criacao|date:"d/m/Y H:i" }}</span>
+          </div>
+        </div>
+
+        <div style="text-align: center">
+          <span class="ticket-status-badge {% if item.status == 'Pendente' %}pendente{% elif item.status == 'Atualizado' %}atualizado{% elif item.status == 'Negado' %}negado{% endif %}">
+            {% if item.status == 'Pendente' %}
+            <i class="bi bi-hourglass-split"></i> Pendente
+            {% elif item.status == 'Atualizado' %}
+            <i class="bi bi-check-circle-fill"></i> Atualizado
+            {% elif item.status == 'Negado' %}
+            <i class="bi bi-x-circle-fill"></i> Negado
+            {% else %}
+            {{ item.status }}
+            {% endif %}
+          </span>
+        </div>
+
+        {% if perms.ticket.change_ticketmodel %}
+        <div class="ticket-actions">
+          <a
+            href="{% url 'atualizar_status' item.id %}"
+            class="btn-action btn-update"
+          >
+            <i class="bi bi-arrow-up-circle"></i>
+            <span>Atualizar</span>
+          </a>
+          <a
+            href="{% url 'atualizar_status2' item.id %}"
+            class="btn-action btn-deny"
+          >
+            <i class="bi bi-x-circle"></i>
+            <span>Negar</span>
+          </a>
+        </div>
+        {% endif %}
+
+        <button
+          class="ticket-details-toggle"
+          onclick="toggleDetails('{{ item.id }}')"
+        >
+          <i class="bi bi-chevron-down"></i>
+          <span>Ver Detalhes</span>
+        </button>
+
+        <div id="details-{{ item.id }}" class="ticket-details">
+          <strong
+            ><i class="bi bi-exclamation-triangle-fill"></i> Erro
+            Relatado</strong
+          >
+          <p>{{ item.erro }}</p>
+
+          <strong><i class="bi bi-tools"></i> Correção Proposta</strong>
+          <p>{{ item.correcao }}</p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+
+  <!-- Paginação -->
+  {% include 'components/_pagination.html' %}
+</div>
 
 <script>
-    function toggleDetails(id) {
-        var el = document.getElementById('details-' + id);
-        el.style.display = el.style.display === 'block' ? 'none' : 'block';
+  function toggleDetails(id) {
+    const details = document.getElementById("details-" + id);
+    const button = event.currentTarget;
+    const icon = button.querySelector("i");
+
+    if (details.classList.contains("show")) {
+      details.classList.remove("show");
+      icon.classList.remove("bi-chevron-up");
+      icon.classList.add("bi-chevron-down");
+      button.querySelector("span").textContent = "Ver Detalhes";
+    } else {
+      details.classList.add("show");
+      icon.classList.remove("bi-chevron-down");
+      icon.classList.add("bi-chevron-up");
+      button.querySelector("span").textContent = "Ocultar Detalhes";
     }
+  }
 </script>
+
 {% endblock %}

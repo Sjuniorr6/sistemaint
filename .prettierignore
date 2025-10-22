@@ -1,0 +1,28 @@
+# Ignorar templates Django - usar djlint ao invés do Prettier
+templates/
+**/templates/
+*.html
+
+# Ignorar node_modules
+node_modules/
+
+# Ignorar arquivos de build
+static/css/output.css
+staticfiles/
+
+# Ignorar arquivos Python
+*.py
+
+# Ignorar migrations
+**/migrations/
+
+# Ignorar arquivos de ambiente
+.env
+.env.*
+
+# Ignorar arquivos de log
+*.log
+
+# Ignorar arquivos de cache
+__pycache__/
+*.pyc

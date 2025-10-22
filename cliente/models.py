@@ -1,14 +1,4 @@
-from django.db import models
-
-
-
-
-
-
-
-       
-        
-    
+from django.db import models 
 class Cliente(models.Model):
     vigencia_tipo = [
 
@@ -25,9 +15,9 @@ class Cliente(models.Model):
     ]
     equipamentos = [
 
-        ("Isaca","Isca"),
+        ("Isca","Isca"),
         ("Rastreador","Rastreador"),
-        ("Tets","Tets"),
+        ("Tetis","Tetis"),
     ]
     
     nome = models.CharField(max_length=100)

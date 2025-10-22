@@ -1,44 +1,450 @@
 {% extends 'base.html' %}
 
+{% block title %} | Detalhes da Requisição | {% endblock %}
+
 {% block content %}
+<style>
+  .detail-container {
+    max-width: 1000px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+  }
 
-<div class="container mt-4">
-<h3 class="display-6">Detalhes da Requisição</h3>
+  .detail-header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
 
-<div class="card">
-    <div class="card-body table-bordered">
-         
-          <h3 class="card-title">Data Entrega :{{ requisicao.data_entrega }}</h3>
-          <h3 class="card-title">{{ requisicao.nome }}</h3>
-          <p class="card-text"> Nome : {{ requisicoes.nome }}</p>
-          <p class="card-text"> Endereço : {{ requisicoes.endereco }}</p>
-          <p class="card-text"> Contrato : {{ requisicoes.contrato }}</p>
-          <p class="card-text"> CNPJ :  {{ requisicoes.cnpj }}</p>
-          <p class="card-text"> Inicio do contrato :  {{ requisicoes.inicio_de_contrato }}</p>
-          <p class="card-text"> Vigêcia : {{ requisicoes.vigencia }}</p>
-          <p class="card-text"> Data : {{ requisicoes.data }}</p>
-          <p class="card-text"> Motivo : {{ requisicoes.motivo }}</p>
-          <p class="card-text"> Envio : {{ requisicoes.envio }}</p>
-          <p class="card-text"> Comercial : {{ requisicoes.comercial }}</p>
-          <p class="card-text"> Tipo de acesso :{{ requisicoes.tipo_acesso }}</p>
-          <p class="card-text"> Tipo de produto :{{ requisicoes.tipo_produto }}</p>
-          <p class="card-text"> Carregador :{{ requisicoes.carregador }}</p>
-          <p class="card-text"> Cabo : {{ requisicoes.cabo }}</p>
-          <p class="card-text"> Tipo de fatura : {{ requisicoes.tipo_fatura }}</p>
-          <p class="card-text"> Valor unitario :{{ requisicoes.valor_unitario }}</p>
-          <p class="card-text"> Valor total : {{ requisicoes.valor_total }}</p>
-          <p class="card-text"> Formas de pagamento :{{ requisicoes.forma_pagamento }}</p>
-          <p class="card-text"> Observaçoes : {{ requisicoes.observacoes }}</p>
-          <p class="card-text"> status : {{ requisicoes.status }}</p>
-          <p class="card-text"> TP : {{ requisicoes.TP }}</p>
-          <p class="card-text"> Numero de Equipamentos : {{ requisicoes.numero_de_equipamentos }}</p>
-        
+  .detail-header h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #665b1d;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
 
+  .detail-header h1 i {
+    color: #bfa16c;
+  }
 
+  .detail-header .client-name {
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: #111827;
+    margin-top: 0.5rem;
+  }
+
+  .detail-header .delivery-date {
+    display: inline-block;
+    background: linear-gradient(90deg, #665b1d 0%, #bfa16c 100%);
+    color: white;
+    padding: 0.5rem 1.5rem;
+    border-radius: 20px;
+    font-weight: 600;
+    margin-top: 1rem;
+    box-shadow: 0 4px 12px rgba(102, 91, 29, 0.3);
+  }
+
+  .detail-header .delivery-date i {
+    color: white;
+    margin-right: 0.5rem;
+  }
+
+  .detail-card {
+    background: #ffffff;
+    border: 2px solid #bfa16c;
+    border-radius: 16px;
+    padding: 2.5rem;
+    box-shadow: 0 4px 20px rgba(191, 161, 108, 0.15);
+    margin-bottom: 2rem;
+  }
+
+  .section {
+    margin-bottom: 2.5rem;
+  }
+
+  .section:last-child {
+    margin-bottom: 0;
+  }
+
+  .section-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #665b1d;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 3px solid #bfa16c;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .section-title i {
+    color: #bfa16c;
+    font-size: 1.4rem;
+  }
+
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.2rem;
+  }
+
+  .info-item {
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+    background: #f9fafb;
+    border-radius: 10px;
+    border-left: 4px solid #bfa16c;
+    transition: all 0.3s ease;
+  }
+
+  .info-item:hover {
+    background: #f3f4f6;
+    transform: translateX(5px);
+  }
+
+  .info-label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .info-label i {
+    color: #bfa16c;
+    font-size: 1rem;
+  }
+
+  .info-value {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #111827;
+    word-break: break-word;
+  }
+
+  .info-value.empty {
+    color: #9ca3af;
+    font-style: italic;
+  }
+
+  .observacoes-box {
+    background: #fffbeb;
+    border: 2px solid #fbbf24;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-top: 1rem;
+  }
+
+  .observacoes-box .label {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #92400e;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .observacoes-box .label i {
+    color: #f59e0b;
+  }
+
+  .observacoes-box .content {
+    font-size: 1rem;
+    color: #78350f;
+    line-height: 1.6;
+  }
+
+  .status-box {
+    background: #f0fdf4;
+    border: 2px solid #10b981;
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: center;
+    margin-top: 1rem;
+  }
+
+  .status-box .label {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #065f46;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.5rem;
+  }
+
+  .status-box .status {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #047857;
+  }
+
+  .actions-bar {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 2px solid #f0f0f0;
+  }
+
+  .btn-back {
+    background: linear-gradient(90deg, #665b1d 0%, #bfa16c 100%);
+    color: white;
+    padding: 0.9rem 2.5rem;
+    border-radius: 12px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(102, 91, 29, 0.3);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: none;
+  }
+
+  .btn-back:hover {
+    background: linear-gradient(90deg, #bfa16c 0%, #665b1d 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(191, 161, 108, 0.4);
+    text-decoration: none;
+    color: white;
+  }
+
+  .btn-back i {
+    font-size: 1.2rem;
+  }
+
+  @media (max-width: 768px) {
+    .detail-header h1 {
+      font-size: 1.8rem;
+    }
+
+    .detail-header .client-name {
+      font-size: 1.4rem;
+    }
+
+    .detail-card {
+      padding: 1.5rem;
+    }
+
+    .info-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .actions-bar {
+      flex-direction: column;
+    }
+
+    .btn-back {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+
+  /* Animação */
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .detail-card {
+    animation: fadeInUp 0.5s ease;
+  }
+</style>
+
+<div class="detail-container">
+  <div class="detail-header">
+    <h1>
+      <i class="bi bi-file-earmark-text-fill"></i>
+      Detalhes da Requisição
+    </h1>
+    <div class="client-name">{{ requisicoes.nome }}</div>
+    <div class="delivery-date">
+      <i class="bi bi-calendar-check-fill"></i>
+      Data de Entrega: {{ requisicao.data_entrega|date:"d/m/Y" }}
+    </div>
+  </div>
+
+  <div class="detail-card">
+    <!-- Informações do Cliente -->
+    <div class="section">
+      <div class="section-title">
+        <i class="bi bi-building-fill"></i>
+        Informações do Cliente
+      </div>
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label"><i class="bi bi-person-fill"></i> Nome</div>
+          <div class="info-value">{{ requisicoes.nome }}</div>
         </div>
-        <div>
+        <div class="info-item">
+          <div class="info-label"><i class="bi bi-card-text"></i> CNPJ</div>
+          <div class="info-value">{{ requisicoes.cnpj }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label"><i class="bi bi-geo-alt-fill"></i> Endereço</div>
+          <div class="info-value">{{ requisicoes.endereco|default:"Não informado" }}</div>
+        </div>
+      </div>
+    </div>
 
-            <a href="{% url 'ceoListViews' %}" class="btn btn-secondary mt3">  Voltar</a>
+    <!-- Informações do Contrato -->
+    <div class="section">
+      <div class="section-title">
+        <i class="bi bi-file-earmark-check-fill"></i>
+        Informações do Contrato
+      </div>
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label"><i class="bi bi-bookmark-fill"></i> Tipo de Contrato</div>
+          <div class="info-value">{{ requisicoes.contrato }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label"><i class="bi bi-calendar-event"></i> Início do Contrato</div>
+          <div class="info-value">{{ requisicoes.inicio_de_contrato|date:"d/m/Y"|default:"Não informado" }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label"><i class="bi bi-hourglass-split"></i> Vigência</div>
+          <div class="info-value">{{ requisicoes.vigencia|default:"Não informado" }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Informações do Pedido -->
+    <div class="section">
+      <div class="section-title">
+        <i class="bi bi-box-seam-fill"></i>
+        Informações do Pedido
+      </div>
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label"><i class="bi bi-calendar3"></i> Data</div>
+          <div class="info-value">{{ requisicoes.data|date:"d/m/Y"|default:"Não informado" }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label"><i class="bi bi-chat-left-quote"></i> Motivo</div>
+          <div class="info-value">{{ requisicoes.motivo|default:"Não informado" }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label"><i class="bi bi-truck"></i> Envio</div>
+          <div class="info-value">{{ requisicoes.envio|default:"Não informado" }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label"><i class="bi bi-person-badge"></i> Comercial</div>
+          <div class="info-value">{{ requisicoes.comercial }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Informações do Produto -->
+    <div class="section">
+      <div class="section-title">
+        <i class="bi bi-tag-fill"></i>
+        Informações do Produto
+      </div>
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label"><i class="bi bi-box"></i> Tipo de Produto</div>
+          <div class="info-value">{{ requisicoes.tipo_produto }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label"><i class="bi bi-hash"></i> Número de Equipamentos</div>
+          <div class="info-value">{{ requisicoes.numero_de_equipamentos }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label"><i class="bi bi-key-fill"></i> Tipo de Acesso</div>
+          <div class="info-value">{{ requisicoes.tipo_acesso|default:"Não informado" }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label"><i class="bi bi-plug-fill"></i> Carregador</div>
+          <div class="info-value">{{ requisicoes.carregador|default:"Não informado" }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label"><i class="bi bi-usb-symbol"></i> Cabo</div>
+          <div class="info-value">{{ requisicoes.cabo|default:"Não informado" }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label"><i class="bi bi-clipboard-data"></i> TP</div>
+          <div class="info-value">{{ requisicoes.TP|default:"Não informado" }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Informações Financeiras -->
+    <div class="section">
+      <div class="section-title">
+        <i class="bi bi-cash-stack"></i>
+        Informações Financeiras
+      </div>
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label"><i class="bi bi-currency-dollar"></i> Valor Unitário</div>
+          <div class="info-value">{{ requisicoes.valor_unitario }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label"><i class="bi bi-calculator"></i> Valor Total</div>
+          <div class="info-value">{{ requisicoes.valor_total }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label"><i class="bi bi-credit-card-fill"></i> Forma de Pagamento</div>
+          <div class="info-value">{{ requisicoes.forma_pagamento|default:"Não informado" }}</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label"><i class="bi bi-receipt"></i> Tipo de Fatura</div>
+          <div class="info-value">{{ requisicoes.tipo_fatura|default:"Não informado" }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Observações -->
+    {% if requisicoes.observacoes %}
+    <div class="section">
+      <div class="observacoes-box">
+        <div class="label">
+          <i class="bi bi-chat-left-text-fill"></i>
+          Observações
+        </div>
+        <div class="content">{{ requisicoes.observacoes }}</div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Status -->
+    <div class="section">
+      <div class="status-box">
+        <div class="label">Status Atual</div>
+        <div class="status">{{ requisicoes.status }}</div>
+      </div>
+    </div>
+
+    <!-- Ações -->
+    <div class="actions-bar">
+      <a href="{% url 'ceoListViews' %}" class="btn-back">
+        <i class="bi bi-arrow-left-circle-fill"></i>
+        Voltar para Lista
+      </a>
+    </div>
+  </div>
         </div>
 
 {% endblock %}

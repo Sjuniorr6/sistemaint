@@ -21,9 +21,9 @@ class Clientes(models.Model):
     ]
     equipamentos = [
 
-        ("Isaca","Isca"),
+        ("Isca","Isca"),
         ("Rastreador","Rastreador"),
-        ("Tets","Tets"),
+        ("Tetis","Tetis"),
     ]
     contratos = [
 

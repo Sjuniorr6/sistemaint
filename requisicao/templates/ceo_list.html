@@ -1,201 +1,445 @@
 {% extends 'base.html' %}
-{% block title %} | Grupo Golden Sat | {% endblock %}
+
+{% block title %} | Aprovação de Requisições | {% endblock %}
 
 {% include 'components/_header.html' %}
 
 {% block content %}
 <style>
-    .card-status {
-        position: relative;
-        transition: transform 0.3s ease;
-        width: 100%;
-        max-width: 400px;
-        margin: 0 auto;
+  .ceo-container {
+    max-width: 1400px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+  }
+
+  .ceo-header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+  }
+
+  .ceo-header h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #665b1d;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .ceo-header h1 i {
+    color: #bfa16c;
+  }
+
+  .ceo-header p {
+    color: #666;
+    font-size: 1rem;
+  }
+
+  /* Alertas */
+  .alert-modern {
+    background: #ffffff;
+    border: 2px solid #f59e0b;
+    border-radius: 12px;
+    padding: 1rem 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.15);
+  }
+
+  .alert-modern strong {
+    color: #92400e;
+  }
+
+  .alert-modern a {
+    color: #111827;
+    font-weight: 700;
+    text-decoration: none;
+    padding: 0.2rem 0.5rem;
+    background: #fef3c7;
+    border-radius: 6px;
+    display: inline-block;
+    margin: 0.1rem;
+    transition: all 0.2s ease;
+    border: 1px solid #fbbf24;
+  }
+
+  .alert-modern a:hover {
+    background: #665b1d;
+    color: white;
+    border-color: #665b1d;
+    transform: translateY(-1px);
+  }
+
+  /* Contadores */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .stat-box {
+    background: #ffffff;
+    border: 2px solid #e0e0e0;
+    border-radius: 16px;
+    padding: 1.5rem;
+    text-align: center;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    text-decoration: none;
+    display: block;
+  }
+
+  .stat-box:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    text-decoration: none;
+  }
+
+  .stat-box.info {
+    border-color: #3b82f6;
+  }
+
+  .stat-box.success {
+    border-color: #10b981;
+  }
+
+  .stat-box.danger {
+    border-color: #ef4444;
+  }
+
+  .stat-box h4 {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 1rem;
+  }
+
+  .stat-box .stat-value {
+    font-size: 3rem;
+    font-weight: 700;
+    color: #111827;
+    margin: 0;
+  }
+
+  /* Cards de Requisições */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .req-card {
+    background: #ffffff;
+    border: 2px solid #e0e0e0;
+    border-radius: 16px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    position: relative;
+  }
+
+  .req-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 5px;
+  }
+
+  .req-card.Pendente::before {
+    background: linear-gradient(90deg, #9ca3af 0%, #d1d5db 100%);
+  }
+
+  .req-card.Aprovado::before,
+  .req-card.Aprovado-pelo-CEO::before,
+  .req-card.Aprovado-pela-Diretoria::before {
+    background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+  }
+
+  .req-card.Reprovado::before,
+  .req-card.Reprovado-pelo-CEO::before,
+  .req-card.Reprovado-pela-Diretoria::before {
+    background: linear-gradient(90deg, #ef4444 0%, #f87171 100%);
+  }
+
+  .req-card.Configurado::before {
+    background: linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%);
+  }
+
+  .req-card.Expedido::before {
+    background: linear-gradient(90deg, #8b5cf6 0%, #a78bfa 100%);
+  }
+
+  .req-card.Enviado-para-o-Cliente::before {
+    background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
+  }
+
+  .req-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    border-color: #bfa16c;
+  }
+
+  .req-card-body {
+    padding: 1.5rem;
+  }
+
+  .req-header {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #f0f0f0;
+  }
+
+  .req-header .req-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.3rem;
+  }
+
+  .req-header h5 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #665b1d;
+    margin: 0;
+  }
+
+  .req-info {
+    display: grid;
+    gap: 0.6rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .req-info p {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 0;
+    padding: 0.4rem 0;
+    font-size: 0.9rem;
+    border-bottom: 1px solid #f3f4f6;
+  }
+
+  .req-info p:last-child {
+    border-bottom: none;
+  }
+
+  .req-info strong {
+    font-weight: 600;
+    color: #374151;
+  }
+
+  .req-info span {
+    color: #111827;
+    font-weight: 600;
+    text-align: right;
+  }
+
+  .req-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    padding-top: 1rem;
+    border-top: 2px solid #f0f0f0;
+  }
+
+  .btn-req {
+    padding: 0.7rem 1rem;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+  }
+
+  .btn-req i {
+    font-size: 1rem;
+  }
+
+  .btn-req.primary {
+    background: linear-gradient(90deg, #665b1d 0%, #bfa16c 100%);
+    color: white;
+  }
+
+  .btn-req.primary:hover {
+    background: linear-gradient(90deg, #bfa16c 0%, #665b1d 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 91, 29, 0.3);
+  }
+
+  .btn-req.success {
+    background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+    color: white;
+  }
+
+  .btn-req.success:hover {
+    background: linear-gradient(90deg, #059669 0%, #10b981 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  }
+
+  .btn-req.danger {
+    background: linear-gradient(90deg, #ef4444 0%, #f87171 100%);
+    color: white;
+  }
+
+  .btn-req.danger:hover {
+    background: linear-gradient(90deg, #dc2626 0%, #ef4444 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+  }
+
+  @media (max-width: 768px) {
+    .ceo-header h1 {
+      font-size: 1.8rem;
     }
 
-    .card-status.Aprovado {
-        background: linear-gradient(to bottom, #a0f0a0 0%, #ffffff 100%);
+    .cards-grid {
+      grid-template-columns: 1fr;
     }
 
-    .card-status.Reprovado {
-        background: linear-gradient(to bottom, #f0a0a0 0%, #ffffff 100%);
+    .stats-row {
+      grid-template-columns: 1fr;
     }
 
-    .card-status.Pendente {
-        background: linear-gradient(to bottom, #d0d0d0 0%, #ffffff 100%);
+    .req-actions {
+      grid-template-columns: 1fr;
     }
+  }
 
-    .card-status.Configurado {
-        background: linear-gradient(to bottom, #ffd580 0%, #ffffff 100%);
+  @media (max-width: 1200px) and (min-width: 769px) {
+    .cards-grid {
+      grid-template-columns: repeat(2, 1fr);
     }
+  }
 
-    .card-status.Reprovado-pelo-CEO {
-        background: linear-gradient(to bottom, #f08080 0%, #ffffff 100%);
+  /* Animação */
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
     }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 
-    .card-status.Aprovado-pelo-CEO {
-        background: linear-gradient(to bottom, #80f080 0%, #ffffff 100%);
-    }
-
-    .card-status.Reprovado-pela-Diretoria {
-        background: linear-gradient(to bottom, #f08080 0%, #ffffff 100%);
-    }
-
-    .card-status.Aprovado-pela-Diretoria {
-        background: linear-gradient(to bottom, #80f080 0%, #ffffff 100%);
-    }
-
-    .card-status.Expedido {
-        background: linear-gradient(to bottom, #ffb380 0%, #ffffff 100%);
-    }
-
-    .card-status.Enviado-para-o-Cliente {
-        background: linear-gradient(to bottom, #80b3ff 0%, #ffffff 100%);
-    }
-
-    .card-status.Aprovado-Inteligencia {
-        background: linear-gradient(to bottom, #80f080 0%, #ffffff 100%);
-    }
-
-    .card-body {
-        padding: 20px;
-        word-wrap: break-word;
-        overflow-wrap: break-word;
-    }
-
-    .card-status:hover {
-        transform: scale(1.02);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-    }
-
-    .card-body p {
-        transition: transform 0.3s ease, color 0.3s ease;
-        margin-bottom: 8px;
-        font-size: 0.9rem;
-    }
-
-    .card-body p:hover {
-        transform: translateY(-2px);
-        color: #007bff;
-    }
-    
-    /* Responsividade */
-    @media (max-width: 768px) {
-        .col-md-4 {
-            flex: 0 0 100%;
-            max-width: 100%;
-        }
-        .card-status {
-            max-width: 100%;
-        }
-        .card-body {
-            padding: 15px;
-        }
-    }
-    
-    @media (max-width: 1200px) and (min-width: 769px) {
-        .col-md-4 {
-            flex: 0 0 50%;
-            max-width: 50%;
-        }
-    }
+  .req-card {
+    animation: fadeIn 0.4s ease;
+  }
 </style>
 
-<!-- Mensagens de Alerta -->
-<div class="container">
-    {% if messages %}
-        {% for message in messages %}
-            <div class="alert alert-warning alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-        {% endfor %}
-    {% endif %}
-    <!-- Avisos sobre data de entrega -->
-<!-- Avisos sobre data de entrega -->
-<!-- Avisos sobre data de entrega -->
-<!-- Avisos sobre data de entrega -->
+<div class="ceo-container">
+  <div class="ceo-header">
+    <h1>
+      <i class="bi bi-clipboard-check-fill"></i>
+      Aprovação de Requisições
+    </h1>
+    <p>Gerencie e aprove as requisições pendentes</p>
+  </div>
 
-    <!-- Alerta para requisições sem alteração nas últimas 24 horas -->
-    {% if requisições_sem_alteracao %}
-        <div class="alert alert-warning" role="alert">
-            Existem {{ requisições_sem_alteracao.count }} requisições que não foram alteradas nas últimas 24 horas. IDs:  
-            <strong>
-                {% for item in requisições_sem_alteracao %}
-                    <a href="{% url 'ceodetailview' item.id %}" class="{% if item.status == 'Aprovado pelo CEO' %}text-success{% elif item.status == 'Configurado' %}text-danger{% endif %}">{{ item.id }}</a>
-                    {% if not forloop.last %}, {% endif %}
-                {% endfor %}
-            </strong>
-        </div>
-    {% endif %}
-</div>
+  <!-- Mensagens de Alerta -->
+  {% if messages %}
+  {% for message in messages %}
+  <div class="alert-modern">
+    <i class="bi bi-exclamation-triangle-fill" style="color: #f59e0b; margin-right: 0.5rem;"></i>
+    <span>{{ message }}</span>
+  </div>
+  {% endfor %}
+  {% endif %}
 
-<!-- Contadores de Status -->
-<div class="row mb-4">
-    <div class="col-md-4">
-        <div class="alert alert-info" role="alert">
-            <strong>Pendentes:</strong> <b><h4>{{ total_pendente }}</h4></b>
-        </div>
+  <!-- Alerta para requisições sem alteração -->
+  {% if requisições_sem_alteracao %}
+  <div class="alert-modern">
+    <i class="bi bi-clock-history" style="color: #f59e0b; margin-right: 0.5rem;"></i>
+    <strong>Atenção!</strong> Existem {{ requisições_sem_alteracao.count }} requisições que não foram alteradas nas últimas 24 horas. IDs:
+    {% for item in requisições_sem_alteracao %}
+    <a href="{% url 'ceodetailview' item.id %}">{{ item.id }}</a>{% if not forloop.last %}{% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Contadores de Status -->
+  <div class="stats-row">
+    <div class="stat-box info">
+      <h4>Pendentes</h4>
+      <h2 class="stat-value">{{ total_pendente }}</h2>
     </div>
-    
-    <div class="col-md-4">
-        <a class="button" href="{% url 'ConfiguracaoListView' %}"> 
-        <div class="alert alert-success" role="alert">
-            <a class="dropdown-item" href="{% url 'ConfiguracaoListView' %}"> <strong>Setor de Configuração:</strong> <b><h4>{{ total_aprovado_ceo }}</h4></b>
-        </div>
-    </div></a>
-    
-    <div class="col-md-4">
-        <a class="button" href="{% url 'expedicaoListViews' %}"> 
-        <div class="alert alert-danger" role="alert">
-            <a class="dropdown-item" href="{% url 'expedicaoListViews' %}"> <strong>Expedição:</strong> <b><h4>{{ total_configurado }}</h4></b>
-        </div>
-    </div>
-</a>
-</div>
 
-<!-- Cards de Requisições -->
-<div class="row">
+    <a href="{% url 'ConfiguracaoListView' %}" class="stat-box success">
+      <h4>Setor de Configuração</h4>
+      <h2 class="stat-value">{{ total_aprovado_ceo }}</h2>
+    </a>
+
+    <a href="{% url 'expedicaoListViews' %}" class="stat-box danger">
+      <h4>Expedição</h4>
+      <h2 class="stat-value">{{ total_configurado }}</h2>
+    </a>
+  </div>
+
+  <!-- Cards de Requisições -->
+  <div class="cards-grid">
     {% for item in ceo_list %}
-    <div class="col-md-4 mb-4">
-        <div class="card card-status 
-            {% if item.status == 'Aprovado' %}Aprovado
-            {% elif item.status == 'Reprovado' %}Reprovado
-            {% elif item.status == 'Configurado' %}Configurado
-            {% elif item.status == 'Pendente' %}Pendente
-            {% elif item.status == 'Expedido' %}Expedido
-            {% elif item.status == 'Reprovado pelo CEO' %}Reprovado-pelo-CEO
-            {% elif item.status == 'Aprovado pelo CEO' %}Aprovado-pelo-CEO
-            {% elif item.status == 'Reprovado pela Diretoria' %}Reprovado-pela-Diretoria
-            {% elif item.status == 'Aprovado pela Diretoria' %}Aprovado-pela-Diretoria
-            {% endif %}">
-            <div class="card-body">
-                <h2>Requisição</h2>
-                <h5 class="card-title">{{ item.nome }}</h5>
-                <p><strong>ID:</strong> {{ item.id }}</p>
-                <p><strong>CNPJ:</strong> {{ item.cnpj }}</p>
-                <p><strong>Quantidade:</strong> {{ item.numero_de_equipamentos }}</p>
-                <p><strong>Valor Unitário:</strong> {{ item.valor_unitario }}</p>
-                <p><strong>Valor Total:</strong> {{ item.valor_total }}</p>
-                <p><strong>Comercial:</strong> {{ item.comercial }}</p>
-                <p><strong>Tipo de Produto:</strong> {{ item.tipo_produto }}</p>
-                <p><strong>Tipo de Contrato:</strong> {{ item.contrato }}</p>
-                <p><strong>Observações:</strong> {{ item.observacoes }}</p>
-                <p><strong>Status:</strong> {{ item.status }}</p>
-                <p><strong>TP:</strong> {{ item.TP }}</p>
-                <p><strong>Data de Entrega: </strong> {{ item.data_entrega|date:"d/m/Y " }}</p>
-                
-                <a class="btn btn-primary" href="{% url 'ceodetailview' item.id %}">Visualizar</a>
-                <a class="btn btn-success" href="{% url 'aprovar_ceo' item.id %}">Aprovar</a>
-                <a class="btn btn-danger" href="{% url 'reprovar_ceo' item.id %}">Reprovar</a>
-            </div>
+    <div class="req-card {% if item.status == 'Aprovado' %}Aprovado{% elif item.status == 'Reprovado' %}Reprovado{% elif item.status == 'Configurado' %}Configurado{% elif item.status == 'Pendente' %}Pendente{% elif item.status == 'Expedido' %}Expedido{% elif item.status == 'Reprovado pelo CEO' %}Reprovado-pelo-CEO{% elif item.status == 'Aprovado pelo CEO' %}Aprovado-pelo-CEO{% elif item.status == 'Reprovado pela Diretoria' %}Reprovado-pela-Diretoria{% elif item.status == 'Aprovado pela Diretoria' %}Aprovado-pela-Diretoria{% endif %}">
+      <div class="req-card-body">
+        <div class="req-header">
+          <div class="req-title">Requisição #{{ item.id }}</div>
+          <h5>{{ item.nome }}</h5>
         </div>
+
+        <div class="req-info">
+          <p><strong>CNPJ:</strong> <span>{{ item.cnpj }}</span></p>
+          <p><strong>Quantidade:</strong> <span>{{ item.numero_de_equipamentos }}</span></p>
+          <p><strong>Valor Unitário:</strong> <span>{{ item.valor_unitario }}</span></p>
+          <p><strong>Valor Total:</strong> <span>{{ item.valor_total }}</span></p>
+          <p><strong>Comercial:</strong> <span>{{ item.comercial }}</span></p>
+          <p><strong>Tipo de Produto:</strong> <span>{{ item.tipo_produto }}</span></p>
+          <p><strong>Contrato:</strong> <span>{{ item.contrato }}</span></p>
+          <p><strong>Status:</strong> <span>{{ item.status }}</span></p>
+          <p><strong>TP:</strong> <span>{{ item.TP }}</span></p>
+          <p><strong>Data de Entrega:</strong> <span>{{ item.data_entrega|date:"d/m/Y" }}</span></p>
+          {% if item.observacoes %}
+          <p><strong>Observações:</strong> <span>{{ item.observacoes|truncatewords:8 }}</span></p>
+          {% endif %}
+        </div>
+
+        <div class="req-actions">
+          <a href="{% url 'ceodetailview' item.id %}" class="btn-req primary">
+            <i class="bi bi-eye-fill"></i>
+            Ver
+          </a>
+          <a href="{% url 'aprovar_ceo' item.id %}" class="btn-req success">
+            <i class="bi bi-check-circle-fill"></i>
+            Aprovar
+          </a>
+          <a href="{% url 'reprovar_ceo' item.id %}" class="btn-req danger">
+            <i class="bi bi-x-circle-fill"></i>
+            Reprovar
+          </a>
+        </div>
+      </div>
     </div>
     {% endfor %}
+  </div>
+
+  <!-- Paginação -->
+  {% include 'components/_pagination.html' %}
 </div>
 
-<!-- Componente de Paginação -->
-{% include 'components/_pagination.html' %}
 {% endblock %}

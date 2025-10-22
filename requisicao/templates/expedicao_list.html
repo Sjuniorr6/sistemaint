@@ -1,198 +1,464 @@
 {% extends 'base.html' %}
 {% load static %}
 
+{% block title %} | Expedição | {% endblock %}
+
 {% block content %}
-
-
 <style>
-    .card-status {
-        position: relative;
-        transition: transform 0.3s ease; 
+  .expedicao-container {
+    max-width: 1600px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+  }
 
-    /* removed duplicate block content and style */
-            .card-status.Reprovado-pelo-CEO { background: linear-gradient(135deg, #f08080 0%, #ffeaea 100%); }
-            .card-status.Aprovado-pelo-CEO { background: linear-gradient(135deg, #80f080 0%, #eaffea 100%); }
-            .card-status.Reprovado-pela-Diretoria { background: linear-gradient(135deg, #f08080 0%, #ffeaea 100%); }
-            .card-status.Aprovado-pela-Diretoria { background: linear-gradient(135deg, #80f080 0%, #eaffea 100%); }
-            .card-status.Expedido { background: linear-gradient(135deg, #ffb380 0%, #fff7e6 100%); }
-            .card-status.Enviado-para-o-Cliente { background: linear-gradient(135deg, #80b3ff 0%, #e6f0ff 100%); }
-            .card-status.Aprovado-Inteligencia { background: linear-gradient(135deg, #80f080 0%, #eaffea 100%); }
-            .card-body {
-                padding: 24px 18px;
-                display: flex;
-                flex-direction: column;
-                gap: 10px;
-            }
-            .card-status:hover {
-                transform: scale(1.04);
-                box-shadow: 0 8px 32px rgba(0,0,0,0.12);
-            }
-            .card-title {
-                font-size: 1.3rem;
-                font-weight: 600;
-                color: #333;
-                margin-bottom: 8px;
-            }
-            .card-text {
-                font-size: 1rem;
-                color: #444;
-                margin-bottom: 4px;
-            }
-            .card-body h2 {
-                font-size: 1.1rem;
-                font-weight: 700;
-                color: #555;
-                margin-bottom: 10px;
-            }
-            .btn {
-                margin-right: 8px;
-                margin-bottom: 8px;
-                border-radius: 8px;
-                font-size: 0.95rem;
-                font-weight: 500;
-                padding: 8px 16px;
-            }
-            @media (max-width: 991px) {
-                .col-md-4 { flex: 0 0 50%; max-width: 50%; }
-            }
-            @media (max-width: 767px) {
-                .col-md-4 { flex: 0 0 100%; max-width: 100%; }
-                .container { padding-left: 8px; padding-right: 8px; }
-                .card-body { padding: 16px 8px; }
-                .btn { width: 100%; margin-right: 0; }
-            }
-            .form-control, .form-select {
-                border-radius: 8px;
-                font-size: 1rem;
-                margin-bottom: 8px;
-            }
-            .btn-primary {
-                background: linear-gradient(90deg, #007bff 0%, #0056b3 100%);
-                border: none;
-            }
-            .pagination .page-link {
-                border-radius: 8px;
-                font-size: 1rem;
-            }
-            .pagination .active .page-link {
-                background: #007bff;
-                color: #fff;
-                border: none;
-            }
-        </style>
+  .expedicao-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
 
-        <div class="container mt-4">
-            <div class="d-flex flex-column flex-md-row align-items-center justify-content-between mb-3">
-                <h3 class="display-5 mb-2 mb-md-0" style="font-weight:700;color:#ffd700;letter-spacing:1px;">Expedição</h3>
-                <span class="badge registros-badge" style="font-size:1rem;">{{ expedicao_list|length }} registros p/pagina</span>
-                <style>
-                    .registros-badge {
-                        background: #ffd700 !important;
-                        color: #333 !important;
-                        font-weight: 700;
-                        border-radius: 8px;
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-                    }
-                </style>
-            </div>
-            <div class="row mb-4">
-                <div class="col-md-6">
-                    <form method="get" action="{% url 'expedicaoListViews' %}" class="d-flex flex-column flex-sm-row gap-2 align-items-center">
-                        <input type="text" class="form-control" name="nome" placeholder="Nome" value="{{ request.GET.nome|default:'' }}">
-                        <button type="submit" class="btn btn-primary">Buscar</button>
-                    </form>
-                </div>
-            </div>
-            <div class="row">
-                {% for registro in expedicao_list %}
-                <div class="col-md-4 mb-4 d-flex align-items-stretch">
-                    <div class="card card-status {% if registro.status == 'Aprovado' %}Aprovado{% elif registro.status == 'Reprovado' %}Reprovado{% elif registro.status == 'Configurado' %}Configurado{% elif registro.status == 'Pendente' %}Pendente{% elif registro.status == 'Expedido' %}Expedido{% elif registro.status == 'Enviado para o Cliente' %}Enviado-para-o-Cliente{% endif %}">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <h2 style="font-size:1.1rem;font-weight:700;color:#555;">Requisição</h2>
-                                <span class="badge bg-secondary" style="font-size:0.95rem;">ID: {{ registro.id }}</span>
-                            </div>
-                            <h5 class="card-title">{{ registro.nome }}</h5>
-                            <div class="row">
-                                <div class="col-6">
-                                    <p class="card-text"><b>CNPJ:</b> {{ registro.cnpj }}</p>
-                                    <p class="card-text"><b>Comercial:</b> {{ registro.comercial }}</p>
-                                    <p class="card-text"><b>Tipo de Produto:</b> {{ registro.tipo_produto }}</p>
-                                    <p class="card-text"><b>Quantidade:</b> {{ registro.numero_de_equipamentos }}</p>
-                                </div>
-                                <div class="col-6">
-                                    <p class="card-text"><b>Data:</b> {{ registro.data_alteracao|date:'d/m/Y H:i' }}</p>
-                                    <p class="card-text"><b>Data Alteração:</b> {{ registro.data|date:'d/m/Y H:i' }}</p>
-                                    <p class="card-text"><b>Status:</b> <span class="status-highlight status-{{ registro.status|slugify }}">{{ registro.status }}</span></p>
-                                    <style>
-                                        .status-highlight {
-                                            display: inline-block;
-                                            padding: 3px 10px;
-                                            border-radius: 6px;
-                                            font-weight: 500;
-                                            font-size: 0.98rem;
-                                            box-shadow: none;
-                                            border: 1px solid #e0e0e0;
-                                            background: #f7f7f7;
-                                            color: #444;
-                                            letter-spacing: 0.2px;
-                                        }
-                                        .status-Aprovado {
-                                            background: #eafbe7;
-                                            color: #2e7d32;
-                                            border-color: #cdeac0;
-                                        }
-                                        .status-Reprovado {
-                                            background: #faeaea;
-                                            color: #b71c1c;
-                                            border-color: #f5c6cb;
-                                        }
-                                        .status-Pendente {
-                                            background: #f7f7f7;
-                                            color: #757575;
-                                            border-color: #e0e0e0;
-                                        }
-                                        .status-Configurado, .status-Expedido {
-                                            background: #fff7e6;
-                                            color: #ff9800;
-                                            border-color: #ffe0b2;
-                                        }
-                                        .status-Enviado-para-o-Cliente {
-                                            background: #e6f0ff;
-                                            color: #1976d2;
-                                            border-color: #bbdefb;
-                                        }
-                                        .status-Aprovado-pelo-CEO, .status-Aprovado-pela-Diretoria, .status-Aprovado-Inteligencia {
-                                            background: #eafbe7;
-                                            color: #2e7d32;
-                                            border-color: #cdeac0;
-                                        }
-                                        .status-Reprovado-pelo-CEO, .status-Reprovado-pela-Diretoria {
-                                            background: #faeaea;
-                                            color: #b71c1c;
-                                            border-color: #f5c6cb;
-                                        }
-                                    </style>
-                                    <p class="card-text"><b>TP:</b> {{ registro.TP }}</p>
-                                </div>
-                            </div>
-                            <p class="card-text"><b>Valor Unitário:</b> R$ {{ registro.valor_unitario }}</p>
-                            <p class="card-text"><b>Taxa:</b> R$ {{ registro.taxa_envio }}</p>
-                            <p class="card-text"><b>Observações:</b> {{ registro.observacoes }}</p>
-                            <div class="d-flex flex-wrap gap-2 mt-2">
-                                <a class="btn btn-info" href="{% url 'gerar_pdf_saida' registro.id %}"><i class="fas fa-file-download"></i> Download PDF</a>
-                                <a class="btn btn-info" href="{% url 'download_pdf_requisicao' registro.id %}"><i class="fas fa-file-pdf"></i> Saída PDF</a>
-                                {% if perms.nestle.delete_gridinternacional %}
-                                    <a href="{% url 'requisicoesdeleteview' registro.id %}" class="btn btn-danger"><i class="fas fa-trash-alt"></i> Excluir</a>
-                                    <a class="btn btn-warning" href="{% url 'requisicao_update' registro.id %}"><i class="fas fa-edit"></i> Editar</a>
-                                {% endif %}
-                                <a class="btn btn-success" href="{% url 'expedicao_expedido' registro.id %}"><i class="fas fa-paper-plane"></i> Enviado ao Cliente</a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
+  .expedicao-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #665b1d;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .expedicao-title i {
+    color: #bfa16c;
+  }
+
+  .count-badge {
+    background: linear-gradient(90deg, #665b1d 0%, #bfa16c 100%);
+    color: white;
+    padding: 0.5rem 1.5rem;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 1rem;
+    box-shadow: 0 4px 12px rgba(102, 91, 29, 0.3);
+  }
+
+  /* Search Bar */
+  .search-container {
+    background: #ffffff;
+    border: 2px solid #bfa16c;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 15px rgba(191, 161, 108, 0.1);
+  }
+
+  .search-form {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .search-input {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+  }
+
+  .search-input:focus {
+    outline: none;
+    border-color: #bfa16c;
+    box-shadow: 0 0 0 3px rgba(191, 161, 108, 0.1);
+  }
+
+  .btn-search {
+    background: linear-gradient(90deg, #665b1d 0%, #bfa16c 100%);
+    color: white;
+    border: none;
+    padding: 0.75rem 2rem;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .btn-search:hover {
+    background: linear-gradient(90deg, #bfa16c 0%, #665b1d 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 91, 29, 0.3);
+  }
+
+  /* Cards Grid */
+  .expedicao-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.2rem;
+  }
+
+  .exp-card {
+    background: #ffffff;
+    border: 2px solid #e0e0e0;
+    border-radius: 12px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    position: relative;
+  }
+
+  .exp-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%);
+  }
+
+  .exp-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+    border-color: #bfa16c;
+  }
+
+  .exp-card-header {
+    padding: 1rem;
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .exp-card-header .title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .exp-card-header .id-badge {
+    background: #665b1d;
+    color: white;
+    padding: 0.3rem 0.8rem;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 700;
+  }
+
+  .exp-card-body {
+    padding: 1rem;
+  }
+
+  .client-name {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 1rem;
+  }
+
+  .info-compact {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+  }
+
+  .info-compact-item {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .info-compact-item .label {
+    font-weight: 600;
+    color: #6b7280;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+  }
+
+  .info-compact-item .value {
+    color: #111827;
+    font-weight: 600;
+    margin-top: 0.2rem;
+  }
+
+  .status-badge {
+    display: inline-block;
+    padding: 0.3rem 0.8rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fbbf24;
+  }
+
+  .observacoes-section {
+    background: #fffbeb;
+    border: 1px solid #fbbf24;
+    border-radius: 8px;
+    padding: 0.8rem;
+    margin-top: 1rem;
+  }
+
+  .obs-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #92400e;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .obs-label i {
+    color: #f59e0b;
+    font-size: 0.85rem;
+  }
+
+  .obs-content {
+    font-size: 0.85rem;
+    color: #78350f;
+    line-height: 1.4;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
+  }
+
+  .exp-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding-top: 1rem;
+    border-top: 1px solid #f0f0f0;
+  }
+
+  .btn-exp {
+    flex: 1;
+    min-width: calc(50% - 0.2rem);
+    padding: 0.5rem 0.8rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+  }
+
+  .btn-exp i {
+    font-size: 0.9rem;
+  }
+
+  .btn-exp.pdf {
+    background: #3b82f6;
+    color: white;
+  }
+
+  .btn-exp.pdf:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+  }
+
+  .btn-exp.pdf-alt {
+    background: #06b6d4;
+    color: white;
+  }
+
+  .btn-exp.pdf-alt:hover {
+    background: #0891b2;
+    transform: translateY(-1px);
+  }
+
+  .btn-exp.edit {
+    background: #f59e0b;
+    color: white;
+  }
+
+  .btn-exp.edit:hover {
+    background: #d97706;
+    transform: translateY(-1px);
+  }
+
+  .btn-exp.delete {
+    background: #ef4444;
+    color: white;
+  }
+
+  .btn-exp.delete:hover {
+    background: #dc2626;
+    transform: translateY(-1px);
+  }
+
+  .btn-exp.send {
+    background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+    color: white;
+    flex: 1 1 100%;
+  }
+
+  .btn-exp.send:hover {
+    background: linear-gradient(90deg, #059669 0%, #10b981 100%);
+    transform: translateY(-1px);
+  }
+
+  @media (max-width: 768px) {
+    .expedicao-title {
+      font-size: 1.8rem;
+    }
+
+    .expedicao-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .search-form {
+      flex-direction: column;
+    }
+
+    .btn-search {
+      width: 100%;
+    }
+
+    .btn-exp {
+      min-width: 100%;
+    }
+  }
+
+  @media (max-width: 1400px) and (min-width: 769px) {
+    .expedicao-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+</style>
+
+<div class="expedicao-container">
+  <div class="expedicao-header">
+    <h1 class="expedicao-title">
+      <i class="bi bi-truck"></i>
+      Expedição
+    </h1>
+    <div class="count-badge">
+      {{ expedicao_list|length }} registros
+    </div>
+  </div>
+
+  <!-- Search Bar -->
+  <div class="search-container">
+    <form method="get" action="{% url 'expedicaoListViews' %}" class="search-form">
+      <input type="text" class="search-input" name="nome" placeholder="Buscar por nome do cliente..." value="{{ request.GET.nome|default:'' }}">
+      <button type="submit" class="btn-search">
+        <i class="bi bi-search"></i> Buscar
+      </button>
+    </form>
+  </div>
+
+  <!-- Cards Grid -->
+  <div class="expedicao-grid">
+    {% for registro in expedicao_list %}
+    <div class="exp-card">
+      <div class="exp-card-header">
+        <div class="title">Requisição</div>
+        <div class="id-badge">#{{ registro.id }}</div>
+      </div>
+
+      <div class="exp-card-body">
+        <div class="client-name">{{ registro.nome }}</div>
+
+        <div class="info-compact">
+          <div class="info-compact-item">
+            <span class="label">CNPJ</span>
+            <span class="value">{{ registro.cnpj|truncatechars:15 }}</span>
+          </div>
+
+          <div class="info-compact-item">
+            <span class="label">Quantidade</span>
+            <span class="value">{{ registro.numero_de_equipamentos }}</span>
+          </div>
+
+          <div class="info-compact-item">
+            <span class="label">Produto</span>
+            <span class="value">{{ registro.tipo_produto|truncatechars:12 }}</span>
+          </div>
+
+          <div class="info-compact-item">
+            <span class="label">Comercial</span>
+            <span class="value">{{ registro.comercial|truncatechars:12 }}</span>
+          </div>
+
+          <div class="info-compact-item">
+            <span class="label">Cabo</span>
+            <span class="value">{{ registro.cabo|default:"Não"|truncatechars:10 }}</span>
+          </div>
+
+          <div class="info-compact-item">
+            <span class="label">Carregador</span>
+            <span class="value">{{ registro.carregador|default:"Não"|truncatechars:10 }}</span>
+          </div>
+
+          <div class="info-compact-item">
+            <span class="label">Valor Unit.</span>
+            <span class="value">R$ {{ registro.valor_unitario }}</span>
+          </div>
+
+          <div class="info-compact-item">
+            <span class="label">Status</span>
+            <span class="status-badge">{{ registro.status }}</span>
+          </div>
         </div>
-        {% endblock %}
-</script>
+
+        {% if registro.observacoes %}
+        <div class="observacoes-section">
+          <div class="obs-label">
+            <i class="bi bi-chat-left-text-fill"></i>
+            Observações
+          </div>
+          <div class="obs-content">{{ registro.observacoes }}</div>
+        </div>
+        {% endif %}
+
+        <div class="exp-actions">
+          <a class="btn-exp pdf" href="{% url 'gerar_pdf_saida' registro.id %}" title="Download PDF">
+            <i class="bi bi-file-earmark-arrow-down-fill"></i>
+            PDF 1
+          </a>
+          <a class="btn-exp pdf-alt" href="{% url 'download_pdf_requisicao' registro.id %}" title="Saída PDF">
+            <i class="bi bi-file-earmark-pdf-fill"></i>
+            PDF 2
+          </a>
+
+          {% if perms.nestle.delete_gridinternacional %}
+          <a href="{% url 'requisicao_update' registro.id %}" class="btn-exp edit" title="Editar">
+            <i class="bi bi-pencil-square"></i>
+            Editar
+          </a>
+          <a href="{% url 'requisicoesdeleteview' registro.id %}" class="btn-exp delete" title="Excluir">
+            <i class="bi bi-trash-fill"></i>
+            Excluir
+          </a>
+          {% endif %}
+
+          <a class="btn-exp send" href="{% url 'expedicao_expedido' registro.id %}" title="Enviado ao Cliente">
+            <i class="bi bi-send-fill"></i>
+            Enviado ao Cliente
+          </a>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% endblock %}

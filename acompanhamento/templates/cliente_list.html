@@ -1,38 +1,35 @@
-{% extends 'base.html' %}
-
-{% block title %}
-| Grupo Golden Sat |
-{% endblock %}
-
+{% extends 'base.html' %} {% block title %} | Grupo Golden Sat | {% endblock %}
 {% block content %}
 <style>
   /* remove scroll horizontal global */
-  html, body {
-      overflow-x: hidden;
-      overflow-y: hidden;
+  html,
+  body {
+    overflow-x: hidden;
+    overflow-y: hidden;
   }
 
   /* sobrescreve container padrão */
-  .container.mt-4, .container {
-      width: 100% !important;
-      max-width: 100% !important;
-      margin: 0 !important;
-      padding: 0 !important;
+  .container.mt-4,
+  .container {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
   .container-page {
-      width: 100%;
-      max-width: 100%;
-      margin: 0;
-      padding: 0;
-      position: relative;
-      overflow-x: hidden; /* página não rola na horizontal */
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    position: relative;
+    overflow-x: hidden; /* página não rola na horizontal */
   }
 
   /* wrapper com scroll só para a tabela */
   .table-scroll {
     max-height: 70vh;
-    overflow-x: auto;  /* scroll horizontal só aqui */
+    overflow-x: auto; /* scroll horizontal só aqui */
     overflow-y: auto;
     width: 100%;
     margin-top: 0px !important;
@@ -54,40 +51,58 @@
     background: #212529 !important;
     color: #fff;
     z-index: 10;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
   }
 </style>
 
 <div class="container-page mt-2 mb-5">
   <div class="w-100 py-1">
-    <div class="alert alert-info py-2 mb-2" style="width: 100%;">
+    <div class="alert alert-info py-2 mb-2" style="width: 100%">
       <i class="bi bi-info-circle"></i>
-      Dica: Use o scroll horizontal → para ver todas as colunas da tabela.
-      O cabeçalho permanece fixo durante a rolagem.
+      Dica: Use o scroll horizontal → para ver todas as colunas da tabela. O
+      cabeçalho permanece fixo durante a rolagem.
     </div>
-    <div class="card shadow-sm mb-4" style="width: 100%;">
+    <div class="card shadow-sm mb-4" style="width: 100%">
       <div class="card-body">
-        <form method="get" action="{% url 'cliente_list' %}">            
+        <form method="get" action="{% url 'cliente_list' %}">
           <div class="row g-2 align-items-end">
             <div class="col-lg-4 col-md-4 col-sm-12 d-flex align-items-center">
-              <input type="text" class="form-control me-2" name="nome" placeholder="Buscar por nome" value="{{ request.GET.nome }}">
-              <button type="submit" class="btn btn-primary d-flex align-items-center me-2">
+              <input
+                type="text"
+                class="form-control me-2"
+                name="nome"
+                placeholder="Buscar por nome"
+                value="{{ request.GET.nome }}"
+              />
+              <button
+                type="submit"
+                class="btn btn-primary d-flex align-items-center me-2"
+              >
                 <i class="bi bi-search me-1"></i>
                 <span>Filtrar</span>
               </button>
-              <a href="{% url 'cliente_list' %}" class="btn btn-outline-secondary d-flex align-items-center me-2">
+              <a
+                href="{% url 'cliente_list' %}"
+                class="btn btn-outline-secondary d-flex align-items-center me-2"
+              >
                 <i class="bi bi-x-circle me-1"></i>
                 <span>Limpar</span>
               </a>
-              <a href="{% url 'cliente_create' %}" class="btn btn-success d-flex align-items-center ms-2" style="white-space: nowrap;">
+              <a
+                href="{% url 'cliente_create' %}"
+                class="btn btn-success d-flex align-items-center ms-2"
+                style="white-space: nowrap"
+              >
                 <i class="bi bi-person-plus me-1"></i>
                 <span>Criar cliente</span>
               </a>
             </div>
           </div>
         </form>
-  <div class="table-scroll">
-          <table class="table table-hover table-bordered align-middle table-wide">
+        <div class="table-scroll">
+          <table
+            class="table table-hover table-bordered align-middle table-wide"
+          >
             <thead class="table-dark sticky">
               <tr>
                 <th class="text-center">ID</th>
@@ -111,8 +126,8 @@
                 <th class="text-center">Ações</th>
               </tr>
             </thead>
-            <br>
-            <br>
+            <br />
+            <br />
             <tbody>
               {% for cliente in cliente %}
               <tr>
@@ -123,7 +138,7 @@
                 <td>{{ cliente.cnpj }}</td>
                 <td>{{ cliente.comercial }}</td>
                 <td>{{ cliente.tipo_contrato }}</td>
-                <td>{{ cliente.inicio_de_contrato }}</td>
+                <td>{{ cliente.inicio_de_contrato | date:"d/m/Y" }}</td>
                 <td>{{ cliente.vigencia }}</td>
                 <td>{{ cliente.status }}</td>
                 <td>{{ cliente.termino }}</td>
@@ -135,13 +150,25 @@
                 <td>{{ cliente.seguradora }}</td>
                 <td>{{ cliente.data_treinamento }}</td>
                 <td>
-                  <a href="{% url 'cliente_update' cliente.id %}" class="btn btn-warning btn-sm" title="Editar">
+                  <a
+                    href="{% url 'cliente_update' cliente.id %}"
+                    class="btn btn-warning btn-sm"
+                    title="Editar"
+                  >
                     <i class="bi bi-pencil"></i>
                   </a>
-                  <a href="{% url 'cliente_detail' cliente.id %}" class="btn btn-info btn-sm" title="Visualizar">
+                  <a
+                    href="{% url 'cliente_detail' cliente.id %}"
+                    class="btn btn-info btn-sm"
+                    title="Visualizar"
+                  >
                     <i class="bi bi-eye"></i>
                   </a>
-                  <a href="{% url 'cliente_delete' cliente.id %}" class="btn btn-danger btn-sm" title="Excluir">
+                  <a
+                    href="{% url 'cliente_delete' cliente.id %}"
+                    class="btn btn-danger btn-sm"
+                    title="Excluir"
+                  >
                     <i class="bi bi-trash"></i>
                   </a>
                 </td>
@@ -150,7 +177,7 @@
             </tbody>
           </table>
         </div>
-        <br>
+        <br />
         {% include 'components/_pagination.html' %}
       </div>
     </div>
