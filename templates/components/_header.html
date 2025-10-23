@@ -361,6 +361,7 @@
                             <li><a class="dropdown-item" href="{% url 'reativacao_list' %}">Histórico de Reativações</a></li>
                             <li><a class="dropdown-item" href="{% url 'requisicoes_list' %}">Histórico de Requisições</a></li>
                             <li><a class="dropdown-item" href="{% url 'faturamento_list' %}">Planilha de Faturamento</a></li>
+                            <li><a class="dropdown-item" href="{% url 'historico_manutencaoListView' %}">Histórico de Manutenção</a></li>
                             <!-- Aprovação de requisições (CEO) -->
                             {% if perms.produto.add_produto %}
                             {% if perms.saidas.delete_saidas %}
