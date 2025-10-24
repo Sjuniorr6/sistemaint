@@ -329,8 +329,8 @@ def download_protocolo_entrada(request, pk):
         ["Nº REGISTRO:", str(registro.id), "DATA:", registro.data_criacao.strftime("%d/%m/%Y")],
         ["NOME:", str(registro.nome), "TIPO ENTRADA:", registro.tipo_entrada],
         ["MOTIVO:", registro.motivo, "TIPO PRODUTO:", registro.tipo_produto],
-        ["CUSTOMIZAÇÃO:", registro.tipo_customizacao, "TIPO DE CONTRATO:", registro.tipo_contrato],
-        ["QUANTIDADE", registro.quantidade],"ENTREGUE POR:", registro.entregue_por_retirado_por
+        ["CUSTOMIZAÇÃO:", registro.tipo_customizacao, "ENTREGUE POR:", registro.entregue_por_retirado_por],
+        ["QUANTIDADE", registro.quantidade],
     ]
 
     # Aplique o fundo amarelo nos títulos
@@ -508,7 +508,7 @@ def download_pdf(request, pk):
         ["Nome", Paragraph(str(registro.nome or "Não informado"), body_style)],
         ["Tipo de Entrada", Paragraph(registro.tipo_entrada or "Não informado", body_style)],
         ["Tipo de Produto", Paragraph(str(registro.tipo_produto or "Não informado"), body_style)],
-        ["Tipo de Contrato", Paragraph(str(registro.tipo_contrato or "Não informado"), body_style)],
+        ["Tipo de Contrato", Paragraph(str(registro.tipo_produto or "Não informado"), body_style)],
         ["Motivo", Paragraph(registro.motivo or "Não informado", body_style)],
         ["Customização", Paragraph(registro.customizacaoo or "Não informado", body_style)],
         ["Número Equipamento", Paragraph(registro.numero_equipamento or "Não informado", body_style)],
