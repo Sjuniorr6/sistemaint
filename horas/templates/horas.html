@@ -1,183 +1,227 @@
 {% extends 'base.html' %}
+{% load static %}
 {% block content %}
-<div class="container mt-5">
-  <div class="row justify-content-center">
-    <div class="col-md-8">
-      <div class="card shadow-sm">
-        <div class="card-header bg-primary text-white">
-          <h4 class="mb-0">Cadastrar Horas</h4>
-        </div>
-        <div class="card-body">
-          <form method="POST" enctype="multipart/form-data">
-            {% csrf_token %}
-            {{ form.non_field_errors }}
-            
-            {# Campo Funcionário (Select) #}
-            <div class="mb-3">
-              <label for="{{ form.funcionario.id_for_label }}" class="form-label">Funcionário</label>
-              <select name="{{ form.funcionario.html_name }}" id="{{ form.funcionario.id_for_label }}" class="form-select">
-                {% for value, label in form.funcionario.field.choices %}
-                  <option value="{{ value }}" {% if form.funcionario.value|stringformat:"s" == value|stringformat:"s" %}selected{% endif %}>
-                    {{ label }}
-                  </option>
-                {% endfor %}
-              </select>
-              {% for error in form.funcionario.errors %}
-                <div class="invalid-feedback d-block">{{ error }}</div>
-              {% endfor %}
-            </div>
-            
-            {# Campo Hora Inicial #}
-            <div class="mb-3">
-              <label for="{{ form.hora_inicial.id_for_label }}" class="form-label">Hora Inicial</label>
-              <input type="text"
-                     name="{{ form.hora_inicial.html_name }}"
-                     id="{{ form.hora_inicial.id_for_label }}"
-                     class="form-control"
-                     value="{{ form.hora_inicial.value|default:'' }}"
-                     placeholder="DD/MM/AAAA HH:MM:SS"
-                     onclick="fillCurrentDateTime('{{ form.hora_inicial.id_for_label }}')">
-              <small class="form-text text-muted">Clique para preencher com data e hora atual. Formatos aceitos: DD/MM/AAAA HH:MM:SS, AAAA-MM-DD HH:MM:SS, DD/MM/AAAA, AAAA-MM-DD</small>
-              {% for error in form.hora_inicial.errors %}
-                <div class="invalid-feedback d-block">{{ error }}</div>
-              {% endfor %}
-            </div>
-            
-            {# Campo Hora Final #}
-            <div class="mb-3">
-              <label for="{{ form.hora_final.id_for_label }}" class="form-label">Hora Final</label>
-              <input type="text"
-                     name="{{ form.hora_final.html_name }}"
-                     id="{{ form.hora_final.id_for_label }}"
-                     class="form-control"
-                     value="{{ form.hora_final.value|default:'' }}"
-                     placeholder="DD/MM/AAAA HH:MM:SS"
-                     onclick="fillCurrentDateTime('{{ form.hora_final.id_for_label }}')">
-              <small class="form-text text-muted">Clique para preencher com data e hora atual. Formatos aceitos: DD/MM/AAAA HH:MM:SS, AAAA-MM-DD HH:MM:SS, DD/MM/AAAA, AAAA-MM-DD</small>
-              {% for error in form.hora_final.errors %}
-                <div class="invalid-feedback d-block">{{ error }}</div>
-              {% endfor %}
-            </div>
-            
-            {# Campo Comprovante 1 (Arquivo) #}
-            <div class="mb-3">
-              <label for="{{ form.comprovante1.id_for_label }}" class="form-label">Comprovante 1</label>
-              <input type="file"
-                     name="{{ form.comprovante1.html_name }}"
-                     id="{{ form.comprovante1.id_for_label }}"
-                     class="form-control">
-              {% for error in form.comprovante1.errors %}
-                <div class="invalid-feedback d-block">{{ error }}</div>
-              {% endfor %}
-            </div>
-            
-            {# Campo Comprovante 2 (Arquivo) #}
-            <div class="mb-3">
-              <label for="{{ form.comprovante2.id_for_label }}" class="form-label">Comprovante 2</label>
-              <input type="file"
-                     name="{{ form.comprovante2.html_name }}"
-                     id="{{ form.comprovante2.id_for_label }}"
-                     class="form-control">
-              {% for error in form.comprovante2.errors %}
-                <div class="invalid-feedback d-block">{{ error }}</div>
-              {% endfor %}
-            </div>
-            
-            {# Campo Motivo #}
-            <div class="mb-3">
-              <label for="{{ form.motivo.id_for_label }}" class="form-label">Motivo</label>
-              <input type="text"
-                     name="{{ form.motivo.html_name }}"
-                     id="{{ form.motivo.id_for_label }}"
-                     class="form-control"
-                     value="{{ form.motivo.value|default:'' }}">
-              {% for error in form.motivo.errors %}
-                <div class="invalid-feedback d-block">{{ error }}</div>
-              {% endfor %}
-            </div>
-            
-            {# Campo Total #}
-            <div class="mb-3">
-              <label for="{{ form.total.id_for_label }}" class="form-label">Total</label>
-              <input type="number"
-                     step="0.01"
-                     name="{{ form.total.html_name }}"
-                     id="{{ form.total.id_for_label }}"
-                     class="form-control"
-                     value="{{ form.total.value|default:'' }}">
-              {% for error in form.total.errors %}
-                <div class="invalid-feedback d-block">{{ error }}</div>
-              {% endfor %}
-            </div>
-            
-            <button type="submit" class="btn btn-primary">Salvar</button>
-          </form>
-        </div>
-      </div>
-    </div>
-  </div>
+
+<style>
+    /* Importar ícones */
+    @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
+    
+    /* Header modernizado */
+    .page-header {
+        background: linear-gradient(135deg, #665b1d 0%, #bfa16c 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 15px;
+        margin-bottom: 30px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        text-align: center;
+    }
+    
+    .page-header h1 {
+        margin: 0;
+        font-size: 2rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+    }
+    
+    .page-header h1 i {
+        font-size: 2.5rem;
+    }
+
+    .form-card {
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        padding: 35px;
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
+    .form-label {
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 8px;
+    }
+
+    .form-control, .form-select {
+        border: 2px solid #e0e0e0;
+        border-radius: 10px;
+        padding: 12px 15px;
+        transition: all 0.3s ease;
+    }
+
+    .form-control:focus, .form-select:focus {
+        border-color: #665b1d;
+        box-shadow: 0 0 0 0.2rem rgba(102, 91, 29, 0.25);
+        outline: none;
+    }
+
+    .btn-submit {
+        background: linear-gradient(135deg, #665b1d 0%, #bfa16c 100%);
+        border: none;
+        color: white;
+        font-weight: 600;
+        padding: 14px 28px;
+        border-radius: 10px;
+        font-size: 1.1rem;
+        transition: all 0.3s ease;
+        width: 100%;
+    }
+
+    .btn-submit:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(102, 91, 29, 0.3);
+        color: white;
+    }
+    
+    .invalid-feedback {
+        color: #dc3545;
+        font-size: 0.875rem;
+        margin-top: 5px;
+    }
+</style>
+
+<!-- Header modernizado -->
+<div class="page-header">
+    <h1><i class="fas fa-clock"></i> Cadastrar Horas Extras</h1>
 </div>
 
-<!-- Função JavaScript para preencher os campos de hora com data e hora atual -->
+<div class="form-card">
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        
+        <div class="mb-3">
+            <label for="{{ form.funcionario.id_for_label }}" class="form-label">
+                <i class="fas fa-user"></i> Funcionário
+            </label>
+            <select name="{{ form.funcionario.html_name }}" id="{{ form.funcionario.id_for_label }}" class="form-select">
+                {% for value, label in form.funcionario.field.choices %}
+                    <option value="{{ value }}" {% if form.funcionario.value|stringformat:"s" == value|stringformat:"s" %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                {% endfor %}
+            </select>
+            {% for error in form.funcionario.errors %}
+                <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+        </div>
+        
+        <div class="mb-3">
+            <label for="{{ form.hora_inicial.id_for_label }}" class="form-label">
+                <i class="fas fa-play-circle"></i> Hora Inicial
+            </label>
+            <input type="text"
+                   name="{{ form.hora_inicial.html_name }}"
+                   id="{{ form.hora_inicial.id_for_label }}"
+                   class="form-control"
+                   value="{{ form.hora_inicial.value|default:'' }}"
+                   placeholder="DD/MM/AAAA HH:MM:SS"
+                   onclick="fillCurrentDateTime('{{ form.hora_inicial.id_for_label }}')">
+            <small class="form-text text-muted">Clique para preencher com data e hora atual</small>
+            {% for error in form.hora_inicial.errors %}
+                <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+        </div>
+        
+        <div class="mb-3">
+            <label for="{{ form.hora_final.id_for_label }}" class="form-label">
+                <i class="fas fa-stop-circle"></i> Hora Final
+            </label>
+            <input type="text"
+                   name="{{ form.hora_final.html_name }}"
+                   id="{{ form.hora_final.id_for_label }}"
+                   class="form-control"
+                   value="{{ form.hora_final.value|default:'' }}"
+                   placeholder="DD/MM/AAAA HH:MM:SS"
+                   onclick="fillCurrentDateTime('{{ form.hora_final.id_for_label }}')">
+            <small class="form-text text-muted">Clique para preencher com data e hora atual</small>
+            {% for error in form.hora_final.errors %}
+                <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="{{ form.comprovante1.id_for_label }}" class="form-label">
+                    <i class="fas fa-file-upload"></i> Comprovante 1
+                </label>
+                <input type="file"
+                       name="{{ form.comprovante1.html_name }}"
+                       id="{{ form.comprovante1.id_for_label }}"
+                       class="form-control">
+                {% for error in form.comprovante1.errors %}
+                    <div class="invalid-feedback d-block">{{ error }}</div>
+                {% endfor %}
+            </div>
+            
+            <div class="col-md-6 mb-3">
+                <label for="{{ form.comprovante2.id_for_label }}" class="form-label">
+                    <i class="fas fa-file-upload"></i> Comprovante 2
+                </label>
+                <input type="file"
+                       name="{{ form.comprovante2.html_name }}"
+                       id="{{ form.comprovante2.id_for_label }}"
+                       class="form-control">
+                {% for error in form.comprovante2.errors %}
+                    <div class="invalid-feedback d-block">{{ error }}</div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <div class="mb-3">
+            <label for="{{ form.motivo.id_for_label }}" class="form-label">
+                <i class="fas fa-comment"></i> Motivo
+            </label>
+            <input type="text"
+                   name="{{ form.motivo.html_name }}"
+                   id="{{ form.motivo.id_for_label }}"
+                   class="form-control"
+                   value="{{ form.motivo.value|default:'' }}">
+            {% for error in form.motivo.errors %}
+                <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+        </div>
+        
+        <div class="mb-3">
+            <label for="{{ form.total.id_for_label }}" class="form-label">
+                <i class="fas fa-calculator"></i> Total
+            </label>
+            <input type="number"
+                   step="0.01"
+                   name="{{ form.total.html_name }}"
+                   id="{{ form.total.id_for_label }}"
+                   class="form-control"
+                   value="{{ form.total.value|default:'' }}">
+            {% for error in form.total.errors %}
+                <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+        </div>
+        
+        <button type="submit" class="btn btn-submit">
+            <i class="fas fa-save"></i> Salvar Horas
+        </button>
+    </form>
+</div>
+
+<!-- Script mantido -->
 <script>
-// Função principal que registra a data e hora exata do momento do clique
 function fillCurrentDateTime(fieldId) {
-  // Captura o momento exato do clique
   var now = new Date();
-  
-  // Extrai os componentes da data e hora
   var year = now.getFullYear();
   var month = ('0' + (now.getMonth() + 1)).slice(-2);
   var day = ('0' + now.getDate()).slice(-2);
   var hours = ('0' + now.getHours()).slice(-2);
   var minutes = ('0' + now.getMinutes()).slice(-2);
   var seconds = ('0' + now.getSeconds()).slice(-2);
-  
-  // Formato brasileiro (DD/MM/AAAA HH:MM:SS) - padrão
   var dateTimeString = day + '/' + month + '/' + year + ' ' + hours + ':' + minutes + ':' + seconds;
-  
-  // Preenche o campo com a data e hora exata do clique
   document.getElementById(fieldId).value = dateTimeString;
-  
-  // Log para debug (opcional)
-  console.log('Data e hora registrada:', dateTimeString, 'para o campo:', fieldId);
 }
 
-// Função para preencher apenas a data (sem hora) no momento do clique
-function fillCurrentDate(fieldId) {
-  var now = new Date();
-  var year = now.getFullYear();
-  var month = ('0' + (now.getMonth() + 1)).slice(-2);
-  var day = ('0' + now.getDate()).slice(-2);
-  
-  // Formato brasileiro: DD/MM/AAAA
-  var dateString = day + '/' + month + '/' + year;
-  document.getElementById(fieldId).value = dateString;
-  
-  console.log('Data registrada:', dateString, 'para o campo:', fieldId);
-}
-
-// Função para preencher formato internacional no momento do clique
-function fillCurrentDateTimeInternational(fieldId) {
-  var now = new Date();
-  var year = now.getFullYear();
-  var month = ('0' + (now.getMonth() + 1)).slice(-2);
-  var day = ('0' + now.getDate()).slice(-2);
-  var hours = ('0' + now.getHours()).slice(-2);
-  var minutes = ('0' + now.getMinutes()).slice(-2);
-  var seconds = ('0' + now.getSeconds()).slice(-2);
-  
-  // Formato internacional (AAAA-MM-DD HH:MM:SS)
-  var dateTimeString = year + '-' + month + '-' + day + ' ' + hours + ':' + minutes + ':' + seconds;
-  
-  document.getElementById(fieldId).value = dateTimeString;
-  
-  console.log('Data e hora internacional registrada:', dateTimeString, 'para o campo:', fieldId);
-}
-
-// Adiciona event listeners para capturar o clique de forma mais precisa
 document.addEventListener('DOMContentLoaded', function() {
-  // Adiciona listeners para os campos de data/hora
   var horaInicialField = document.getElementById('{{ form.hora_inicial.id_for_label }}');
   var horaFinalField = document.getElementById('{{ form.hora_final.id_for_label }}');
   

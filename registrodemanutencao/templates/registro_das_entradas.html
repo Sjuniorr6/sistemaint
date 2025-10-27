@@ -1,144 +1,276 @@
 {% extends 'base.html' %}
+{% load static %}
 {% block title %}
 | Grupo Golden Sat | 
 {% endblock %}
 
 {% block content %}
 <style>
-    /* Botões */
-    .btn-manutencao {
-        background: linear-gradient(90deg, #614b1b 0%, #c97d0b 100%);
-        border: none;
-        color: #fff;
+    /* Importar ícones */
+    @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
+    
+    /* Container principal */
+    .page-header {
+        background: linear-gradient(135deg, #665b1d 0%, #bfa16c 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 15px;
+        margin-bottom: 30px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    }
+    
+    .page-header h1 {
+        margin: 0;
+        font-size: 1.8rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    
+    .page-header h1 i {
+        font-size: 2rem;
+    }
+
+    /* Formulário de busca modernizado */
+    .search-form {
+        background: white;
+        padding: 25px;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        margin-bottom: 30px;
+    }
+    
+    .search-form .form-label {
+        color: #333;
         font-weight: 600;
+        margin-bottom: 8px;
+        font-size: 0.9rem;
     }
-    .btn-relatorio {
-        background: linear-gradient(90deg, #39373a 0%, #39373a 100%);
-        border: none;
-        color: #fff;
-        font-weight: 600;
-    }
-    .btn-primary, .btn-info, .btn-success, .btn-warning, .btn-danger, .btn-diretoria {
-        border: none;
-        font-weight: 600;
-    }
-    .btn-primary, .btn-info {
-        background: linear-gradient(90deg, #39373a 0%, #39373a 100%);
-        color: #fff;
-    }
-    .btn-success {
-        background: linear-gradient(90deg, #28a745 0%, #218838 100%);
-    }
-    .btn-warning, .btn-diretoria {
-        background: linear-gradient(90deg, #ffc107 0%, #e0a800 100%);
+    
+    .search-form .form-control {
+        border: 2px solid #e0e0e0;
+        border-radius: 10px;
+        padding: 10px 15px;
+        transition: all 0.3s ease;
         color: #333;
     }
+    
+    .search-form .form-control:focus {
+        border-color: #665b1d;
+        box-shadow: 0 0 0 0.2rem rgba(102, 91, 29, 0.25);
+    }
+
+    /* Botões modernos */
+    .btn-relatorio {
+        background: linear-gradient(135deg, #665b1d 0%, #bfa16c 100%);
+        border: none;
+        color: #fff;
+        font-weight: 600;
+    }
+    
+    .btn-relatorio:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(102, 91, 29, 0.3);
+    }
+    
+    .btn-primary {
+        background: linear-gradient(135deg, #665b1d 0%, #bfa16c 100%);
+        border: none;
+        color: #fff;
+        font-weight: 600;
+    }
+    
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(102, 91, 29, 0.3);
+    }
+    
+    .btn-info {
+        background: linear-gradient(135deg, #45494E 0%, #6b6d71 100%);
+        border: none;
+        color: #fff;
+        font-weight: 600;
+    }
+    
+    .btn-info:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(69, 73, 78, 0.3);
+    }
+    
+    .btn-success {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        border: none;
+        color: #fff;
+        font-weight: 600;
+    }
+    
+    .btn-success:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(40, 167, 69, 0.3);
+    }
+    
+    .btn-warning, .btn-diretoria {
+        background: linear-gradient(135deg, #665b1d 0%, #ffd700 100%);
+        border: none;
+        color: #333;
+        font-weight: 600;
+    }
+    
+    .btn-warning:hover, .btn-diretoria:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(102, 91, 29, 0.3);
+    }
+    
     .btn-danger {
-        background: linear-gradient(90deg, #dc3545 0%, #c82333 100%);
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        border: none;
+        color: #fff;
+        font-weight: 600;
     }
-    .btn-diretoria {
-        background: linear-gradient(90deg, #ffc107 0%, #ff9800 100%);
+    
+    .btn-danger:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(220, 53, 69, 0.3);
     }
+    
     .btn {
-        margin-right: 6px;
-        margin-bottom: 6px;
-        border-radius: 8px;
+        margin-right: 8px;
+        margin-bottom: 8px;
+        border-radius: 10px;
         font-size: 0.92rem;
         font-weight: 500;
-        padding: 6px 0;
-        min-width: 90px;
-        text-align: center;
-        display: inline-block;
+        padding: 8px 16px;
+        transition: all 0.3s ease;
         box-sizing: border-box;
     }
 
-    /* Espaçamento entre os cards */
+    /* Cards modernizados */
     .card-spacing {
-        margin-bottom: 32px; /* ajuste conforme desejado */
+        margin-bottom: 32px;
     }
 
-    /* Cards */
     .card-status {
         position: relative;
         transition: transform 0.3s ease, box-shadow 0.3s ease;
-        border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         background: #fff;
         margin-bottom: 4px;
         min-width: 280px;
         max-width: 370px;
         width: 100%;
-        max-height: 600px;
+        max-height: 650px;
         overflow: hidden;
         margin-left: 0;
         margin-right: 0;
+        border: 2px solid transparent;
     }
+    
     .card-status:hover {
-        transform: scale(1.04);
-        box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+        transform: translateY(-5px);
+        box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+        border-color: #665b1d;
     }
+    
     .card-body {
-        padding: 16px 14px;
+        padding: 20px;
         display: flex;
         flex-direction: column;
-        gap: 4px;
-        max-height: 550px;
+        gap: 8px;
+        max-height: 600px;
         overflow-y: auto;
     }
+    
     .card-title {
-        font-size: 1.2rem;
-        font-weight: 600;
-        color: #333;
-        margin-bottom: 8px;
-    }
-    .card-text {
-        font-size: 1rem;
-        color: #444;
-        margin-bottom: 4px;
-        word-wrap: break-word;
-        overflow-wrap: break-word;
-    }
-    .card-body h3 {
-        font-size: 1.1rem;
+        font-size: 1.3rem;
         font-weight: 700;
-        color: #555;
+        color: #333;
         margin-bottom: 10px;
     }
-    .badge-id {
-        background: #e0e0e0;
-        color: #333;
-        font-weight: 600;
-        border-radius: 8px;
+    
+    .card-text {
         font-size: 0.95rem;
-        padding: 4px 12px;
+        color: #555;
+        margin-bottom: 6px;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        line-height: 1.5;
+    }
+    
+    .card-body h3 {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #555;
+        margin-bottom: 12px;
+    }
+    
+    .badge-id {
+        background: linear-gradient(135deg, #665b1d 0%, #bfa16c 100%);
+        color: #fff;
+        font-weight: 600;
+        border-radius: 10px;
+        font-size: 0.9rem;
+        padding: 6px 14px;
         margin-left: 8px;
     }
 
-    /* Status backgrounds */
-    .manutencao { background: linear-gradient(135deg, #d8b4ef 0%, #ffffff 100%); }
-    .aguardando-aprovacao { background: linear-gradient(135deg, #ffcc99 0%, #ffffff 100%); }
-    .pendente { background: linear-gradient(135deg, #d0d0d0 0%, #ffffff 100%); }
-    .reprovado { background: linear-gradient(135deg, #f0a0a0 0%, #ffffff 100%); }
-    .configurado { background: linear-gradient(135deg, #ffd580 0%, #ffffff 100%); }
-    .expedido { background: linear-gradient(135deg, #ffb380 0%, #ffffff 100%); }
-    .enviado-para-o-cliente { background: linear-gradient(135deg, #80b3ff 0%, #ffffff 100%); }
-    .aprovado-inteligencia { background: linear-gradient(135deg, #80f080 0%, #ffffff 100%); }
+    /* Status backgrounds com tons Golden */
+    .manutencao { 
+        background: linear-gradient(135deg, #ffe6cc 0%, #ffffff 100%);
+        border-left: 4px solid #ff9800;
+    }
+    
+    .aguardando-aprovacao { 
+        background: linear-gradient(135deg, #fff8dc 0%, #ffffff 100%);
+        border-left: 4px solid #ffd700;
+    }
+    
+    .pendente { 
+        background: linear-gradient(135deg, #e8e8e8 0%, #ffffff 100%);
+        border-left: 4px solid #666;
+    }
+    
+    .reprovado { 
+        background: linear-gradient(135deg, #ffcccc 0%, #ffffff 100%);
+        border-left: 4px solid #dc3545;
+    }
+    
+    .configurado { 
+        background: linear-gradient(135deg, #ffe6cc 0%, #ffffff 100%);
+        border-left: 4px solid #ff9800;
+    }
+    
+    .expedido { 
+        background: linear-gradient(135deg, #cce6ff 0%, #ffffff 100%);
+        border-left: 4px solid #0b4ec9;
+    }
+    
+    .enviado-para-o-cliente { 
+        background: linear-gradient(135deg, #ccffcc 0%, #ffffff 100%);
+        border-left: 4px solid #28a745;
+    }
+    
+    .aprovado-inteligencia { 
+        background: linear-gradient(135deg, #ccffcc 0%, #ffffff 100%);
+        border-left: 4px solid #28a745;
+    }
 
     /* Layout */
-    body {
-        background: #393a3d;
-    }
     .main {
         display: grid;
         margin-left: 0;
     }
+    
     .row {
         margin-bottom: 0 !important;
     }
+    
     .d-flex.flex-wrap.mt-2 {
-        margin-top: 8px !important;
+        margin-top: 12px !important;
         gap: 8px;
     }
+    
     .d-flex.flex-row.gap-2,
     .d-flex.flex-row.gap-2.justify-content-center.w-100,
     .d-flex.flex-row.gap-2.mb-2.justify-content-center.flex-wrap,
@@ -148,79 +280,113 @@
         display: flex;
     }
 
-    /* Responsividade */
-    @media (max-width: 991px) {
-        .col-md-3 { flex: 0 0 50%; max-width: 50%; }
-    }
-    @media (max-width: 767px) {
-        .col-md-3 { flex: 0 0 100%; max-width: 100%; }
-        .container { padding-left: 8px; padding-right: 8px; }
-        .card-body { padding: 16px 8px; }
-        .btn { width: 100%; margin-right: 0; }
-    }
-
-    /* Estilo para equipamentos truncados */
+    /* Estilo para equipamentos */
     .equipamentos-truncados {
         color: #666;
         font-style: italic;
-    }
-    .equipamentos-truncados:hover {
-        color: #333;
+        cursor: help;
     }
     
-    /* Estilo para lista de equipamentos compacta */
+    .equipamentos-truncados:hover {
+        color: #665b1d;
+    }
+    
     .equipamentos-lista {
         display: inline-block;
         max-width: 100%;
         word-wrap: break-word;
-        line-height: 1.2;
+        line-height: 1.4;
         font-size: 0.9rem;
         color: #555;
     }
     
-    /* Scrollbar personalizada para o card-body */
+    /* Scrollbar personalizada */
     .card-body::-webkit-scrollbar {
-        width: 6px;
+        width: 8px;
     }
+    
     .card-body::-webkit-scrollbar-track {
         background: #f1f1f1;
-        border-radius: 3px;
+        border-radius: 4px;
     }
+    
     .card-body::-webkit-scrollbar-thumb {
-        background: #c1c1c1;
-        border-radius: 3px;
+        background: linear-gradient(135deg, #665b1d 0%, #bfa16c 100%);
+        border-radius: 4px;
     }
+    
     .card-body::-webkit-scrollbar-thumb:hover {
-        background: #a8a8a8;
+        background: #665b1d;
+    }
+
+    /* Empty state */
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        background: white;
+        border-radius: 15px;
+        color: #999;
+        font-size: 1.1rem;
+    }
+    
+    .empty-state i {
+        font-size: 4rem;
+        color: #ddd;
+        margin-bottom: 20px;
+    }
+
+    /* Responsividade */
+    @media (max-width: 991px) {
+        .col-md-3 { flex: 0 0 50%; max-width: 50%; }
+    }
+    
+    @media (max-width: 767px) {
+        .col-md-3 { flex: 0 0 100%; max-width: 100%; }
+        .container { padding-left: 12px; padding-right: 12px; }
+        .card-body { padding: 16px; }
+        .btn { width: 100%; margin-right: 0; }
+        .page-header h1 { font-size: 1.4rem; }
+        .search-form { padding: 20px 15px; }
     }
 </style>
 
-<h3 class="mb-3 text-center" style="color: #ffd600;">APROVAÇÃO DE MANUTENÇÃO</h3>
-<!-- Formulário de Pesquisa -->
-<form method="GET" class="mb-4">
-    <div class="row g-2 align-items-center">
-        <div class="col-md-2 col-12 mb-2 mb-md-0">
-            <input type="text" name="id" class="form-control" placeholder="Buscar por ID" value="{{ request.GET.id }}">
+<!-- Header modernizado -->
+<div class="page-header">
+    <h1><i class="fas fa-cog"></i> Aprovação de Manutenção</h1>
+</div>
+<!-- Formulário de Pesquisa Modernizado -->
+<div class="search-form">
+    <form method="GET">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3 col-12 mb-2 mb-md-0">
+                <label class="form-label"><i class="fas fa-hashtag"></i> ID</label>
+                <input type="text" name="id" class="form-control" placeholder="Digite o ID" value="{{ request.GET.id }}">
+            </div>
+            <div class="col-md-3 col-12 mb-2 mb-md-0">
+                <label class="form-label"><i class="fas fa-user"></i> Nome</label>
+                <input type="text" name="nome" class="form-control" placeholder="Digite o nome" value="{{ request.GET.nome }}">
+            </div>
+            <div class="col-md-3 col-12 mb-2 mb-md-0">
+                <label class="form-label"><i class="fas fa-desktop"></i> Equipamento</label>
+                <input type="text" class="form-control" id="numero_equipamento" name="numero_equipamento" placeholder="Digite o equipamento" value="{{ request.GET.numero_equipamento|default:'' }}">
+            </div>
+            <div class="col-md-2 col-12 mb-2 mb-md-0">
+                <label class="form-label"><i class="fas fa-filter"></i> Status</label>
+                <select name="status" class="form-control">
+                    <option value="">Todos</option>
+                    <option value="Pendente" {% if request.GET.status == 'Pendente' %}selected{% endif %}>Pendente</option>
+                    <option value="Manutenção" {% if request.GET.status == 'Manutenção' %}selected{% endif %}>Manutenção</option>
+                    <option value="Aguardando Aprovação" {% if request.GET.status == 'Aguardando Aprovação' %}selected{% endif %}>Aguardando Aprovação</option>
+                </select>
+            </div>
+            <div class="col-md-1 col-12 mb-2 mb-md-0 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="fas fa-search"></i> Buscar
+                </button>
+            </div>
         </div>
-        <div class="col-md-3 col-12 mb-2 mb-md-0">
-            <input type="text" name="nome" class="form-control" placeholder="Buscar por Nome" value="{{ request.GET.nome }}">
-        </div>
-        <div class="col-md-3 col-12 mb-2 mb-md-0">
-            <input type="text" class="form-control" id="numero_equipamento" name="numero_equipamento" placeholder="Buscar por Equipamento" value="{{ request.GET.numero_equipamento|default:'' }}">
-        </div>
-        <div class="col-md-3 col-12 mb-2 mb-md-0">
-            <select name="status" class="form-control">
-                <option value="">Selecione o Status</option>
-                <option value="Pendente" {% if request.GET.status == 'Pendente' %}selected{% endif %}>Pendente</option>
-                <option value="Manutenção" {% if request.GET.status == 'Manutenção' %}selected{% endif %}>Manutenção</option>
-                <option value="Aguardando Aprovação" {% if request.GET.status == 'Aguardando Aprovação' %}selected{% endif %}>Aguardando Aprovação</option>
-            </select>
-        </div>
-        <div class="col-md-1 col-12 mb-2 mb-md-0 d-flex align-items-center">
-            <button type="submit" class="btn btn-primary w-100" style="background: linear-gradient(90deg, #0b4ec9 0%, #1c1b61 100%); color: #fff;">Buscar</button>
-        </div>
-    </div>
-</form>
+    </form>
+</div>
 
 <!-- Exibição dos Registros -->
 <div class="row">
@@ -271,21 +437,35 @@
                     </div>
                     -->
                     <div class="d-flex flex-row gap-2 justify-content-center w-100" style="margin-bottom:-8px;">
-                        <a class="btn btn-relatorio" href="{% url 'download_pdfmanutencao' registro.id %}">Relatório</a>
-                        <a class="btn btn-info" href="{% url 'download_protocolo_entrada' registro.id %}">Protocolo</a>
-                        <a class="btn btn-primary" href="{% url 'FormulariosUpdateView' registro.id %}">Editar</a>
+                        <a class="btn btn-relatorio" href="{% url 'download_pdfmanutencao' registro.id %}">
+                            <i class="fas fa-file-pdf"></i> Relatório
+                        </a>
+                        <a class="btn btn-info" href="{% url 'download_protocolo_entrada' registro.id %}">
+                            <i class="fas fa-file-alt"></i> Protocolo
+                        </a>
+                        <a class="btn btn-primary" href="{% url 'FormulariosUpdateView' registro.id %}">
+                            <i class="fas fa-edit"></i> Editar
+                        </a>
                       
                     </div>
                     <div class="d-flex flex-row flex-wrap gap-2 mb-2">
                         {% if registro.has_retorno_images %}
-                        <a class="btn btn-warning" href="{% url 'download_laudo_saida' registro.id %}">Laudo de Saída</a>
+                        <a class="btn btn-warning" href="{% url 'download_laudo_saida' registro.id %}">
+                            <i class="fas fa-file-download"></i> Laudo de Saída
+                        </a>
                         {% endif %}
                     </div>
                     <div class="d-flex flex-row gap-2 justify-content-center w-100">
-                        <a class="btn btn-diretoria" href="{% url 'Reprovado_Inteligência' registro.id %}" title="Realizada"><i class="fas fa-user-tie"></i></a>
+                        <a class="btn btn-diretoria" href="{% url 'Reprovado_Inteligência' registro.id %}" title="Realizada">
+                            <i class="fas fa-user-tie"></i>
+                        </a>
                         {% if perms.estoqueview_estoque %}
-                        <a class="btn btn-success" href="{% url 'Aprovado_Inteligência' registro.id %}" title="Aprovar"><i class="fas fa-check"></i></a>
-                        <a class="btn btn-danger" href="{% url 'Reprovado_Inteligência2' registro.id %}" title="Reprovado"><i class="fas fa-times"></i></a>
+                        <a class="btn btn-success" href="{% url 'Aprovado_Inteligência' registro.id %}" title="Aprovar">
+                            <i class="fas fa-check"></i>
+                        </a>
+                        <a class="btn btn-danger" href="{% url 'Reprovado_Inteligência2' registro.id %}" title="Reprovado">
+                            <i class="fas fa-times"></i>
+                        </a>
                     </div>
                     {% endif %}
                 </div>
@@ -294,7 +474,11 @@
     </div>
     {% empty %}
     <div class="col-12">
-        <p class="text-center">Nenhum registro encontrado.</p>
+        <div class="empty-state">
+            <i class="fas fa-inbox"></i>
+            <p>Nenhum registro encontrado</p>
+            <small>tente ajustar os filtros de busca</small>
+        </div>
     </div>
     {% endfor %}
 </div>

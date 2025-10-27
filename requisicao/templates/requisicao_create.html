@@ -1,70 +1,151 @@
 {% extends 'base.html' %}
+{% load static %}
 {% block content %}
-<div class="container mt-4">
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+<style>
+    /* Importar ícones */
+    @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
     
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    /* Header modernizado */
+    .page-header {
+        background: linear-gradient(135deg, #665b1d 0%, #bfa16c 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 15px;
+        margin-bottom: 30px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    }
+    
+    .page-header h1 {
+        margin: 0;
+        font-size: 2rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    
+    .page-header h1 i {
+        font-size: 2.5rem;
+    }
 
-    <style>
-        .form-label {
-            font-weight: 600;
-        }
+    .form-card {
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        padding: 30px;
+        margin-bottom: 30px;
+    }
 
-        .card {
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            border-radius: 10px;
-            padding: 15px;
-        }
+    .form-label {
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 8px;
+    }
 
-        .btn-primary {
-            background-color: #007bff;
-            border-color: #007bff;
-        }
+    .form-control {
+        border: 2px solid #e0e0e0;
+        border-radius: 10px;
+        padding: 12px 15px;
+        transition: all 0.3s ease;
+    }
 
-        .btn-secondary {
-            background-color: #6c757d;
-            border-color: #6c757d;
-        }
+    .form-control:focus {
+        border-color: #665b1d;
+        box-shadow: 0 0 0 0.2rem rgba(102, 91, 29, 0.25);
+        outline: none;
+    }
 
-        .container {
-            max-width: 900px;
-        }
+    .btn-submit {
+        background: linear-gradient(135deg, #665b1d 0%, #bfa16c 100%);
+        border: none;
+        color: white;
+        font-weight: 600;
+        padding: 14px;
+        border-radius: 10px;
+        font-size: 1.1rem;
+        transition: all 0.3s ease;
+        width: 100%;
+    }
 
-        h3.display-4 {
-            margin-bottom: 20px;
-        }
+    .btn-submit:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(102, 91, 29, 0.3);
+    }
 
-        .form-control {
-            border-radius: 5px;
-        }
+    .btn-cancel {
+        background: linear-gradient(135deg, #45494E 0%, #6b6d71 100%);
+        border: none;
+        color: white;
+        font-weight: 600;
+        padding: 14px;
+        border-radius: 10px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        width: 100%;
+    }
 
-        .mb-3 {
-            margin-bottom: 1.5rem;
-        }
+    .btn-cancel:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(69, 73, 78, 0.3);
+        color: white;
+    }
 
-        .section-title {
-            font-size: 1.5rem;
-            margin-top: 20px;
-            margin-bottom: 10px;
-            font-weight: 600;
-            border-bottom: 2px solid #007bff;
-            padding-bottom: 5px;
-        }
-    </style>
-<div class="card shadow-sm">
-    <div class="card-header">Formulário de Requisição de Vendas</div>
-    <div class="card-body">
-        {% if messages %}
-            <div class="alert alert-danger">
-                {% for message in messages %}
-                    <p>{{ message }}</p>
-                {% endfor %}
-            </div>
-        {% endif %}
-        <form method="post" class="form">
-            {% csrf_token %}
+    .section-title {
+        font-size: 1.5rem;
+        margin-top: 30px;
+        margin-bottom: 20px;
+        font-weight: 700;
+        color: #665b1d;
+        padding-bottom: 10px;
+        border-bottom: 3px solid #bfa16c;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .section-title i {
+        font-size: 1.8rem;
+    }
+
+    .alert-danger {
+        background-color: #fee;
+        border: 2px solid #fcc;
+        border-radius: 10px;
+        color: #c33;
+        padding: 15px;
+    }
+    
+    .errors {
+        background: #fee;
+        border: 2px solid #fcc;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 20px;
+        color: #c33;
+    }
+</style>
+
+<!-- Header modernizado -->
+<div class="page-header">
+    <h1><i class="fas fa-file-alt"></i> Nova Requisição de Vendas</h1>
+</div>
+
+<div class="container mt-4" style="max-width: 1000px;">
+<div class="form-card">
+    {% if messages %}
+        <div class="alert alert-danger">
+            {% for message in messages %}
+                <p>{{ message }}</p>
+            {% endfor %}
+        </div>
+    {% endif %}
+    <form method="post" class="form">
+        {% csrf_token %}
             
             <!-- Informações do Cliente -->
-            <div class="section-title">Informações do Cliente</div>
+            <div class="section-title"><i class="fas fa-user"></i> Informações do Cliente</div>
             <div class="row">
                 <div class="col-md-4 mb-3">
                     <label for="nome" class="form-label">Nome</label>
@@ -93,7 +174,7 @@
             </div>
             
             <!-- Detalhes do Contrato -->
-            <div class="section-title">Detalhes do Contrato</div>
+            <div class="section-title"><i class="fas fa-file-contract"></i> Detalhes do Contrato</div>
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label for="contrato" class="form-label">Contrato</label>
@@ -116,7 +197,7 @@
             </div>
             
             <!-- Informações do Produto -->
-            <div class="section-title">Informações do Produto</div>
+            <div class="section-title"><i class="fas fa-box"></i> Informações do Produto</div>
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label for="motivo" class="form-label">Motivo</label>
@@ -163,7 +244,7 @@
             </div>
             
             <!-- Informações Financeiras -->
-            <div class="section-title">Informações Financeiras</div>
+            <div class="section-title"><i class="fas fa-dollar-sign"></i> Informações Financeiras</div>
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label for="tipo_fatura" class="form-label">Tipo de Fatura</label>
@@ -186,7 +267,7 @@
             </div>
             
             <!-- Outras Informações -->
-            <div class="section-title">Outras Informações</div>
+            <div class="section-title"><i class="fas fa-info-circle"></i> Outras Informações</div>
             <div class="row">
                 <div class="col-md-12 mb-3">
                     <label for="observacoes" class="form-label">Observações</label>
@@ -195,10 +276,10 @@
             </div>
            
             
-            <button type="submit" class="btn btn-primary w-100">Salvar Requisição</button>
-        </form>
-    </div>
-</div>
+        <button type="submit" class="btn btn-submit">
+            <i class="fas fa-save"></i> Salvar Requisição
+        </button>
+    </form>
     
     {% if form.errors %}
     <div class="errors">
@@ -210,7 +291,10 @@
     </div>
     {% endif %}
 
-    <a href="{% url 'requisicoes' %}" class="btn btn-secondary mt-3 w-100">Cancelar e Voltar</a>
+    <a href="{% url 'requisicoes' %}" class="btn btn-cancel mt-3">
+        <i class="fas fa-times-circle"></i> Cancelar e Voltar
+    </a>
+</div>
 </div>
 
 

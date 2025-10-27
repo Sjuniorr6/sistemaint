@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 {% block title %}
 | Grupo Golden Sat |
 {% endblock %}
@@ -6,12 +7,76 @@
 {% include 'components/_header.html' %}
 {% block content %}
 <style>
+    /* Importar ícones */
+    @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
+    
+    /* Header modernizado */
+    .page-header {
+        background: linear-gradient(135deg, #665b1d 0%, #bfa16c 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 15px;
+        margin-bottom: 30px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .page-header h1 {
+        margin: 0;
+        font-size: 2rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    
+    .page-header h1 i {
+        font-size: 2.5rem;
+    }
+    
+    /* Botões modernos */
+    .btn-info {
+        background: linear-gradient(135deg, #45494E 0%, #6b6d71 100%);
+        border: none;
+        color: #fff;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-info:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(69, 73, 78, 0.3);
+    }
+    
+    .btn-danger {
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        border: none;
+        color: #fff;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-danger:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(220, 53, 69, 0.3);
+    }
+    
     .card-status {
         position: relative;
-        transition: transform 0.3s ease;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
         width: 100%;
         max-width: 400px;
         margin: 0 auto;
+        border: 2px solid transparent;
+        border-radius: 15px;
+    }
+    
+    .card-status:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+        border-color: #665b1d;
     }
 
     .card-status.Aprovado {
@@ -64,20 +129,54 @@
         overflow-wrap: break-word;
     }
 
-    .card-status:hover {
-        transform: scale(1.02);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    .card-body {
+        padding: 24px;
     }
-
-    .card-body p {
-        transition: transform 0.3s ease, color 0.3s ease;
-        margin-bottom: 8px;
-        font-size: 0.9rem;
+    
+    .card-body h2 {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #333;
+        margin-bottom: 15px;
     }
-
-    .card-body p:hover {
+    
+    .card-body h3 {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #665b1d;
+        margin-bottom: 10px;
+    }
+    
+    .card-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 12px;
+    }
+    
+    .card-text {
+        font-size: 0.95rem;
+        color: #555;
+        margin-bottom: 6px;
+        line-height: 1.5;
+    }
+    
+    .btn-create {
+        background: linear-gradient(135deg, #665b1d 0%, #bfa16c 100%);
+        border: none;
+        color: #fff;
+        font-weight: 600;
+        padding: 12px 24px;
+        border-radius: 10px;
+        font-size: 1.1rem;
+        transition: all 0.3s ease;
+        margin-bottom: 30px;
+    }
+    
+    .btn-create:hover {
         transform: translateY(-2px);
-        color: #007bff;
+        box-shadow: 0 8px 20px rgba(102, 91, 29, 0.3);
+        color: #fff;
     }
     
     /* Responsividade */
@@ -102,14 +201,17 @@
     }
 </style>
 
+<!-- Header modernizado -->
+<div class="page-header">
+    <h1><i class="fas fa-list-alt"></i> Requisições Pendentes</h1>
+</div>
+
 <div class="container mt-4">
-    <div class="row">
-        <div class="col-md-12">
-            <a class="btn btn-primary" href="{% url 'requisicoescrateview' %}">Criar Requisição</a>
-        </div>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <a class="btn-create" href="{% url 'requisicoescrateview' %}">
+            <i class="fas fa-plus-circle"></i> Criar Nova Requisição
+        </a>
     </div>
-<br>
-<br>
     <div class="row">
         {% for requisicao in requisicoes %}
         <div class="col-md-4 mb-4">
@@ -134,10 +236,16 @@
                     <p class="card-text"><b>Observações:</b> {{ requisicao.observacoes }}</p>
                     <p class="card-text"><b>TP:</b> {{ requisicao.TP }}</p>
                    
-                    <a class="btn btn-info" href="{% url 'download_pdf_requisicao' requisicao.id %}">Download PDF</a>
-                    {% if perms.nestle.delete_gridinternacional %}
-                    <a href="{% url 'requisicoesdeleteview' requisicao.id %}" class="btn btn-danger">Excluir</a>
-                {% endif %}
+                    <div class="d-flex flex-wrap gap-2 justify-content-center mt-3">
+                        <a class="btn btn-info" href="{% url 'download_pdf_requisicao' requisicao.id %}">
+                            <i class="fas fa-file-pdf"></i> Download PDF
+                        </a>
+                        {% if perms.nestle.delete_gridinternacional %}
+                        <a href="{% url 'requisicoesdeleteview' requisicao.id %}" class="btn btn-danger">
+                            <i class="fas fa-trash-alt"></i> Excluir
+                        </a>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>

@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 {% block title %}
 | Grupo Golden Sat |
 {% endblock %}
@@ -6,10 +7,73 @@
 {% include 'components/_header.html' %}
 {% block content %}
 <style>
+    /* Importar ícones */
+    @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
+    
+    /* Header modernizado */
+    .page-header {
+        background: linear-gradient(135deg, #665b1d 0%, #bfa16c 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 15px;
+        margin-bottom: 30px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    }
+    
+    .page-header h1 {
+        margin: 0;
+        font-size: 2rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    
+    .page-header h1 i {
+        font-size: 2.5rem;
+    }
+    
+    /* Botões modernos */
+    .btn-primary {
+        background: linear-gradient(135deg, #665b1d 0%, #bfa16c 100%);
+        border: none;
+        color: white;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(102, 91, 29, 0.3);
+    }
+    
+    .btn-secondary {
+        background: linear-gradient(135deg, #45494E 0%, #6b6d71 100%);
+        border: none;
+        color: white;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .btn-secondary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(69, 73, 78, 0.3);
+    }
+
     .card-status {
         position: relative;
-        transition: transform 0.3s ease;
-        width: 23rem; /* Adiciona uma transição suave */
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        width: 100%;
+        max-width: 400px;
+        margin: 0 auto;
+        border: 2px solid transparent;
+        border-radius: 15px;
+    }
+    
+    .card-status:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+        border-color: #665b1d;
     }
 
     .card-status.Aprovado {
@@ -93,8 +157,13 @@
     });
 </script>
 <div id="cnpj-alert" class="alert alert-danger" style="display: none;"></div>
+
+<!-- Header modernizado -->
+<div class="page-header">
+    <h1><i class="fas fa-wrench"></i> Área Técnica</h1>
+</div>
+
 <div class="container mt-4">
-    <h3 class="display-6">Area Técnica</h3>
     <div class="row">
         {% for registro in equipamentos %}
             {% if registro.status == 'Aprovado pelo CEO' %}
@@ -145,18 +214,34 @@
                                     <label class="col-sm-6 col-form-label"><b>Observações:</b> {{ registro.observacoes }}</label>
                                 </div>
 
-                                {% if registro.status == 'Aprovado pelo CEO' %}
-                                    <a href="{% url 'expedir_requisicaotec' registro.id %}" class="btn btn-primary">Expedir Requisição</a>
-                                    <a href="{% url 'tecnicoUpdateView' registro.id %}" class="btn btn-secondary">Incluir ID</a>
-                                {% elif registro.status == 'Aprovado pela Diretoria' %}
-                                    <a href="{% url 'expedir_manutencao' registro.id %}" class="btn btn-primary">Expedir Manutenção</a>
-                                    <a href="{% url 'tecnicoUpdateView' registro.id %}" class="btn btn-secondary">Editar Manutenção</a>
-                                {% elif registro.status == 'Aprovado Inteligência' %}
-                                    <a href="{% url 'expedir_manutencao' registro.id %}" class="btn btn-primary">Expedir Manutenção</a>
-                                    <a href="{% url 'ConfiguracaoUpdateView2' registro.id %}" class="btn btn-secondary">Editar Manutenção</a>
-                                {% else %}
-                                    <a href="{% url 'expedir_manutencao' registro.id %}" class="btn btn-primary">Expedir Manutenção</a>
-                                {% endif %}
+                                <div class="d-flex flex-wrap gap-2 mt-3 justify-content-center">
+                                    {% if registro.status == 'Aprovado pelo CEO' %}
+                                        <a href="{% url 'expedir_requisicaotec' registro.id %}" class="btn btn-primary">
+                                            <i class="fas fa-truck"></i> Expedir Requisição
+                                        </a>
+                                        <a href="{% url 'tecnicoUpdateView' registro.id %}" class="btn btn-secondary">
+                                            <i class="fas fa-plus"></i> Incluir ID
+                                        </a>
+                                    {% elif registro.status == 'Aprovado pela Diretoria' %}
+                                        <a href="{% url 'expedir_manutencao' registro.id %}" class="btn btn-primary">
+                                            <i class="fas fa-wrench"></i> Expedir Manutenção
+                                        </a>
+                                        <a href="{% url 'tecnicoUpdateView' registro.id %}" class="btn btn-secondary">
+                                            <i class="fas fa-edit"></i> Editar Manutenção
+                                        </a>
+                                    {% elif registro.status == 'Aprovado Inteligência' %}
+                                        <a href="{% url 'expedir_manutencao' registro.id %}" class="btn btn-primary">
+                                            <i class="fas fa-wrench"></i> Expedir Manutenção
+                                        </a>
+                                        <a href="{% url 'ConfiguracaoUpdateView2' registro.id %}" class="btn btn-secondary">
+                                            <i class="fas fa-edit"></i> Editar Manutenção
+                                        </a>
+                                    {% else %}
+                                        <a href="{% url 'expedir_manutencao' registro.id %}" class="btn btn-primary">
+                                            <i class="fas fa-wrench"></i> Expedir Manutenção
+                                        </a>
+                                    {% endif %}
+                                </div>
                             </form>
                         </div>
                     </div>

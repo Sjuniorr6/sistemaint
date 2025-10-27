@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 {% block title %}
 | Grupo Golden Sat |
 {% endblock %}
@@ -6,13 +7,71 @@
 {% include 'components/_header.html' %}
 {% block content %}
 <style>
+    /* Importar ícones */
+    @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
+    
+    /* Header modernizado */
+    .page-header {
+        background: linear-gradient(135deg, #665b1d 0%, #bfa16c 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 15px;
+        margin-bottom: 30px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .page-header h1 {
+        margin: 0;
+        font-size: 2rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    
+    .page-header h1 i {
+        font-size: 2.5rem;
+    }
+
+    /* Formulário de busca modernizado */
+    .search-form {
+        background: white;
+        padding: 25px;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        margin-bottom: 30px;
+    }
+    
+    .search-form .form-label {
+        color: #333;
+        font-weight: 600;
+        margin-bottom: 8px;
+        font-size: 0.9rem;
+    }
+    
+    .search-form .form-control {
+        border: 2px solid #e0e0e0;
+        border-radius: 10px;
+        padding: 10px 15px;
+        transition: all 0.3s ease;
+        color: #333;
+    }
+    
+    .search-form .form-control:focus {
+        border-color: #665b1d;
+        box-shadow: 0 0 0 0.2rem rgba(102, 91, 29, 0.25);
+    }
+    
     .card-status {
         position: relative;
-        transition: transform 0.3s ease;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
         border-radius: 18px;
         box-shadow: 0 4px 16px rgba(0,0,0,0.08);
         margin-bottom: 24px;
-        border: none;
+        border: 2px solid transparent;
         overflow: visible;
         min-height: 340px;
         display: flex;
@@ -21,6 +80,12 @@
         padding: 0;
         width: 100%;
         max-width: 100%;
+    }
+    
+    .card-status:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+        border-color: #665b1d;
     }
 
     .card-status.Aprovado {
@@ -93,14 +158,64 @@
         transform: translateY(-3px);
         color: #007bff;
     }
+    /* Botões modernos */
+    .btn-primary {
+        background: linear-gradient(135deg, #665b1d 0%, #bfa16c 100%);
+        border: none;
+        color: #fff;
+        font-weight: 600;
+    }
+    
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(102, 91, 29, 0.3);
+    }
+    
+    .btn-secondary {
+        background: linear-gradient(135deg, #45494E 0%, #6b6d71 100%);
+        border: none;
+        color: #fff;
+        font-weight: 600;
+    }
+    
+    .btn-secondary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(69, 73, 78, 0.3);
+    }
+    
+    .btn-info {
+        background: linear-gradient(135deg, #45494E 0%, #6b6d71 100%);
+        border: none;
+        color: #fff;
+        font-weight: 600;
+    }
+    
+    .btn-info:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(69, 73, 78, 0.3);
+    }
+    
+    .btn-danger {
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        border: none;
+        color: #fff;
+        font-weight: 600;
+    }
+    
+    .btn-danger:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(220, 53, 69, 0.3);
+    }
+    
     .btn {
         margin-right: 6px;
         margin-bottom: 6px;
-        border-radius: 8px;
+        border-radius: 10px;
         font-size: 0.9rem;
         font-weight: 500;
-        padding: 6px 12px;
-        min-width: 80px;
+        padding: 8px 14px;
+        min-width: 100px;
+        transition: all 0.3s ease;
     }
     @media (max-width: 991px) {
         .col-md-4 {
@@ -270,46 +385,45 @@
     });
 </script>
 <div id="cnpj-alert" class="alert alert-danger" style="display: none;"></div>
-<div class="container mt-4">
-        <div style="background-color: #444a4d; padding: 16px 0; text-align: center;">
-            <span style="color: #ffd600; font-size: 2rem; font-weight: bold;">CONFIGURAÇÃO</span>
-        </div>
-        
-        <!-- Filtro por ID -->
-        <div class="row mb-4">
-            <div class="col-md-6 mx-auto">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title text-center mb-3">
-                            <i class="fas fa-filter"></i> Filtro por ID
-                        </h5>
-                        <form method="get" class="d-flex gap-2">
-                            <input type="number" 
-                                   name="id_filtro" 
-                                   class="form-control" 
-                                   placeholder="Digite o ID do registro"
-                                   value="{{ request.GET.id_filtro|default:'' }}"
-                                   min="1">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-search"></i> Filtrar
-                            </button>
-                            {% if request.GET.id_filtro %}
-                                <a href="{% url 'ConfiguracaoListView' %}" class="btn btn-secondary">
-                                    <i class="fas fa-times"></i> Limpar
-                                </a>
-                            {% endif %}
-                        </form>
-                        {% if request.GET.id_filtro %}
-                            <div class="mt-2 text-center">
-                                <small class="text-muted">
-                                    Mostrando resultados para ID: <strong>{{ request.GET.id_filtro }}</strong>
-                                </small>
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
+
+<!-- Header modernizado -->
+<div class="page-header">
+    <h1><i class="fas fa-cogs"></i> Configuração</h1>
+</div>
+
+<!-- Formulário de busca modernizado -->
+<div class="search-form">
+    <form method="get">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-9 col-12 mb-2 mb-md-0">
+                <label class="form-label"><i class="fas fa-hashtag"></i> ID do Registro</label>
+                <input type="number" 
+                       name="id_filtro" 
+                       class="form-control" 
+                       placeholder="Digite o ID do registro"
+                       value="{{ request.GET.id_filtro|default:'' }}"
+                       min="1">
+            </div>
+            <div class="col-md-3 col-12 mb-2 mb-md-0 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="fas fa-search"></i> Buscar
+                </button>
+                {% if request.GET.id_filtro %}
+                <a href="{% url 'ConfiguracaoListView' %}" class="btn btn-secondary">
+                    <i class="fas fa-times"></i>
+                </a>
+                {% endif %}
             </div>
         </div>
+        {% if request.GET.id_filtro %}
+        <div class="mt-2 text-center">
+            <small class="text-muted">
+                Mostrando resultados para ID: <strong>{{ request.GET.id_filtro }}</strong>
+            </small>
+        </div>
+        {% endif %}
+    </form>
+</div>
         
         <!-- Mensagem quando não há resultados -->
         {% if request.GET.id_filtro and not equipamentos %}
@@ -403,25 +517,43 @@
                                 <div class="mb-1 row">
                                     <label class="col-sm-12 col-form-label" style="white-space:normal;"><b>Observações:</b> {{ registro.observacoes }}</label>
                                 </div>
-                                <div class="mt-3">
-                                    <a class="btn btn-info" href="{% url 'gerar_pdf_saida' registro.id %}">Download PDF</a>
+                                <div class="mt-3 d-flex flex-wrap gap-2 justify-content-center">
+                                    <a class="btn btn-info" href="{% url 'gerar_pdf_saida' registro.id %}">
+                                        <i class="fas fa-file-download"></i> Download PDF
+                                    </a>
 
                                 {% if registro.status == 'Aprovado pelo CEO' %}
-                                    <a href="{% url 'expedir_requisicao' registro.id %}" class="btn btn-primary">Expedir Requisição</a>
+                                    <a href="{% url 'expedir_requisicao' registro.id %}" class="btn btn-primary">
+                                        <i class="fas fa-truck"></i> Expedir Requisição
+                                    </a>
 					{% if perms.produto.delete_produto %}
-                                    <a href="{% url 'ConfiguracaoUpdateView' registro.id %}" class="btn btn-secondary">Incluir ID</a>
+                                    <a href="{% url 'ConfiguracaoUpdateView' registro.id %}" class="btn btn-secondary">
+                                        <i class="fas fa-plus"></i> Incluir ID
+                                    </a>
 					{% endif %}
                                     {% if perms.nestle.delete_gridinternacional %}
-                                    <a href="{% url 'requisicoesdeleteview' registro.id %}" class="btn btn-danger">Excluir</a>
+                                    <a href="{% url 'requisicoesdeleteview' registro.id %}" class="btn btn-danger">
+                                        <i class="fas fa-trash-alt"></i> Excluir
+                                    </a>
                                     {% endif %}
                                 {% elif registro.status == 'Aprovado pela Diretoria' %}
-                                    <a href="{% url 'expedir_manutencao' registro.id %}" class="btn btn-primary">Expedir Manutenção</a>
-                                    <a href="{% url 'ConfiguracaoUpdateView2' registro.id %}" class="btn btn-secondary">Editar Manutenção</a>
+                                    <a href="{% url 'expedir_manutencao' registro.id %}" class="btn btn-primary">
+                                        <i class="fas fa-wrench"></i> Expedir Manutenção
+                                    </a>
+                                    <a href="{% url 'ConfiguracaoUpdateView2' registro.id %}" class="btn btn-secondary">
+                                        <i class="fas fa-edit"></i> Editar Manutenção
+                                    </a>
                                 {% elif registro.status == 'Aprovado Inteligência' %}
-                                    <a href="{% url 'expedir_manutencao' registro.id %}" class="btn btn-primary">Expedir Manutenção</a>
-                                    <a href="{% url 'ConfiguracaoUpdateView2' registro.id %}" class="btn btn-secondary">Editar Manutenção</a>
+                                    <a href="{% url 'expedir_manutencao' registro.id %}" class="btn btn-primary">
+                                        <i class="fas fa-wrench"></i> Expedir Manutenção
+                                    </a>
+                                    <a href="{% url 'ConfiguracaoUpdateView2' registro.id %}" class="btn btn-secondary">
+                                        <i class="fas fa-edit"></i> Editar Manutenção
+                                    </a>
                                 {% else %}
-                                    <a href="{% url 'expedir_manutencao' registro.id %}" class="btn btn-primary">Expedir Manutenção</a>
+                                    <a href="{% url 'expedir_manutencao' registro.id %}" class="btn btn-primary">
+                                        <i class="fas fa-wrench"></i> Expedir Manutenção
+                                    </a>
                                 {% endif %}
                                 </div>
                             </form>
