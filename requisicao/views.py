@@ -934,9 +934,10 @@ def gerar_pdf_saida(request, id):
     def add_footer(canvas, doc):
         canvas.saveState()
         canvas.setFont("Helvetica", 8)
-        canvas.drawString(36, 40, "NOME:")
-        canvas.drawString(200, 40, "ASS.:")
-        canvas.drawString(400, 40, "CPF:")
+        canvas.drawString(50, 40, "NOME:")
+        canvas.drawString(220, 40, "ASS.:")
+        canvas.drawString(380, 40, "CPF:")
+        canvas.drawString(500, 40, "DATA E HORA:")
         canvas.restoreState()
 
     # Geração do PDF
