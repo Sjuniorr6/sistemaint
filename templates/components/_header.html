@@ -310,6 +310,9 @@
                             <li><a class="dropdown-item" href="{% url 'reativacao_id_iccid_adicionar' %}">Formulário de Reativação</a></li>
                             <li><a class="dropdown-item" href="{% url 'reativacao_list' %}">Histórico de Reativação</a></li>
                             {% endif %}
+                            {% if perms.registrodemanutencao.view_registrodemanutencao %}
+                            <li><a class="dropdown-item" href="{% url 'historico_manutencaoListView' %}">Histórico de Manutenção</a></li>
+                            {% endif %}
                         </ul>
                     </li>
                     {% endif %}
