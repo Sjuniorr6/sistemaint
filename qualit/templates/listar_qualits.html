@@ -106,6 +106,7 @@
                         <th>Comercial</th>
                         <th>Status</th>
                         <th>Data Alteração</th>
+                        <th>Ações</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -136,6 +137,13 @@
                             </span>
                         </td>
                         <td>{{ qualit.data_alteracao|date:"d/m/Y H:i"|default:"N/A" }}</td>
+                        <td>
+                            <a href="{% url 'exportar_qualits_excel' %}{% if request.GET %}?{% for key, value in request.GET.items %}{{ key }}={{ value }}{% if not forloop.last %}&{% endif %}{% endfor %}{% endif %}" 
+                               class="btn btn-success btn-sm" 
+                               title="Exportar para Excel">
+                                <i class="fas fa-file-excel"></i> Excel
+                            </a>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
