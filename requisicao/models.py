@@ -627,6 +627,13 @@ class antenista_CARD(models.Model):
     equipamentos = models.CharField(max_length=1000, blank=True, null=True)
     contrato = models.CharField(choices=TIPO,max_length=1000, blank=True, null=True)
     valor_entrega  = models.CharField(max_length=1000, blank=True, null=True)
+    # Valores financeiros
+    valor_prestador = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, default=0)
+    valor_isca = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, default=0)
+    valor_cliente = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, default=0)
+    lucro = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, default=0)
+    # Valor total (prestador + isca)
+    valor_total = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, default=0)
     data_criacao = models.DateField(auto_now_add=True, null=True, blank=True)
     status = models.CharField(
         max_length=50,
@@ -641,3 +648,17 @@ class antenista_CARD(models.Model):
 
     def __str__(self):
         return f"{self.nome} - {self.tipo_produto}"
+
+    def save(self, *args, **kwargs):
+        # Calcula lucro antes de salvar: valor_cliente - valor_prestador - valor_isca
+        try:
+            vp = self.valor_prestador or 0
+            vi = self.valor_isca or 0
+            vc = self.valor_cliente or 0
+            # calcula valor_total como soma de prestador + isca
+            self.valor_total = (vp + vi)
+            self.lucro = vc - vp - vi
+        except Exception:
+            # em caso de qualquer problema com tipos, garantir que não quebre o save
+            self.lucro = self.lucro or 0
+        super().save(*args, **kwargs)

@@ -268,15 +268,27 @@ from .models import antenista_CARD
 class antenista_Form(forms.ModelForm):
     class Meta:
         model = antenista_CARD  # Substitua pelo nome do seu modelo
-        fields = ['nome', 'tipo_produto', 'solicitante','telefone', 'cliente', 'quantidade','equipamentos','contrato','valor_entrega']
+        fields = ['nome', 'tipo_produto', 'solicitante','telefone', 'cliente', 'quantidade','equipamentos','contrato','valor_total', 'valor_prestador', 'valor_isca', 'valor_cliente', 'lucro']
         widgets = {
             'nome': forms.Select(attrs={'class': 'form-control'}),
             'tipo_produto': forms.Select(attrs={'class': 'form-control'}),
             'solicitante': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Solicitante'}),
             'telefone': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Digite o telefone'}),
             'equipamentos': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'IDS'}),
-            'valor_entrega': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'valor'}),
             'cliente': forms.TextInput(attrs={'class': 'form-control'}),
             'quantidade': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Digite a quantidade'}),
             'contrato': forms.Select(attrs={'class': 'form-control'}),
+            'valor_total': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'readonly': 'readonly'}),
+            'valor_prestador': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': '0.00'}),
+            'valor_isca': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': '0.00'}),
+            'valor_cliente': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': '0.00'}),
+            'lucro': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'readonly': 'readonly'}),
         }
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Use a ModelChoiceField so 'cliente' is a dropdown populated from the Clientes model
+        self.fields['cliente'] = forms.ModelChoiceField(
+            queryset=Clientes.objects.all(),
+            empty_label="Selecione um cliente",
+            widget=forms.Select(attrs={'class': 'form-control'})
+        )

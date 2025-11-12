@@ -65,6 +65,8 @@
         text-align: center;
         white-space: nowrap;
     }
+    /* impedir quebra de linha em colunas específicas */
+    .no-wrap { white-space: nowrap; }
 
     /* Botões */
     .btn {
@@ -157,7 +159,10 @@
 <div class="container mt-5">
     <div style="display: flex; justify-content: space-between; align-items: center;">
         <h1 class="mb-4">Lista de Antenistas</h1>
-        <a href="{% url 'novo_antenista' %}" class="btn btn-primary">Novo Antenista</a>
+        <div>
+            <a href="{% url 'novo_antenista' %}" class="btn btn-primary">Novo Antenista</a>
+            <a href="{% url 'export_antenistas_excel' %}" class="btn btn-secondary">Exportar para Excel</a>
+        </div>
     </div>
     {% if messages %}
         {% for message in messages %}
@@ -178,9 +183,13 @@
                     <th>Quantidade</th>
                     <th>Equipamentos</th>
                     <th>Solicitante</th>
-                    <th>Valor de Entrega</th>
-                    <th>Contrato</th>
-                    <th>Status</th>
+                    <th>Valor Total</th>
+                    <th>Valor Prestador</th>
+                    <th>Valor Isca</th>
+                    <th>Valor Cliente</th>
+                    <th>Lucro</th>
+                    <th class="no-wrap">Contrato</th>
+                    <th class="no-wrap">Status</th>
                     <th>Data de Criação</th>
                     <th>Ações</th>
                 </tr>
@@ -195,9 +204,13 @@
                     <td>{{ antenista.quantidade }}</td>
                     <td>{{ antenista.equipamentos }}</td>
                     <td>{{ antenista.solicitante }}</td>
-                    <td>{{ antenista.valor_entrega }}</td>
-                    <td>{{ antenista.contrato }}</td>
-                    <td>{{ antenista.status }}</td>
+                    <td>{{ antenista.valor_total }}</td>
+                    <td>{{ antenista.valor_prestador }}</td>
+                    <td>{{ antenista.valor_isca }}</td>
+                    <td>{{ antenista.valor_cliente }}</td>
+                    <td>{{ antenista.lucro }}</td>
+                    <td class="no-wrap">{{ antenista.contrato }}</td>
+                    <td class="no-wrap">{{ antenista.status }}</td>
                     <td>{{ antenista.data_criacao|date:"d/m/Y" }}</td>
                     <td>
                         {% if antenista.status != 'Atualizado' %}
