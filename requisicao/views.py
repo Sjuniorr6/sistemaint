@@ -993,6 +993,9 @@ from django.urls import reverse_lazy
 from django.views.generic.edit import CreateView
 from .models import estoque_antenista
 from .forms import EstoqueantenistarForm
+from django.contrib.auth.decorators import login_required, permission_required
+from django.contrib import messages
+from django.shortcuts import redirect
 class RegistrarEstoqueantenistaView(PermissionRequiredMixin, LoginRequiredMixin, CreateView):
     model = estoque_antenista
     form_class = EstoqueantenistarForm
@@ -1037,8 +1040,20 @@ class RegistrarEstoqueantenistaView(PermissionRequiredMixin, LoginRequiredMixin,
 
         context['estoques'] = list(estoque_dict.values())
         return context
-    
-    from django.shortcuts import render, redirect
+
+
+@permission_required('requisicao.change_estoque_antenista', raise_exception=True)
+def zerar_estoque_antenista(request):
+    """Zera (define para 0) a quantidade de todos os registros de estoque_antenista.
+
+    Esta ação exige permissão `requisicao.change_estoque_antenista` e deve ser chamada via POST.
+    """
+    if request.method == 'POST':
+        estoque_antenista.objects.update(quantidade=0)
+        messages.success(request, 'Quantidade em estoque zerada para todos os registros.')
+    else:
+        messages.error(request, 'Requisição inválida. Use POST para zerar o estoque.')
+    return redirect('RegistrarEstoqueantenistaView')
 
 from .models import antenista_CARD
 from .forms import antenista_Form
@@ -1067,11 +1082,65 @@ class AntenistaCreateView(CreateView):
 
 
 from django.views.generic.list import ListView
+from django.http import HttpResponse
+import openpyxl
+from openpyxl.utils import get_column_letter
 
 class AntenistaListView(ListView):
     model = antenista_CARD
     template_name = 'antenista_list.html'
     context_object_name = 'antenistas'
+
+
+def export_antenistas_excel(request):
+    """Exporta todos os registros de antenista_CARD para um arquivo Excel (.xlsx)."""
+    # Query todos os registros
+    antenistas = antenista_CARD.objects.all()
+
+    # Cria workbook
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Antenistas'
+
+    # Cabeçalhos (mesma ordem da tabela)
+    headers = [
+        'Nome', 'Tipo de Produto', 'Telefone', 'Cliente', 'Quantidade', 'Equipamentos',
+        'Solicitante', 'Valor Total', 'Valor Prestador', 'Valor Isca', 'Valor Cliente', 'Lucro',
+        'Contrato', 'Status', 'Data de Criação'
+    ]
+    ws.append(headers)
+
+    # Preenche linhas
+    for a in antenistas:
+        row = [
+            str(a.nome) if a.nome is not None else '',
+            str(a.tipo_produto) if a.tipo_produto is not None else '',
+            a.telefone or '',
+            a.cliente or '',
+            a.quantidade if a.quantidade is not None else '',
+            a.equipamentos or '',
+            a.solicitante or '',
+            float(a.valor_total) if a.valor_total is not None else 0,
+            float(a.valor_prestador) if a.valor_prestador is not None else 0,
+            float(a.valor_isca) if a.valor_isca is not None else 0,
+            float(a.valor_cliente) if a.valor_cliente is not None else 0,
+            float(a.lucro) if a.lucro is not None else 0,
+            a.contrato or '',
+            a.status or '',
+            a.data_criacao.strftime('%d/%m/%Y') if a.data_criacao else '',
+        ]
+        ws.append(row)
+
+    # Ajusta largura das colunas
+    for i, column_cells in enumerate(ws.columns, 1):
+        length = max((len(str(cell.value)) for cell in column_cells), default=0)
+        ws.column_dimensions[get_column_letter(i)].width = min(max(length + 2, 10), 50)
+
+    # Prepara resposta
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename=antenistas.xlsx'
+    wb.save(response)
+    return response
     
     
     # requisicao/views.py

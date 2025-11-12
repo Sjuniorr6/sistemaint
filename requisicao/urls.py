@@ -70,8 +70,10 @@ path('expedir_requisicao_tec/<int:id>/', views.expedir_requisicaotec, name='expe
      path('get-cliente-data/<int:cliente_id>/', get_cliente_data, name='get_cliente_data'),
 path('novo-antenista/', AntenistaCreateView.as_view(), name='novo_antenista'),
     path('lista-antenistas/', AntenistaListView.as_view(), name='lista_antenistas'),
+    path('lista-antenistas/export-excel/', views.export_antenistas_excel, name='export_antenistas_excel'),
      
     path('antenista/<int:pk>/atualizado/', views.atualizar_status_atualizado, name='atualizar_atualizado'),
+        path('antenistaview/zerar-estoque/', views.zerar_estoque_antenista, name='zerar_estoque_antenista'),
 path('requisicoes/<int:pk>/editar/', RequisicaoUpdateView.as_view(), name='requisicao_update'),
 path('manutencao/configurado/<int:id>/', views.configurado_manutencao, name='configurado_manutencao'),
 ]

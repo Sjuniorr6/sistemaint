@@ -46,38 +46,52 @@
                 <label for="id_telefone" class="form-label">Telefone</label>
                 {{ form.telefone }}
             </div>
+
             <div class="mb-3">
                 <label for="id_cliente" class="form-label">Cliente</label>
                 {{ form.cliente }}
             </div>
-            <!-- Linha com campos lado a lado -->
+
             <div class="row mb-3">
-
-
-
-
-                <div class="col-md-3">
+                <div class="col-md-4">
                     <label for="id_quantidade" class="form-label">Quantidade</label>
                     {{ form.quantidade }}
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-4">
                     <label for="id_equipamentos" class="form-label">Equipamentos</label>
                     {{ form.equipamentos }}
                 </div>
-                 <div class="col-md-3">
+                <div class="col-md-4">
                     <label for="contrato" class="form-label">Contrato</label>
                     {{ form.contrato }}
                 </div>
-               
-		<div class="col-md-3">
-                    <label for="id_valor_entrega" class="form-label">Valor Entrega</label>
-                    {{ form.valor_entrega }}
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label for="id_valor_prestador" class="form-label">Valor Prestador</label>
+                    {{ form.valor_prestador }}
                 </div>
+                <div class="col-md-4">
+                    <label for="id_valor_isca" class="form-label">Valor Isca</label>
+                    {{ form.valor_isca }}
+                </div>
+                <div class="col-md-4">
+                    <label for="id_valor_total" class="form-label">Valor Total</label>
+                    {{ form.valor_total }}
+                </div>
+            </div>
 
-
-
-
-
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="id_valor_cliente" class="form-label">Valor Cliente</label>
+                    {{ form.valor_cliente }}
+                </div>
+                <div class="col-md-6">
+                    <label for="id_lucro" class="form-label">Lucro</label>
+                    {{ form.lucro }}
+                </div>
+            </div>
 
             </div>
             <button type="submit" class="btn btn-primary">Salvar</button>
@@ -85,5 +99,47 @@
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // Calcula o Valor Total e o Lucro em tempo real:
+    // Valor Total = quantidade * Valor Isca + Valor Prestador
+    // Lucro = Valor Cliente - Valor Total
+    function parseFloatSafe(v) {
+        if (!v) return 0;
+        v = String(v).replace(',', '.');
+        var n = parseFloat(v);
+        return isNaN(n) ? 0 : n;
+    }
+
+    function calcularLucro() {
+        var vp = document.getElementById('id_valor_prestador');
+        var vi = document.getElementById('id_valor_isca');
+        var q = document.getElementById('id_quantidade');
+        var vc = document.getElementById('id_valor_cliente');
+        var out = document.getElementById('id_lucro');
+        var outTotal = document.getElementById('id_valor_total');
+        if (!out) return;
+        var vpv = vp ? parseFloatSafe(vp.value) : 0;
+        var viv = vi ? parseFloatSafe(vi.value) : 0;
+        var qv = q ? parseFloatSafe(q.value) : 0;
+        var vcv = vc ? parseFloatSafe(vc.value) : 0;
+        // calcula total conforme: quantidade * valor_isca + valor_prestador
+        var total = vpv + (viv * qv);
+        if (outTotal) {
+            outTotal.value = total.toFixed(2);
+        }
+        // lucro = valor_cliente - valor_total
+        var lucro = vcv - total;
+        // Formata com 2 casas decimais e usa ponto
+        out.value = lucro.toFixed(2);
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        ['id_valor_prestador','id_valor_isca','id_valor_cliente','id_quantidade'].forEach(function(id){
+            var el = document.getElementById(id);
+            if (el) el.addEventListener('input', calcularLucro);
+        });
+        // calcular no carregamento caso já existam valores
+        calcularLucro();
+    });
+</script>
 {% endblock %}
