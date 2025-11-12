@@ -304,8 +304,10 @@
                             {% endif %}
                             <!-- PENDENTE: Acionamentos (Novo sistema) -->
                             {% if perms.qualit.delete_qualit %}
-                            <li><a class="dropdown-item" href="{% url 'novo_antenista' %}">Requisição de Equipamentos Antenista</a></li>
+                            <li><a class="dropdown-item" href="{% url 'novo_antenista' %}">Novo Antenista</a></li>
+                            <li><a class="dropdown-item" href="{% url 'saida_equipamentos' %}">Requisição de Equipamentos Antenista</a></li>
                             <li><a class="dropdown-item" href="{% url 'lista_antenistas' %}">Lista de Saídas para Antenistas</a></li>
+                            <li><a class="dropdown-item" href="{% url 'lista_antenistas_cadastrados' %}">Lista de Antenistas Cadastrados</a></li>
                             <li><a class="dropdown-item" href="{% url 'RegistrarEstoqueantenistaView' %}">Estoque Antenista</a></li>
                             {% endif %}
                             {% if perms.reativacao.view_reativacao %}

@@ -2,6 +2,21 @@ from django.db import models
 from acompanhamento.models import Clientes   
 from produto.models import Produto    
 from django.utils import timezone
+
+
+class Antenista(models.Model):
+    """Modelo simples para armazenar antenistas cadastrados via UI.
+
+    Campos:
+    - nome: nome identificador do antenista (único)
+    - estado: estado/UF ou observação curta (opcional)
+    """
+    nome = models.CharField(max_length=120, unique=True)
+    estado = models.CharField(max_length=60, null=True, blank=True)
+
+    def __str__(self):
+        return self.nome
+
 class Requisicoes(models.Model):
     # Definição das escolhas de status
     statuschoice = [
@@ -308,10 +323,6 @@ class Requisicoes(models.Model):
         return f"Requisição {self.id} - {self.nome} "
 
 
-
-
-
-
 class estoque_antenista(models.Model):
     ANTENISTA_CHOICES =[
     ('RODRIGO SILVA', 'RODRIGO SILVA'),
@@ -433,7 +444,11 @@ class estoque_antenista(models.Model):
     ('Oscar Carneiro de Souza Junior','Oscar Carneiro de Souza Junior'),
 ]
 
-    nome = models.CharField(max_length=50, choices=ANTENISTA_CHOICES)
+    nome = models.ForeignKey(
+        'Antenista', on_delete=models.SET_NULL, related_name='estoques', null=True, blank=True
+    )
+    # Guarda o nome textual do antenista no momento do registro para histórico.
+    nome_texto = models.CharField(max_length=200, null=True, blank=True)
     tipo_produto = models.ForeignKey(Produto, on_delete=models.CASCADE, related_name='antenista_produto')
     endereco = models.CharField(max_length=255, blank=True, null=True)
     quantidade = models.IntegerField(null=True, blank=True)
@@ -444,8 +459,17 @@ class estoque_antenista(models.Model):
         return f"{self.nome} - {self.tipo_produto}"
 
     def save(self, *args, **kwargs):
-        print(f"Salvando estoque: {self.nome} - {self.tipo_produto} com quantidade: {self.quantidade}")
-        super().save(*args, **kwargs)
+        # Preenche o campo textual com o nome atual do FK se disponível.
+        try:
+            if self.nome:
+                # evita consultas extras se já estiver preenchido corretamente
+                nome_str = str(self.nome)
+                if not self.nome_texto:
+                    self.nome_texto = nome_str
+            super().save(*args, **kwargs)
+        except Exception:
+            # fallback simples para garantir que o save não quebre
+            super().save(*args, **kwargs)
 
 
 
@@ -618,7 +642,14 @@ class antenista_CARD(models.Model):
      
  ]
 
-    nome = models.CharField(max_length=50,choices=ANTENISTA_CHOICES, null=True, blank=True)
+    # Este campo deve referenciar o modelo `Antenista` (estrutura centralizada de antenistas)
+    # mantendo compatibilidade com a UI de seleção.
+    # Use SET_NULL para que, se um Antenista for removido da tabela central, os registros
+    # históricos em `antenista_CARD` sejam preservados (FK ficará NULL). Para manter o
+    # nome textual mesmo após remoção do Antenista, gravamos também em `nome_texto`.
+    nome = models.ForeignKey('Antenista', on_delete=models.SET_NULL, related_name='cards', null=True, blank=True)
+    # Campo textual que armazena o nome do antenista no momento do registro (histórico)
+    nome_texto = models.CharField(max_length=200, null=True, blank=True)
     tipo_produto = models.ForeignKey(Produto, on_delete=models.CASCADE, related_name='antenista_card_produto')
     solicitante  = models.CharField(max_length=1000, blank=True, null=True)
     telefone = models.CharField(max_length=255, blank=True, null=True)
@@ -648,8 +679,15 @@ class antenista_CARD(models.Model):
 
     def __str__(self):
         return f"{self.nome} - {self.tipo_produto}"
-
     def save(self, *args, **kwargs):
+        # Preenche nome_texto a partir do FK se disponível.
+        try:
+            if self.nome and not self.nome_texto:
+                self.nome_texto = str(self.nome)
+        except Exception:
+            # continue mesmo que ocorra algum erro ao ler o FK
+            pass
+
         # Calcula lucro antes de salvar: valor_cliente - valor_prestador - valor_isca
         try:
             vp = self.valor_prestador or 0

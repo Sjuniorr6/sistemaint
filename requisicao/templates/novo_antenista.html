@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+  /* Estilos para o formulário de novo antenista */
+  .antenista-form-card {
+    max-width: 720px;
+    margin: 1.2rem auto;
+    background: #fff;
+    padding: 1.2rem 1.4rem;
+    border-radius: 8px;
+    border: 1px solid #e6dfc1;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.04);
+  }
+  .antenista-form-card h2 { margin-bottom: 0.6rem; color: #3b3b3b; }
+  .antenista-form-card label.form-label { color: #000 !important; }
+  .form-actions { display:flex; gap:10px; align-items:center; margin-top:12px; }
+  @media (max-width:600px) {
+    .antenista-form-card { padding: 0.8rem; }
+    .form-actions { flex-direction: column; align-items: stretch; }
+    .form-actions a, .form-actions button { width:100%; }
+  }
+</style>
+
+<div class="container mt-4">
+  <div class="antenista-form-card">
+    <h2>Novo Antenista</h2>
+    <p class="text-muted">Cadastre um novo antenista com nome e, opcionalmente estado</p>
+    <form method="post" novalidate>
+      {% csrf_token %}
+      <div class="row">
+        <div class="col-md-8 mb-3">
+          <label class="form-label">{{ form.nome.label }}</label>
+          {{ form.nome }}
+          {% if form.nome.errors %}
+            <div class="text-danger small">{{ form.nome.errors }}</div>
+          {% endif %}
+        </div>
+        <div class="col-md-4 mb-3">
+          <label class="form-label">{{ form.estado.label }}</label>
+          {{ form.estado }}
+          {% if form.estado.errors %}
+            <div class="text-danger small">{{ form.estado.errors }}</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit"><i class="bi bi-save-fill"></i> Salvar</button>
+        <a class="btn btn-secondary" href="{% url 'lista_antenistas' %}"><i class="bi bi-arrow-left-circle"></i> Voltar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

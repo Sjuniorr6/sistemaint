@@ -94,6 +94,7 @@
                     <th scope="col">Modelo</th>
                     <th scope="col">Cidade/Estado</th>
                     <th scope="col">Quantidade em Estoque</th>
+                    <th scope="col">Ações</th>
                 </tr>
             </thead>
             <tbody>
@@ -103,6 +104,14 @@
                     <td>{{ estoque.tipo_produto }}</td>
                     <td>{{ estoque.endereco }}</td>
                     <td>{{ estoque.quantidade }}</td>
+                    <td>
+                        {% if perms.requisicao.delete_estoque_antenista %}
+                        <form method="post" action="{% url 'delete_estoque_antenista' estoque.pk %}" style="display:inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Confirma exclusão deste registro de estoque?');">Apagar</button>
+                        </form>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>

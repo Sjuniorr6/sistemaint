@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% block title %}Lista de Antenistas Cadastrados{% endblock %}
+
+{% block content %}
+<style>
+    /* Estilos específicos para a listagem de antenistas cadastrados */
+    .antenista-card {
+        background: #fff;
+        border: 1px solid #e6dfc1;
+        border-radius: 8px;
+        padding: 1rem;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.04);
+    }
+    .antenista-card h1 {
+        font-size: 1.25rem;
+        margin: 0;
+        color: #3b3b3b;
+    }
+    .antenista-actions a.btn, .antenista-actions button.btn {
+        min-width: 96px;
+    }
+    .table.table-striped tbody tr:nth-of-type(odd) {
+        background-color: #fbfaf8;
+    }
+    .table thead th {
+        background: linear-gradient(90deg,#f4ecc2,#f8f3e0);
+        color: #4a3b00;
+        border-bottom: 2px solid #e6dfc1;
+        text-align: left;
+    }
+    /* Deixar os cabeçalhos Nome e Estado em preto para melhor contraste */
+    .table thead th:nth-child(1),
+    .table thead th:nth-child(2) { color: #000 !important; }
+    .action-btns { display:flex; gap:8px; align-items:center; }
+    .action-btns .btn-primary { background: linear-gradient(90deg,#2b6cb0,#1e5aa8); border:none; }
+    .action-btns .btn-danger { background: linear-gradient(90deg,#d9534f,#c9302c); border:none; }
+    @media(max-width:700px){
+        .antenista-card { padding: 0.6rem; }
+        .action-btns { gap:6px; }
+        .antenista-actions a.btn, .antenista-actions button.btn { min-width: auto; padding: 0.35rem 0.6rem; }
+    }
+</style>
+
+<div class="container mt-4">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+            <h1>Antenista cadastrados</h1>
+        </div>
+        <div>
+            <a href="{% url 'novo_antenista' %}" class="btn btn-primary">Novo Antenista</a>
+            <a href="{% url 'lista_antenistas' %}" class="btn btn-secondary">Voltar à lista de saídas</a>
+        </div>
+    </div>
+
+    <div class="table-responsive mt-3">
+        <div class="antenista-card">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Nome</th>
+                    <th>Estado / Observação</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in antenistas_cadastrados %}
+                <tr>
+                    <td>{{ a.nome }}</td>
+                    <td>{{ a.estado }}</td>
+                    <td>
+                        <div class="action-btns antenista-actions">
+                            <a href="{% url 'editar_antenista' a.pk %}" class="btn btn-sm btn-primary"><i class="bi bi-pencil-fill"></i> Editar</a>
+                            <form action="{% url 'apagar_antenista' a.pk %}" method="POST" onsubmit="return confirm('Deseja apagar este antenista cadastrado?');" style="display:inline-block;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-danger"><i class="bi bi-trash-fill"></i> Apagar</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="3">Nenhum antenista cadastrado.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+    {# Paginação simples #}
+    {% if is_paginated %}
+    <nav aria-label="Page navigation">
+        <ul class="pagination">
+            {% if page_obj.has_previous %}
+            <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a></li>
+            {% endif %}
+            <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
+            {% if page_obj.has_next %}
+            <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Próxima</a></li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1055,13 +1055,34 @@ def zerar_estoque_antenista(request):
         messages.error(request, 'Requisição inválida. Use POST para zerar o estoque.')
     return redirect('RegistrarEstoqueantenistaView')
 
-from .models import antenista_CARD
-from .forms import antenista_Form
+
+@login_required
+def delete_estoque_antenista(request, pk):
+    """Apaga um registro de estoque_antenista via POST com verificação de permissão."""
+    from django.shortcuts import get_object_or_404
+    estoque = get_object_or_404(estoque_antenista, pk=pk)
+    # verifica permissão
+    if not request.user.has_perm('requisicao.delete_estoque_antenista'):
+        messages.error(request, 'Você não tem permissão para apagar esse registro.')
+        return redirect('RegistrarEstoqueantenistaView')
+
+    if request.method == 'POST':
+        estoque.delete()
+        messages.success(request, 'Registro de estoque apagado com sucesso.')
+        return redirect('RegistrarEstoqueantenistaView')
+    else:
+        messages.error(request, 'Método inválido para exclusão.')
+        return redirect('RegistrarEstoqueantenistaView')
+
+from .models import antenista_CARD, Antenista
+from .forms import antenista_Form, AntenistaForm
+
 class AntenistaCreateView(CreateView):
-    model = antenista_CARD
-    form_class = antenista_Form
-    template_name = 'antenista_form.html'  # Substitua pelo caminho correto do seu template
-    success_url = reverse_lazy('lista_antenistas')  # Ajuste para sua rota desejada
+    # Cria um registro no modelo Antenista (nome + estado)
+    model = Antenista
+    form_class = AntenistaForm
+    template_name = 'novo_antenista.html'
+    success_url = reverse_lazy('lista_antenistas')
 
     def form_valid(self, form):
         # Envia o e-mail após salvar o registro
@@ -1079,17 +1100,112 @@ class AntenistaCreateView(CreateView):
         return response
 
 
+class AntenistaCardCreateView(LoginRequiredMixin, CreateView):
+    """Cria um registro de antenista_CARD usando o template de Saída de Equipamentos.
+
+    Mantém o template `novo_antenista.html` intacto (para cadastro de Antenista simples)
+    e expõe uma view separada que usa `antenista_form.html` para o fluxo "Saída de Equipamentos".
+    """
+    model = antenista_CARD
+    form_class = antenista_Form
+    template_name = 'antenista_form.html'
+    success_url = reverse_lazy('lista_antenistas')
+
+    def form_valid(self, form):
+        # qualquer lógica extra pode ser adicionada aqui (enviar email, logs, etc.)
+        return super().form_valid(form)
+
+
 
 
 from django.views.generic.list import ListView
 from django.http import HttpResponse
 import openpyxl
 from openpyxl.utils import get_column_letter
+from .models import Antenista
 
 class AntenistaListView(ListView):
+    # Mantém a listagem existente de antenista_CARD (compatibilidade com export e template atual)
     model = antenista_CARD
     template_name = 'antenista_list.html'
     context_object_name = 'antenistas'
+
+
+class AntenistaCadastradosListView(PermissionRequiredMixin, LoginRequiredMixin, ListView):
+    """Listagem simples dos antenistas cadastrados (modelo `Antenista`).
+
+    Não substitui a listagem de `antenista_CARD` — fornece uma visão dos
+    antenistas registrados (nome e estado), útil para administração.
+    """
+    model = Antenista
+    template_name = 'antenista_cadastrados_list.html'
+    context_object_name = 'antenistas_cadastrados'
+    paginate_by = 50
+    permission_required = 'requisicao.view_antenista'
+
+
+class AntenistaUpdateView(PermissionRequiredMixin, LoginRequiredMixin, UpdateView):
+    """Edita um Antenista cadastrado."""
+    model = Antenista
+    form_class = AntenistaForm
+    template_name = 'novo_antenista.html'  # Reusa o template de criação
+    permission_required = 'requisicao.change_antenista'
+    success_url = reverse_lazy('lista_antenistas_cadastrados')
+
+
+class AntenistaDeleteView(PermissionRequiredMixin, LoginRequiredMixin, DeleteView):
+    """Exclui um Antenista cadastrado (POST via formulário)."""
+    model = Antenista
+    template_name = 'confirm_delete.html'
+    permission_required = 'requisicao.delete_antenista'
+    success_url = reverse_lazy('lista_antenistas_cadastrados')
+
+    def delete(self, request, *args, **kwargs):
+        # Robust deletion: avoid calling get_object() early because it may trigger
+        # related-table queries that fail when schema is inconsistent. Instead,
+        # use the pk from the URL and attempt an ORM delete; if any
+        # OperationalError occurs, fall back to a direct SQL DELETE on the model's
+        # table so the UI can continue to manage records while migrations are fixed.
+        from django.db import connection, transaction, utils as db_utils
+        from django.contrib import messages
+
+        pk = kwargs.get(self.pk_url_kwarg) or kwargs.get('pk')
+        if not pk:
+            messages.error(request, "PK não informado para exclusão.")
+            return redirect(self.success_url)
+
+        # First, try to delete via ORM but avoid calling get_object() which may
+        # cause related-object queries.
+        try:
+            # Use a filtered queryset delete to minimize related-object collection
+            # (QuerySet.delete() still uses collector, but this keeps code simple).
+            qs = Antenista.objects.filter(pk=pk)
+            if qs.exists():
+                try:
+                    qs.delete()
+                    messages.success(request, "Registro apagado com sucesso.")
+                    return redirect(self.success_url)
+                except db_utils.OperationalError:
+                    # fall through to raw delete
+                    pass
+            else:
+                messages.info(request, "Registro não encontrado (já removido).")
+                return redirect(self.success_url)
+        except db_utils.OperationalError:
+            # fall back to raw SQL delete below
+            pass
+
+        # Raw SQL fallback: delete directly from the model table using the pk.
+        try:
+            table = Antenista._meta.db_table
+            with transaction.atomic():
+                with connection.cursor() as cursor:
+                    cursor.execute(f"DELETE FROM {table} WHERE id = ?", [pk])
+            messages.success(request, "Registro apagado com sucesso (delete direto).")
+            return redirect(self.success_url)
+        except Exception:
+            # If even the raw delete fails, raise to show the full error for debugging.
+            raise
 
 
 def export_antenistas_excel(request):
@@ -1163,6 +1279,28 @@ def atualizar_status_atualizado(request, pk):
         return redirect('lista_antenistas')
     else:
         messages.error(request, "Método HTTP inválido.")
+        return redirect('lista_antenistas')
+
+
+@login_required
+def delete_antenista_card(request, pk):
+    """Apaga um registro de antenista_CARD via POST.
+
+    Requer que o usuário esteja autenticado e tenha permissão
+    `requisicao.delete_antenista_card`.
+    """
+    antenista = get_object_or_404(antenista_CARD, pk=pk)
+    # Verifica permissão explícita
+    if not request.user.has_perm('requisicao.delete_antenista_card'):
+        messages.error(request, "Você não tem permissão para apagar este registro.")
+        return redirect('lista_antenistas')
+
+    if request.method == 'POST':
+        antenista.delete()
+        messages.success(request, "Registro apagado com sucesso.")
+        return redirect('lista_antenistas')
+    else:
+        messages.error(request, "Método inválido para exclusão.")
         return redirect('lista_antenistas')
 
 

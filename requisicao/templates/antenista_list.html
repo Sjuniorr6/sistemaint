@@ -155,6 +155,23 @@
             padding: 0.2rem 0.4rem;
         }
     }
+    /* Ajustes específicos para os botões de Ações */
+    .action-btns {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+    .action-btns form {
+        margin: 0;
+        display: inline-block;
+    }
+    /* Garantir que botões pequenos não ocupem 100% da célula */
+    .btn-sm {
+        min-width: auto;
+        padding: 0.28rem 0.6rem;
+    }
 </style>
 <div class="container mt-5">
     <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -197,7 +214,14 @@
             <tbody>
                 {% for antenista in antenistas %}
                 <tr>
-                    <td>{{ antenista.nome }}</td>
+                    <td>
+                        {# Mostrar FK se existir, caso contrário mostrar o nome textual histórico #}
+                        {% if antenista.nome %}
+                            {{ antenista.nome }}
+                        {% else %}
+                            {{ antenista.nome_texto }}
+                        {% endif %}
+                    </td>
                     <td>{{ antenista.tipo_produto }}</td>
                     <td>{{ antenista.telefone }}</td>
                     <td>{{ antenista.cliente }}</td>
@@ -213,14 +237,24 @@
                     <td class="no-wrap">{{ antenista.status }}</td>
                     <td>{{ antenista.data_criacao|date:"d/m/Y" }}</td>
                     <td>
-                        {% if antenista.status != 'Atualizado' %}
-                            <form action="{% url 'atualizar_atualizado' antenista.pk %}" method="POST" style="display: inline;">
+                        <div class="action-btns">
+                            {% if antenista.status != 'Atualizado' %}
+                                <form action="{% url 'atualizar_atualizado' antenista.pk %}" method="POST">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-warning btn-sm">Atualizado</button>
+                                </form>
+                            {% else %}
+                                <div>
+                                    <button class="btn btn-success btn-sm" disabled>Atualizado</button>
+                                </div>
+                            {% endif %}
+
+                            {# Botão de apagar: envia POST para a view de exclusão com confirmação JS #}
+                            <form action="{% url 'delete_antenista_card' antenista.pk %}" method="POST">
                                 {% csrf_token %}
-                                <button type="submit" class="btn btn-warning btn-sm">Atualizado</button>
+                                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Confirma exclusão deste registro?');">Apagar</button>
                             </form>
-                        {% else %}
-                            <button class="btn btn-success btn-sm" disabled>Atualizado</button>
-                        {% endif %}
+                        </div>
                     </td>
                 </tr>
                 {% empty %}

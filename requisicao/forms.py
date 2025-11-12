@@ -292,3 +292,16 @@ class antenista_Form(forms.ModelForm):
             empty_label="Selecione um cliente",
             widget=forms.Select(attrs={'class': 'form-control'})
         )
+
+
+# Formulário para cadastro do modelo Antenista (nome + estado)
+from .models import Antenista
+
+class AntenistaForm(forms.ModelForm):
+    class Meta:
+        model = Antenista
+        fields = ['nome', 'estado']
+        widgets = {
+            'nome': forms.TextInput(attrs={'class': 'form-control'}),
+            'estado': forms.TextInput(attrs={'class': 'form-control'}),
+        }
