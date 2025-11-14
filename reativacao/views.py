@@ -12,6 +12,9 @@ from django.views.generic.edit import UpdateView
 from .models import Reativacao
 from .forms import ReativacaoForm
 from django.urls import reverse_lazy
+import logging
+from django.contrib import messages
+import json
 
 
 class ReativacaoIdIccidCreateView(PermissionRequiredMixin, LoginRequiredMixin, View):
@@ -239,12 +242,37 @@ class ReativacaoCompleteUpdateView(PermissionRequiredMixin, LoginRequiredMixin, 
         reativacao = get_object_or_404(Reativacao, pk=pk)
         form = ReativacaoForm(request.POST, instance=reativacao)
         formset = IdIccidFormSet(request.POST, instance=reativacao)
-        
-        if form.is_valid() and formset.is_valid():
+        logger = logging.getLogger(__name__)
+
+        is_form_valid = form.is_valid()
+        is_formset_valid = formset.is_valid()
+
+        if is_form_valid and is_formset_valid:
             form.save()
             formset.save()
+            messages.success(request, 'Reativação atualizada com sucesso.')
             return redirect('reativacao_list')
-        
+
+        # Log detailed errors for debugging
+        try:
+            form_errors = form.errors.get_json_data()
+        except Exception:
+            form_errors = str(form.errors)
+        try:
+            formset_errors = [f.errors.get_json_data() for f in formset.forms]
+        except Exception:
+            formset_errors = [str(f.errors) for f in formset.forms]
+
+        non_formset_errors = formset.non_form_errors()
+
+        logger.error('ReativacaoCompleteUpdateView: form valid=%s, formset valid=%s', is_form_valid, is_formset_valid)
+        logger.error('Form errors: %s', json.dumps(form_errors, ensure_ascii=False))
+        logger.error('Formset errors: %s', json.dumps(formset_errors, ensure_ascii=False))
+        logger.error('Formset non-form errors: %s', non_formset_errors)
+
+        # Also show a short message to the user
+        messages.error(request, 'Erro ao salvar. Verifique os campos destacados abaixo.')
+
         return render(request, 'reativacao_complete_update.html', {
             'form': form,
             'formset': formset,

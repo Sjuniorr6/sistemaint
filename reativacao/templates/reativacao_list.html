@@ -180,6 +180,7 @@
                             <th style="text-align: center;">Status da Reativação</th>
                             <th style="text-align: center;">Quantidade</th>
                             <th style="text-align: center;">Status</th>
+                                <th style="text-align: center;">Editar</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -219,9 +220,6 @@
                                             {% endfor %}
                                         </select>
                                     </form>
-                                    {% if perms.t42.view_t42model %}
-                                    <a href="{% url 'reativacao_complete_update' registro.id %}" class="btn btn-sm btn-info mt-2">Editar Completo</a>
-                                    {% endif %}
                                     <script>
                                         function updateStatus(registroId) {
                                             var form = document.getElementById('status-form-' + registroId);
@@ -252,6 +250,15 @@
                                             });
                                         }
                                     </script>
+                                </td>
+                                <td style="text-align:center; vertical-align: middle;">
+                                    {% if perms.t42.change_t42model %}
+                                        <a href="{% url 'reativacao_complete_update' registro.id %}" class="btn btn-sm btn-primary">Editar</a>
+                                    {% elif perms.t42.view_t42model %}
+                                        <a href="{% url 'reativacao_complete_update' registro.id %}" class="btn btn-sm btn-info">Ver / Editar</a>
+                                    {% else %}
+                                        <span class="text-muted">Sem permissão</span>
+                                    {% endif %}
                                 </td>
                             </tr>
                         {% endfor %}

@@ -16,7 +16,44 @@
                 <div class="card-body">
                     <form method="post" id="reativacao-form">
                         {% csrf_token %}
-                        
+
+                        {# Mostrar erros globais do form e do formset para ajudar debug/usuário #}
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                <strong>Erros no formulário:</strong>
+                                <ul>
+                                    {% for err in form.non_field_errors %}
+                                        <li>{{ err }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endif %}
+                        {% if form.errors %}
+                            <div class="alert alert-danger">
+                                <strong>Erros nos campos do formulário principal:</strong>
+                                <ul>
+                                    {% for field, errs in form.errors.items %}
+                                        <li><strong>{{ field }}:</strong>
+                                            <ul>
+                                                {% for e in errs %}
+                                                    <li>{{ e }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endif %}
+                        {% if formset.non_form_errors %}
+                            <div class="alert alert-danger">
+                                <strong>Erros no formset:</strong>
+                                <ul>
+                                    {% for err in formset.non_form_errors %}
+                                        <li>{{ err }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endif %}
                         <!-- Formulário Principal da Reativação -->
                         <div class="row mb-4">
                             <div class="col-12">
@@ -116,6 +153,10 @@
                         <div id="formset-container">
                             {% for form in formset %}
                                 <div class="formset-form card mb-3 border-info">
+                                    {# Renderizar campos ocultos (ex: id) que são necessários no POST #}
+                                    {% for hidden in form.hidden_fields %}
+                                        {{ hidden }}
+                                    {% endfor %}
                                     <div class="card-header bg-info text-white">
                                         <div class="d-flex justify-content-between align-items-center">
                                             <span>
@@ -129,6 +170,15 @@
                                         </div>
                                     </div>
                                     <div class="card-body">
+                                        {% if form.non_field_errors %}
+                                            <div class="alert alert-danger">
+                                                <ul>
+                                                    {% for err in form.non_field_errors %}
+                                                        <li>{{ err }}</li>
+                                                    {% endfor %}
+                                                </ul>
+                                            </div>
+                                        {% endif %}
                                         <div class="row">
                                             <div class="col-md-4">
                                                 <div class="form-group">
@@ -209,7 +259,9 @@
 // Função para adicionar novo formulário ao formset
 function addFormsetForm() {
     const container = document.getElementById('formset-container');
-    const totalForms = document.getElementById('id_idiccids-TOTAL_FORMS');
+    // Procura o campo TOTAL_FORMS do formset de forma robusta (por name),
+    // assim funciona mesmo quando o prefix do formset muda.
+    const totalForms = document.querySelector('input[name$="-TOTAL_FORMS"]');
     const currentForms = parseInt(totalForms.value);
     
     // Clone o último formulário
