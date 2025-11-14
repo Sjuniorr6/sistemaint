@@ -26,4 +26,4 @@ class IdIccidForm(forms.ModelForm):
             'quantidade': forms.TextInput(attrs={'class': 'form-control'}),
         }
 
-IdIccidFormSet = inlineformset_factory(Reativacao, IdIccid, form=IdIccidForm, extra=1, can_delete=False)
+IdIccidFormSet = inlineformset_factory(Reativacao, IdIccid, form=IdIccidForm, extra=1, can_delete=True)

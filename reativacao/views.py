@@ -107,6 +107,9 @@ class ReativacaoIdIccidCreateView(PermissionRequiredMixin, LoginRequiredMixin, V
             print(f"Erro ao reativar equipamento: {response.status_code}")
             print(response.text)
 from django.http import JsonResponse  # Importar JsonResponse se for necessário
+from django.http import HttpResponseNotAllowed
+from django.contrib.auth.decorators import permission_required, login_required
+from django.contrib import messages
 
 class RequisicoesListView(PermissionRequiredMixin, LoginRequiredMixin, ListView):
     model = Requisicoes
@@ -237,6 +240,18 @@ class ReativacaoCompleteUpdateView(PermissionRequiredMixin, LoginRequiredMixin, 
             'formset': formset,
             'reativacao': reativacao,
         })
+
+
+@login_required
+@permission_required('reativacao.delete_reativacao', raise_exception=True)
+def delete_reativacao(request, pk):
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    reativacao = get_object_or_404(Reativacao, pk=pk)
+    reativacao.delete()
+    messages.success(request, 'Reativação excluída com sucesso.')
+    return redirect('reativacao_list')
 
     def post(self, request, pk):
         reativacao = get_object_or_404(Reativacao, pk=pk)

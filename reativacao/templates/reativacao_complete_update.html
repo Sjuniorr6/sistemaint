@@ -157,6 +157,10 @@
                                     {% for hidden in form.hidden_fields %}
                                         {{ hidden }}
                                     {% endfor %}
+                                    {# Campo DELETE do formset (aparece quando can_delete=True). Renderizamos para que exista no DOM e possamos marcá-lo via JS. #}
+                                    <div style="display:none">
+                                        {{ form.DELETE }}
+                                    </div>
                                     <div class="card-header bg-info text-white">
                                         <div class="d-flex justify-content-between align-items-center">
                                             <span>
@@ -166,7 +170,12 @@
                                             {% if form.instance.pk %}
                                                 <span class="badge badge-light">ID: {{ form.instance.pk }}</span>
                                             {% endif %}
-                                            <!-- Removido botão de remover -->
+                                            <!-- Botão de remover linha do formset -->
+                                            <div>
+                                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="markDelete(this)">
+                                                    <i class="fas fa-trash"></i> Excluir
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                     <div class="card-body">
@@ -322,6 +331,27 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+
+// Marca o campo DELETE do formset correspondente e oculta o card visualmente.
+function markDelete(button) {
+    if (!confirm('Confirma excluir este equipamento? A exclusão será aplicada ao salvar.')) return;
+    const card = button.closest('.formset-form');
+    if (!card) return;
+    // Procura um input cujo name termine com '-DELETE' dentro do card
+    const deleteInput = card.querySelector('input[name$="-DELETE"]');
+    if (!deleteInput) {
+        alert('Campo de exclusão não encontrado para este formulário.');
+        return;
+    }
+    // Para compatibilidade com checkbox/hidden: marque ou defina valor
+    if (deleteInput.type === 'checkbox') {
+        deleteInput.checked = true;
+    } else {
+        deleteInput.value = 'on';
+    }
+    // Esconder o card imediatamente para dar feedback visual ao usuário
+    card.style.display = 'none';
+}
 </script>
 
 <style>

@@ -180,7 +180,8 @@
                             <th style="text-align: center;">Status da Reativação</th>
                             <th style="text-align: center;">Quantidade</th>
                             <th style="text-align: center;">Status</th>
-                                <th style="text-align: center;">Editar</th>
+                                    <th style="text-align: center;">Editar</th>
+                                    <th style="text-align: center;">Excluir</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -256,6 +257,16 @@
                                         <a href="{% url 'reativacao_complete_update' registro.id %}" class="btn btn-sm btn-primary">Editar</a>
                                     {% elif perms.t42.view_t42model %}
                                         <a href="{% url 'reativacao_complete_update' registro.id %}" class="btn btn-sm btn-info">Ver / Editar</a>
+                                    {% else %}
+                                        <span class="text-muted">Sem permissão</span>
+                                    {% endif %}
+                                </td>
+                                <td style="text-align:center; vertical-align: middle;">
+                                    {% if perms.reativacao.delete_reativacao %}
+                                        <form method="post" action="{% url 'reativacao_delete' registro.id %}" style="display:inline-block;">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Confirma exclusão desta reativação?');">Excluir</button>
+                                        </form>
                                     {% else %}
                                         <span class="text-muted">Sem permissão</span>
                                     {% endif %}
