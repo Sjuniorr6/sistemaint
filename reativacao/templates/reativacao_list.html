@@ -172,6 +172,7 @@
                             <th style="text-align: center;">Usuário</th>
                             <th style="text-align: center;">Data de Criação</th>
                             <th style="text-align: center;">Nome</th>
+                            <th style="text-align: center;">CNPJ</th>
                             <th style="text-align: center;">Motivo</th>
                             <th style="text-align: center;">Canal de Solicitação</th>
                             <th style="text-align: center;">Observações</th>
@@ -191,6 +192,7 @@
                                 <td>{{ registro.usuario.username }}</td>
                                 <td>{{ registro.data_hora_criacao|date:"d/m/Y H:i" }}</td>
                                 <td>{{ registro.nome }}</td>
+                                <td>{{ registro.cnpj }}</td>
                                 <td>{{ registro.motivo_reativacao }}</td>
                                 <td>{{ registro.canal_solicitacao }}</td>
                                 <td>{{ registro.observacoes }}</td>
