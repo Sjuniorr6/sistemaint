@@ -7,11 +7,19 @@ from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from registrodemanutencao.models import registrodemanutencao
-from requisicao.models import Requisicoes,estoque_antenista
+from requisicao.models import Requisicoes, estoque_antenista, KanbanAuditLog
 from django.shortcuts import get_object_or_404
+from django.db.models.signals import post_save, pre_save
+from django.db import transaction
+import contextlib
 from django.http import HttpResponseRedirect
 from django.db.models import Q
 from django.conf import settings
+from django.db import transaction
+from django.views.decorators.http import require_POST, require_http_methods
+from django.views.decorators.csrf import csrf_exempt
+from django.utils import timezone
+import json
 
 
 from registrodemanutencao.forms import FormulariosUpdateForm
@@ -575,7 +583,7 @@ def expedir_requisicao(request, id):
     subject = f"Requisicao Expedida: ID:  {registro.id} "
     message = f"Requisição realizada e expedida com sucesso. ID:  {registro.id} Quality, por favor realizar a auditoria de espelhamento. Atenciosamente, Departamento de Inteligência"
     from_email = settings.DEFAULT_FROM_EMAIL
-    recipient_list = ['gerencia@grupogoldensat.com.br','supervisao@grupogoldensat.com.br','coordenacao.plantao@grupogoldensat.com.br','quality@grupogoldensat.com.br','sjuniorr6@Gmail.com']
+    recipient_list = ['riicodt@gmail.com']
     
     
     try:
@@ -1324,3 +1332,467 @@ class RequisicaoUpdateView(UpdateView):
     def form_valid(self, form):
         form.instance.data_alteracao = timezone.now()
         return super().form_valid(form)
+
+
+# ============== EXPEDIÇÃO PARCIAL ==============
+
+@require_POST
+@login_required
+def expedir_requisicao_parcial(request):
+    """
+    Expede parcialmente uma requisição, criando uma nova com a quantidade restante.
+    Apenas usuários do grupo 'Gestão Kanban' podem executar esta ação.
+    """
+    try:
+        # Verifica se usuário pertence ao grupo Gestão Kanban
+        if not request.user.groups.filter(name='Gestão Kanban').exists():
+            return JsonResponse({
+                'success': False,
+                'message': 'Você não tem permissão para expedir requisições.'
+            }, status=403)
+        
+        data = json.loads(request.body)
+        requisicao_id = data.get('requisicao_id')
+        quantidade_expedir = int(data.get('quantidade_expedir', 0))
+        
+        requisicao = get_object_or_404(Requisicoes, id=requisicao_id)
+        
+        # Converte numero_de_equipamentos para int
+        numero_equipamentos = int(requisicao.numero_de_equipamentos) if requisicao.numero_de_equipamentos else 0
+        
+        # Validações
+        if quantidade_expedir <= 0:
+            return JsonResponse({
+                'success': False,
+                'message': 'Quantidade deve ser maior que zero.'
+            })
+        
+        if quantidade_expedir > numero_equipamentos:
+            return JsonResponse({
+                'success': False,
+                'message': f'Quantidade não pode ser maior que {numero_equipamentos}.'
+            })
+        
+        # Usa transaction para garantir atomicidade
+        with transaction.atomic():
+            # Atualiza requisição original - MARCA COMO EXPEDIDA
+            requisicao.quantidade_expedida += quantidade_expedir
+            requisicao.status = 'Configurado'  # Muda status para expedido
+            requisicao.kanban_status = None  # Remove do kanban
+            requisicao.save()
+            
+            # Registra log de expedição parcial
+            KanbanAuditLog.objects.create(
+                requisicao=requisicao,
+                usuario=request.user,
+                acao='expedicao_parcial',
+                coluna_origem='auditoria',
+                coluna_destino='expedido',
+                quantidade_expedida=quantidade_expedir,
+                observacao=f'Expedidos {quantidade_expedir} de {numero_equipamentos} equipamentos'
+            )
+            
+            # Calcula quantidade restante
+            quantidade_restante = numero_equipamentos - quantidade_expedir
+            
+            # Se ainda há quantidade restante, cria nova requisição
+            if quantidade_restante > 0:
+                # Calcula valor total para nova requisição
+                valor_unitario = float(requisicao.valor_unitario) if requisicao.valor_unitario else 0
+                valor_total_novo = valor_unitario * quantidade_restante if valor_unitario > 0 else 0
+                
+                # Cria nova requisição SEM disparar signals problemáticos
+                try:
+                    # Copia TODOS os dados importantes da requisição original
+                    nova_requisicao = Requisicoes(
+                        # Dados do cliente
+                        nome=requisicao.nome,
+                        endereco=requisicao.endereco or '',
+                        contrato=requisicao.contrato or '',
+                        cnpj=requisicao.cnpj or '',
+                        inicio_de_contrato=requisicao.inicio_de_contrato,
+                        vigencia=requisicao.vigencia or '',
+                        motivo=requisicao.motivo or '',
+                        aos_cuidados=requisicao.aos_cuidados or '',
+                        
+                        # Dados do produto
+                        tipo_produto=requisicao.tipo_produto,
+                        numero_de_equipamentos=quantidade_restante,
+                        tipo_customizacao=requisicao.tipo_customizacao or 'Sem customização',
+                        carregador=requisicao.carregador or '',
+                        cabo=requisicao.cabo or '',
+                        
+                        # Dados comerciais e financeiros
+                        comercial=requisicao.comercial,
+                        valor_unitario=valor_unitario,
+                        valor_total=valor_total_novo,
+                        taxa_envio=requisicao.taxa_envio or 0,
+                        tipo_fatura=requisicao.tipo_fatura,
+                        forma_pagamento=requisicao.forma_pagamento or '',
+                        
+                        # Dados de entrega
+                        envio=requisicao.envio,
+                        data_entrega=requisicao.data_entrega,
+                        TP=requisicao.TP,
+                        
+                        # Status e controle
+                        observacoes=f'[EXPEDIÇÃO PARCIAL] Restante da requisição #{requisicao.id}',
+                        status='Pendente',
+                        kanban_status='a_fazer',
+                        requisicao_original_id=requisicao,
+                        id_equipamentos='',
+                        iccid='',
+                    )
+                    # Marca para pular signals (evita envio de email e geração de PDF)
+                    nova_requisicao._skip_signals = True
+                    nova_requisicao.save()
+                    
+                except Exception as e_create:
+                    # Se falhar, loga e continua
+                    print(f"Erro ao criar nova requisição: {e_create}")
+                    import traceback
+                    traceback.print_exc()
+                    # Retorna erro para o usuário
+                    return JsonResponse({
+                        'success': False,
+                        'message': f'Erro ao criar requisição restante: {str(e_create)[:100]}'
+                    }, status=500)
+                
+                # Registra log da nova requisição
+                KanbanAuditLog.objects.create(
+                    requisicao=nova_requisicao,
+                    usuario=request.user,
+                    acao='movimento',
+                    coluna_origem=None,
+                    coluna_destino='a_fazer',
+                    observacao=f'Criada a partir da expedição parcial da requisição #{requisicao.id}'
+                )
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Expedição parcial realizada! {quantidade_expedir} expedidos, {quantidade_restante} retornaram para "A Fazer" (Req #{nova_requisicao.id})',
+                    'nova_requisicao_id': nova_requisicao.id
+                })
+            else:
+                # Expedição total - marca como expedida
+                KanbanAuditLog.objects.create(
+                    requisicao=requisicao,
+                    usuario=request.user,
+                    acao='expedicao_total',
+                    coluna_origem=requisicao.kanban_status,
+                    coluna_destino='concluido',
+                    quantidade_expedida=quantidade_expedir,
+                    observacao='Expedição total da requisição'
+                )
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Expedição total realizada! Todos os {quantidade_expedir} equipamentos foram expedidos.'
+                })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Dados inválidos.'
+        }, status=400)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'Erro ao processar expedição: {str(e)}'
+        }, status=500)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def salvar_ids_equipamentos(request, pk):
+    """
+    Salva IDs e ICCIDs dos equipamentos de uma requisição via AJAX
+    """
+    try:
+        # Verifica permissões
+        if not request.user.groups.filter(name__in=['Gestão Kanban', 'Configuração Kanban']).exists():
+            return JsonResponse({
+                'success': False,
+                'error': 'Você não tem permissão para esta ação.'
+            }, status=403)
+        
+        # Busca requisição
+        requisicao = get_object_or_404(Requisicoes, pk=pk)
+        
+        # Parse JSON body
+        data = json.loads(request.body)
+        ids_equipamentos = data.get('ids_equipamentos', '').strip()
+        iccid = data.get('iccid', '').strip()
+        
+        # Validações
+        if not ids_equipamentos:
+            return JsonResponse({
+                'success': False,
+                'error': 'Por favor, informe os IDs dos equipamentos.'
+            }, status=400)
+        
+        if not iccid:
+            return JsonResponse({
+                'success': False,
+                'error': 'Por favor, informe os ICCIDs.'
+            }, status=400)
+        
+        # Conta quantidade de IDs
+        ids_list = ids_equipamentos.split()
+        iccid_list = iccid.split()
+        
+        if len(ids_list) != len(iccid_list):
+            return JsonResponse({
+                'success': False,
+                'error': f'Quantidade de IDs ({len(ids_list)}) diferente da quantidade de ICCIDs ({len(iccid_list)}).'
+            }, status=400)
+        
+        # Atualiza requisição
+        requisicao.id_equipamentos = ids_equipamentos
+        requisicao.iccid = iccid
+        requisicao.save()
+        
+        # Log de auditoria
+        KanbanAuditLog.objects.create(
+            requisicao=requisicao,
+            usuario=request.user,
+            acao='inclusao_ids',
+            observacao=f'IDs e ICCIDs incluídos: {len(ids_list)} equipamentos'
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'IDs e ICCIDs salvos com sucesso! ({len(ids_list)} equipamentos)'
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Dados inválidos.'
+        }, status=400)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'Erro ao salvar IDs: {str(e)}'
+        }, status=500)
+
+
+# ============== KANBAN BOARD VIEWS ==============
+
+from django.db.models import Count, F
+from datetime import datetime, timedelta
+
+class KanbanGestaoView(PermissionRequiredMixin, LoginRequiredMixin, ListView):
+    """
+    View principal do Kanban Board para gestão de requisições.
+    Exibe 3 colunas: A Fazer, Em Progresso, Auditoria
+    Com estatísticas e cards drag & drop.
+    """
+    model = Requisicoes
+    template_name = 'kanban_gestao.html'
+    context_object_name = 'requisicoes'
+    permission_required = "requisicao.view_requisicoes"
+    
+    def get_queryset(self):
+        """
+        Retorna requisições com status 'Aprovado pelo CEO' para gerenciamento no Kanban.
+        Exclui produtos: GS310, GS340, GS390, GS8310 (4G), PLUG AND PLAY (mesmos da ConfiguracaoListView).
+        Ordena por prioridade (DESC) e data (ASC - mais antigas primeiro).
+        """
+        return Requisicoes.objects.filter(
+            status='Aprovado pelo CEO'
+        ).exclude(
+            tipo_produto__nome__in=['GS310', 'GS340', 'GS390', 'GS8310 (4G)', 'PLUG AND PLAY']
+        ).select_related('nome', 'tipo_produto').order_by('-prioridade', 'data')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Separa requisições por coluna do Kanban
+        todas_requisicoes = self.get_queryset()
+        
+        context['a_fazer'] = todas_requisicoes.filter(kanban_status='a_fazer')
+        context['em_progresso'] = todas_requisicoes.filter(kanban_status='em_progresso')
+        context['auditoria'] = todas_requisicoes.filter(kanban_status='auditoria')
+        
+        # Calcula estatísticas para o dashboard
+        hoje = timezone.now()
+        sete_dias_atras = hoje - timedelta(days=7)
+        
+        # Total de tarefas (apenas Aprovado pelo CEO)
+        total_tarefas = todas_requisicoes.count()
+        
+        # Concluídas (as que já foram expedidas/enviadas ao cliente desde que foram aprovadas pelo CEO)
+        concluidas = Requisicoes.objects.filter(
+            status__in=['Configurado', 'Enviado para o cliente', 'Expedido']
+        ).exclude(
+            status='Aprovado pelo CEO'
+        ).count()
+        
+        # Em progresso
+        em_progresso_count = todas_requisicoes.filter(kanban_status='em_progresso').count()
+        
+        # Atrasadas (mais de 7 dias desde a última alteração e ainda não concluídas)
+        atrasadas = todas_requisicoes.filter(data_alteracao__lt=sete_dias_atras).count()
+        
+        # Taxa de conclusão (baseado no total geral de requisições aprovadas)
+        total_aprovadas_historico = Requisicoes.objects.filter(
+            status__in=['Aprovado pelo CEO', 'Configurado', 'Enviado para o cliente', 'Expedido']
+        ).count()
+        taxa_conclusao = round((concluidas / total_aprovadas_historico * 100) if total_aprovadas_historico > 0 else 0)
+        
+        context['stats'] = {
+            'total_tarefas': total_tarefas,
+            'concluidas': concluidas,
+            'em_progresso': em_progresso_count,
+            'atrasadas': atrasadas,
+            'taxa_conclusao': taxa_conclusao
+        }
+        
+        return context
+
+
+@require_POST
+@login_required
+def update_kanban_status(request):
+    """
+    Endpoint AJAX para atualizar o status do Kanban quando um card é arrastado.
+    Valida permissões do usuário e se IDs estão incluídos antes de permitir mover para 'auditoria'.
+    Registra todas as movimentações no KanbanAuditLog.
+    """
+    try:
+        data = json.loads(request.body)
+        requisicao_id = data.get('requisicao_id')
+        novo_status = data.get('novo_status')
+        
+        requisicao = get_object_or_404(Requisicoes, id=requisicao_id)
+        status_anterior = requisicao.kanban_status
+        
+        # Verifica permissões do usuário
+        is_gestao = request.user.groups.filter(name='Gestão Kanban').exists()
+        is_config = request.user.groups.filter(name='Configuração Kanban').exists()
+        
+        # Se não pertence a nenhum grupo, bloqueia
+        if not is_gestao and not is_config:
+            return JsonResponse({
+                'success': False,
+                'error': 'Você não tem permissão para mover cards no Kanban.'
+            }, status=403)
+        
+        # Configuração só pode mover de "em_progresso" para "auditoria"
+        if is_config and not is_gestao:
+            if status_anterior != 'em_progresso' or novo_status != 'auditoria':
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Você só pode mover cards de "Em Progresso" para "Auditoria".'
+                }, status=403)
+        
+        # Validação: não pode mover para auditoria sem IDs de equipamentos
+        if novo_status == 'auditoria':
+            if not requisicao.id_equipamentos or requisicao.id_equipamentos.strip() == '':
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Não é possível mover para Auditoria sem incluir os IDs dos equipamentos.'
+                }, status=400)
+            
+            # Valida se a quantidade de IDs não é MAIOR que a quantidade de equipamentos
+            ids_list = requisicao.id_equipamentos.strip().split()
+            quantidade_ids = len(ids_list)
+            quantidade_esperada = int(requisicao.numero_de_equipamentos) if requisicao.numero_de_equipamentos else 0
+            
+            if quantidade_ids > quantidade_esperada:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Quantidade de IDs ({quantidade_ids}) é MAIOR que a quantidade de equipamentos ({quantidade_esperada}). Por favor, verifique os IDs incluídos.'
+                }, status=400)
+            
+            # Se quantidade de IDs é MENOR, permite mover (será expedição parcial)
+            # Se quantidade de IDs é IGUAL, permite mover normalmente
+            
+            # Marca o card com cor especial quando IDs estão incluídos
+            requisicao.cor_card = 'ids-incluidos'
+        
+        # Armazena o status anterior para o signal
+        requisicao._kanban_status_anterior = status_anterior
+        requisicao._usuario_mudanca = request.user
+        
+        # Atualiza o status
+        requisicao.kanban_status = novo_status
+        requisicao.data_alteracao = timezone.now()
+        requisicao.save()
+        
+        # Registra no audit log
+        KanbanAuditLog.objects.create(
+            requisicao=requisicao,
+            usuario=request.user,
+            acao='movimento',
+            coluna_origem=status_anterior,
+            coluna_destino=novo_status,
+            observacao=f'Card movido de {status_anterior} para {novo_status}'
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Requisição movida para {dict(requisicao.KANBAN_STATUS_CHOICES)[novo_status]}',
+            'cor_card': requisicao.cor_card
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'JSON inválido'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@require_POST
+@login_required
+def toggle_prioridade(request, pk):
+    """
+    Endpoint AJAX para alternar a flag de prioridade de uma requisição.
+    Cards prioritários aparecem no topo da coluna.
+    """
+    try:
+        requisicao = get_object_or_404(Requisicoes, id=pk)
+        
+        # Inverte a prioridade
+        requisicao.prioridade = not requisicao.prioridade
+        requisicao.save()
+        
+        return JsonResponse({
+            'success': True,
+            'prioridade': requisicao.prioridade,
+            'message': f'Prioridade {"ativada" if requisicao.prioridade else "desativada"}'
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+def kanban_detalhes_requisicao(request, pk):
+    """
+    Endpoint para retornar HTML dos detalhes da requisição para o modal.
+    """
+    try:
+        requisicao = get_object_or_404(Requisicoes, id=pk)
+        
+        # Renderiza o template parcial com os detalhes
+        from django.template.loader import render_to_string
+        html = render_to_string('kanban_detalhes_modal.html', {
+            'requisicao': requisicao
+        }, request=request)
+        
+        return JsonResponse({
+            'success': True,
+            'html': html,
+            'quantidade_ids_incluidos': requisicao.get_quantidade_ids_incluidos(),
+            'numero_de_equipamentos': requisicao.numero_de_equipamentos,
+            'requisicao': {
+                'id_equipamentos': requisicao.id_equipamentos or '',
+                'iccid': requisicao.iccid or ''
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

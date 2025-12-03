@@ -1,0 +1,71 @@
+{% load static %}
+{% load user_groups %}
+
+<div class="kanban-card {% if requisicao.prioridade %}prioridade{% endif %} {% if requisicao.cor_card == 'ids-incluidos' %}ids-incluidos{% endif %}" 
+     data-requisicao-id="{{ requisicao.id }}" 
+     data-data-alteracao="{{ requisicao.data|date:'Y-m-d' }}">
+    
+    <!-- Indicador de Prioridade -->
+    <div class="priority-flag {% if requisicao.prioridade %}active{% endif %}" 
+         title="{% if requisicao.prioridade %}Remover prioridade{% else %}Marcar como prioridade{% endif %}">
+        <i class="bi bi-flag-fill"></i>
+    </div>
+    
+    <!-- Corpo do Card (clicável para abrir modal) -->
+    <div class="card-body-clickable">
+        <div class="card-header-info">
+            <span class="card-id">ID: {{ requisicao.id }} | {{ requisicao.data|date:"d/m/Y" }}</span>
+            {% if requisicao.id_equipamentos %}
+                <span class="badge bg-success">
+                    <i class="bi bi-check-circle"></i> IDs
+                </span>
+            {% endif %}
+        </div>
+        
+        <h5 class="card-title">{{ requisicao.nome.nome|truncatechars:30 }}</h5>
+        
+        <div class="card-info">
+            <div class="info-row">
+                <i class="bi bi-box-seam"></i>
+                <span><strong>Equipamentos:</strong> {{ requisicao.numero_de_equipamentos }}</span>
+                <span style="margin-left: 10px;">|</span>
+                <i class="bi bi-palette" style="margin-left: 10px;"></i>
+                <span><strong>Customização:</strong> {{ requisicao.tipo_customizacao|default:"Sem customização" }}</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Barra de Progresso Temporal -->
+    <div class="progress-container">
+        <div class="progress">
+            <div class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+        </div>
+    </div>
+    
+    <!-- Botões de Ação (apenas quando aplicável) -->
+    <div class="card-actions">
+        {% if requisicao.kanban_status == 'em_progresso' %}
+            <button type="button" class="btn btn-sm btn-primary" onclick="event.stopPropagation(); abrirModalIncluirIds({{ requisicao.id }}, {{ requisicao.numero_de_equipamentos }})" title="Incluir IDs dos Equipamentos">
+                <i class="bi bi-plus-circle"></i> Incluir ID
+            </button>
+        {% endif %}
+        
+        {% if requisicao.kanban_status == 'auditoria' and requisicao.id_equipamentos %}
+            {% with quantidade_ids=requisicao.get_quantidade_ids_incluidos quantidade_total=requisicao.numero_de_equipamentos|add:"0" %}
+                {% if user|is_gestao_kanban %}
+                    {% if quantidade_ids < quantidade_total %}
+                        <!-- Tem menos IDs que o total - mostra botão de expedição parcial -->
+                        <button type="button" class="btn btn-sm btn-warning" onclick="event.stopPropagation(); abrirModalExpedicaoParcial({{ requisicao.id }}, {{ quantidade_total }}, {{ quantidade_ids }})" title="Expedição Parcial ({{ quantidade_ids }} de {{ quantidade_total }} IDs)">
+                            <i class="bi bi-box-arrow-up"></i> Parcial ({{ quantidade_ids }}/{{ quantidade_total }})
+                        </button>
+                    {% else %}
+                        <!-- Tem todos os IDs - mostra botão de expedição total -->
+                        <a href="{% url 'expedir_requisicao' requisicao.id %}" class="btn btn-sm btn-success" title="Expedir Total">
+                            <i class="bi bi-truck"></i> Expedir Total
+                        </a>
+                    {% endif %}
+                {% endif %}
+            {% endwith %}
+        {% endif %}
+    </div>
+</div>

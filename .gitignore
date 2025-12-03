@@ -9,6 +9,8 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
+cache/
+stc_api_cache.pkl
 develop-eggs/
 dist/
 downloads/

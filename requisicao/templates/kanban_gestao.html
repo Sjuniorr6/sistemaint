@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="pt-br" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kanban - Gestão de Requisições | Grupo Golden Sat</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    {% load static %}
+    {% load user_groups %}
+    <link rel="stylesheet" href="{% static 'css/kanban.css' %}">
+</head>
+<body data-user-gestao="{% if user|is_gestao_kanban %}true{% else %}false{% endif %}" 
+      data-user-config="{% if user|is_config_kanban %}true{% else %}false{% endif %}">
+    {% include 'components/_header.html' %}
+
+<style>
+/* Estilos críticos inline para garantir carregamento */
+.kanban-page { 
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 20px !important;
+    margin: 0 !important;
+}
+.stats-dashboard { 
+    margin-bottom: 30px;
+    width: 100%;
+}
+.stat-card { 
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 15px;
+    padding: 20px;
+    color: white;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    height: 100%;
+}
+.stat-card .stat-icon { font-size: 2.5rem; }
+.stat-card .stat-content h3 { font-size: 2rem; font-weight: 700; margin: 0; }
+.stat-card .stat-content p { margin: 0; font-size: 0.9rem; }
+.stat-total { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+.stat-concluidas { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
+.stat-progresso { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+.stat-atrasadas { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+.stat-taxa { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
+.kanban-column { 
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 15px;
+    padding: 15px;
+    min-height: 600px;
+}
+.kanban-header { 
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 15px;
+}
+.kanban-header.a-fazer { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+.kanban-header.em-progresso { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; }
+.kanban-header.auditoria { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; }
+.kanban-cards { 
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    min-height: 400px;
+    padding: 10px;
+}
+.kanban-card {
+    background: #1e1e1e;
+    border-radius: 12px;
+    padding: 15px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    cursor: move;
+    position: relative;
+    border: 2px solid transparent;
+}
+.kanban-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+    border-color: #665b1d;
+}
+.kanban-card.prioridade {
+    border: 2px solid #ffc107;
+    background: linear-gradient(135deg, #1e1e1e 0%, #2a2410 100%);
+}
+.kanban-card.ids-incluidos {
+    border: 2px solid #28a745;
+}
+.priority-flag {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 1.2rem;
+    color: rgba(255, 255, 255, 0.3);
+    cursor: pointer;
+    z-index: 10;
+}
+.priority-flag.active { color: #ffc107; }
+.empty-column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: rgba(255, 255, 255, 0.3);
+}
+</style>
+
+<div class="kanban-page">
+    <!-- Dashboard de Estatísticas -->
+    <div class="stats-dashboard mb-4">
+        <div class="row g-3" style="margin: 0 !important; width: 100% !important;">
+            <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6" style="padding-left: 0.5rem !important; padding-right: 0.5rem !important;">
+                <div class="stat-card stat-total">
+                    <div class="stat-icon">
+                        <i class="bi bi-clipboard-check"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3>{{ stats.total_tarefas }}</h3>
+                        <p>Total de Tarefas</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6">
+                <div class="stat-card stat-concluidas">
+                    <div class="stat-icon">
+                        <i class="bi bi-check-circle-fill"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3>{{ stats.concluidas }}</h3>
+                        <p>Concluídas</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6">
+                <div class="stat-card stat-progresso">
+                    <div class="stat-icon">
+                        <i class="bi bi-hourglass-split"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3>{{ stats.em_progresso }}</h3>
+                        <p>Em Progresso</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6">
+                <div class="stat-card stat-atrasadas">
+                    <div class="stat-icon">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3>{{ stats.atrasadas }}</h3>
+                        <p>Atrasadas</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-4 col-lg-12 col-md-12">
+                <div class="stat-card stat-taxa">
+                    <div class="stat-icon">
+                        <i class="bi bi-graph-up-arrow"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3>{{ stats.taxa_conclusao }}%</h3>
+                        <p>Taxa de Conclusão</p>
+                        <div class="progress mt-2" style="height: 8px;">
+                            <div class="progress-bar" role="progressbar" style="width: {{ stats.taxa_conclusao }}%;" 
+                                 aria-valuenow="{{ stats.taxa_conclusao }}" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kanban Board -->
+    <div class="kanban-board" style="width: 100% !important; margin: 0 !important; padding: 0 !important;">
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; width: 100%;">
+            <!-- Coluna: A Fazer -->
+            <div>
+                <div class="kanban-column">
+                    <div class="kanban-header a-fazer">
+                        <h4><i class="bi bi-list-task"></i> A Fazer</h4>
+                        <span class="badge bg-secondary">{{ a_fazer.count }}</span>
+                    </div>
+                    <div class="kanban-cards" id="a_fazer" data-status="a_fazer">
+                        {% for req in a_fazer %}
+                            {% include 'kanban_card.html' with requisicao=req %}
+                        {% empty %}
+                            <div class="empty-column">
+                                <i class="bi bi-inbox"></i>
+                                <p>Nenhuma requisição</p>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Coluna: Em Progresso -->
+            <div>
+                <div class="kanban-column">
+                    <div class="kanban-header em-progresso">
+                        <h4><i class="bi bi-gear-fill"></i> Em Progresso</h4>
+                        <span class="badge bg-warning">{{ em_progresso.count }}</span>
+                    </div>
+                    <div class="kanban-cards" id="em_progresso" data-status="em_progresso">
+                        {% for req in em_progresso %}
+                            {% include 'kanban_card.html' with requisicao=req %}
+                        {% empty %}
+                            <div class="empty-column">
+                                <i class="bi bi-inbox"></i>
+                                <p>Nenhuma requisição</p>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Coluna: Auditoria -->
+            <div>
+                <div class="kanban-column">
+                    <div class="kanban-header auditoria">
+                        <h4><i class="bi bi-shield-check"></i> Auditoria</h4>
+                        <span class="badge bg-success">{{ auditoria.count }}</span>
+                    </div>
+                    <div class="kanban-cards" id="auditoria" data-status="auditoria">
+                        {% for req in auditoria %}
+                            {% include 'kanban_card.html' with requisicao=req %}
+                        {% empty %}
+                            <div class="empty-column">
+                                <i class="bi bi-inbox"></i>
+                                <p>Nenhuma requisição</p>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Detalhes da Requisição -->
+<div class="modal fade" id="detalhesModal" tabindex="-1" aria-labelledby="detalhesModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detalhesModalLabel">
+                    <i class="bi bi-file-text"></i> Detalhes da Requisição
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="modal-content">
+                <!-- Conteúdo carregado dinamicamente -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de IDs Incompletos -->
+<div class="modal fade" id="modalConfirmacaoIdsIncompletos" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background: #2d2d2d; color: #e0e0e0; border: 2px solid #ffc107;">
+            <div class="modal-header" style="border-bottom: 1px solid rgba(255, 193, 7, 0.3); background: rgba(255, 193, 7, 0.1);">
+                <h5 class="modal-title" style="color: #ffc107;">
+                    <i class="bi bi-exclamation-triangle-fill"></i> IDs Incompletos Detectados
+                </h5>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning" style="background: rgba(255, 193, 7, 0.2); border: 1px solid rgba(255, 193, 7, 0.5); color: #ffc107;">
+                    <div style="font-size: 1.1rem; margin-bottom: 10px;">
+                        <i class="bi bi-info-circle"></i> <strong>Atenção:</strong>
+                    </div>
+                    <p id="mensagemIdsIncompletos" style="margin: 0; font-size: 0.95rem;">
+                        <!-- Preenchido via JavaScript -->
+                    </p>
+                </div>
+                
+                <div class="mt-3" style="background: rgba(13, 202, 240, 0.1); border-left: 3px solid #0dcaf0; padding: 12px; border-radius: 4px;">
+                    <small style="color: rgba(255, 255, 255, 0.8);">
+                        <i class="bi bi-lightbulb"></i> 
+                        Ao mover para <strong>Auditoria</strong>, você poderá fazer uma <strong>expedição parcial</strong> 
+                        com base nos IDs já incluídos.
+                    </small>
+                </div>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                <button type="button" class="btn btn-secondary" onclick="cancelarMovimentoAuditoria()">
+                    <i class="bi bi-x-circle"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-warning" onclick="confirmarMovimentoAuditoria()">
+                    <i class="bi bi-check-circle"></i> Continuar para Auditoria
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Expedição Parcial -->
+<div class="modal fade" id="modalExpedicaoParcial" tabindex="-1" aria-labelledby="modalExpedicaoParcialLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background: #2d2d2d; color: #e0e0e0;">
+            <div class="modal-header" style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                <h5 class="modal-title" id="modalExpedicaoParcialLabel">
+                    <i class="bi bi-box-arrow-up"></i> Expedição Parcial
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info" style="background: rgba(13, 202, 240, 0.2); border: 1px solid rgba(13, 202, 240, 0.4); color: #0dcaf0;">
+                    <i class="bi bi-info-circle"></i> A quantidade restante será criada como uma nova requisição no status "A Fazer".
+                </div>
+                
+                <!-- Aviso quando há IDs incompletos -->
+                <div id="avisoIdsIncompletos" class="alert alert-warning" style="display: none; background: rgba(255, 193, 7, 0.2); border: 1px solid rgba(255, 193, 7, 0.5); color: #ffc107;">
+                    <!-- Preenchido dinamicamente via JavaScript -->
+                </div>
+                
+                <form id="formExpedicaoParcial">
+                    <input type="hidden" id="expedicaoRequisicaoId" value="">
+                    <input type="hidden" id="expedicaoQuantidadeTotal" value="">
+                    <input type="hidden" id="expedicaoQuantidadeIdsIncluidos" value="">
+                    
+                    <div class="mb-3">
+                        <label for="quantidadeExpedir" class="form-label">
+                            Quantidade a Expedir <span class="text-danger">*</span>
+                        </label>
+                        <input type="number" class="form-control" id="quantidadeExpedir" min="1" required 
+                               style="background: #1e1e1e; border: 1px solid rgba(255, 255, 255, 0.2); color: #e0e0e0;">
+                        <small class="form-text" style="color: rgba(255, 255, 255, 0.6);">
+                            Quantidade total: <strong id="expedicaoTotalDisplay">0</strong>
+                        </small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="p-3 rounded" style="background: rgba(255, 193, 7, 0.2); border: 1px solid rgba(255, 193, 7, 0.4);">
+                            <strong style="color: #ffc107;">Quantidade Restante:</strong>
+                            <span id="quantidadeRestante" class="fs-4" style="color: #ffc107;">0</span>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning" onclick="confirmarExpedicaoParcial()">
+                    <i class="bi bi-box-arrow-up"></i> Confirmar Expedição
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Inclusão de IDs -->
+<div class="modal fade" id="modalIncluirIds" tabindex="-1" aria-labelledby="modalIncluirIdsLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content" style="background: #2d2d2d; color: #e0e0e0;">
+            <div class="modal-header" style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                <h5 class="modal-title" id="modalIncluirIdsLabel">
+                    <i class="bi bi-plus-circle"></i> Incluir IDs dos Equipamentos
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info" style="background: rgba(13, 202, 240, 0.2); border: 1px solid rgba(13, 202, 240, 0.4); color: #0dcaf0;">
+                    <i class="bi bi-info-circle"></i> 
+                    Adicione os IDs e ICCIDs dos equipamentos separados por espaço ou Enter.
+                </div>
+                
+                <form id="formIncluirIds">
+                    <input type="hidden" id="incluirIdsRequisicaoId" value="">
+                    
+                    <div class="mb-3">
+                        <label for="idsEquipamentos" class="form-label">
+                            IDs dos Equipamentos <span class="text-danger">*</span>
+                        </label>
+                        <textarea class="form-control" id="idsEquipamentos" rows="8" required
+                                  placeholder="Digite os IDs (um por linha ou separados por espaço)"
+                                  style="background: #1e1e1e; border: 1px solid rgba(255, 255, 255, 0.2); color: #e0e0e0; font-family: monospace;"></textarea>
+                        <small class="form-text" style="color: rgba(255, 255, 255, 0.6);">
+                            <strong>Quantidade esperada:</strong> <span id="quantidadeEsperada">0</span> equipamentos
+                            <br><strong>Quantidade incluída:</strong> <span id="quantidadeIncluida">0</span> IDs
+                        </small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="iccidEquipamentos" class="form-label">
+                            ICCIDs <span class="text-danger">*</span>
+                        </label>
+                        <textarea class="form-control" id="iccidEquipamentos" rows="8" required
+                                  placeholder="Digite os ICCIDs (um por linha ou separados por espaço)"
+                                  style="background: #1e1e1e; border: 1px solid rgba(255, 255, 255, 0.2); color: #e0e0e0; font-family: monospace;"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="salvarIds()">
+                    <i class="bi bi-save"></i> Salvar IDs
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SortableJS -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+
+<script>
+// Função para obter cookie CSRF
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Função para mostrar notificações
+function showNotification(message, type) {
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.innerHTML = `
+        <i class="bi bi-${type === 'success' ? 'check-circle-fill' : type === 'info' ? 'info-circle-fill' : 'exclamation-circle-fill'}"></i>
+        <span>${message}</span>
+    `;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.classList.add('show');
+    }, 100);
+    
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
+
+// Funções globais para o modal de confirmação de IDs incompletos
+function confirmarMovimentoAuditoria() {
+    const data = window.tempMovimentoData;
+    if (data) {
+        // Fecha modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('modalConfirmacaoIdsIncompletos'));
+        modal.hide();
+        
+        // Executa movimento
+        atualizarStatusKanban(data.requisicaoId, data.novoStatus, data.cardElement, data.fromColumn);
+        
+        // Limpa dados temporários
+        window.tempMovimentoData = null;
+    }
+}
+
+function cancelarMovimentoAuditoria() {
+    const data = window.tempMovimentoData;
+    if (data) {
+        // Reverte movimento
+        data.fromColumn.appendChild(data.cardElement);
+        
+        // Fecha modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('modalConfirmacaoIdsIncompletos'));
+        modal.hide();
+        
+        // Limpa dados temporários
+        window.tempMovimentoData = null;
+        
+        showNotification('Movimento cancelado', 'info');
+    }
+}
+
+// Função para abrir modal de expedição parcial
+function abrirModalExpedicaoParcial(requisicaoId, quantidadeTotal, quantidadeIdsIncluidos) {
+    document.getElementById('expedicaoRequisicaoId').value = requisicaoId;
+    document.getElementById('expedicaoQuantidadeTotal').value = quantidadeTotal;
+    document.getElementById('expedicaoQuantidadeIdsIncluidos').value = quantidadeIdsIncluidos || quantidadeTotal;
+    document.getElementById('expedicaoTotalDisplay').textContent = quantidadeTotal;
+    
+    // Define valor padrão como quantidade de IDs incluídos
+    const quantidadeInicial = quantidadeIdsIncluidos || quantidadeTotal;
+    document.getElementById('quantidadeExpedir').value = quantidadeInicial;
+    document.getElementById('quantidadeExpedir').max = quantidadeTotal;
+    
+    // Calcula restante
+    const restante = quantidadeTotal - quantidadeInicial;
+    document.getElementById('quantidadeRestante').textContent = restante;
+    
+    // Mostra aviso se tiver menos IDs que o total
+    const avisoDiv = document.getElementById('avisoIdsIncompletos');
+    if (quantidadeIdsIncluidos && quantidadeIdsIncluidos < quantidadeTotal) {
+        avisoDiv.style.display = 'block';
+        avisoDiv.innerHTML = `
+            <i class="bi bi-exclamation-triangle"></i> 
+            <strong>Atenção:</strong> Esta requisição tem apenas <strong>${quantidadeIdsIncluidos} IDs</strong> incluídos de um total de <strong>${quantidadeTotal} equipamentos</strong>.
+            <br>A expedição será parcial com base nos IDs disponíveis.
+        `;
+    } else {
+        avisoDiv.style.display = 'none';
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('modalExpedicaoParcial'));
+    modal.show();
+}
+
+// Função para abrir modal de inclusão de IDs
+function abrirModalIncluirIds(requisicaoId, quantidadeEsperada) {
+    document.getElementById('incluirIdsRequisicaoId').value = requisicaoId;
+    document.getElementById('quantidadeEsperada').textContent = quantidadeEsperada;
+    document.getElementById('quantidadeIncluida').textContent = '0';
+    
+    // Carrega IDs e ICCIDs existentes via AJAX
+    fetch(`/requisicao/api/kanban/detalhes/${requisicaoId}/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const requisicao = data.requisicao;
+                document.getElementById('idsEquipamentos').value = requisicao.id_equipamentos || '';
+                document.getElementById('iccidEquipamentos').value = requisicao.iccid || '';
+                
+                // Conta IDs existentes
+                contarIds();
+            }
+        })
+        .catch(error => console.error('Erro ao carregar dados:', error));
+    
+    // Adiciona listener para contar IDs em tempo real
+    const textarea = document.getElementById('idsEquipamentos');
+    textarea.removeEventListener('input', contarIds);
+    textarea.addEventListener('input', contarIds);
+    
+    const modal = new bootstrap.Modal(document.getElementById('modalIncluirIds'));
+    modal.show();
+}
+
+// Função para contar IDs digitados
+function contarIds() {
+    const textarea = document.getElementById('idsEquipamentos');
+    const texto = textarea.value.trim();
+    
+    if (!texto) {
+        document.getElementById('quantidadeIncluida').textContent = '0';
+        return;
+    }
+    
+    // Conta IDs separados por espaço, vírgula ou quebra de linha
+    const ids = texto.split(/[\s,\n]+/).filter(id => id.length > 0);
+    document.getElementById('quantidadeIncluida').textContent = ids.length;
+}
+
+// Função para salvar IDs
+function salvarIds() {
+    const requisicaoId = document.getElementById('incluirIdsRequisicaoId').value;
+    const idsText = document.getElementById('idsEquipamentos').value.trim();
+    const iccidText = document.getElementById('iccidEquipamentos').value.trim();
+    
+    if (!idsText) {
+        showNotification('Por favor, informe os IDs', 'error');
+        return;
+    }
+    
+    if (!iccidText) {
+        showNotification('Por favor, informe os ICCIDs', 'error');
+        return;
+    }
+    
+    // Envia IDs e ICCIDs via AJAX
+    fetch(`/requisicao/api/kanban/salvar-ids/${requisicaoId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            ids_equipamentos: idsText,
+            iccid: iccidText
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, 'success');
+            
+            // Fecha modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalIncluirIds'));
+            modal.hide();
+            
+            // Recarrega página após 1 segundo
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        } else {
+            showNotification(data.message || 'Erro ao salvar IDs', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        showNotification('Erro ao salvar IDs', 'error');
+    });
+}
+
+// Função para confirmar expedição parcial
+function confirmarExpedicaoParcial() {
+    const requisicaoId = document.getElementById('expedicaoRequisicaoId').value;
+    const quantidadeExpedir = parseInt(document.getElementById('quantidadeExpedir').value);
+    const quantidadeTotal = parseInt(document.getElementById('expedicaoQuantidadeTotal').value);
+    
+    if (!quantidadeExpedir || quantidadeExpedir <= 0) {
+        showNotification('Por favor, informe uma quantidade válida', 'error');
+        return;
+    }
+    
+    if (quantidadeExpedir > quantidadeTotal) {
+        showNotification('Quantidade não pode ser maior que o total', 'error');
+        return;
+    }
+    
+    // Envia requisição de expedição parcial
+    fetch('/requisicao/api/kanban/expedir-parcial/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            requisicao_id: requisicaoId,
+            quantidade_expedir: quantidadeExpedir
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, 'success');
+            
+            // Fecha modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalExpedicaoParcial'));
+            modal.hide();
+            
+            // Fecha modal de detalhes
+            const modalDetalhes = bootstrap.Modal.getInstance(document.getElementById('detalhesModal'));
+            if (modalDetalhes) {
+                modalDetalhes.hide();
+            }
+            
+            // Recarrega página após 1.5 segundos
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
+        } else {
+            showNotification(data.message || 'Erro ao processar expedição parcial', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        showNotification('Erro ao processar expedição parcial', 'error');
+    });
+}
+
+// Função auxiliar para atualizar status via AJAX
+function atualizarStatusKanban(requisicaoId, novoStatus, cardElement, fromColumn) {
+    // Envia requisição AJAX para atualizar status
+    fetch('/requisicao/api/kanban/update-status/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            requisicao_id: requisicaoId,
+            novo_status: novoStatus
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Mostra notificação de sucesso
+            showNotification(data.message, 'success');
+            
+            // Recarrega a página após 500ms para mostrar as mudanças
+            setTimeout(() => {
+                location.reload();
+            }, 500);
+        } else {
+            // Reverte o movimento em caso de erro
+            showNotification(data.error, 'error');
+            fromColumn.appendChild(cardElement);
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        showNotification('Erro ao atualizar status', 'error');
+        fromColumn.appendChild(cardElement);
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializa SortableJS para cada coluna
+    const colunas = document.querySelectorAll('.kanban-cards');
+    
+    colunas.forEach(coluna => {
+        new Sortable(coluna, {
+            group: 'kanban',
+            animation: 100,
+            ghostClass: 'sortable-ghost',
+            dragClass: 'sortable-drag',
+            chosenClass: 'sortable-chosen',
+            handle: '.kanban-card',
+            forceFallback: true,
+            fallbackClass: 'sortable-fallback',
+            delay: 200, // Delay de 1 segundo para evitar arrastar acidentalmente
+            delayOnTouchOnly: false, // Aplica delay em todos os dispositivos
+            
+            onEnd: function(evt) {
+                const cardElement = evt.item;
+                const requisicaoId = cardElement.dataset.requisicaoId;
+                const novoStatus = evt.to.dataset.status;
+                const statusAnterior = evt.from.dataset.status;
+                
+                // Pega permissões do usuário do body
+                const isGestao = document.body.dataset.userGestao === 'true';
+                const isConfig = document.body.dataset.userConfig === 'true';
+                
+                // Verifica permissões antes de enviar
+                if (!isGestao && !isConfig) {
+                    showNotification('Você não tem permissão para mover cards no Kanban', 'error');
+                    evt.from.appendChild(cardElement);
+                    return;
+                }
+                
+                // Configuração só pode mover de "em_progresso" para "auditoria"
+                if (isConfig && !isGestao) {
+                    if (statusAnterior !== 'em_progresso' || novoStatus !== 'auditoria') {
+                        showNotification('Você só pode mover cards de "Em Progresso" para "Auditoria"', 'error');
+                        evt.from.appendChild(cardElement);
+                        return;
+                    }
+                }
+                
+                // Se está movendo para auditoria, verifica se tem IDs incompletos
+                if (novoStatus === 'auditoria') {
+                    // Busca dados da requisição para verificar IDs
+                    fetch(`/requisicao/api/kanban/detalhes/${requisicaoId}/`)
+                        .then(response => response.json())
+                        .then(requisicao => {
+                            const quantidadeIds = requisicao.quantidade_ids_incluidos || 0;
+                            const quantidadeTotal = parseInt(requisicao.numero_de_equipamentos) || 0;
+                            
+                            // Se tem IDs mas está incompleto, mostra modal de confirmação
+                            if (quantidadeIds > 0 && quantidadeIds < quantidadeTotal) {
+                                // Armazena dados temporariamente para uso nos botões do modal
+                                window.tempMovimentoData = {
+                                    requisicaoId: requisicaoId,
+                                    novoStatus: novoStatus,
+                                    cardElement: cardElement,
+                                    fromColumn: evt.from
+                                };
+                                
+                                // Atualiza mensagem do modal
+                                document.getElementById('mensagemIdsIncompletos').innerHTML = `
+                                    Esta requisição possui apenas <strong>${quantidadeIds} IDs</strong> incluídos 
+                                    de um total de <strong>${quantidadeTotal} equipamentos</strong> necessários.
+                                    <br><br>
+                                    Deseja continuar movendo para <strong>Auditoria</strong>?
+                                `;
+                                
+                                // Abre o modal
+                                const modal = new bootstrap.Modal(document.getElementById('modalConfirmacaoIdsIncompletos'));
+                                modal.show();
+                            } else {
+                                // Tem todos os IDs ou não tem IDs, move normalmente
+                                atualizarStatusKanban(requisicaoId, novoStatus, cardElement, evt.from);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Erro ao verificar IDs:', error);
+                            // Em caso de erro, move normalmente
+                            atualizarStatusKanban(requisicaoId, novoStatus, cardElement, evt.from);
+                        });
+                } else {
+                    // Não está movendo para auditoria, atualiza normalmente
+                    atualizarStatusKanban(requisicaoId, novoStatus, cardElement, evt.from);
+                }
+            }
+        });
+    });
+
+    
+    // Handler para flag de prioridade
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.priority-flag')) {
+            e.preventDefault();
+            const flag = e.target.closest('.priority-flag');
+            const card = flag.closest('.kanban-card');
+            const requisicaoId = card.dataset.requisicaoId;
+            
+            fetch(`/requisicao/api/kanban/toggle-priority/${requisicaoId}/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    flag.classList.toggle('active', data.prioridade);
+                    card.classList.toggle('prioridade', data.prioridade);
+                    showNotification(data.message, 'success');
+                    
+                    // Move card para o topo se prioridade ativada
+                    if (data.prioridade) {
+                        const coluna = card.parentElement;
+                        coluna.insertBefore(card, coluna.firstChild);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                showNotification('Erro ao alterar prioridade', 'error');
+            });
+        }
+    });
+    
+    // Handler para abrir modal de detalhes
+    document.addEventListener('click', function(e) {
+        const cardBody = e.target.closest('.card-body-clickable');
+        if (cardBody) {
+            e.preventDefault();
+            const card = cardBody.closest('.kanban-card');
+            const requisicaoId = card.dataset.requisicaoId;
+            
+            // Carrega detalhes da requisição via AJAX
+            fetch(`/requisicao/api/kanban/detalhes/${requisicaoId}/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('modal-content').innerHTML = data.html;
+                        const modal = new bootstrap.Modal(document.getElementById('detalhesModal'));
+                        modal.show();
+                    } else {
+                        showNotification(data.error || 'Erro ao carregar detalhes', 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro ao carregar detalhes:', error);
+                    showNotification('Erro ao carregar detalhes', 'error');
+                });
+        }
+    });
+    
+    // Listener para atualizar quantidade restante no modal de expedição parcial
+    const inputExpedir = document.getElementById('quantidadeExpedir');
+    if (inputExpedir) {
+        inputExpedir.addEventListener('input', function() {
+            const total = parseInt(document.getElementById('expedicaoQuantidadeTotal').value) || 0;
+            const expedir = parseInt(this.value) || 0;
+            const restante = total - expedir;
+            document.getElementById('quantidadeRestante').textContent = restante >= 0 ? restante : 0;
+        });
+    }
+    
+    // Função para atualizar contadores das colunas
+    function atualizarContadores() {
+        document.querySelectorAll('.kanban-cards').forEach(coluna => {
+            const contador = coluna.parentElement.querySelector('.badge');
+            const cards = coluna.querySelectorAll('.kanban-card').length;
+            contador.textContent = cards;
+        });
+    }
+    
+    // Calcula e atualiza barras de progresso temporal
+    function calcularProgressoTemporal() {
+        document.querySelectorAll('.kanban-card').forEach(card => {
+            const dataAlteracao = card.dataset.dataAlteracao;
+            if (dataAlteracao) {
+                const dias = calcularDiasDesde(dataAlteracao);
+                const progressBar = card.querySelector('.progress-bar');
+                
+                if (dias <= 3) {
+                    progressBar.className = 'progress-bar bg-success';
+                    progressBar.style.width = `${(dias / 7) * 100}%`;
+                } else if (dias <= 5) {
+                    progressBar.className = 'progress-bar bg-warning';
+                    progressBar.style.width = `${(dias / 7) * 100}%`;
+                } else if (dias <= 7) {
+                    progressBar.className = 'progress-bar bg-orange';
+                    progressBar.style.width = `${(dias / 7) * 100}%`;
+                } else {
+                    progressBar.className = 'progress-bar bg-danger';
+                    progressBar.style.width = '100%';
+                }
+            }
+        });
+    }
+    
+    // Calcula dias desde uma data
+    function calcularDiasDesde(dataStr) {
+        const data = new Date(dataStr);
+        const hoje = new Date();
+        const diffTime = Math.abs(hoje - data);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays;
+    }
+    
+    // Inicializa cálculo de progresso
+    calcularProgressoTemporal();
+    
+    // Atualiza a cada minuto
+    setInterval(calcularProgressoTemporal, 60000);
+});
+</script>
+
+</body>
+</html>
