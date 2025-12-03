@@ -329,6 +329,14 @@ class Requisicoes(models.Model):
         ('em_progresso', 'Em Progresso'),
         ('auditoria', 'Auditoria'),
     ]
+    
+    RESPONSAVEL_MANUTENCAO_CHOICES = [
+        ('GuilhermeAmarante', 'Guilherme Amarante'),
+        ('Talita.Espinosa', 'Talita Espinosa'),
+        ('Vinicius.Rodrigues', 'Vinicius Rodrigues'),
+        ('PATRICIALORENA', 'Patricia Lorena'),
+    ]
+    
     kanban_status = models.CharField(
         choices=KANBAN_STATUS_CHOICES, 
         default='a_fazer', 
@@ -338,6 +346,13 @@ class Requisicoes(models.Model):
     )
     prioridade = models.BooleanField(default=False)
     cor_card = models.CharField(max_length=20, null=True, blank=True, default='')
+    responsavel_manutencao = models.CharField(
+        choices=RESPONSAVEL_MANUTENCAO_CHOICES,
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text='Responsável pela manutenção/configuração do equipamento'
+    )
     
     # Campos para expedição parcial
     requisicao_original_id = models.ForeignKey(

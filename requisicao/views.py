@@ -1676,6 +1676,7 @@ def update_kanban_status(request):
         data = json.loads(request.body)
         requisicao_id = data.get('requisicao_id')
         novo_status = data.get('novo_status')
+        responsavel = data.get('responsavel_manutencao')  # Novo campo
         
         requisicao = get_object_or_404(Requisicoes, id=requisicao_id)
         status_anterior = requisicao.kanban_status
@@ -1698,6 +1699,18 @@ def update_kanban_status(request):
                     'success': False,
                     'error': 'Você só pode mover cards de "Em Progresso" para "Auditoria".'
                 }, status=403)
+        
+        # Validação: ao mover de "a_fazer" para "em_progresso", exige responsável
+        if status_anterior == 'a_fazer' and novo_status == 'em_progresso':
+            if not responsavel:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Atribuição necessária',
+                    'requer_atribuicao': True,
+                    'requisicao_id': requisicao_id
+                }, status=400)
+            # Atribui o responsável
+            requisicao.responsavel_manutencao = responsavel
         
         # Validação: não pode mover para auditoria sem IDs de equipamentos
         if novo_status == 'auditoria':
@@ -1734,13 +1747,17 @@ def update_kanban_status(request):
         requisicao.save()
         
         # Registra no audit log
+        observacao = f'Card movido de {status_anterior} para {novo_status}'
+        if responsavel:
+            observacao += f' | Atribuído a: {responsavel}'
+            
         KanbanAuditLog.objects.create(
             requisicao=requisicao,
             usuario=request.user,
             acao='movimento',
             coluna_origem=status_anterior,
             coluna_destino=novo_status,
-            observacao=f'Card movido de {status_anterior} para {novo_status}'
+            observacao=observacao
         )
         
         return JsonResponse({

@@ -91,16 +91,56 @@
 .kanban-card.ids-incluidos {
     border: 2px solid #28a745;
 }
+.card-top-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+}
 .priority-flag {
-    position: absolute;
-    top: 10px;
-    right: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-size: 1.2rem;
     color: rgba(255, 255, 255, 0.3);
     cursor: pointer;
     z-index: 10;
 }
-.priority-flag.active { color: #ffc107; }
+.priority-flag .id-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #665b1d;
+    background: rgba(212, 175, 55, 0.3);
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+.priority-flag.active { 
+    color: #ffc107; 
+}
+.priority-flag.active .id-badge {
+    background: rgba(255, 193, 7, 0.3);
+    color: #ffc107;
+}
+.card-header-info {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-size: 0.8rem;
+    margin-bottom: 8px;
+}
+.card-date {
+    color: rgba(255, 255, 255, 0.6);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.card-responsavel {
+    color: #d4af37;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
 .empty-column {
     display: flex;
     flex-direction: column;
@@ -405,6 +445,50 @@
     </div>
 </div>
 
+<!-- Modal de Atribuição de Responsável -->
+<div class="modal fade" id="modalAtribuirResponsavel" tabindex="-1" aria-labelledby="modalAtribuirResponsavelLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background: #2d2d2d; color: #e0e0e0;">
+            <div class="modal-header" style="border-bottom: 1px solid rgba(255, 255, 255, 0.1); background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <h5 class="modal-title" id="modalAtribuirResponsavelLabel">
+                    <i class="bi bi-person-plus-fill"></i> Atribuir Responsável
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info" style="background: rgba(13, 202, 240, 0.2); border: 1px solid rgba(13, 202, 240, 0.4); color: #0dcaf0;">
+                    <i class="bi bi-info-circle"></i> 
+                    Selecione a pessoa responsável pela manutenção/configuração deste equipamento.
+                </div>
+                
+                <form id="formAtribuirResponsavel">
+                    <input type="hidden" id="atribuicaoRequisicaoId" value="">
+                    
+                    <div class="mb-3">
+                        <label for="selectResponsavel" class="form-label">
+                            Responsável pela Manutenção <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-select" id="selectResponsavel" required
+                                style="background: #1e1e1e; border: 1px solid rgba(255, 255, 255, 0.2); color: #e0e0e0;">
+                            <option value="">Selecione um responsável</option>
+                            <option value="GuilhermeAmarante">Guilherme Amarante</option>
+                            <option value="Talita.Espinosa">Talita Espinosa</option>
+                            <option value="Vinicius.Rodrigues">Vinicius Rodrigues</option>
+                            <option value="PATRICIALORENA">Patricia Lorena</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="confirmarAtribuicao()">
+                    <i class="bi bi-check-circle"></i> Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- SortableJS -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
@@ -665,7 +749,16 @@ function confirmarExpedicaoParcial() {
 }
 
 // Função auxiliar para atualizar status via AJAX
-function atualizarStatusKanban(requisicaoId, novoStatus, cardElement, fromColumn) {
+function atualizarStatusKanban(requisicaoId, novoStatus, cardElement, fromColumn, responsavel = null) {
+    const payload = {
+        requisicao_id: requisicaoId,
+        novo_status: novoStatus
+    };
+    
+    if (responsavel) {
+        payload.responsavel_manutencao = responsavel;
+    }
+    
     // Envia requisição AJAX para atualizar status
     fetch('/requisicao/api/kanban/update-status/', {
         method: 'POST',
@@ -673,10 +766,7 @@ function atualizarStatusKanban(requisicaoId, novoStatus, cardElement, fromColumn
             'Content-Type': 'application/json',
             'X-CSRFToken': getCookie('csrftoken')
         },
-        body: JSON.stringify({
-            requisicao_id: requisicaoId,
-            novo_status: novoStatus
-        })
+        body: JSON.stringify(payload)
     })
     .then(response => response.json())
     .then(data => {
@@ -689,9 +779,24 @@ function atualizarStatusKanban(requisicaoId, novoStatus, cardElement, fromColumn
                 location.reload();
             }, 500);
         } else {
-            // Reverte o movimento em caso de erro
-            showNotification(data.error, 'error');
-            fromColumn.appendChild(cardElement);
+            // Se requer atribuição, abre o modal
+            if (data.requer_atribuicao) {
+                window.tempMovimentoData = {
+                    requisicaoId: requisicaoId,
+                    novoStatus: novoStatus,
+                    cardElement: cardElement,
+                    fromColumn: fromColumn
+                };
+                
+                document.getElementById('atribuicaoRequisicaoId').value = requisicaoId;
+                document.getElementById('selectResponsavel').value = '';
+                const modal = new bootstrap.Modal(document.getElementById('modalAtribuirResponsavel'));
+                modal.show();
+            } else {
+                // Reverte o movimento em caso de erro
+                showNotification(data.error, 'error');
+                fromColumn.appendChild(cardElement);
+            }
         }
     })
     .catch(error => {
@@ -699,6 +804,32 @@ function atualizarStatusKanban(requisicaoId, novoStatus, cardElement, fromColumn
         showNotification('Erro ao atualizar status', 'error');
         fromColumn.appendChild(cardElement);
     });
+}
+
+// Função para confirmar atribuição de responsável
+function confirmarAtribuicao() {
+    const responsavel = document.getElementById('selectResponsavel').value;
+    
+    if (!responsavel) {
+        showNotification('Selecione um responsável', 'error');
+        return;
+    }
+    
+    const data = window.tempMovimentoData;
+    if (!data) {
+        showNotification('Dados de movimentação não encontrados', 'error');
+        return;
+    }
+    
+    // Fecha o modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('modalAtribuirResponsavel'));
+    modal.hide();
+    
+    // Atualiza status com o responsável
+    atualizarStatusKanban(data.requisicaoId, data.novoStatus, data.cardElement, data.fromColumn, responsavel);
+    
+    // Limpa dados temporários
+    window.tempMovimentoData = null;
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -742,6 +873,24 @@ document.addEventListener('DOMContentLoaded', function() {
                         evt.from.appendChild(cardElement);
                         return;
                     }
+                }
+                
+                // Se está movendo de "a_fazer" para "em_progresso", exige atribuição
+                if (statusAnterior === 'a_fazer' && novoStatus === 'em_progresso') {
+                    // Armazena dados temporariamente
+                    window.tempMovimentoData = {
+                        requisicaoId: requisicaoId,
+                        novoStatus: novoStatus,
+                        cardElement: cardElement,
+                        fromColumn: evt.from
+                    };
+                    
+                    // Abre modal de atribuição
+                    document.getElementById('atribuicaoRequisicaoId').value = requisicaoId;
+                    document.getElementById('selectResponsavel').value = '';
+                    const modal = new bootstrap.Modal(document.getElementById('modalAtribuirResponsavel'));
+                    modal.show();
+                    return;
                 }
                 
                 // Se está movendo para auditoria, verifica se tem IDs incompletos
