@@ -88,6 +88,53 @@
         justify-content: space-between;
     }
     
+    /* Badge de Expedição Parcial (inline ao lado do ID) */
+    .badge-expedicao-parcial-hist-inline {
+        background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+        color: #1e1e1e;
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 0.35rem 0.6rem;
+        border-radius: 20px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        box-shadow: 0 2px 8px rgba(212, 175, 55, 0.4);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+    }
+    
+    .badge-expedicao-parcial-hist-inline i {
+        font-size: 0.75rem;
+    }
+    
+    .info-expedicao-parcial-hist {
+        background: rgba(212, 175, 55, 0.15);
+        border: 1px solid rgba(212, 175, 55, 0.4);
+        border-radius: 8px;
+        padding: 0.6rem;
+        margin-top: 0.5rem;
+        font-size: 0.8rem;
+    }
+    
+    .info-expedicao-parcial-hist strong {
+        color: #d4af37;
+        display: block;
+        margin-bottom: 0.3rem;
+        font-size: 0.75rem;
+    }
+    
+    .info-expedicao-parcial-hist span {
+        color: #665b1d;
+        font-size: 0.75rem;
+    }
+    
     .card-status:hover {
         transform: translateY(-5px);
         box-shadow: 0 12px 40px rgba(0,0,0,0.15);
@@ -355,12 +402,31 @@
             {% for item in historico_list %}
             <div class="col-md-4 mb-4 d-flex align-items-stretch">
                 <div class="card card-status {% if item.status == 'Aprovado' %}Aprovado{% elif item.status == 'Reprovado' %}Reprovado{% elif item.status == 'Configurado' %}Configurado{% elif item.status == 'Pendente' %}Pendente{% elif item.status == 'Expedido' %}Expedido{% elif item.status == 'Enviado para o Cliente' %}Enviado-para-o-Cliente{% endif %}">
+                    
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h2 style="font-size:1.1rem;font-weight:700;color:#555;">Requisição</h2>
-                            <span class="badge bg-secondary" style="font-size:0.95rem;">ID: {{ item.id }}</span>
+                            <div class="d-flex align-items-center gap-2">
+                                <!-- Badge de Expedição Parcial (inline) -->
+                                {% if item.requisicao_original_id %}
+                                <span class="badge-expedicao-parcial-hist-inline">
+                                    <i class="bi bi-arrow-return-right"></i>
+                                    PARCIAL
+                                </span>
+                                {% endif %}
+                                <span class="badge bg-secondary" style="font-size:0.95rem;">ID: {{ item.id }}</span>
+                            </div>
                         </div>
                         <h5 class="card-title">{{ item.nome }}</h5>
+                        
+                        <!-- Info de Expedição Parcial -->
+                        {% if item.requisicao_original_id %}
+                        <div class="info-expedicao-parcial-hist">
+                            <strong><i class="bi bi-info-circle"></i> Requisição Complementar</strong>
+                            <span>Restante da requisição #{{ item.requisicao_original_id.id }}</span>
+                        </div>
+                        {% endif %}
+                        
                         <div class="row">
                             <div class="col-6">
                                 <p class="card-text"><b>CNPJ:</b> {{ item.cnpj }}</p>

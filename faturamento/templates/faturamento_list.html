@@ -238,6 +238,28 @@
     .back-to-top.show {
         display: block;
     }
+    
+    /* Destaque para expedição parcial */
+    .expedicao-parcial-row {
+        background: linear-gradient(90deg, rgba(212, 175, 55, 0.15) 0%, rgba(244, 208, 63, 0.08) 100%) !important;
+        border-left: 4px solid #d4af37 !important;
+        position: relative;
+    }
+    
+    .expedicao-parcial-row:hover {
+        background: linear-gradient(90deg, rgba(212, 175, 55, 0.25) 0%, rgba(244, 208, 63, 0.15) 100%) !important;
+    }
+    
+    .expedicao-parcial-row::before {
+        content: "⚠";
+        position: absolute;
+        left: -2px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 1rem;
+        color: #d4af37;
+        font-weight: bold;
+    }
 </style>
 
 <div class="container-page mt-4 mb-5" style="margin-left:1vw; padding-left:0; width:99vw; max-width:98vw;">
@@ -369,6 +391,7 @@
                                 <th class="text-center">Comercial</th>
                                 <th class="text-center">Produto</th>
                                 <th class="text-center">Quantidade</th>
+                                <th class="text-center">Qtd Expedida</th>
                                 <th class="text-center">Fatura</th>
                                 <th class="text-center">Valor Unitário</th>
                                 <th class="text-center">Valor Total</th>
@@ -381,7 +404,7 @@
                         </thead>
                         <tbody>
                             {% for registro in requisicoes %}
-                                                         <tr class="status-{{ registro.status|lower }}" data-id="{{ registro.id }}">
+                                                         <tr class="status-{{ registro.status|lower }} {% if registro.quantidade_expedida and registro.quantidade_expedida > 0 and registro.quantidade_expedida < registro.numero_de_equipamentos %}expedicao-parcial-row{% endif %}" data-id="{{ registro.id }}">
                                  <td title="ID: {{ registro.id }}">{{ registro.id }}</td>
                                  <td title="Data: {{ registro.data|date:'d/m/Y H:i' }}">{{ registro.data|date:"d/m/Y H:i" }}</td>
                                  <td title="{{ registro.nome }}">{{ registro.nome }}</td>
@@ -396,7 +419,16 @@
                                  <td title="Comercial: {{ registro.comercial }}">{{ registro.comercial }}</td>
                                  <td title="Produto: {{ registro.tipo_produto.nome }}">{{ registro.tipo_produto.nome }}</td>
                                  <td class="text-center" title="Quantidade: {{ registro.numero_de_equipamentos }}">{{ registro.numero_de_equipamentos }}</td>
-                               
+                                 <td class="text-center" title="Quantidade Expedida: {{ registro.quantidade_expedida|default:'0' }}">
+                                     {% if registro.quantidade_expedida and registro.quantidade_expedida > 0 %}
+                                         <strong style="color: #d4af37;">{{ registro.quantidade_expedida }}</strong>
+                                         {% if registro.quantidade_expedida < registro.numero_de_equipamentos %}
+                                             <br><span class="badge" style="background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%); color: #1e1e1e; font-size: 0.7rem; font-weight: 600; padding: 0.25rem 0.5rem; border-radius: 4px; margin-top: 0.25rem; display: inline-block;">PARCIAL</span>
+                                         {% endif %}
+                                     {% else %}
+                                         -
+                                     {% endif %}
+                                 </td>
                                  <td title="Fatura: {{ registro.tipo_fatura }}">{{ registro.tipo_fatura }}</td>
                                  <td title="Valor Unitário: {{ registro.valor_unitario }}">{{ registro.valor_unitario }}</td>
                                  <td title="Valor Total: {{ registro.valor_total }}">{{ registro.valor_total }}</td>

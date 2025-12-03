@@ -1375,10 +1375,23 @@ def expedir_requisicao_parcial(request):
         
         # Usa transaction para garantir atomicidade
         with transaction.atomic():
-            # Atualiza requisição original - MARCA COMO EXPEDIDA
+            # Calcula valores para faturamento
+            valor_unitario = float(requisicao.valor_unitario) if requisicao.valor_unitario else 0
+            taxa_envio = float(requisicao.taxa_envio) if requisicao.taxa_envio else 0
+            valor_a_faturar = (valor_unitario * quantidade_expedir) + taxa_envio
+            
+            # Atualiza requisição original - MARCA COMO EXPEDIDA PARCIALMENTE
             requisicao.quantidade_expedida += quantidade_expedir
             requisicao.status = 'Configurado'  # Muda status para expedido
             requisicao.kanban_status = None  # Remove do kanban
+            
+            # Adiciona informação de expedição parcial nas observações
+            obs_parcial = f"\n[EXPEDIÇÃO PARCIAL] {quantidade_expedir} de {numero_equipamentos} expedidos. Valor a faturar: R$ {valor_a_faturar:.2f} (Qtd: {quantidade_expedir} x R$ {valor_unitario:.2f} + Taxa: R$ {taxa_envio:.2f})"
+            if requisicao.observacoes:
+                requisicao.observacoes += obs_parcial
+            else:
+                requisicao.observacoes = obs_parcial.strip()
+            
             requisicao.save()
             
             # Registra log de expedição parcial
