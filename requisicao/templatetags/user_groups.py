@@ -27,3 +27,23 @@ def is_config_kanban(user):
     Uso: {% if user|is_config_kanban %}
     """
     return has_group(user, 'Configuração Kanban')
+
+@register.filter(name='format_responsavel')
+def format_responsavel(username):
+    """
+    Formata o username do responsável para exibição amigável.
+    Exemplo: GuilhermeAmarante -> Guilherme A.
+             Talita.Espinosa -> Talita E.
+    """
+    if not username:
+        return ''
+    
+    # Mapeia usernames para nomes formatados
+    formatacao = {
+        'GuilhermeAmarante': 'Guilherme A.',
+        'Talita.Espinosa': 'Talita E.',
+        'Vinicius.Rodrigues': 'Vinicius R.',
+        'PATRICIALORENA': 'Patricia L.',
+    }
+    
+    return formatacao.get(username, username)

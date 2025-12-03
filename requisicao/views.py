@@ -1699,6 +1699,27 @@ def update_kanban_status(request):
                     'success': False,
                     'error': 'Você só pode mover cards de "Em Progresso" para "Auditoria".'
                 }, status=403)
+            
+            # Validação adicional: usuário configuração só pode mover se for o responsável atribuído ou super user
+            if status_anterior == 'em_progresso' and novo_status == 'auditoria':
+                if not request.user.is_superuser:
+                    if not requisicao.responsavel_manutencao:
+                        return JsonResponse({
+                            'success': False,
+                            'error': 'Este card não possui responsável atribuído.'
+                        }, status=403)
+                    
+                    # Verifica se o username do usuário corresponde ao responsável
+                    if request.user.username != requisicao.responsavel_manutencao:
+                        # Busca o nome formatado do responsável para a mensagem
+                        responsavel_nome = dict(requisicao.RESPONSAVEL_MANUTENCAO_CHOICES).get(
+                            requisicao.responsavel_manutencao, 
+                            requisicao.responsavel_manutencao
+                        )
+                        return JsonResponse({
+                            'success': False,
+                            'error': f'Apenas {responsavel_nome} ou um gestor pode mover este card para Auditoria.'
+                        }, status=403)
         
         # Validação: ao mover de "a_fazer" para "em_progresso", exige responsável
         if status_anterior == 'a_fazer' and novo_status == 'em_progresso':

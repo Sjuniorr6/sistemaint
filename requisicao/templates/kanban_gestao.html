@@ -91,55 +91,51 @@
 .kanban-card.ids-incluidos {
     border: 2px solid #28a745;
 }
-.card-top-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 10px;
-}
 .priority-flag {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    position: absolute;
+    top: 10px;
+    right: 10px;
     font-size: 1.2rem;
     color: rgba(255, 255, 255, 0.3);
     cursor: pointer;
     z-index: 10;
 }
-.priority-flag .id-badge {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #665b1d;
-    background: rgba(212, 175, 55, 0.3);
-    padding: 2px 8px;
-    border-radius: 10px;
-}
 .priority-flag.active { 
     color: #ffc107; 
 }
-.priority-flag.active .id-badge {
-    background: rgba(255, 193, 7, 0.3);
-    color: #ffc107;
-}
-.card-header-info {
+.card-header-row {
     display: flex;
-    flex-direction: column;
-    gap: 5px;
-    font-size: 0.8rem;
-    margin-bottom: 8px;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    gap: 10px;
 }
-.card-date {
-    color: rgba(255, 255, 255, 0.6);
+.card-info-left {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
+    font-size: 0.82rem;
+    flex-wrap: wrap;
+}
+.card-id {
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 700;
+}
+.card-date {
+    color: rgba(255, 255, 255, 0.7);
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 .card-responsavel {
     color: #d4af37;
     font-weight: 600;
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
+}
+.card-info-left .separator {
+    color: rgba(255, 255, 255, 0.3);
 }
 .empty-column {
     display: flex;

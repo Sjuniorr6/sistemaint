@@ -5,36 +5,32 @@
      data-requisicao-id="{{ requisicao.id }}" 
      data-data-alteracao="{{ requisicao.data|date:'Y-m-d' }}">
     
-    <!-- Header com Prioridade e ID -->
-    <div class="card-top-header">
-        <!-- Indicador de Prioridade com ID -->
-        <div class="priority-flag {% if requisicao.prioridade %}active{% endif %}" 
-             title="{% if requisicao.prioridade %}Remover prioridade{% else %}Marcar como prioridade{% endif %}">
-            <i class="bi bi-flag-fill"></i>
-            <span class="id-badge">ID: {{ requisicao.id }}</span>
-        </div>
-        
-        {% if requisicao.id_equipamentos %}
-            <span class="badge bg-success">
-                <i class="bi bi-check-circle"></i> IDs
-            </span>
-        {% endif %}
+    <!-- Indicador de Prioridade no canto -->
+    <div class="priority-flag {% if requisicao.prioridade %}active{% endif %}" 
+         title="{% if requisicao.prioridade %}Remover prioridade{% else %}Marcar como prioridade{% endif %}">
+        <i class="bi bi-flag-fill"></i>
     </div>
     
     <!-- Corpo do Card (clicável para abrir modal) -->
     <div class="card-body-clickable">
-        <h5 class="card-title">{{ requisicao.nome.nome|truncatechars:30 }}</h5>
-        
-        <div class="card-header-info">
-            <span class="card-date">
-                <i class="bi bi-calendar3"></i> {{ requisicao.data|date:"d/m/Y" }}
-            </span>
-            {% if requisicao.responsavel_manutencao %}
-                <span class="card-responsavel">
-                    <i class="bi bi-person-check-fill"></i> {{ requisicao.get_responsavel_manutencao_display }}
+        <div class="card-header-row">
+            <div class="card-info-left">
+                <span class="card-id">ID: {{ requisicao.id }}</span>
+                <span class="separator">|</span>
+                <span class="card-date"><i class="bi bi-calendar3"></i> {{ requisicao.data|date:"d/m/Y" }}</span>
+                {% if requisicao.responsavel_manutencao %}
+                    <span class="separator">|</span>
+                    <span class="card-responsavel"><i class="bi bi-person-check-fill"></i> {{ requisicao.responsavel_manutencao|format_responsavel }}</span>
+                {% endif %}
+            </div>
+            {% if requisicao.id_equipamentos %}
+                <span class="badge bg-success">
+                    <i class="bi bi-check-circle"></i> IDs
                 </span>
             {% endif %}
         </div>
+        
+        <h5 class="card-title">{{ requisicao.nome.nome|truncatechars:30 }}</h5>
         
         <div class="card-info">
             <div class="info-row">
