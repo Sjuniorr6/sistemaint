@@ -68,9 +68,9 @@
                         </button>
                     {% else %}
                         <!-- Tem todos os IDs - mostra botão de expedição total -->
-                        <a href="{% url 'expedir_requisicao' requisicao.id %}" class="btn btn-sm btn-success" title="Expedir Total">
+                        <button type="button" class="btn btn-sm btn-success" onclick="event.stopPropagation(); abrirModalChecklistExpedicao({{ requisicao.id }})" title="Expedir Total">
                             <i class="bi bi-truck"></i> Expedir Total
-                        </a>
+                        </button>
                     {% endif %}
                 {% endif %}
             {% endwith %}

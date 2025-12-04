@@ -577,21 +577,36 @@ def expedicao_expedido2(request, id):
 
 def expedir_requisicao(request, id):
     registro = get_object_or_404(Requisicoes, id=id)
-    # Alterar o status do registro para "Configurado"
-    registro.status = 'Configurado'
-    registro.save()
-    subject = f"Requisicao Expedida: ID:  {registro.id} "
-    message = f"Requisição realizada e expedida com sucesso. ID:  {registro.id} Quality, por favor realizar a auditoria de espelhamento. Atenciosamente, Departamento de Inteligência"
-    from_email = settings.DEFAULT_FROM_EMAIL
-    recipient_list = ['riicodt@gmail.com']
     
+    if request.method == 'POST':
+        # Captura dados do checklist de auditoria
+        ids_auditados = request.POST.get('ids_auditados', '').strip()
+        verificacao_plataforma = request.POST.get('verificacao_plataforma') == 'on'
+        customizacao_conforme = request.POST.get('customizacao_conforme') == 'on'
+        
+        # Salva informações do checklist
+        registro.ids_auditados = ids_auditados
+        registro.verificacao_plataforma = verificacao_plataforma
+        registro.customizacao_conforme = customizacao_conforme
+        
+        # Alterar o status do registro para "Configurado"
+        registro.status = 'Configurado'
+        registro.save()
+        
+        subject = f"Requisicao Expedida: ID:  {registro.id} "
+        message = f"Requisição realizada e expedida com sucesso. ID:  {registro.id} Quality, por favor realizar a auditoria de espelhamento. Atenciosamente, Departamento de Inteligência"
+        from_email = settings.DEFAULT_FROM_EMAIL
+        recipient_list = ['riicodt@gmail.com']
+        
+        try:
+            send_mail(subject, message, from_email, recipient_list)
+            print("Email enviado com sucesso.")
+        except Exception as e:
+            print(f"Erro ao enviar email: {e}")
+        return redirect('kanban_gestao')
     
-    try:
-        send_mail(subject, message, from_email, recipient_list)
-        print("Email enviado com sucesso.")
-    except Exception as e:
-        print(f"Erro ao enviar email: {e}")
-    return redirect('ConfiguracaoListView')
+    # GET: renderiza template com modal de checklist
+    return render(request, 'expedir_confirmacao.html', {'requisicao': registro})
 def expedir_requisicaotec(request, id):
     registro = get_object_or_404(Requisicoes, id=id)
     # Alterar o status do registro para "Configurado"
@@ -863,6 +878,12 @@ def gerar_pdf_saida(request, id):
         logo_path = os.path.join(settings.MEDIA_ROOT, 'imagens_registros/SIDNEISIDNEISIDNEI.png')
         qr_code_path = os.path.join(settings.MEDIA_ROOT, 'imagens_registros/qrcode.png')
 
+        # Verifica se os arquivos existem antes de tentar abrir
+        if not os.path.exists(logo_path):
+            raise FileNotFoundError(f"Logo não encontrado: {logo_path}")
+        if not os.path.exists(qr_code_path):
+            raise FileNotFoundError(f"QR Code não encontrado: {qr_code_path}")
+
         logo = Image(logo_path, width=60, height=60)
         qr_code = Image(qr_code_path, width=60, height=60)
 
@@ -880,7 +901,8 @@ def gerar_pdf_saida(request, id):
             ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
         ]))
         elements.append(header_table)
-    except FileNotFoundError:
+    except (FileNotFoundError, Exception) as e:
+        print(f"Erro ao carregar imagens do cabeçalho: {e}")
         elements.append(Paragraph("<b>PROTOCOLO DE ENTREGA DE EQUIPAMENTOS</b>", styles["Header"]))
 
     elements.append(Spacer(1, 10))
@@ -1354,8 +1376,16 @@ def expedir_requisicao_parcial(request):
         data = json.loads(request.body)
         requisicao_id = data.get('requisicao_id')
         quantidade_expedir = int(data.get('quantidade_expedir', 0))
+        ids_auditados = data.get('ids_auditados', '').strip()
+        verificacao_plataforma = data.get('verificacao_plataforma', False)
+        customizacao_conforme = data.get('customizacao_conforme', False)
         
         requisicao = get_object_or_404(Requisicoes, id=requisicao_id)
+        
+        # Salva dados do checklist
+        requisicao.ids_auditados = ids_auditados
+        requisicao.verificacao_plataforma = verificacao_plataforma
+        requisicao.customizacao_conforme = customizacao_conforme
         
         # Converte numero_de_equipamentos para int
         numero_equipamentos = int(requisicao.numero_de_equipamentos) if requisicao.numero_de_equipamentos else 0

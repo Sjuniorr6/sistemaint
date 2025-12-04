@@ -337,7 +337,7 @@
 
 <!-- Modal de Expedição Parcial -->
 <div class="modal fade" id="modalExpedicaoParcial" tabindex="-1" aria-labelledby="modalExpedicaoParcialLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content" style="background: #2d2d2d; color: #e0e0e0;">
             <div class="modal-header" style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
                 <h5 class="modal-title" id="modalExpedicaoParcialLabel">
@@ -377,12 +377,57 @@
                             <span id="quantidadeRestante" class="fs-4" style="color: #ffc107;">0</span>
                         </div>
                     </div>
+                    
+                    <!-- Checklist de Auditoria -->
+                    <hr style="border-color: rgba(255, 255, 255, 0.1); margin: 1.5rem 0;">
+                    
+                    <h6 class="mb-3" style="color: #11998e;">
+                        <i class="bi bi-clipboard-check"></i> Checklist de Auditoria
+                    </h6>
+                    
+                    <div class="mb-3">
+                        <label for="idsAuditadosParcial" class="form-label">
+                            <i class="bi bi-list-check"></i> IDs dos Equipamentos Auditados <span class="text-danger">*</span>
+                        </label>
+                        <textarea class="form-control" id="idsAuditadosParcial" rows="5" required
+                                  placeholder="Digite os IDs dos equipamentos que foram auditados (um por linha ou separados por espaço)"
+                                  style="background: #1e1e1e; border: 1px solid rgba(255, 255, 255, 0.2); color: #e0e0e0; font-family: monospace;"></textarea>
+                        <small class="form-text" style="color: rgba(255, 255, 255, 0.6);">
+                            Liste todos os IDs que passaram pela auditoria antes da expedição
+                        </small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check" style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 8px;">
+                            <input class="form-check-input" type="checkbox" id="verificacaoPlataformaParcial" 
+                                   style="width: 1.2rem; height: 1.2rem; cursor: pointer;">
+                            <label class="form-check-label" for="verificacaoPlataformaParcial" style="margin-left: 10px; cursor: pointer;">
+                                <i class="bi bi-laptop"></i> Verificação via Plataforma realizada
+                            </label>
+                            <small class="d-block mt-2" style="color: rgba(255, 255, 255, 0.6); margin-left: 2rem;">
+                                Marque se foi realizada a verificação dos equipamentos através da plataforma
+                            </small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check" style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 8px;">
+                            <input class="form-check-input" type="checkbox" id="customizacaoConformeParcial" 
+                                   style="width: 1.2rem; height: 1.2rem; cursor: pointer;">
+                            <label class="form-check-label" for="customizacaoConformeParcial" style="margin-left: 10px; cursor: pointer;">
+                                <i class="bi bi-check-circle"></i> Customização está de acordo
+                            </label>
+                            <small class="d-block mt-2" style="color: rgba(255, 255, 255, 0.6); margin-left: 2rem;">
+                                Marque se a customização atende ao solicitado
+                            </small>
+                        </div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer" style="border-top: 1px solid rgba(255, 255, 255, 0.1);">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" class="btn btn-warning" onclick="confirmarExpedicaoParcial()">
-                    <i class="bi bi-box-arrow-up"></i> Confirmar Expedição
+                    <i class="bi bi-box-arrow-up"></i> Confirmar e Expedir
                 </button>
             </div>
         </div>
@@ -481,6 +526,76 @@
                     <i class="bi bi-check-circle"></i> Confirmar
                 </button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Checklist de Expedição -->
+<div class="modal fade" id="modalChecklistExpedicao" tabindex="-1" aria-labelledby="modalChecklistExpedicaoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content" style="background: #2d2d2d; color: #e0e0e0;">
+            <div class="modal-header" style="border-bottom: 1px solid rgba(255, 255, 255, 0.1); background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
+                <h5 class="modal-title" id="modalChecklistExpedicaoLabel">
+                    <i class="bi bi-clipboard-check"></i> Checklist de Auditoria - Expedição
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="formChecklistExpedicao" method="POST" action="">
+                <div class="modal-body">
+                    <div class="alert alert-info" style="background: rgba(13, 202, 240, 0.2); border: 1px solid rgba(13, 202, 240, 0.4); color: #0dcaf0;">
+                        <i class="bi bi-info-circle"></i> 
+                        Complete o checklist de auditoria antes de expedir a requisição.
+                    </div>
+                    
+                    <input type="hidden" name="csrfmiddlewaretoken" value="">
+                    
+                    <div class="mb-3">
+                        <label for="idsAuditados" class="form-label">
+                            <i class="bi bi-list-check"></i> IDs dos Equipamentos Auditados <span class="text-danger">*</span>
+                        </label>
+                        <textarea class="form-control" id="idsAuditados" name="ids_auditados" rows="6" required
+                                  placeholder="Digite os IDs dos equipamentos que foram auditados (um por linha ou separados por espaço)"
+                                  style="background: #1e1e1e; border: 1px solid rgba(255, 255, 255, 0.2); color: #e0e0e0; font-family: monospace;"></textarea>
+                        <small class="form-text" style="color: rgba(255, 255, 255, 0.6);">
+                            Liste todos os IDs que passaram pela auditoria antes da expedição
+                        </small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check" style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 8px;">
+                            <input class="form-check-input" type="checkbox" id="verificacaoPlataforma" name="verificacao_plataforma" 
+                                   style="width: 1.2rem; height: 1.2rem; cursor: pointer;">
+                            <label class="form-check-label" for="verificacaoPlataforma" style="margin-left: 10px; cursor: pointer;">
+                                <i class="bi bi-laptop"></i> Verificação via Plataforma realizada
+                            </label>
+                            <small class="d-block mt-2" style="color: rgba(255, 255, 255, 0.6); margin-left: 2rem;">
+                                Marque se foi realizada a verificação dos equipamentos através da plataforma
+                            </small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check" style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 8px;">
+                            <input class="form-check-input" type="checkbox" id="customizacaoConforme" name="customizacao_conforme" 
+                                   style="width: 1.2rem; height: 1.2rem; cursor: pointer;">
+                            <label class="form-check-label" for="customizacaoConforme" style="margin-left: 10px; cursor: pointer;">
+                                <i class="bi bi-check-circle"></i> Customização está de acordo
+                            </label>
+                            <small class="d-block mt-2" style="color: rgba(255, 255, 255, 0.6); margin-left: 2rem;">
+                                Marque se a customização atende ao solicitado
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle"></i> Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-truck"></i> Confirmar e Expedir
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -692,6 +807,9 @@ function confirmarExpedicaoParcial() {
     const requisicaoId = document.getElementById('expedicaoRequisicaoId').value;
     const quantidadeExpedir = parseInt(document.getElementById('quantidadeExpedir').value);
     const quantidadeTotal = parseInt(document.getElementById('expedicaoQuantidadeTotal').value);
+    const idsAuditados = document.getElementById('idsAuditadosParcial').value.trim();
+    const verificacaoPlataforma = document.getElementById('verificacaoPlataformaParcial').checked;
+    const customizacaoConforme = document.getElementById('customizacaoConformeParcial').checked;
     
     if (!quantidadeExpedir || quantidadeExpedir <= 0) {
         showNotification('Por favor, informe uma quantidade válida', 'error');
@@ -700,6 +818,11 @@ function confirmarExpedicaoParcial() {
     
     if (quantidadeExpedir > quantidadeTotal) {
         showNotification('Quantidade não pode ser maior que o total', 'error');
+        return;
+    }
+    
+    if (!idsAuditados) {
+        showNotification('Por favor, informe os IDs auditados', 'error');
         return;
     }
     
@@ -712,7 +835,10 @@ function confirmarExpedicaoParcial() {
         },
         body: JSON.stringify({
             requisicao_id: requisicaoId,
-            quantidade_expedir: quantidadeExpedir
+            quantidade_expedir: quantidadeExpedir,
+            ids_auditados: idsAuditados,
+            verificacao_plataforma: verificacaoPlataforma,
+            customizacao_conforme: customizacaoConforme
         })
     })
     .then(response => response.json())
@@ -826,6 +952,26 @@ function confirmarAtribuicao() {
     
     // Limpa dados temporários
     window.tempMovimentoData = null;
+}
+
+// Função para abrir modal de checklist de expedição
+function abrirModalChecklistExpedicao(requisicaoId) {
+    // Configura o action do form com a URL correta
+    const form = document.getElementById('formChecklistExpedicao');
+    form.action = `/requisicao/expedir_requisicao/${requisicaoId}/`;
+    
+    // Adiciona CSRF token
+    const csrfToken = getCookie('csrftoken');
+    form.querySelector('input[name="csrfmiddlewaretoken"]').value = csrfToken;
+    
+    // Limpa campos
+    document.getElementById('idsAuditados').value = '';
+    document.getElementById('verificacaoPlataforma').checked = false;
+    document.getElementById('customizacaoConforme').checked = false;
+    
+    // Abre modal
+    const modal = new bootstrap.Modal(document.getElementById('modalChecklistExpedicao'));
+    modal.show();
 }
 
 document.addEventListener('DOMContentLoaded', function() {

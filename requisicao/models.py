@@ -354,6 +354,23 @@ class Requisicoes(models.Model):
         help_text='Responsável pela manutenção/configuração do equipamento'
     )
     
+    # Campos para checklist de auditoria na expedição
+    ids_auditados = models.TextField(
+        max_length=180000,
+        null=True,
+        blank=True,
+        default='',
+        help_text='IDs dos equipamentos que passaram pela auditoria antes da expedição'
+    )
+    verificacao_plataforma = models.BooleanField(
+        default=False,
+        help_text='Indica se houve verificação via plataforma durante a auditoria'
+    )
+    customizacao_conforme = models.BooleanField(
+        default=False,
+        help_text='Indica se a customização está de acordo com o solicitado'
+    )
+    
     # Campos para expedição parcial
     requisicao_original_id = models.ForeignKey(
         'self',

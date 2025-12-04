@@ -380,7 +380,7 @@
         <div class="info-compact">
           <div class="info-compact-item">
             <span class="label">CNPJ</span>
-            <span class="value">{{ registro.cnpj|truncatechars:15 }}</span>
+            <span class="value">{{ registro.cnpj }}</span>
           </div>
 
           <div class="info-compact-item">
@@ -390,27 +390,27 @@
 
           <div class="info-compact-item">
             <span class="label">Produto</span>
-            <span class="value">{{ registro.tipo_produto|truncatechars:12 }}</span>
+            <span class="value">{{ registro.tipo_produto }}</span>
           </div>
 
           <div class="info-compact-item">
             <span class="label">Comercial</span>
-            <span class="value">{{ registro.comercial|truncatechars:12 }}</span>
+            <span class="value">{{ registro.comercial }}</span>
           </div>
 
           <div class="info-compact-item">
             <span class="label">Cabo</span>
-            <span class="value">{{ registro.cabo|default:"Não"|truncatechars:10 }}</span>
+            <span class="value">{{ registro.cabo|default:"Não" }}</span>
           </div>
 
           <div class="info-compact-item">
             <span class="label">Carregador</span>
-            <span class="value">{{ registro.carregador|default:"Não"|truncatechars:10 }}</span>
+            <span class="value">{{ registro.carregador|default:"Não"}}</span>
           </div>
 
           <div class="info-compact-item">
-            <span class="label">Valor Unit.</span>
-            <span class="value">R$ {{ registro.valor_unitario }}</span>
+            <span class="label">Valor Taxa de Envio</span>
+            <span class="value">R$ {{ registro.taxa_envio }}</span>
           </div>
 
           <div class="info-compact-item">
