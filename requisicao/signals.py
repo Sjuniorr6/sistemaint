@@ -32,6 +32,10 @@ from requisicao.views import gerar_pdf_requisicao
 
 @receiver(post_save, sender=Requisicoes)
 def enviar_email_requisicao_criada(sender, instance, created, **kwargs):
+    # Pula signal se foi marcado (ex: expedição parcial)
+    if getattr(instance, '_skip_signals', False):
+        return
+        
     if created:
         if instance.comercial == "MAYRA":
             subject = f"Requisiçao solicitada ID :  {instance.id}"

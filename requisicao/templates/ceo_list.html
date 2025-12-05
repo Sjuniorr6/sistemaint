@@ -142,6 +142,56 @@
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
     position: relative;
   }
+  
+  /* Badge de Expedição Parcial */
+  .badge-expedicao-parcial {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+    color: #1e1e1e;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 8px rgba(212, 175, 55, 0.4);
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    animation: pulse 2s infinite;
+  }
+  
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+  
+  .badge-expedicao-parcial i {
+    font-size: 0.8rem;
+  }
+  
+  .info-expedicao-parcial {
+    background: rgba(212, 175, 55, 0.1);
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    border-radius: 8px;
+    padding: 0.6rem;
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+  }
+  
+  .info-expedicao-parcial strong {
+    color: #d4af37;
+    display: block;
+    margin-bottom: 0.3rem;
+  }
+  
+  .info-expedicao-parcial span {
+    color: #665b1d;
+    font-size: 0.75rem;
+  }
 
   .req-card::before {
     content: '';
@@ -397,11 +447,28 @@
   <div class="cards-grid">
     {% for item in ceo_list %}
     <div class="req-card {% if item.status == 'Aprovado' %}Aprovado{% elif item.status == 'Reprovado' %}Reprovado{% elif item.status == 'Configurado' %}Configurado{% elif item.status == 'Pendente' %}Pendente{% elif item.status == 'Expedido' %}Expedido{% elif item.status == 'Reprovado pelo CEO' %}Reprovado-pelo-CEO{% elif item.status == 'Aprovado pelo CEO' %}Aprovado-pelo-CEO{% elif item.status == 'Reprovado pela Diretoria' %}Reprovado-pela-Diretoria{% elif item.status == 'Aprovado pela Diretoria' %}Aprovado-pela-Diretoria{% endif %}">
+      
+      <!-- Badge de Expedição Parcial -->
+      {% if item.requisicao_original_id %}
+      <div class="badge-expedicao-parcial">
+        <i class="bi bi-arrow-return-right"></i>
+        Expedição Parcial
+      </div>
+      {% endif %}
+      
       <div class="req-card-body">
         <div class="req-header">
           <div class="req-title">Requisição #{{ item.id }}</div>
           <h5>{{ item.nome }}</h5>
         </div>
+        
+        <!-- Info de Expedição Parcial -->
+        {% if item.requisicao_original_id %}
+        <div class="info-expedicao-parcial">
+          <strong><i class="bi bi-info-circle"></i> Requisição Complementar</strong>
+          <span>Restante da requisição <a href="{% url 'ceodetailview' item.requisicao_original_id.id %}" style="color: #d4af37; font-weight: 700; text-decoration: none;">#{{ item.requisicao_original_id.id }}</a></span>
+        </div>
+        {% endif %}
 
         <div class="req-info">
           <p><strong>CNPJ:</strong> <span>{{ item.cnpj }}</span></p>

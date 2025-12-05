@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Logs de Auditoria - Requisição #{{ requisicao.id }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <!-- Cabeçalho -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="bi bi-file-earmark-text"></i>
+                        Histórico de Auditoria - Requisição #{{ requisicao.id }}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <strong>Cliente:</strong> {{ requisicao.nome }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Status Atual:</strong> 
+                            <span class="badge bg-info">{{ requisicao.status }}</span>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Data Criação:</strong> {{ requisicao.data|date:"d/m/Y" }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Total de Logs:</strong> {{ logs.count }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Timeline de Logs -->
+            <div class="card">
+                <div class="card-body">
+                    <div class="timeline">
+                        {% for log in logs %}
+                        <div class="timeline-item mb-4">
+                            <div class="row">
+                                <div class="col-md-2 text-end">
+                                    <small class="text-muted">
+                                        <strong>{{ log.data_hora|date:"d/m/Y" }}</strong><br>
+                                        {{ log.data_hora|date:"H:i" }}
+                                    </small>
+                                </div>
+                                <div class="col-md-1 text-center">
+                                    <div class="timeline-badge bg-{% if log.acao == 'criacao' %}success{% elif log.acao == 'aprovacao' %}primary{% elif log.acao == 'reprovacao' %}danger{% elif log.acao == 'expedicao' %}warning{% elif log.acao == 'envio_cliente' %}info{% else %}secondary{% endif %}">
+                                        <i class="bi bi-{% if log.acao == 'criacao' %}plus-circle{% elif log.acao == 'aprovacao' %}check-circle{% elif log.acao == 'reprovacao' %}x-circle{% elif log.acao == 'atribuicao' %}person-check{% elif log.acao == 'kanban_movido' %}arrow-right-circle{% elif log.acao == 'expedicao' or log.acao == 'expedicao_parcial' %}box-seam{% elif log.acao == 'envio_cliente' %}truck{% elif log.acao == 'edicao' %}pencil-square{% elif log.acao == 'exclusao' %}trash{% else %}circle{% endif %}"></i>
+                                    </div>
+                                </div>
+                                <div class="col-md-9">
+                                    <div class="card border-{% if log.acao == 'criacao' %}success{% elif log.acao == 'aprovacao' %}primary{% elif log.acao == 'reprovacao' %}danger{% elif log.acao == 'expedicao' %}warning{% elif log.acao == 'envio_cliente' %}info{% else %}secondary{% endif %}">
+                                        <div class="card-header">
+                                            <strong>{{ log.get_acao_display }}</strong>
+                                            <span class="float-end">
+                                                <i class="bi bi-person-circle"></i> {{ log.usuario_nome }}
+                                                {% if log.ip_address %}
+                                                <small class="text-muted">({{ log.ip_address }})</small>
+                                                {% endif %}
+                                            </span>
+                                        </div>
+                                        <div class="card-body">
+                                            {% if log.status_anterior or log.status_novo %}
+                                            <p class="mb-2">
+                                                <strong>Mudança de Status:</strong>
+                                                {% if log.status_anterior %}
+                                                <span class="badge bg-secondary">{{ log.status_anterior }}</span>
+                                                <i class="bi bi-arrow-right"></i>
+                                                {% endif %}
+                                                {% if log.status_novo %}
+                                                <span class="badge bg-primary">{{ log.status_novo }}</span>
+                                                {% endif %}
+                                            </p>
+                                            {% endif %}
+
+                                            {% if log.observacao %}
+                                            <p class="mb-2">
+                                                <strong>Observação:</strong> {{ log.observacao }}
+                                            </p>
+                                            {% endif %}
+
+                                            {% if log.detalhes %}
+                                            <div class="alert alert-light mb-2">
+                                                <strong>Detalhes:</strong>
+                                                <pre class="mb-0">{{ log.detalhes|safe }}</pre>
+                                            </div>
+                                            {% endif %}
+
+                                            {% if log.campos_alterados.all %}
+                                            <div class="mt-2">
+                                                <strong>Campos Alterados:</strong>
+                                                <table class="table table-sm table-bordered mt-2">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Campo</th>
+                                                            <th>Valor Anterior</th>
+                                                            <th>Valor Novo</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {% for campo in log.campos_alterados.all %}
+                                                        <tr>
+                                                            <td><strong>{{ campo.nome_campo }}</strong></td>
+                                                            <td>{{ campo.valor_anterior|default:"<vazio>" }}</td>
+                                                            <td>{{ campo.valor_novo|default:"<vazio>" }}</td>
+                                                        </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> Nenhum log de auditoria encontrado para esta requisição.
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <a href="{% url 'RequisicoesListView' %}" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> Voltar
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.timeline {
+    position: relative;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: calc(16.666667% + 50%);
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #dee2e6;
+}
+
+.timeline-badge {
+    width: 50px;
+    height: 50px;
+    line-height: 50px;
+    font-size: 1.5em;
+    text-align: center;
+    border-radius: 50%;
+    color: white;
+    margin: 0 auto;
+    position: relative;
+    z-index: 2;
+}
+
+.timeline-item:last-child .timeline-badge {
+    margin-bottom: 0;
+}
+</style>
+{% endblock %}

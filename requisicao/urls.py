@@ -6,6 +6,14 @@ from .views import download_pdf_requisicao, enviar_email_com_pdf, get_cliente_da
     #-------------------------------------------------------------------------------------------------------------
 
 urlpatterns = [
+    # ============== KANBAN BOARD URLS ==============
+    path('kanban/gestao/', views.KanbanGestaoView.as_view(), name='kanban_gestao'),
+    path('api/kanban/update-status/', views.update_kanban_status, name='kanban_update_status'),
+    path('api/kanban/toggle-priority/<int:pk>/', views.toggle_prioridade, name='kanban_toggle_priority'),
+    path('api/kanban/detalhes/<int:pk>/', views.kanban_detalhes_requisicao, name='kanban_detalhes'),
+    path('api/kanban/expedir-parcial/', views.expedir_requisicao_parcial, name='kanban_expedir_parcial'),
+    path('api/kanban/salvar-ids/<int:pk>/', views.salvar_ids_equipamentos, name='kanban_salvar_ids'),
+    
     # Outras URLs
     path('requisicao/<int:id>/download/', download_pdf_requisicao, name='download_pdf_requisicao'),
     path('requisicao/<int:id>/download1/', gerar_pdf_saida, name='gerar_pdf_saida'),
@@ -82,4 +90,8 @@ path('novo-antenista/', AntenistaCreateView.as_view(), name='novo_antenista'),
         path('antenistaview/zerar-estoque/', views.zerar_estoque_antenista, name='zerar_estoque_antenista'),
 path('requisicoes/<int:pk>/editar/', RequisicaoUpdateView.as_view(), name='requisicao_update'),
 path('manutencao/configurado/<int:id>/', views.configurado_manutencao, name='configurado_manutencao'),
+    
+    # URLs de Auditoria
+    path('requisicao/<int:id>/logs/', views.ver_logs_requisicao, name='ver_logs_requisicao'),
+    path('manutencao/<int:id>/logs/', views.ver_logs_manutencao, name='ver_logs_manutencao'),
 ]

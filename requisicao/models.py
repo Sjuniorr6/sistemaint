@@ -2,6 +2,11 @@ from django.db import models
 from acompanhamento.models import Clientes   
 from produto.models import Produto    
 from django.utils import timezone
+from django.contrib.auth.models import User
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 
 
 class Antenista(models.Model):
@@ -319,8 +324,77 @@ class Requisicoes(models.Model):
     id_equipamentos= models.TextField(max_length=180000, null=True, blank=True, default='')
     faturamento= models.CharField(choices=statusfat ,max_length=1200, blank=True, default='Pendente')
     iccid = models.CharField(max_length=600000,null=True, blank=True, default='')
+    
+    # Campos para o Kanban Board
+    KANBAN_STATUS_CHOICES = [
+        ('a_fazer', 'A Fazer'),
+        ('em_progresso', 'Em Progresso'),
+        ('auditoria', 'Auditoria'),
+    ]
+    
+    RESPONSAVEL_MANUTENCAO_CHOICES = [
+        ('GuilhermeAmarante', 'Guilherme Amarante'),
+        ('Talita.Espinosa', 'Talita Espinosa'),
+        ('Vinicius.Rodrigues', 'Vinicius Rodrigues'),
+        ('PATRICIALORENA', 'Patricia Lorena'),
+    ]
+    
+    kanban_status = models.CharField(
+        choices=KANBAN_STATUS_CHOICES, 
+        default='a_fazer', 
+        max_length=20,
+        null=True,
+        blank=True
+    )
+    prioridade = models.BooleanField(default=False)
+    cor_card = models.CharField(max_length=20, null=True, blank=True, default='')
+    responsavel_manutencao = models.CharField(
+        choices=RESPONSAVEL_MANUTENCAO_CHOICES,
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text='Responsável pela manutenção/configuração do equipamento'
+    )
+    
+    # Campos para checklist de auditoria na expedição
+    ids_auditados = models.TextField(
+        max_length=180000,
+        null=True,
+        blank=True,
+        default='',
+        help_text='IDs dos equipamentos que passaram pela auditoria antes da expedição'
+    )
+    verificacao_plataforma = models.BooleanField(
+        default=False,
+        help_text='Indica se houve verificação via plataforma durante a auditoria'
+    )
+    customizacao_conforme = models.BooleanField(
+        default=False,
+        help_text='Indica se a customização está de acordo com o solicitado'
+    )
+    
+    # Campos para expedição parcial
+    requisicao_original_id = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='requisicoes_parciais',
+        help_text='Requisição original de onde esta foi derivada (expedição parcial)'
+    )
+    quantidade_expedida = models.IntegerField(
+        default=0,
+        help_text='Quantidade já expedida desta requisição'
+    )
+    
     def __str__(self):
         return f"Requisição {self.id} - {self.nome} "
+    
+    def get_quantidade_ids_incluidos(self):
+        """Retorna a quantidade de IDs incluídos no campo id_equipamentos"""
+        if not self.id_equipamentos or not self.id_equipamentos.strip():
+            return 0
+        return len(self.id_equipamentos.strip().split())
 
 
 class estoque_antenista(models.Model):
@@ -700,3 +774,219 @@ class antenista_CARD(models.Model):
             # em caso de qualquer problema com tipos, garantir que não quebre o save
             self.lucro = self.lucro or 0
         super().save(*args, **kwargs)
+
+
+class KanbanHistorico(models.Model):
+    """
+    Modelo para rastrear histórico de movimentações no Kanban.
+    Registra quem moveu o card, quando e de qual status para qual status.
+    """
+    requisicao = models.ForeignKey(
+        Requisicoes, 
+        on_delete=models.CASCADE, 
+        related_name='historico_kanban'
+    )
+    usuario = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='movimentacoes_kanban'
+    )
+    status_anterior = models.CharField(max_length=20, null=True, blank=True)
+    status_novo = models.CharField(max_length=20)
+    data_movimentacao = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-data_movimentacao']
+        verbose_name = 'Histórico Kanban'
+        verbose_name_plural = 'Históricos Kanban'
+    
+    def __str__(self):
+        return f"Requisição {self.requisicao.id} - {self.status_anterior} → {self.status_novo}"
+
+
+class KanbanAuditLog(models.Model):
+    """
+    Modelo para auditoria completa de ações no Kanban.
+    Registra movimentações, expedições parciais e totais.
+    """
+    ACAO_CHOICES = [
+        ('movimento', 'Movimento de Card'),
+        ('expedicao_parcial', 'Expedição Parcial'),
+        ('expedicao_total', 'Expedição Total'),
+    ]
+    
+    requisicao = models.ForeignKey(
+        Requisicoes,
+        on_delete=models.CASCADE,
+        related_name='logs_auditoria'
+    )
+    usuario = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='acoes_kanban'
+    )
+    acao = models.CharField(max_length=20, choices=ACAO_CHOICES)
+    coluna_origem = models.CharField(max_length=20, null=True, blank=True)
+    coluna_destino = models.CharField(max_length=20, null=True, blank=True)
+    quantidade_expedida = models.IntegerField(null=True, blank=True)
+    observacao = models.TextField(null=True, blank=True)
+    data_acao = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-data_acao']
+        verbose_name = 'Log de Auditoria Kanban'
+        verbose_name_plural = 'Logs de Auditoria Kanban'
+    
+    def __str__(self):
+        return f"{self.get_acao_display()} - Req {self.requisicao.id} por {self.usuario}"
+
+
+# Signal para registrar mudanças de status no Kanban
+@receiver(post_save, sender=Requisicoes)
+def registrar_mudanca_kanban(sender, instance, created, **kwargs):
+    """
+    Signal que registra no histórico quando o kanban_status de uma requisição muda.
+    """
+    if not created and hasattr(instance, '_kanban_status_anterior'):
+        # Apenas registra se o status mudou
+        try:
+            status_anterior = instance._kanban_status_anterior
+            status_novo = instance.kanban_status
+            
+            if status_anterior != status_novo:
+                KanbanHistorico.objects.create(
+                    requisicao=instance,
+                    usuario=getattr(instance, '_usuario_mudanca', None),
+                    status_anterior=status_anterior,
+                    status_novo=status_novo
+                )
+        except Exception as e:
+            # Não quebra o save se houver erro no histórico
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Erro ao registrar histórico Kanban: {e}")
+
+
+# ============================================================================
+# MODELOS DE AUDITORIA COMPLETA
+# ============================================================================
+
+class AuditLog(models.Model):
+    """
+    Modelo genérico para registrar todas as ações/mudanças em Requisições e Manutenções
+    """
+    ACAO_CHOICES = [
+        # Requisições
+        ('criacao', 'Criação'),
+        ('aprovacao', 'Aprovação'),
+        ('reprovacao', 'Reprovação'),
+        ('atribuicao', 'Atribuição de Responsável'),
+        ('status_change', 'Mudança de Status'),
+        ('expedicao', 'Expedição'),
+        ('envio_cliente', 'Envio ao Cliente'),
+        ('edicao', 'Edição'),
+        ('exclusao', 'Exclusão'),
+        # Kanban
+        ('kanban_movido', 'Card Movido no Kanban'),
+        ('ids_incluidos', 'IDs Incluídos'),
+        ('expedicao_parcial', 'Expedição Parcial'),
+        # Manutenção
+        ('manutencao_criacao', 'Criação de Manutenção'),
+        ('manutencao_aprovacao', 'Aprovação de Manutenção'),
+        ('manutencao_reprovacao', 'Reprovação de Manutenção'),
+        ('manutencao_atribuicao', 'Atribuição de Responsável (Manutenção)'),
+        ('manutencao_status', 'Mudança de Status (Manutenção)'),
+        ('manutencao_expedicao', 'Expedição (Manutenção)'),
+        ('manutencao_edicao', 'Edição (Manutenção)'),
+        ('manutencao_exclusao', 'Exclusão (Manutenção)'),
+    ]
+
+    # Referência genérica para Requisicao ou Manutencao
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
+    content_object = GenericForeignKey('content_type', 'object_id')
+
+    # Dados da ação
+    acao = models.CharField(max_length=50, choices=ACAO_CHOICES)
+    usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    usuario_nome = models.CharField(max_length=150, help_text="Nome do usuário no momento da ação")
+    data_hora = models.DateTimeField(default=timezone.now)
+    
+    # Detalhes da mudança
+    status_anterior = models.CharField(max_length=100, null=True, blank=True)
+    status_novo = models.CharField(max_length=100, null=True, blank=True)
+    
+    # Campo para armazenar informações adicionais em JSON
+    detalhes = models.JSONField(null=True, blank=True, help_text="Detalhes adicionais da ação")
+    
+    # Observações
+    observacao = models.TextField(null=True, blank=True)
+    
+    # IP do usuário (opcional, para segurança)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-data_hora']
+        verbose_name = 'Log de Auditoria'
+        verbose_name_plural = 'Logs de Auditoria'
+        indexes = [
+            models.Index(fields=['content_type', 'object_id']),
+            models.Index(fields=['acao']),
+            models.Index(fields=['data_hora']),
+            models.Index(fields=['usuario']),
+        ]
+
+    def __str__(self):
+        return f"{self.get_acao_display()} - {self.usuario_nome} - {self.data_hora.strftime('%d/%m/%Y %H:%M')}"
+
+    @classmethod
+    def registrar(cls, objeto, acao, usuario, status_anterior=None, status_novo=None, 
+                  detalhes=None, observacao=None, request=None):
+        """
+        Método helper para registrar uma ação de auditoria
+        """
+        ip_address = None
+        if request:
+            x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+            if x_forwarded_for:
+                ip_address = x_forwarded_for.split(',')[0]
+            else:
+                ip_address = request.META.get('REMOTE_ADDR')
+        
+        usuario_nome = usuario.username if usuario else "Sistema"
+        
+        content_type = ContentType.objects.get_for_model(objeto)
+        
+        return cls.objects.create(
+            content_type=content_type,
+            object_id=objeto.id,
+            acao=acao,
+            usuario=usuario,
+            usuario_nome=usuario_nome,
+            status_anterior=status_anterior,
+            status_novo=status_novo,
+            detalhes=detalhes,
+            observacao=observacao,
+            ip_address=ip_address
+        )
+
+
+class CampoAlterado(models.Model):
+    """
+    Modelo para registrar campos específicos que foram alterados em uma edição
+    """
+    audit_log = models.ForeignKey(AuditLog, on_delete=models.CASCADE, related_name='campos_alterados')
+    nome_campo = models.CharField(max_length=100)
+    valor_anterior = models.TextField(null=True, blank=True)
+    valor_novo = models.TextField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Campo Alterado'
+        verbose_name_plural = 'Campos Alterados'
+
+    def __str__(self):
+        return f"{self.nome_campo}: {self.valor_anterior} → {self.valor_novo}"

@@ -1,0 +1,498 @@
+{% load static %}
+{% load user_groups %}
+
+<div class="requisicao-detalhes">
+    <!-- Header -->
+    <div class="detalhes-header">
+        <div class="req-badge">
+            <span class="badge bg-primary">ID: {{ requisicao.id }}</span>
+            {% if requisicao.prioridade %}
+                <span class="badge bg-warning"><i class="bi bi-flag-fill"></i> Prioritário</span>
+            {% endif %}
+            {% if requisicao.id_equipamentos %}
+                <span class="badge bg-success"><i class="bi bi-check-circle"></i> IDs Incluídos</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Cliente Info -->
+    <div class="info-section">
+        <h6 class="section-title"><i class="bi bi-building"></i> Informações do Cliente</h6>
+        <div class="row g-2">
+            <div class="col-md-12">
+                <div class="info-item">
+                    <label>Nome:</label>
+                    <span>{{ requisicao.nome.nome }}</span>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="info-item">
+                    <label>CNPJ:</label>
+                    <span>{{ requisicao.cnpj|default:"Não informado" }}</span>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="info-item">
+                    <label>Endereço:</label>
+                    <span>{{ requisicao.endereco|default:"Não informado" }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Datas -->
+    <div class="info-section">
+        <h6 class="section-title"><i class="bi bi-calendar-event"></i> Datas</h6>
+        <div class="row g-2">
+            <div class="col-md-4">
+                <div class="info-item">
+                    <label>Data de Criação:</label>
+                    <span>{{ requisicao.data|date:"d/m/Y H:i" }}</span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="info-item">
+                    <label>Data Alteração:</label>
+                    <span>{{ requisicao.data_alteracao|date:"d/m/Y H:i" }}</span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="info-item">
+                    <label>Data de Entrega:</label>
+                    <span class="text-primary fw-bold">{{ requisicao.data_entrega|date:"d/m/Y"|default:"Não informado" }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Produto e Contrato -->
+    <div class="info-section">
+        <h6 class="section-title"><i class="bi bi-box-seam"></i> Produto e Contrato</h6>
+        <div class="row g-2">
+            <div class="col-md-6">
+                <div class="info-item">
+                    <label>Tipo de Produto:</label>
+                    <span class="text-info fw-bold">{{ requisicao.tipo_produto.nome }}</span>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="info-item">
+                    <label>Quantidade:</label>
+                    <span class="text-info fw-bold">{{ requisicao.numero_de_equipamentos }}</span>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="info-item">
+                    <label>Tipo de Contrato:</label>
+                    <span>{{ requisicao.contrato|default:"Não informado" }}</span>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="info-item">
+                    <label>Customização:</label>
+                    <span>{{ requisicao.tipo_customizacao|default:"Sem customização" }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comercial e Envio -->
+    <div class="info-section">
+        <h6 class="section-title"><i class="bi bi-truck"></i> Comercial e Envio</h6>
+        <div class="row g-2">
+            <div class="col-md-4">
+                <div class="info-item">
+                    <label>Comercial:</label>
+                    <span>{{ requisicao.comercial|default:"Não informado" }}</span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="info-item">
+                    <label>Tipo de Envio:</label>
+                    <span>{{ requisicao.envio|default:"Não informado" }}</span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="info-item">
+                    <label>Taxa de Envio:</label>
+                    <span>R$ {{ requisicao.taxa_envio|default:"0,00" }}</span>
+                </div>
+            </div>
+            {% if requisicao.antenista %}
+            <div class="col-md-12">
+                <div class="info-item">
+                    <label>Antenista:</label>
+                    <span>{{ requisicao.antenista }}</span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ID Equipamentos -->
+    {% if requisicao.id_equipamentos %}
+    <div class="info-section">
+        <h6 class="section-title"><i class="bi bi-upc-scan"></i> ID dos Equipamentos</h6>
+        <div class="equipamentos-box">
+            {% with equipamentos=requisicao.id_equipamentos.split %}
+                {% if equipamentos|length > 5 %}
+                    <div class="equipamentos-grid">
+                        {% for eq in equipamentos|slice:":5" %}
+                            <span class="equipamento-tag">{{ eq }}</span>
+                        {% endfor %}
+                    </div>
+                    <div class="equipamentos-more">
+                        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#maisEquipamentos">
+                            <i class="bi bi-chevron-down"></i> Ver todos (+{{ equipamentos|length|add:"-5" }})
+                        </button>
+                    </div>
+                    <div class="collapse mt-2" id="maisEquipamentos">
+                        <div class="equipamentos-grid">
+                            {% for eq in equipamentos|slice:"5:" %}
+                                <span class="equipamento-tag">{{ eq }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="equipamentos-grid">
+                        {% for eq in equipamentos %}
+                            <span class="equipamento-tag">{{ eq }}</span>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+        </div>
+    </div>
+    {% else %}
+    <div class="info-section">
+        <div class="alert alert-warning mb-0">
+            <i class="bi bi-exclamation-triangle"></i> IDs dos equipamentos ainda não foram incluídos.
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Observações -->
+    {% if requisicao.observacoes %}
+    <div class="info-section">
+        <h6 class="section-title"><i class="bi bi-chat-left-text"></i> Observações</h6>
+        <div class="observacoes-box">
+            {{ requisicao.observacoes }}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Informação de Expedição Parcial -->
+    {% if requisicao.requisicao_original_id %}
+    <div class="info-section">
+        <div class="alert alert-info mb-0">
+            <i class="bi bi-info-circle"></i> Esta requisição foi criada a partir da <strong>expedição parcial</strong> da requisição <strong>#{{ requisicao.requisicao_original_id.id }}</strong>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if requisicao.quantidade_expedida > 0 %}
+    <div class="info-section">
+        <div class="alert alert-success mb-0">
+            <i class="bi bi-check-circle"></i> <strong>{{ requisicao.quantidade_expedida }}</strong> de <strong>{{ requisicao.numero_de_equipamentos }}</strong> equipamentos já foram expedidos desta requisição.
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Ações -->
+    <div class="info-section">
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{% url 'gerar_pdf_saida' requisicao.id %}" class="btn btn-info" target="_blank">
+                <i class="bi bi-file-pdf"></i> Download PDF
+            </a>
+            
+            {% if requisicao.kanban_status == 'em_progresso' %}
+            {% endif %}
+            
+            {% if requisicao.kanban_status == 'auditoria' and requisicao.id_equipamentos %}
+                {% with quantidade_ids=requisicao.get_quantidade_ids_incluidos quantidade_total=requisicao.numero_de_equipamentos|add:"0" %}
+                    {% if user|is_gestao_kanban %}
+                        {% if quantidade_ids < quantidade_total %}
+                            <!-- Tem menos IDs que o total - mostra botão de expedição parcial -->
+                            <button type="button" class="btn btn-warning" onclick="abrirModalExpedicaoParcial({{ requisicao.id }}, {{ quantidade_total }}, {{ quantidade_ids }})">
+                                <i class="bi bi-box-arrow-up"></i> Expedição Parcial ({{ quantidade_ids }}/{{ quantidade_total }})
+                            </button>
+                        {% else %}
+                            <!-- Tem todos os IDs - mostra botão de expedição total -->
+                            <a href="{% url 'expedir_requisicao' requisicao.id %}" class="btn btn-success">
+                                <i class="bi bi-truck"></i> Expedir Total
+                            </a>
+                        {% endif %}
+                    {% endif %}
+                {% endwith %}
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Expedição Parcial -->
+<div class="modal fade" id="modalExpedicaoParcial" tabindex="-1" aria-labelledby="modalExpedicaoParcialLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background: #2d2d2d; color: #e0e0e0;">
+            <div class="modal-header" style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                <h5 class="modal-title" id="modalExpedicaoParcialLabel">
+                    <i class="bi bi-box-arrow-up"></i> Expedição Parcial
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info" style="background: rgba(13, 202, 240, 0.2); border: 1px solid rgba(13, 202, 240, 0.4); color: #0dcaf0;">
+                    <i class="bi bi-info-circle"></i> A quantidade restante será criada como uma nova requisição no status "A Fazer".
+                </div>
+                
+                <!-- Aviso quando há IDs incompletos -->
+                <div id="avisoIdsIncompletos" class="alert alert-warning" style="display: none; background: rgba(255, 193, 7, 0.2); border: 1px solid rgba(255, 193, 7, 0.5); color: #ffc107;">
+                    <!-- Preenchido dinamicamente via JavaScript -->
+                </div>
+                
+                <form id="formExpedicaoParcial">
+                    <input type="hidden" id="expedicaoRequisicaoId" value="">
+                    <input type="hidden" id="expedicaoQuantidadeTotal" value="">
+                    <input type="hidden" id="expedicaoQuantidadeIdsIncluidos" value="">
+                    
+                    <div class="mb-3">
+                        <label for="quantidadeExpedir" class="form-label">
+                            Quantidade a Expedir <span class="text-danger">*</span>
+                        </label>
+                        <input type="number" class="form-control" id="quantidadeExpedir" min="1" required 
+                               style="background: #1e1e1e; border: 1px solid rgba(255, 255, 255, 0.2); color: #e0e0e0;">
+                        <small class="form-text" style="color: rgba(255, 255, 255, 0.6);">
+                            Quantidade total: <strong id="expedicaoTotalDisplay">0</strong>
+                        </small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="p-3 rounded" style="background: rgba(255, 193, 7, 0.2); border: 1px solid rgba(255, 193, 7, 0.4);">
+                            <strong style="color: #ffc107;">Quantidade Restante:</strong>
+                            <span id="quantidadeRestante" class="fs-4" style="color: #ffc107;">0</span>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning" onclick="confirmarExpedicaoParcial()">
+                    <i class="bi bi-box-arrow-up"></i> Confirmar Expedição
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function abrirModalExpedicaoParcial(requisicaoId, quantidadeTotal, quantidadeIdsIncluidos) {
+    document.getElementById('expedicaoRequisicaoId').value = requisicaoId;
+    document.getElementById('expedicaoQuantidadeTotal').value = quantidadeTotal;
+    document.getElementById('expedicaoQuantidadeIdsIncluidos').value = quantidadeIdsIncluidos || quantidadeTotal;
+    document.getElementById('expedicaoTotalDisplay').textContent = quantidadeTotal;
+    
+    // Define valor padrão como quantidade de IDs incluídos
+    const quantidadeInicial = quantidadeIdsIncluidos || quantidadeTotal;
+    document.getElementById('quantidadeExpedir').value = quantidadeInicial;
+    document.getElementById('quantidadeExpedir').max = quantidadeTotal;
+    
+    // Calcula restante
+    const restante = quantidadeTotal - quantidadeInicial;
+    document.getElementById('quantidadeRestante').textContent = restante;
+    
+    // Mostra aviso se tiver menos IDs que o total
+    const avisoDiv = document.getElementById('avisoIdsIncompletos');
+    if (quantidadeIdsIncluidos && quantidadeIdsIncluidos < quantidadeTotal) {
+        avisoDiv.style.display = 'block';
+        avisoDiv.innerHTML = `
+            <i class="bi bi-exclamation-triangle"></i> 
+            <strong>Atenção:</strong> Esta requisição tem apenas <strong>${quantidadeIdsIncluidos} IDs</strong> incluídos de um total de <strong>${quantidadeTotal} equipamentos</strong>.
+            <br>A expedição será parcial com base nos IDs disponíveis.
+        `;
+    } else {
+        avisoDiv.style.display = 'none';
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('modalExpedicaoParcial'));
+    modal.show();
+}
+
+// Atualiza quantidade restante em tempo real
+document.addEventListener('DOMContentLoaded', function() {
+    const inputExpedir = document.getElementById('quantidadeExpedir');
+    if (inputExpedir) {
+        inputExpedir.addEventListener('input', function() {
+            const total = parseInt(document.getElementById('expedicaoQuantidadeTotal').value) || 0;
+            const expedir = parseInt(this.value) || 0;
+            const restante = total - expedir;
+            document.getElementById('quantidadeRestante').textContent = restante >= 0 ? restante : 0;
+        });
+    }
+});
+
+function confirmarExpedicaoParcial() {
+    const requisicaoId = document.getElementById('expedicaoRequisicaoId').value;
+    const quantidadeExpedir = parseInt(document.getElementById('quantidadeExpedir').value);
+    const quantidadeTotal = parseInt(document.getElementById('expedicaoQuantidadeTotal').value);
+    
+    if (!quantidadeExpedir || quantidadeExpedir <= 0) {
+        showNotification('Por favor, informe uma quantidade válida', 'error');
+        return;
+    }
+    
+    if (quantidadeExpedir > quantidadeTotal) {
+        showNotification('Quantidade não pode ser maior que o total', 'error');
+        return;
+    }
+    
+    // Envia requisição de expedição parcial
+    fetch('/requisicao/api/kanban/expedir-parcial/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            requisicao_id: requisicaoId,
+            quantidade_expedir: quantidadeExpedir
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, 'success');
+            
+            // Fecha modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalExpedicaoParcial'));
+            modal.hide();
+            
+            // Fecha modal de detalhes
+            const modalDetalhes = bootstrap.Modal.getInstance(document.getElementById('detalhesModal'));
+            if (modalDetalhes) {
+                modalDetalhes.hide();
+            }
+            
+            // Recarrega página após 1.5 segundos
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
+        } else {
+            showNotification(data.message || 'Erro ao processar expedição parcial', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        showNotification('Erro ao processar expedição parcial', 'error');
+    });
+}
+</script>
+
+<style>
+.requisicao-detalhes {
+    color: #e0e0e0;
+    background: #1e1e1e;
+    padding: 10px;
+}
+
+.detalhes-header {
+    margin-bottom: 20px;
+}
+
+.req-badge {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.info-section {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.section-title {
+    color: #bfa16c !important;
+    font-weight: 600;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.info-section .row {
+    --bs-gutter-x: 1rem;
+}
+
+.info-item {
+    padding: 8px 0;
+}
+
+.info-item label {
+    display: block;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.6) !important;
+    margin-bottom: 4px;
+    font-weight: 500;
+}
+
+.info-item span {
+    display: block;
+    font-size: 0.95rem;
+    color: #ffffff !important;
+}
+
+.equipamentos-box {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 15px;
+    border-radius: 8px;
+}
+
+.equipamentos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 8px;
+}
+
+.equipamento-tag {
+    background: linear-gradient(135deg, #665b1d 0%, #bfa16c 100%);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    text-align: center;
+    font-weight: 500;
+}
+
+.equipamentos-more {
+    margin-top: 10px;
+    text-align: center;
+}
+
+.observacoes-box {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 12px;
+    border-radius: 8px;
+    white-space: pre-wrap;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.alert-warning {
+    background: rgba(255, 193, 7, 0.2);
+    border: 1px solid rgba(255, 193, 7, 0.4);
+    color: #ffc107;
+}
+
+.alert-info {
+    background: rgba(13, 202, 240, 0.2);
+    border: 1px solid rgba(13, 202, 240, 0.4);
+    color: #0dcaf0;
+}
+
+.alert-success {
+    background: rgba(25, 135, 84, 0.2);
+    border: 1px solid rgba(25, 135, 84, 0.4);
+    color: #198754;
+}
+</style>

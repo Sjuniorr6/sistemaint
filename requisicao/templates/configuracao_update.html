@@ -1,63 +1,350 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container mt-4">
+<style>
+    .edit-page {
+        background: linear-gradient(135deg, #1e1e1e 0%, #2d2d2d 100%);
+        min-height: 100vh;
+        padding: 2rem 0;
+    }
+    
+    .edit-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 1rem;
+    }
+    
+    .edit-header {
+        background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+        border-radius: 15px 15px 0 0;
+        padding: 2rem;
+        margin-bottom: 0;
+        box-shadow: 0 4px 20px rgba(212, 175, 55, 0.3);
+    }
+    
+    .edit-header h2 {
+        color: #1e1e1e;
+        font-weight: 700;
+        margin: 0;
+        font-size: 2rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    
+    .edit-header h2 i {
+        font-size: 2.5rem;
+    }
+    
+    .edit-body {
+        background: #2d2d2d;
+        border-radius: 0 0 15px 15px;
+        padding: 2.5rem;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(212, 175, 55, 0.2);
+        border-top: none;
+    }
+    
+    .form-section {
+        background: #1e1e1e;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        transition: all 0.3s ease;
+    }
+    
+    .form-section:hover {
+        border-color: rgba(212, 175, 55, 0.4);
+        box-shadow: 0 5px 15px rgba(212, 175, 55, 0.1);
+    }
+    
+    .form-section h5 {
+        color: #d4af37;
+        font-weight: 600;
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid rgba(212, 175, 55, 0.3);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .form-section h5 i {
+        font-size: 1.25rem;
+    }
+    
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+    
+    .form-group label {
+        color: #e0e0e0;
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        display: block;
+        font-size: 0.95rem;
+    }
+    
+    .form-group label .required {
+        color: #dc3545;
+        margin-left: 0.25rem;
+    }
+    
+    .form-control, .form-select, textarea {
+        background: #0f0f0f !important;
+        border: 2px solid rgba(255, 255, 255, 0.15) !important;
+        color: #e0e0e0 !important;
+        border-radius: 8px !important;
+        padding: 0.75rem 1rem !important;
+        font-size: 0.95rem !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    .form-control:focus, .form-select:focus, textarea:focus {
+        background: #1a1a1a !important;
+        border-color: #d4af37 !important;
+        box-shadow: 0 0 0 0.2rem rgba(212, 175, 55, 0.25) !important;
+        color: #fff !important;
+    }
+    
+    .form-control::placeholder {
+        color: rgba(255, 255, 255, 0.4);
+    }
+    
+    textarea.form-control {
+        font-family: 'Courier New', monospace;
+        resize: vertical;
+        min-height: 150px;
+    }
+    
+    .helptext {
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 0.85rem;
+        margin-top: 0.25rem;
+        display: block;
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: flex-end;
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 2px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .btn-save {
+        background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+        border: none;
+        color: #1e1e1e;
+        font-weight: 600;
+        padding: 0.875rem 2.5rem;
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .btn-save:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(212, 175, 55, 0.5);
+        background: linear-gradient(135deg, #f4d03f 0%, #d4af37 100%);
+        color: #000;
+    }
+    
+    .btn-save:active {
+        transform: translateY(0);
+    }
+    
+    .btn-cancel {
+        background: #3a3a3a;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        color: #e0e0e0;
+        font-weight: 600;
+        padding: 0.875rem 2rem;
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        text-decoration: none;
+    }
+    
+    .btn-cancel:hover {
+        background: #4a4a4a;
+        border-color: rgba(255, 255, 255, 0.3);
+        color: #fff;
+        transform: translateY(-2px);
+    }
+    
+    .alert-info {
+        background: rgba(13, 202, 240, 0.15);
+        border: 1px solid rgba(13, 202, 240, 0.4);
+        color: #0dcaf0;
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    .alert-info i {
+        font-size: 1.5rem;
+    }
+    
+    .row {
+        margin-left: -0.5rem;
+        margin-right: -0.5rem;
+    }
+    
+    .row > [class*="col-"] {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
+    
+    @media (max-width: 768px) {
+        .edit-header h2 {
+            font-size: 1.5rem;
+        }
+        
+        .edit-body {
+            padding: 1.5rem;
+        }
+        
+        .action-buttons {
+            flex-direction: column-reverse;
+        }
+        
+        .btn-save, .btn-cancel {
+            width: 100%;
+            justify-content: center;
+        }
+    }
+</style>
 
-    <h3 class="display-4">Editar</h3>
-
-    <div class="card">
-        <div class="card-body">
+<div class="edit-page">
+    <div class="edit-container">
+        <div class="edit-header">
+            <h2>
+                <i class="bi bi-pencil-square"></i>
+                Editar Requisição
+            </h2>
+        </div>
+        
+        <div class="edit-body">
+            <div class="alert-info">
+                <i class="bi bi-info-circle-fill"></i>
+                <div>
+                    <strong>Dica:</strong> Pressione Tab para navegar entre os campos. A tecla Enter está desabilitada para evitar envios acidentais.
+                </div>
+            </div>
+            
             <form method="post" class="form" onkeydown="return event.key != 'Enter';">
                 {% csrf_token %}
-                {{ form.as_p }}
-                <input type="hidden" id="quantidade" name="quantidade" value="0">  <!-- Campo oculto de quantidade -->
-                <button type="submit" class="btn btn-primary">Salvar</button>
+                
+                {% for field in form %}
+                    {% if forloop.counter0|divisibleby:3 and not forloop.first %}
+                        </div></div>
+                    {% endif %}
+                    
+                    {% if forloop.counter0|divisibleby:3 or forloop.first %}
+                        <div class="form-section">
+                            <h5>
+                                <i class="bi bi-gear-fill"></i>
+                                Informações {% if forloop.counter0 == 0 %}Principais{% elif forloop.counter0 == 3 %}Complementares{% else %}Adicionais{% endif %}
+                            </h5>
+                            <div class="row">
+                    {% endif %}
+                    
+                    <div class="col-md-12 form-group">
+                        <label for="{{ field.id_for_label }}">
+                            {{ field.label }}
+                            {% if field.field.required %}<span class="required">*</span>{% endif %}
+                        </label>
+                        {{ field }}
+                        {% if field.help_text %}
+                            <small class="helptext">{{ field.help_text }}</small>
+                        {% endif %}
+                        {% if field.errors %}
+                            <div class="text-danger mt-1">
+                                {% for error in field.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    {% if forloop.last %}
+                        </div></div>
+                    {% endif %}
+                {% endfor %}
+                
+                <input type="hidden" id="quantidade" name="quantidade" value="0">
+                
+                <div class="action-buttons">
+                    <a href="{% url 'ConfiguracaoListView' %}" class="btn-cancel">
+                        <i class="bi bi-x-circle"></i>
+                        Cancelar
+                    </a>
+                    <button type="submit" class="btn-save">
+                        <i class="bi bi-check-circle-fill"></i>
+                        Salvar Alterações
+                    </button>
+                </div>
             </form>
         </div>
     </div>
-    <a href="{% url 'ConfiguracaoListView' %}" class="btn btn-primary mt-6">Cancelar e Voltar</a>
 </div>
 
 <script>
     document.addEventListener("keydown", function(e) {
-        if (e.key === "Enter") {
-            e.preventDefault(); // Bloqueia a tecla Enter
+        if (e.key === "Enter" && e.target.tagName !== "TEXTAREA") {
+            e.preventDefault();
         }
     });
 
     document.addEventListener("input", function (e) {
-    var input = e.target;
-    var value = input.value;
-    var patterns = ["03GO1","35154", "35642", "86590", "86325", "35196"];
+        var input = e.target;
+        var value = input.value;
+        var patterns = ["03GO1","35154", "35642", "86590", "86325", "35196"];
 
-    var quantidade = 0;
-    var id = parseInt(input.getAttribute("data-id") || "0", 10); // Recupera o ID atual ou inicializa em 0
+        var quantidade = 0;
+        var id = parseInt(input.getAttribute("data-id") || "0", 10);
 
-    patterns.forEach(function (pattern) {
-        var regex = new RegExp(pattern, "g"); // Regex global para encontrar todas as ocorrências do padrão
+        patterns.forEach(function (pattern) {
+            var regex = new RegExp(pattern, "g");
 
-        value = value.replace(regex, function () {
-            id += 1; // Incrementa o ID para cada correspondência encontrada
-            quantidade += 1; // Incrementa a quantidade total de padrões encontrados
-            return `        `; // Substitui pelo ID formatado
+            value = value.replace(regex, function () {
+                id += 1;
+                quantidade += 1;
+                return `        `;
+            });
+        });
+
+        input.value = value;
+        input.setAttribute("data-id", id);
+        document.getElementById("quantidade").value = quantidade;
+    });
+    
+    // Animação de entrada
+    document.addEventListener("DOMContentLoaded", function() {
+        const sections = document.querySelectorAll('.form-section');
+        sections.forEach((section, index) => {
+            section.style.opacity = '0';
+            section.style.transform = 'translateY(20px)';
+            setTimeout(() => {
+                section.style.transition = 'all 0.5s ease';
+                section.style.opacity = '1';
+                section.style.transform = 'translateY(0)';
+            }, index * 100);
         });
     });
-
-    input.value = value; // Atualiza o valor do campo de entrada
-
-    input.setAttribute("data-id", id); // Salva o último ID usado no elemento
-
-    // Atualiza o campo oculto com a quantidade total de padrões encontrados
-    document.getElementById("quantidade").value = quantidade;
-
-    console.log(`Quantidade total de padrões encontrados: ${quantidade}`);
-    console.log(`Último ID usado: ${id}`);
-
-    // Atualiza o campo oculto de quantidade
-    document.getElementById("quantidade").value = quantidade;
-    console.log("Quantidade total de padrões encontrados: " + quantidade); // Log para depuração
-});
 </script>
-
 
 {% endblock %}
