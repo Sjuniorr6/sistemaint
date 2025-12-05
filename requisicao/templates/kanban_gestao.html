@@ -9,7 +9,6 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     {% load static %}
     {% load user_groups %}
-    <link rel="stylesheet" href="{% static 'css/kanban.css' %}">
 </head>
 <body data-user-gestao="{% if user|is_gestao_kanban %}true{% else %}false{% endif %}" 
       data-user-config="{% if user|is_config_kanban %}true{% else %}false{% endif %}">
