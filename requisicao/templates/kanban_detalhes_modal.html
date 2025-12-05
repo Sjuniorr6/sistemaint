@@ -206,9 +206,6 @@
             </a>
             
             {% if requisicao.kanban_status == 'em_progresso' %}
-                <a href="{% url 'ConfiguracaoUpdateView' requisicao.id %}" class="btn btn-primary" target="_blank">
-                    <i class="bi bi-plus-circle"></i> Incluir IDs
-                </a>
             {% endif %}
             
             {% if requisicao.kanban_status == 'auditoria' and requisicao.id_equipamentos %}

@@ -7,7 +7,7 @@ from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from registrodemanutencao.models import registrodemanutencao
-from requisicao.models import Requisicoes, estoque_antenista, KanbanAuditLog
+from requisicao.models import Requisicoes, estoque_antenista, KanbanAuditLog, AuditLog, CampoAlterado
 from django.shortcuts import get_object_or_404
 from django.db.models.signals import post_save, pre_save
 from django.db import transaction
@@ -19,6 +19,7 @@ from django.db import transaction
 from django.views.decorators.http import require_POST, require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
+from django.contrib.contenttypes.models import ContentType
 import json
 
 
@@ -117,7 +118,24 @@ class RequisicaoCreateView(PermissionRequiredMixin, LoginRequiredMixin, CreateVi
                 messages.error(self.request, "Ocorreu um erro ao processar a requisição.")
                 return self.form_invalid(form)
         else:
-            return super().form_valid(form)
+            response = super().form_valid(form)
+            
+            # Registrar log de criação
+            AuditLog.registrar(
+                objeto=form.instance,
+                acao='criacao',
+                usuario=self.request.user,
+                status_novo=form.instance.status,
+                detalhes={
+                    'cliente': str(form.instance.nome) if form.instance.nome else None,
+                    'tipo_produto': str(form.instance.tipo_produto) if form.instance.tipo_produto else None,
+                    'quantidade': form.instance.numero_de_equipamentos
+                },
+                observacao='Requisição criada',
+                request=self.request
+            )
+            
+            return response
     
 
     
@@ -134,6 +152,42 @@ class RequisicaoUpdateView(PermissionRequiredMixin,LoginRequiredMixin,UpdateView
     context_object_name = 'requisicao'
     success_url = reverse_lazy('requisicao_list')
     permission_required="requisicao.change_requisicoes"
+    
+    def form_valid(self, form):
+        # Capturar campos alterados
+        if form.changed_data:
+            campos_alterados = []
+            for field_name in form.changed_data:
+                campo_dict = {
+                    'campo': field_name,
+                    'anterior': getattr(self.get_object(), field_name),
+                    'novo': form.cleaned_data[field_name]
+                }
+                campos_alterados.append(campo_dict)
+        
+        response = super().form_valid(form)
+        
+        # Registrar log de edição
+        if form.changed_data:
+            log = AuditLog.registrar(
+                objeto=self.object,
+                acao='edicao',
+                usuario=self.request.user,
+                detalhes={'total_campos_alterados': len(form.changed_data)},
+                observacao=f"{len(form.changed_data)} campo(s) alterado(s)",
+                request=self.request
+            )
+            
+            # Registrar cada campo alterado
+            for campo in campos_alterados:
+                CampoAlterado.objects.create(
+                    audit_log=log,
+                    nome_campo=campo['campo'],
+                    valor_anterior=str(campo.get('anterior', '')),
+                    valor_novo=str(campo.get('novo', ''))
+                )
+        
+        return response
 class Requisicao2UpdateView(PermissionRequiredMixin,LoginRequiredMixin,UpdateView):
     model = Requisicoes
     form_class = forms.RequisicaoForm
@@ -152,6 +206,26 @@ class requisicoesDeleteView(PermissionRequiredMixin,LoginRequiredMixin,DeleteVie
 
     def delete(self, request, *args, **kwargs):
         self.object = self.get_object()
+        
+        # Registrar log ANTES de deletar
+        AuditLog.registrar(
+            objeto=self.object,
+            acao='exclusao',
+            usuario=request.user,
+            detalhes={
+                'id_excluido': self.object.id,
+                'dados_basicos': {
+                    'status': self.object.status,
+                    'cliente': str(self.object.nome) if self.object.nome else None,
+                    'comercial': str(self.object.comercial) if self.object.comercial else None,
+                    'tipo_produto': str(self.object.tipo_produto) if self.object.tipo_produto else None,
+                    'quantidade': self.object.numero_de_equipamentos
+                }
+            },
+            observacao=f'Requisição #{self.object.id} excluída',
+            request=request
+        )
+        
         success_url = self.get_success_url()
         self.object.delete()
         return HttpResponseRedirect(success_url)
@@ -525,16 +599,41 @@ def aprovar_FINANCEIRO(request, id):
 #------------------------------------------------------
 def reprovar_ceo(request, id):
     registro = get_object_or_404(Requisicoes, id=id)
+    status_anterior = registro.status
     registro.status = 'Reprovado pelo CEO'
     registro.save()
+    
+    # Registrar log de auditoria
+    AuditLog.registrar(
+        objeto=registro,
+        acao='reprovacao',
+        usuario=request.user,
+        status_anterior=status_anterior,
+        status_novo='Reprovado pelo CEO',
+        observacao='Reprovado pelo CEO',
+        request=request
+    )
     
     return redirect('ceoListViews')
 
 
 def aprovar_ceo(request, id):
     registro = get_object_or_404(Requisicoes, id=id)
+    status_anterior = registro.status
     registro.status = 'Aprovado pelo CEO'
     registro.save()
+    
+    # Registrar log de auditoria
+    AuditLog.registrar(
+        objeto=registro,
+        acao='aprovacao',
+        usuario=request.user,
+        status_anterior=status_anterior,
+        status_novo='Aprovado pelo CEO',
+        observacao='Aprovado pelo CEO',
+        request=request
+    )
+    
     subject = f"Requisicao Aprovada: {registro.id}"
     message = f"A manutenção {registro.id} foi aprovada com sucesso. {registro.nome} Status: {registro.status} criar Requisição"
     from_email = settings.DEFAULT_FROM_EMAIL
@@ -546,8 +645,6 @@ def aprovar_ceo(request, id):
     except Exception as e:
         print(f"Erro ao enviar email: {e}")
     
-    
-
     return redirect('ceoListViews')
     
     
@@ -564,14 +661,92 @@ def configurado_expedicao(request, id):
 
 def expedicao_expedido(request, id):
     registro = get_object_or_404(Requisicoes, id=id)
+    status_anterior = registro.status
     registro.status = 'Enviado para o Cliente'
     registro.save()
+    
+    # Registrar log de auditoria
+    AuditLog.registrar(
+        objeto=registro,
+        acao='envio_cliente',
+        usuario=request.user,
+        status_anterior=status_anterior,
+        status_novo='Enviado para o Cliente',
+        observacao='Expedição finalizada - enviado ao cliente',
+        request=request
+    )
+    
+    # Enviar e-mail quando status for 'Enviado para o Cliente'
+    subject = f"Requisição Expedida - ID: {registro.id}"
+    
+    # Corpo do e-mail melhorado
+    message = f"""
+Prezados,
+
+A requisição ID: {registro.id} foi expedida com sucesso e o pedido foi enviado ao cliente.
+
+Informações da Requisição:
+- Cliente: {registro.nome}
+- Tipo de Produto: {registro.tipo_produto}
+- Quantidade: {registro.numero_de_equipamentos}
+- Comercial Responsável: {registro.comercial}
+
+Qualquer dúvida que possa surgir, favor solicitar informações à recepção.
+
+Atenciosamente,
+Departamento de Inteligência
+Golden Sat
+    """
+    
+    from_email = settings.DEFAULT_FROM_EMAIL
+    
+    # E-mails obrigatórios
+    recipient_list = [
+        'quality@grupogoldensat.com.br',
+        'comercial@grupogoldensat.com.br',
+        'faturamento@grupogoldensat.com.br',
+        'inteligencia@grupogoldensat.com.br'
+    ]
+    
+    # Mapear comerciais específicos para seus e-mails
+    comercial_emails = {
+        'Mayra': 'mayra.monteiro@grupogoldensat.com.br',
+        'Aparecido': 'comercial2@grupogoldensat.com.br',
+        'Marcio': 'diretoria@grupogoldensat.com.br',
+        'Daniel': 'superintendente@grupogoldensat.com.br'
+    }
+    
+    # Adicionar e-mail do comercial se estiver na lista
+    if registro.comercial:
+        comercial_nome = str(registro.comercial).strip()
+        if comercial_nome in comercial_emails:
+            recipient_list.append(comercial_emails[comercial_nome])
+    
+    try:
+        send_mail(subject, message, from_email, recipient_list)
+        print(f"Email enviado com sucesso para: {', '.join(recipient_list)}")
+    except Exception as e:
+        print(f"Erro ao enviar email: {e}")
+    
     return redirect('expedicaoListViews')
 
 def expedicao_expedido2(request, id):
     registro = get_object_or_404(registrodemanutencao, id=id)
+    status_anterior = registro.status
     registro.status = 'Enviado para o Cliente'
     registro.save()
+    
+    # Registrar log de auditoria
+    AuditLog.registrar(
+        objeto=registro,
+        acao='manutencao_expedicao',
+        usuario=request.user,
+        status_anterior=status_anterior,
+        status_novo='Enviado para o Cliente',
+        observacao='Manutenção finalizada - enviado ao cliente',
+        request=request
+    )
+    
     return redirect('expedicaoListViews')
 
 
@@ -584,6 +759,8 @@ def expedir_requisicao(request, id):
         verificacao_plataforma = request.POST.get('verificacao_plataforma') == 'on'
         customizacao_conforme = request.POST.get('customizacao_conforme') == 'on'
         
+        status_anterior = registro.status
+        
         # Salva informações do checklist
         registro.ids_auditados = ids_auditados
         registro.verificacao_plataforma = verificacao_plataforma
@@ -593,32 +770,67 @@ def expedir_requisicao(request, id):
         registro.status = 'Configurado'
         registro.save()
         
-        subject = f"Requisicao Expedida: ID:  {registro.id} "
-        message = f"Requisição realizada e expedida com sucesso. ID:  {registro.id} Quality, por favor realizar a auditoria de espelhamento. Atenciosamente, Departamento de Inteligência"
-        from_email = settings.DEFAULT_FROM_EMAIL
-        recipient_list = ['riicodt@gmail.com']
+        # Registrar log de auditoria
+        AuditLog.registrar(
+            objeto=registro,
+            acao='expedicao',
+            usuario=request.user,
+            status_anterior=status_anterior,
+            status_novo='Configurado',
+            detalhes={
+                'tipo_expedicao': 'total',
+                'ids_auditados': ids_auditados,
+                'verificacao_plataforma': verificacao_plataforma,
+                'customizacao_conforme': customizacao_conforme,
+                'quantidade': registro.numero_de_equipamentos
+            },
+            observacao='Expedição total realizada com checklist de auditoria',
+            request=request
+        )
         
-        try:
-            send_mail(subject, message, from_email, recipient_list)
-            print("Email enviado com sucesso.")
-        except Exception as e:
-            print(f"Erro ao enviar email: {e}")
         return redirect('kanban_gestao')
     
     # GET: renderiza template com modal de checklist
     return render(request, 'expedir_confirmacao.html', {'requisicao': registro})
 def expedir_requisicaotec(request, id):
     registro = get_object_or_404(Requisicoes, id=id)
+    status_anterior = registro.status
     # Alterar o status do registro para "Configurado"
     registro.status = 'Configurado'
     registro.save()
+    
+    # Registrar log de auditoria
+    AuditLog.registrar(
+        objeto=registro,
+        acao='expedicao',
+        usuario=request.user,
+        status_anterior=status_anterior,
+        status_novo='Configurado',
+        detalhes={'tipo_expedicao': 'tecnico'},
+        observacao='Expedição realizada pelo técnico',
+        request=request
+    )
+    
     return redirect('tecnicoListView')
 
 def expedir_manutencao(request, id):
     registro = get_object_or_404(registrodemanutencao, id=id)
+    status_anterior = registro.status
     # Alterar o status do registro para "Configurado"
     registro.status = 'Configurado'
     registro.save()
+    
+    # Registrar log de auditoria
+    AuditLog.registrar(
+        objeto=registro,
+        acao='manutencao_expedicao',
+        usuario=request.user,
+        status_anterior=status_anterior,
+        status_novo='Configurado',
+        observacao='Manutenção expedida',
+        request=request
+    )
+    
     return redirect('ConfiguracaoListView')
 
 
@@ -628,8 +840,21 @@ def expedir_manutencao(request, id):
 
 def configurado_manutencao(request, id):
     registro = get_object_or_404(registrodemanutencao, id=id)
+    status_anterior = registro.status
     registro.status = 'Configurado'
     registro.save()
+    
+    # Registrar log de auditoria
+    AuditLog.registrar(
+        objeto=registro,
+        acao='manutencao_status',
+        usuario=request.user,
+        status_anterior=status_anterior,
+        status_novo='Configurado',
+        observacao='Status alterado para Configurado',
+        request=request
+    )
+    
     return redirect('ConfiguracaoListView')
 
 
@@ -1424,7 +1649,28 @@ def expedir_requisicao_parcial(request):
             
             requisicao.save()
             
-            # Registra log de expedição parcial
+            # Registra log de auditoria da expedição parcial
+            AuditLog.registrar(
+                objeto=requisicao,
+                acao='expedicao_parcial',
+                usuario=request.user,
+                status_anterior=requisicao.status,
+                status_novo='Configurado',
+                detalhes={
+                    'tipo_expedicao': 'parcial',
+                    'quantidade_expedida': quantidade_expedir,
+                    'quantidade_total': numero_equipamentos,
+                    'quantidade_restante': numero_equipamentos - quantidade_expedir,
+                    'ids_auditados': ids_auditados,
+                    'verificacao_plataforma': verificacao_plataforma,
+                    'customizacao_conforme': customizacao_conforme,
+                    'valor_faturar': valor_a_faturar
+                },
+                observacao=f'Expedição parcial: {quantidade_expedir} de {numero_equipamentos} equipamentos',
+                request=request
+            )
+            
+            # Registra log de expedição parcial (KanbanAuditLog - mantém compatibilidade)
             KanbanAuditLog.objects.create(
                 requisicao=requisicao,
                 usuario=request.user,
@@ -1489,6 +1735,22 @@ def expedir_requisicao_parcial(request):
                     # Marca para pular signals (evita envio de email e geração de PDF)
                     nova_requisicao._skip_signals = True
                     nova_requisicao.save()
+                    
+                    # Registra log de criação da requisição complementar
+                    AuditLog.registrar(
+                        objeto=nova_requisicao,
+                        acao='criacao',
+                        usuario=request.user,
+                        status_novo='Pendente',
+                        detalhes={
+                            'requisicao_origem_id': requisicao.id,
+                            'tipo': 'complementar',
+                            'quantidade': quantidade_restante,
+                            'motivo': f'Expedição parcial da requisição #{requisicao.id}'
+                        },
+                        observacao=f'Requisição complementar criada a partir da expedição parcial #{requisicao.id}',
+                        request=request
+                    )
                     
                 except Exception as e_create:
                     # Se falhar, loga e continua
@@ -1594,12 +1856,26 @@ def salvar_ids_equipamentos(request, pk):
         requisicao.iccid = iccid
         requisicao.save()
         
-        # Log de auditoria
+        # Log de auditoria (KanbanAuditLog - mantém compatibilidade)
         KanbanAuditLog.objects.create(
             requisicao=requisicao,
             usuario=request.user,
             acao='inclusao_ids',
             observacao=f'IDs e ICCIDs incluídos: {len(ids_list)} equipamentos'
+        )
+        
+        # Log de auditoria (AuditLog - sistema completo)
+        AuditLog.registrar(
+            objeto=requisicao,
+            acao='ids_incluidos',
+            usuario=request.user,
+            detalhes={
+                'quantidade_ids': len(ids_list),
+                'quantidade_iccids': len(iccid_list),
+                'ids': ids_equipamentos[:200]  # Limita tamanho para não explodir JSON
+            },
+            observacao=f'IDs e ICCIDs incluídos: {len(ids_list)} equipamentos',
+            request=request
         )
         
         return JsonResponse({
@@ -1802,6 +2078,7 @@ def update_kanban_status(request):
         if responsavel:
             observacao += f' | Atribuído a: {responsavel}'
             
+        # Registra no KanbanAuditLog (mantém compatibilidade)
         KanbanAuditLog.objects.create(
             requisicao=requisicao,
             usuario=request.user,
@@ -1809,6 +2086,32 @@ def update_kanban_status(request):
             coluna_origem=status_anterior,
             coluna_destino=novo_status,
             observacao=observacao
+        )
+        
+        # Registra no AuditLog (sistema completo de auditoria)
+        detalhes = {
+            'coluna_origem': status_anterior,
+            'coluna_destino': novo_status
+        }
+        
+        # Se atribuiu responsável, adiciona aos detalhes
+        if status_anterior == 'a_fazer' and novo_status == 'em_progresso' and responsavel:
+            detalhes['responsavel_atribuido'] = responsavel
+            acao_audit = 'atribuicao'
+            observacao_audit = f'Card movido para Em Progresso. Responsável atribuído: {responsavel}'
+        else:
+            acao_audit = 'kanban_movido'
+            observacao_audit = observacao
+        
+        AuditLog.registrar(
+            objeto=requisicao,
+            acao=acao_audit,
+            usuario=request.user,
+            status_anterior=status_anterior,
+            status_novo=novo_status,
+            detalhes=detalhes,
+            observacao=observacao_audit,
+            request=request
         )
         
         return JsonResponse({
@@ -1877,3 +2180,47 @@ def kanban_detalhes_requisicao(request, pk):
             'success': False,
             'error': str(e)
         }, status=500)
+
+
+# ============================================================================
+# VIEWS DE AUDITORIA
+# ============================================================================
+
+@login_required
+def ver_logs_requisicao(request, id):
+    """
+    View para exibir todos os logs de auditoria de uma requisição
+    """
+    requisicao = get_object_or_404(Requisicoes, id=id)
+    
+    # Buscar todos os logs desta requisição
+    content_type = ContentType.objects.get_for_model(Requisicoes)
+    logs = AuditLog.objects.filter(
+        content_type=content_type,
+        object_id=requisicao.id
+    ).select_related('usuario').prefetch_related('campos_alterados').order_by('-data_hora')
+    
+    return render(request, 'requisicao/audit_logs.html', {
+        'requisicao': requisicao,
+        'logs': logs
+    })
+
+
+@login_required
+def ver_logs_manutencao(request, id):
+    """
+    View para exibir todos os logs de auditoria de uma manutenção
+    """
+    manutencao = get_object_or_404(registrodemanutencao, id=id)
+    
+    # Buscar todos os logs desta manutenção
+    content_type = ContentType.objects.get_for_model(registrodemanutencao)
+    logs = AuditLog.objects.filter(
+        content_type=content_type,
+        object_id=manutencao.id
+    ).select_related('usuario').prefetch_related('campos_alterados').order_by('-data_hora')
+    
+    return render(request, 'requisicao/audit_logs.html', {
+        'requisicao': manutencao,  # Usa mesmo template
+        'logs': logs
+    })

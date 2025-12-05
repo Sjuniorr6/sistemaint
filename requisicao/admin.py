@@ -47,6 +47,32 @@ class KanbanAuditLogAdmin(admin.ModelAdmin):
 admin.site.register(models.KanbanAuditLog, KanbanAuditLogAdmin)
 
 
+# Admin para AuditLog (Logs de Auditoria Completos)
+class CampoAlteradoInline(admin.TabularInline):
+    model = models.CampoAlterado
+    extra = 0
+    readonly_fields = ('nome_campo', 'valor_anterior', 'valor_novo')
+    can_delete = False
+
+class AuditLogAdmin(admin.ModelAdmin):
+    list_display = ('data_hora', 'acao', 'usuario_nome', 'content_type', 'object_id', 'status_anterior', 'status_novo', 'ip_address')
+    list_filter = ('acao', 'content_type', 'data_hora', 'usuario')
+    search_fields = ('usuario_nome', 'observacao', 'object_id')
+    readonly_fields = ('content_type', 'object_id', 'acao', 'usuario', 'usuario_nome', 'data_hora', 
+                       'status_anterior', 'status_novo', 'detalhes', 'observacao', 'ip_address')
+    inlines = [CampoAlteradoInline]
+    date_hierarchy = 'data_hora'
+    
+    def has_add_permission(self, request):
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        # Apenas superusuários podem deletar logs
+        return request.user.is_superuser
+
+admin.site.register(models.AuditLog, AuditLogAdmin)
+
+
 # Inline do Equipamfrom django.contrib import admin
 from .models import ControleModel
 from django.contrib import admin

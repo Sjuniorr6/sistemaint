@@ -90,4 +90,8 @@ path('novo-antenista/', AntenistaCreateView.as_view(), name='novo_antenista'),
         path('antenistaview/zerar-estoque/', views.zerar_estoque_antenista, name='zerar_estoque_antenista'),
 path('requisicoes/<int:pk>/editar/', RequisicaoUpdateView.as_view(), name='requisicao_update'),
 path('manutencao/configurado/<int:id>/', views.configurado_manutencao, name='configurado_manutencao'),
+    
+    # URLs de Auditoria
+    path('requisicao/<int:id>/logs/', views.ver_logs_requisicao, name='ver_logs_requisicao'),
+    path('manutencao/<int:id>/logs/', views.ver_logs_manutencao, name='ver_logs_manutencao'),
 ]
