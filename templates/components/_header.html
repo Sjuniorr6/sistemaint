@@ -297,7 +297,6 @@
                         <ul class="dropdown-menu" aria-labelledby="dropdownConfiguracao">
                             <li><a class="dropdown-item" href="{% url 'kanban_gestao' %}"><i class="bi bi-kanban"></i> Kanban de Requisições</a></li>
                             {% if perms.requisicao.delete_requisicoes %}
-                            <li><a class="dropdown-item" href="{% url 'ConfiguracaoListView' %}">Requisições Abertas</a></li>
                             {% endif %}
                             <li><a class="dropdown-item" href="{% url 'historicoListViews' %}">Histórico de Requisições</a></li>
                             <!-- COMENTADO: Controle e Lista de Controle
