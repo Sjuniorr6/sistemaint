@@ -337,6 +337,7 @@ class Requisicoes(models.Model):
         ('Talita.Espinosa', 'Talita Espinosa'),
         ('Vinicius.Rodrigues', 'Vinicius Rodrigues'),
         ('PATRICIALORENA', 'Patricia Lorena'),
+        ('Anália', 'Anália Venancio'),
     ]
     
     kanban_status = models.CharField(
