@@ -1987,6 +1987,14 @@ def update_kanban_status(request):
         requisicao = get_object_or_404(Requisicoes, id=requisicao_id)
         status_anterior = requisicao.kanban_status
         
+        # Validação: se tentou mover para a mesma coluna, ignora
+        if status_anterior == novo_status:
+            return JsonResponse({
+                'success': True,
+                'message': 'Card já está nesta coluna.',
+                'cor_card': requisicao.cor_card
+            })
+        
         # Verifica permissões do usuário
         is_gestao = request.user.groups.filter(name='Gestão Kanban').exists()
         is_config = request.user.groups.filter(name='Configuração Kanban').exists()
