@@ -336,7 +336,7 @@ class Requisicoes(models.Model):
         ('GuilhermeAmarante', 'Guilherme Amarante'),
         ('Talita.Espinosa', 'Talita Espinosa'),
         ('Vinicius.Rodrigues', 'Vinicius Rodrigues'),
-        ('PATRICIALORENA', 'Patricia Lorena'),
+        ('Patricia.Costa', 'Patricia Costa'),
         ('Anália', 'Anália Venancio'),
     ]
     

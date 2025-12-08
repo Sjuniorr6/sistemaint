@@ -708,19 +708,21 @@ Golden Sat
         'inteligencia@grupogoldensat.com.br'
     ]
     
-    # Mapear comerciais específicos para seus e-mails
+    # Mapear comerciais específicos para seus e-mails (case-insensitive)
     comercial_emails = {
-        'Mayra': 'mayra.monteiro@grupogoldensat.com.br',
-        'Aparecido': 'comercial2@grupogoldensat.com.br',
-        'Marcio': 'diretoria@grupogoldensat.com.br',
-        'Daniel': 'superintendente@grupogoldensat.com.br'
+        'mayra': 'mayra.monteiro@grupogoldensat.com.br',
+        'aparecido': 'comercial2@grupogoldensat.com.br',
+        'marcio': 'diretoria@grupogoldensat.com.br',
+        'daniel': 'superintendente@grupogoldensat.com.br'
     }
     
-    # Adicionar e-mail do comercial se estiver na lista
+    # Adicionar e-mail do comercial se estiver na lista (comparação case-insensitive)
     if registro.comercial:
-        comercial_nome = str(registro.comercial).strip()
+        comercial_nome = str(registro.comercial).strip().lower()  # Converte para minúsculo
         if comercial_nome in comercial_emails:
-            recipient_list.append(comercial_emails[comercial_nome])
+            email_comercial = comercial_emails[comercial_nome]
+            recipient_list.append(email_comercial)
+            print(f"E-mail do comercial {registro.comercial} adicionado: {email_comercial}")
     
     try:
         send_mail(subject, message, from_email, recipient_list)
