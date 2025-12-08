@@ -53,7 +53,7 @@
     <!-- Botões de Ação (apenas quando aplicável) -->
     <div class="card-actions">
         {% if requisicao.kanban_status == 'em_progresso' %}
-            <button type="button" class="btn btn-sm btn-primary" onclick="event.stopPropagation(); abrirModalIncluirIds({{ requisicao.id }}, {{ requisicao.numero_de_equipamentos }})" title="Incluir IDs dos Equipamentos">
+            <button type="button" class="btn btn-sm btn-primary btn-incluir-ids" onclick="event.stopPropagation(); abrirModalIncluirIds({{ requisicao.id }}, {{ requisicao.numero_de_equipamentos }})" title="Incluir IDs dos Equipamentos">
                 <i class="bi bi-plus-circle"></i> Incluir ID
             </button>
         {% endif %}
