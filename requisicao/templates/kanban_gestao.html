@@ -18,18 +18,31 @@
     {% include 'components/_header.html' %}
 
 <style>
-/* v2.0 - Atualizado 05/12/2025 */
-/* Estilos críticos inline para garantir carregamento */
+/* v2.1 - Layout Melhorado - 08/12/2025 */
+/* Reset e Container Principal */
+* {
+    box-sizing: border-box;
+}
+
+body {
+    background-color: #0d1117 !important;
+    margin: 0;
+    padding: 0;
+}
+
 .kanban-page { 
     width: 100% !important;
     max-width: 100% !important;
     padding: 20px !important;
-    margin: 0 !important;
+    margin: 0 auto !important;
 }
+
+/* Dashboard de Estatísticas */
 .stats-dashboard { 
     margin-bottom: 30px;
     width: 100%;
 }
+
 .stat-card { 
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     border-radius: 15px;
@@ -40,60 +53,183 @@
     align-items: center;
     gap: 15px;
     height: 100%;
+    transition: transform 0.2s ease;
 }
-.stat-card .stat-icon { font-size: 2.5rem; }
-.stat-card .stat-content h3 { font-size: 2rem; font-weight: 700; margin: 0; }
-.stat-card .stat-content p { margin: 0; font-size: 0.9rem; }
+
+.stat-card:hover {
+    transform: translateY(-5px);
+}
+
+.stat-card .stat-icon { 
+    font-size: 2.5rem; 
+    opacity: 0.9;
+}
+
+.stat-card .stat-content h3 { 
+    font-size: 2rem; 
+    font-weight: 700; 
+    margin: 0; 
+    line-height: 1;
+}
+
+.stat-card .stat-content p { 
+    margin: 5px 0 0 0; 
+    font-size: 0.9rem; 
+    opacity: 0.9;
+}
+
 .stat-total { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
 .stat-concluidas { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
 .stat-progresso { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
 .stat-atrasadas { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
 .stat-taxa { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
+
+/* Colunas do Kanban */
 .kanban-column { 
     background: rgba(255, 255, 255, 0.05);
     border-radius: 15px;
     padding: 15px;
     min-height: 600px;
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
 }
+
 .kanban-header { 
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 15px;
+    padding: 15px 20px;
     border-radius: 10px;
     margin-bottom: 15px;
+    font-weight: 600;
+    font-size: 1.1rem;
 }
-.kanban-header.a-fazer { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-.kanban-header.em-progresso { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; }
-.kanban-header.auditoria { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; }
+
+.kanban-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.kanban-header .badge {
+    font-size: 0.9rem;
+    padding: 5px 12px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.kanban-header.a-fazer { 
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important; 
+    color: white !important; 
+}
+
+.kanban-header.em-progresso { 
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important; 
+    color: white !important; 
+}
+
+.kanban-header.auditoria { 
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%) !important; 
+    color: white !important; 
+}
+
+/* Cards do Kanban */
 .kanban-cards { 
     display: flex;
     flex-direction: column;
     gap: 15px;
     min-height: 400px;
-    padding: 10px;
+    padding: 10px 5px;
+    flex: 1;
 }
+
 .kanban-card {
     background: #1e1e1e;
     border-radius: 12px;
     padding: 15px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    cursor: move;
+    cursor: grab;
     position: relative;
     border: 2px solid transparent;
+    transition: all 0.3s ease;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
 }
+
+.kanban-card:active {
+    cursor: grabbing;
+}
+
 .kanban-card:hover {
-    transform: translateY(-3px);
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
     border-color: #665b1d;
 }
+
+.kanban-card.dragging {
+    opacity: 0.6 !important;
+    box-shadow: 0 0 30px rgba(102, 126, 234, 0.6), 0 0 60px rgba(102, 126, 234, 0.4) !important;
+    transform: rotate(2deg) !important;
+    border-color: #667eea !important;
+    cursor: grabbing !important;
+}
+
 .kanban-card.prioridade {
     border: 2px solid #ffc107;
     background: linear-gradient(135deg, #1e1e1e 0%, #2a2410 100%);
 }
+
 .kanban-card.ids-incluidos {
     border: 2px solid #28a745;
+    background: linear-gradient(135deg, #1e1e1e 0%, #1a2d1a 100%);
 }
+
+/* Cabeçalho do Card */
+.card-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.card-info-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    flex-wrap: wrap;
+}
+
+.card-id {
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.card-date {
+    color: rgba(255, 255, 255, 0.7);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.card-responsavel {
+    color: #d4af37;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.card-info-left .separator {
+    color: rgba(255, 255, 255, 0.3);
+    margin: 0 2px;
+}
+
 .priority-flag {
     position: absolute;
     top: 10px;
@@ -102,51 +238,163 @@
     color: rgba(255, 255, 255, 0.3);
     cursor: pointer;
     z-index: 10;
+    transition: color 0.2s ease;
 }
+
 .priority-flag.active { 
     color: #ffc107; 
 }
-.card-header-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-    gap: 10px;
+
+/* Conteúdo do Card */
+.card-title {
+    color: white;
+    font-weight: 600;
+    font-size: 1rem;
+    margin: 10px 0;
+    line-height: 1.4;
 }
-.card-info-left {
+
+.card-details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 10px 0;
+    font-size: 0.85rem;
+}
+
+.card-detail-item {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 0.82rem;
+    gap: 5px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.card-detail-item i {
+    color: #667eea;
+}
+
+/* Botões do Card */
+.card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 15px;
     flex-wrap: wrap;
 }
-.card-id {
-    color: rgba(255, 255, 255, 0.9);
-    font-weight: 700;
+
+.btn-sm {
+    padding: 6px 12px !important;
+    font-size: 0.85rem !important;
+    border-radius: 6px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    transition: all 0.2s ease !important;
+    white-space: nowrap !important;
 }
-.card-date {
-    color: rgba(255, 255, 255, 0.7);
-    display: flex;
-    align-items: center;
-    gap: 4px;
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    border: none !important;
 }
-.card-responsavel {
-    color: #d4af37;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 4px;
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4) !important;
 }
-.card-info-left .separator {
-    color: rgba(255, 255, 255, 0.3);
+
+.btn-success {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%) !important;
+    border: none !important;
 }
+
+.btn-success:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(17, 153, 142, 0.4) !important;
+}
+
+.btn-info {
+    background: linear-gradient(135deg, #30cfd0 0%, #330867 100%) !important;
+    border: none !important;
+}
+
+.btn-info:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(48, 207, 208, 0.4) !important;
+}
+
+/* Coluna Vazia */
 .empty-column {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 40px;
+    padding: 60px 20px;
     color: rgba(255, 255, 255, 0.3);
+    text-align: center;
+}
+
+.empty-column i {
+    font-size: 3rem;
+    margin-bottom: 15px;
+    opacity: 0.5;
+}
+
+.empty-column p {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+/* Barra de Progresso */
+.progress {
+    height: 4px !important;
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    border-radius: 2px !important;
+    margin-top: 8px !important;
+}
+
+.progress-bar {
+    height: 4px !important;
+}
+
+/* Botão Incluir IDs - Centralizado e Maior */
+.btn-incluir-ids {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 10px 15px !important;
+    font-size: 0.95rem !important;
+    font-weight: 600 !important;
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+    .kanban-page {
+        padding: 10px !important;
+    }
+    
+    .stat-card {
+        padding: 15px;
+    }
+    
+    .stat-card .stat-icon {
+        font-size: 2rem;
+    }
+    
+    .stat-card .stat-content h3 {
+        font-size: 1.5rem;
+    }
+    
+    .kanban-column {
+        margin-bottom: 15px;
+    }
+    
+    .card-actions {
+        flex-direction: column;
+    }
+    
+    .btn-sm {
+        width: 100%;
+        justify-content: center;
+    }
 }
 </style>
 
@@ -439,15 +687,15 @@
 
 <!-- Modal de Inclusão de IDs -->
 <div class="modal fade" id="modalIncluirIds" tabindex="-1" aria-labelledby="modalIncluirIdsLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content" style="background: #2d2d2d; color: #e0e0e0;">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content" style="background: #2d2d2d; color: #e0e0e0; max-height: 90vh; display: flex; flex-direction: column;">
             <div class="modal-header" style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
                 <h5 class="modal-title" id="modalIncluirIdsLabel">
                     <i class="bi bi-plus-circle"></i> Incluir IDs dos Equipamentos
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" style="overflow-y: auto;">
                 <div class="alert alert-info" style="background: rgba(13, 202, 240, 0.2); border: 1px solid rgba(13, 202, 240, 0.4); color: #0dcaf0;">
                     <i class="bi bi-info-circle"></i> 
                     Adicione os IDs e ICCIDs dos equipamentos separados por espaço ou Enter.
@@ -979,6 +1227,66 @@ function abrirModalChecklistExpedicao(requisicaoId) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Auto-scroll quando arrastar perto das bordas
+    let autoScrollInterval;
+    const scrollSpeed = 15; // pixels por frame
+    const scrollZone = 100; // distância da borda em pixels
+    
+    function autoScroll(mouseY) {
+        const windowHeight = window.innerHeight;
+        
+        if (mouseY < scrollZone) {
+            // Scroll para cima
+            window.scrollBy(0, -scrollSpeed);
+        } else if (mouseY > windowHeight - scrollZone) {
+            // Scroll para baixo
+            window.scrollBy(0, scrollSpeed);
+        }
+    }
+    
+    document.addEventListener('dragover', function(e) {
+        if (e.target.closest('.kanban-card')) {
+            autoScroll(e.clientY);
+        }
+    });
+    
+    // Para quando soltar
+    document.addEventListener('drop', function() {
+        if (autoScrollInterval) {
+            clearInterval(autoScrollInterval);
+        }
+    });
+    
+    // Equalizar altura das colunas
+    function equalizarAlturaColunas() {
+        const colunas = document.querySelectorAll('.kanban-column');
+        let maxHeight = 0;
+        
+        // Remove altura fixa primeiro
+        colunas.forEach(col => {
+            col.style.height = 'auto';
+        });
+        
+        // Encontra a maior altura
+        colunas.forEach(col => {
+            const height = col.offsetHeight;
+            if (height > maxHeight) {
+                maxHeight = height;
+            }
+        });
+        
+        // Aplica a maior altura em todas
+        colunas.forEach(col => {
+            col.style.minHeight = maxHeight + 'px';
+        });
+    }
+    
+    // Equaliza no carregamento
+    equalizarAlturaColunas();
+    
+    // Re-equaliza após 500ms (garante que tudo carregou)
+    setTimeout(equalizarAlturaColunas, 500);
+    
     // Inicializa SortableJS para cada coluna
     const colunas = document.querySelectorAll('.kanban-cards');
     
@@ -994,6 +1302,12 @@ document.addEventListener('DOMContentLoaded', function() {
             fallbackClass: 'sortable-fallback',
             delay: 200, // Delay de 1 segundo para evitar arrastar acidentalmente
             delayOnTouchOnly: false, // Aplica delay em todos os dispositivos
+            
+            onMove: function(evt) {
+                // Auto-scroll durante o movimento
+                const rect = evt.related.getBoundingClientRect();
+                autoScroll(rect.top);
+            },
             
             onEnd: function(evt) {
                 const cardElement = evt.item;
