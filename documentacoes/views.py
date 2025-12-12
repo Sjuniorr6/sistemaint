@@ -13,8 +13,10 @@ class PdfListView(TemplateView):
         print("📄 Arquivos:", os.listdir(pdf_dir))  # Para ver se ele encontra
 
         arquivos = []
+        extensoes_permitidas = ('.pdf', '.doc', '.docx')
+        
         for nome_arquivo in os.listdir(pdf_dir):
-            if nome_arquivo.lower().endswith(".pdf"):
+            if nome_arquivo.lower().endswith(extensoes_permitidas):
                 arquivos.append({
                     'nome': nome_arquivo,
                     'url': f"{settings.STATIC_URL}downloads/{nome_arquivo}"
