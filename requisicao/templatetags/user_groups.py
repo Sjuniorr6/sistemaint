@@ -44,6 +44,10 @@ def format_responsavel(username):
         'Talita.Espinosa': 'Talita E.',
         'Vinicius.Rodrigues': 'Vinicius R.',
         'Patricia.Costa': 'Patricia C.',
+        'Anália': 'Anália V.',
+        'Evellyn.Taila': 'Evellyn T.',
+        'Tiago.Faria': 'Tiago F.',
+        'Inteligencia': 'Inteligencia',
     }
     
     return formatacao.get(username, username)
