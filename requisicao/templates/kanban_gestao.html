@@ -806,7 +806,7 @@ body {
                     
                     <div class="mb-3">
                         <label for="idsAuditados" class="form-label">
-                            <i class="bi bi-list-check"></i> IDs dos Equipamentos Auditados <span class="text-danger">*</span>
+                            <i class="bi bi-list-check"></i> IDs dos Equipamentos Auditados <span class="text-danger" id="idsObrigatorioMarca">*</span>
                         </label>
                         <textarea class="form-control" id="idsAuditados" name="ids_auditados" rows="6" required
                                   placeholder="Digite os IDs dos equipamentos que foram auditados (um por linha ou separados por espaço)"
@@ -1210,7 +1210,7 @@ function confirmarAtribuicao() {
 }
 
 // Função para abrir modal de checklist de expedição
-function abrirModalChecklistExpedicao(requisicaoId) {
+function abrirModalChecklistExpedicao(requisicaoId, ehCarregadorCabo = false) {
     // Configura o action do form com a URL correta
     const form = document.getElementById('formChecklistExpedicao');
     form.action = `/requisicao/expedir_requisicao/${requisicaoId}/`;
@@ -1220,9 +1220,28 @@ function abrirModalChecklistExpedicao(requisicaoId) {
     form.querySelector('input[name="csrfmiddlewaretoken"]').value = csrfToken;
     
     // Limpa campos
-    document.getElementById('idsAuditados').value = '';
+    const idsAuditadosField = document.getElementById('idsAuditados');
+    idsAuditadosField.value = '';
     document.getElementById('verificacaoPlataforma').checked = false;
     document.getElementById('customizacaoConforme').checked = false;
+    
+    // Obtém a marca de obrigatoriedade
+    const marcaObrigatorio = document.getElementById('idsObrigatorioMarca');
+    
+    // Se for CARREGADOR + CABO, remove a obrigatoriedade do campo de IDs
+    if (ehCarregadorCabo) {
+        idsAuditadosField.removeAttribute('required');
+        idsAuditadosField.placeholder = 'Não é necessário incluir IDs para produtos do tipo CARREGADOR + CABO';
+        idsAuditadosField.disabled = true;
+        idsAuditadosField.style.backgroundColor = '#3a3a3a';
+        if (marcaObrigatorio) marcaObrigatorio.style.display = 'none';
+    } else {
+        idsAuditadosField.setAttribute('required', 'required');
+        idsAuditadosField.placeholder = 'Digite os IDs dos equipamentos que foram auditados (um por linha ou separados por espaço)';
+        idsAuditadosField.disabled = false;
+        idsAuditadosField.style.backgroundColor = '#1e1e1e';
+        if (marcaObrigatorio) marcaObrigatorio.style.display = 'inline';
+    }
     
     // Abre modal
     const modal = new bootstrap.Modal(document.getElementById('modalChecklistExpedicao'));

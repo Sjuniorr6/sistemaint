@@ -2050,29 +2050,43 @@ def update_kanban_status(request):
             requisicao.responsavel_manutencao = responsavel
         
         # Validação: não pode mover para auditoria sem IDs de equipamentos
+        # EXCEÇÃO: Produtos do tipo "CARREGADOR + CABO" não precisam de ID de equipamento
         if novo_status == 'auditoria':
-            if not requisicao.id_equipamentos or requisicao.id_equipamentos.strip() == '':
-                return JsonResponse({
-                    'success': False,
-                    'error': 'Não é possível mover para Auditoria sem incluir os IDs dos equipamentos.'
-                }, status=400)
+            # Verifica se é um produto do tipo CARREGADOR + CABO (normaliza espaços extras)
+            nome_produto_normalizado = requisicao.tipo_produto.nome.strip().upper() if requisicao.tipo_produto else ''
+            eh_carregador_cabo = 'CARREGADOR' in nome_produto_normalizado and 'CABO' in nome_produto_normalizado
             
-            # Valida se a quantidade de IDs não é MAIOR que a quantidade de equipamentos
-            ids_list = requisicao.id_equipamentos.strip().split()
-            quantidade_ids = len(ids_list)
-            quantidade_esperada = int(requisicao.numero_de_equipamentos) if requisicao.numero_de_equipamentos else 0
+            # Log temporário para debug
+            print(f"DEBUG - Req #{requisicao.id}: Tipo Produto=[{requisicao.tipo_produto.nome if requisicao.tipo_produto else 'None'}] | É Carregador+Cabo? {eh_carregador_cabo}")
             
-            if quantidade_ids > quantidade_esperada:
-                return JsonResponse({
-                    'success': False,
-                    'error': f'Quantidade de IDs ({quantidade_ids}) é MAIOR que a quantidade de equipamentos ({quantidade_esperada}). Por favor, verifique os IDs incluídos.'
-                }, status=400)
-            
-            # Se quantidade de IDs é MENOR, permite mover (será expedição parcial)
-            # Se quantidade de IDs é IGUAL, permite mover normalmente
-            
-            # Marca o card com cor especial quando IDs estão incluídos
-            requisicao.cor_card = 'ids-incluidos'
+            if not eh_carregador_cabo:
+                # Para produtos normais, exige IDs de equipamentos
+                if not requisicao.id_equipamentos or requisicao.id_equipamentos.strip() == '':
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Não é possível mover para Auditoria sem incluir os IDs dos equipamentos.'
+                    }, status=400)
+                
+                # Valida se a quantidade de IDs não é MAIOR que a quantidade de equipamentos
+                ids_list = requisicao.id_equipamentos.strip().split()
+                quantidade_ids = len(ids_list)
+                quantidade_esperada = int(requisicao.numero_de_equipamentos) if requisicao.numero_de_equipamentos else 0
+                
+                if quantidade_ids > quantidade_esperada:
+                    return JsonResponse({
+                        'success': False,
+                        'error': f'Quantidade de IDs ({quantidade_ids}) é MAIOR que a quantidade de equipamentos ({quantidade_esperada}). Por favor, verifique os IDs incluídos.'
+                    }, status=400)
+                
+                # Se quantidade de IDs é MENOR, permite mover (será expedição parcial)
+                # Se quantidade de IDs é IGUAL, permite mover normalmente
+                
+                # Marca o card com cor especial quando IDs estão incluídos
+                requisicao.cor_card = 'ids-incluidos'
+            else:
+                # Para CARREGADOR + CABO, permite ir para auditoria sem IDs
+                # Marca com uma cor especial para indicar que não precisa de IDs
+                requisicao.cor_card = 'carregador-cabo'
         
         # Armazena o status anterior para o signal
         requisicao._kanban_status_anterior = status_anterior

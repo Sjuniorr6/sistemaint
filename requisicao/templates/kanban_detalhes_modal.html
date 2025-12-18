@@ -208,22 +208,32 @@
             {% if requisicao.kanban_status == 'em_progresso' %}
             {% endif %}
             
-            {% if requisicao.kanban_status == 'auditoria' and requisicao.id_equipamentos %}
-                {% with quantidade_ids=requisicao.get_quantidade_ids_incluidos quantidade_total=requisicao.numero_de_equipamentos|add:"0" %}
+            {% if requisicao.kanban_status == 'auditoria' %}
+                {% if requisicao|eh_carregador_cabo %}
+                    <!-- Para CARREGADOR + CABO, sempre mostra botão de expedição total -->
                     {% if user|is_gestao_kanban %}
-                        {% if quantidade_ids < quantidade_total %}
-                            <!-- Tem menos IDs que o total - mostra botão de expedição parcial -->
-                            <button type="button" class="btn btn-warning" onclick="abrirModalExpedicaoParcial({{ requisicao.id }}, {{ quantidade_total }}, {{ quantidade_ids }})">
-                                <i class="bi bi-box-arrow-up"></i> Expedição Parcial ({{ quantidade_ids }}/{{ quantidade_total }})
-                            </button>
-                        {% else %}
-                            <!-- Tem todos os IDs - mostra botão de expedição total -->
-                            <a href="{% url 'expedir_requisicao' requisicao.id %}" class="btn btn-success">
-                                <i class="bi bi-truck"></i> Expedir Total
-                            </a>
-                        {% endif %}
+                        <button type="button" class="btn btn-success" onclick="abrirModalChecklistExpedicao({{ requisicao.id }}, true)">
+                            <i class="bi bi-truck"></i> Expedir Total
+                        </button>
                     {% endif %}
-                {% endwith %}
+                {% elif requisicao.id_equipamentos %}
+                    <!-- Para produtos normais, valida quantidade de IDs -->
+                    {% with quantidade_ids=requisicao.get_quantidade_ids_incluidos quantidade_total=requisicao.numero_de_equipamentos|add:"0" %}
+                        {% if user|is_gestao_kanban %}
+                            {% if quantidade_ids < quantidade_total %}
+                                <!-- Tem menos IDs que o total - mostra botão de expedição parcial -->
+                                <button type="button" class="btn btn-warning" onclick="abrirModalExpedicaoParcial({{ requisicao.id }}, {{ quantidade_total }}, {{ quantidade_ids }})">
+                                    <i class="bi bi-box-arrow-up"></i> Expedição Parcial ({{ quantidade_ids }}/{{ quantidade_total }})
+                                </button>
+                            {% else %}
+                                <!-- Tem todos os IDs - mostra botão de expedição total -->
+                                <button type="button" class="btn btn-success" onclick="abrirModalChecklistExpedicao({{ requisicao.id }}, false)">
+                                    <i class="bi bi-truck"></i> Expedir Total
+                                </button>
+                            {% endif %}
+                        {% endif %}
+                    {% endwith %}
+                {% endif %}
             {% endif %}
         </div>
     </div>

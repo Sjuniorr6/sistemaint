@@ -51,3 +51,16 @@ def format_responsavel(username):
     }
     
     return formatacao.get(username, username)
+
+@register.filter(name='eh_carregador_cabo')
+def eh_carregador_cabo(requisicao):
+    """
+    Verifica se a requisição é do tipo CARREGADOR + CABO.
+    Normaliza espaços extras para evitar problemas de comparação.
+    Uso: {% if requisicao|eh_carregador_cabo %}
+    """
+    if not requisicao or not requisicao.tipo_produto:
+        return False
+    
+    nome_produto = requisicao.tipo_produto.nome.strip().upper()
+    return 'CARREGADOR' in nome_produto and 'CABO' in nome_produto
