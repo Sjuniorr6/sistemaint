@@ -2281,6 +2281,7 @@ def api_requisicoes(request):
     for req in requisicoes:
         dados.append({
             'numero_pedido': req.id,
+            'data': req.data.strftime('%d/%m/%Y %H:%M:%S') if req.data else '',
             'cliente': req.nome.nome if req.nome else '',
             'contrato': req.contrato if req.contrato else '',
             'modelo': req.tipo_produto.nome if req.tipo_produto else '',
