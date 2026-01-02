@@ -406,6 +406,9 @@
                             <!-- Documentações -->
                             <li><a class="dropdown-item" href="{% url 'pdf_list' %}">Documentações</a></li>
                             
+                            <!-- Recebimento de Chips -->
+                            <li><a class="dropdown-item" href="{% url 'compras:recebimento_chip' %}">Recebimento de Chips</a></li>
+                            
                             <!-- Corte de chip -->
                             {% if perms.saidas.delete_saidas %}
                             <li><a class="dropdown-item" href="{% url 'corte:requisicoes_descartavel_list' %}">Corte de Chip</a></li>
