@@ -11,4 +11,7 @@ urlpatterns = [
     path('recebimento-chip/editar/<int:pk>/', views.editar_recebimento_chip, name='editar_recebimento_chip'),
     path('recebimento-chip/entrega/<int:pk>/', views.registrar_entrega_chip, name='registrar_entrega_chip'),
     path('recebimento-chip/deletar/<int:pk>/', views.deletar_recebimento_chip, name='deletar_recebimento_chip'),
+    
+    # API de Chips
+    path('api/chips/', views.api_chips, name='api_chips'),
 ]
