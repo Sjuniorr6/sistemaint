@@ -2248,3 +2248,49 @@ def ver_logs_manutencao(request, id):
         'requisicao': manutencao,  # Usa mesmo template
         'logs': logs
     })
+
+
+# ============================================================================
+# API DE REQUISIÇÕES
+# ============================================================================
+
+from django.views.decorators.cache import cache_page
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+
+@api_view(['GET'])
+@cache_page(60 * 30)  # Cache de 30 minutos
+def api_requisicoes(request):
+    """
+    API para retornar todas as requisições do sistema
+    Atualiza a cada 30 minutos (cache)
+    
+    Retorna:
+    - N° Pedido
+    - Cliente
+    - Contrato (Descartavel / Retornavel)
+    - Modelo
+    - Status
+    - Comercial
+    - Customização
+    - Quantidade
+    """
+    requisicoes = Requisicoes.objects.select_related('nome', 'tipo_produto').all().order_by('-id')
+    
+    dados = []
+    for req in requisicoes:
+        dados.append({
+            'numero_pedido': req.id,
+            'cliente': req.nome.nome if req.nome else '',
+            'contrato': req.contrato if req.contrato else '',
+            'modelo': req.tipo_produto.nome if req.tipo_produto else '',
+            'status': req.status if req.status else '',
+            'comercial': req.comercial if req.comercial else '',
+            'customizacao': req.tipo_customizacao if req.tipo_customizacao else '',
+            'quantidade': req.numero_de_equipamentos if req.numero_de_equipamentos else '0',
+        })
+    
+    return Response({
+        'total': len(dados),
+        'requisicoes': dados
+    })
