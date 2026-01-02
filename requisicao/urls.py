@@ -94,4 +94,7 @@ path('manutencao/configurado/<int:id>/', views.configurado_manutencao, name='con
     # URLs de Auditoria
     path('requisicao/<int:id>/logs/', views.ver_logs_requisicao, name='ver_logs_requisicao'),
     path('manutencao/<int:id>/logs/', views.ver_logs_manutencao, name='ver_logs_manutencao'),
+    
+    # API de Requisições
+    path('api/requisicoes/', views.api_requisicoes, name='api_requisicoes'),
 ]
