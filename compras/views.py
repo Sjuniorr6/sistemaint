@@ -216,3 +216,58 @@ def deletar_recebimento_chip(request, pk):
         return JsonResponse({'status': 'success'})
     
     return JsonResponse({'status': 'error'}, status=400)
+
+
+# ============================================================================
+# API DE CHIPS
+# ============================================================================
+
+from django.views.decorators.cache import cache_page
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from django.db.models import Sum
+
+@api_view(['GET'])
+@cache_page(60 * 30)  # Cache de 30 minutos
+def api_chips(request):
+    """
+    API para retornar todas as informações de chips do sistema
+    Atualiza a cada 30 minutos (cache)
+    
+    Retorna:
+    - Data da Chegada
+    - Operadora
+    - Quantidade (entrada)
+    - Quantidade (saída)
+    - Quantidade em Estoque
+    """
+    recebimentos = RecebimentoChip.objects.all().order_by('-data_chegada_golden')
+    
+    dados = []
+    for chip in recebimentos:
+        dados.append({
+            'data_chegada': chip.data_chegada_golden.strftime('%d/%m/%Y'),
+            'operadora': chip.operadora,
+            'quantidade_entrada': chip.quantidade,
+        })
+    
+    # Agregar dados por operadora
+    operadoras = RecebimentoChip.objects.values('operadora').annotate(
+        total_entrada=Sum('quantidade'),
+        total_saida=Sum('quantidade_entregue')
+    ).order_by('operadora')
+    
+    resumo_operadoras = []
+    for op in operadoras:
+        resumo_operadoras.append({
+            'operadora': op['operadora'],
+            'total_entrada': op['total_entrada'],
+            'total_saida': op['total_saida'],
+            'total_estoque': op['total_entrada'] - op['total_saida'],
+        })
+    
+    return Response({
+        'total_registros': len(dados),
+        'chips': dados,
+        'resumo_por_operadora': resumo_operadoras
+    })
