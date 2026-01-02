@@ -1,5 +1,5 @@
 from django import forms
-from .models import CadastroTipoProduto, EntradaProduto
+from .models import CadastroTipoProduto, EntradaProduto, RecebimentoChip
 
 class CadastroTipoProdutoForm(forms.ModelForm):
     """Formulário para cadastro de tipo de produto"""
@@ -58,3 +58,42 @@ class FiltroEntradaProdutoForm(forms.Form):
         }),
         label='ID do Equipamento'
     )
+
+class RecebimentoChipForm(forms.ModelForm):
+    """Formulário para recebimento de chips"""
+    
+    class Meta:
+        model = RecebimentoChip
+        fields = [
+            'data_solicitacao_compra', 
+            'data_chegada_golden', 
+            'operadora', 
+            'quantidade', 
+            'iccid_inicial', 
+            'iccid_final', 
+            'data_ativacao',
+            'data_envio_configuracao',
+            'nome_recebedor'
+        ]
+        widgets = {
+            'data_solicitacao_compra': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'data_chegada_golden': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'operadora': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nome da operadora'}),
+            'quantidade': forms.NumberInput(attrs={'class': 'form-control', 'min': '1', 'placeholder': 'Quantidade de chips'}),
+            'iccid_inicial': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'ICCID Inicial'}),
+            'iccid_final': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'ICCID Final'}),
+            'data_ativacao': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'data_envio_configuracao': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'nome_recebedor': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nome do recebedor'}),
+        }
+        labels = {
+            'data_solicitacao_compra': 'Data de Solicitação da Compra',
+            'data_chegada_golden': 'Data de Chegada na Golden',
+            'operadora': 'Operadora',
+            'quantidade': 'Quantidade',
+            'iccid_inicial': 'ICCID Inicial',
+            'iccid_final': 'ICCID Final',
+            'data_ativacao': 'Data de Ativação',
+            'data_envio_configuracao': 'Data de Envio à Configuração',
+            'nome_recebedor': 'Nome do Recebedor',
+        }

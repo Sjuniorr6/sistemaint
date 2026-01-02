@@ -1,0 +1,768 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Recebimento de Chips</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background: #f5f5f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding-top: 0;
+            margin: 0;
+        }
+
+        .main-container {
+            width: 100%;
+            padding: 1rem 1.5rem;
+            background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+            min-height: 100vh;
+        }
+
+        .header-section {
+            background: linear-gradient(135deg, #e6a500 0%, #ffb820 100%);
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            box-shadow: 0 4px 12px rgba(230, 165, 0, 0.25);
+        }
+
+        .header-section h1 {
+            color: #1a1a1a;
+            font-size: 1.35rem;
+            font-weight: 700;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .header-section p {
+            margin: 0.25rem 0 0 0;
+            font-size: 0.85rem;
+        }
+
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            border-left: 4px solid #e6a500;
+        }
+
+        .stat-number {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #e6a500;
+        }
+
+        .stat-label {
+            color: #666;
+            margin-top: 0.25rem;
+            font-size: 0.85rem;
+        }
+
+        .operadora-section {
+            margin-bottom: 1rem;
+        }
+
+        .operadora-section h3 {
+            color: #1a1a1a;
+            margin-bottom: 0.75rem;
+            font-size: 1rem;
+            padding-left: 0.5rem;
+        }
+        
+        .operadora-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+
+        .operadora-card {
+            background: white;
+            padding: 1rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            border-left: 4px solid #e6a500;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .operadora-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        }
+
+        .operadora-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .operadora-name {
+            font-weight: 700;
+            color: #2d2d2d;
+            font-size: 1rem;
+        }
+
+        .operadora-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .operadora-stat {
+            text-align: center;
+            padding: 0.5rem;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+
+        .operadora-stat-value {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #e6a500;
+        }
+
+        .operadora-stat-label {
+            font-size: 0.7rem;
+            color: #666;
+            margin-top: 0.2rem;
+        }
+        
+        .btn-entrega-operadora {
+            background: #28a745;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 100%;
+            font-weight: 600;
+        }
+        
+        .btn-entrega-operadora:hover {
+            background: #218838;
+        }
+
+        .historico-section {
+            background: white;
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .historico-section h3 {
+            color: #1a1a1a;
+            margin-bottom: 0.75rem;
+            font-size: 1rem;
+        }
+        
+        .historico-container {
+            max-height: 150px;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+        
+        .historico-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .historico-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        
+        .historico-container::-webkit-scrollbar-thumb {
+            background: #e6a500;
+            border-radius: 10px;
+        }
+
+        .historico-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem;
+            border-left: 3px solid #e6a500;
+            background: #fffbf0;
+            margin-bottom: 0.4rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+
+        .historico-data {
+            color: #666;
+            font-size: 0.75rem;
+        }
+
+        .historico-info {
+            flex: 1;
+            padding: 0 1rem;
+        }
+
+        .historico-quantidade {
+            font-weight: 700;
+            color: #28a745;
+        }
+
+        .action-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .action-header h2 {
+            font-size: 1rem;
+            margin: 0;
+        }
+
+        .btn-add {
+            background: #e6a500;
+            color: #1a1a1a;
+            padding: 0.6rem 1.2rem;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.85rem;
+        }
+
+        .btn-add:hover {
+            background: #ffb820;
+            transform: translateY(-2px);
+        }
+
+        .table-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #2d2d2d;
+        }
+
+        thead th {
+            color: white;
+            padding: 0.75rem;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        tbody tr:hover {
+            background: #fffbf0;
+        }
+
+        tbody td {
+            padding: 0.75rem;
+            color: #2d2d2d;
+            font-size: 0.85rem;
+        }
+
+        .badge {
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-qty {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .iccid-display {
+            font-family: 'Courier New', monospace;
+            background: #f8f9fa;
+            padding: 0.2rem 0.4rem;
+            border-radius: 3px;
+            font-size: 0.75rem;
+        }
+
+        .btn-action {
+            padding: 0.4rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            border: none;
+            cursor: pointer;
+            margin: 0.15rem;
+            transition: all 0.2s;
+        }
+
+        .btn-entrega {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #28a745;
+        }
+
+        .btn-entrega:hover {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-edit {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #e6a500;
+        }
+
+        .btn-edit:hover {
+            background: #e6a500;
+            color: #1a1a1a;
+        }
+        
+        .btn-delete {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #dc3545;
+        }
+        
+        .btn-delete:hover {
+            background: #dc3545;
+            color: white;
+        }
+
+        .progress-info {
+            font-size: 0.75rem;
+            color: #666;
+        }
+
+        .progress {
+            height: 6px;
+            margin-top: 0.35rem;
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #e6a500 0%, #ffb820 100%);
+            color: #1a1a1a;
+            padding: 1rem;
+        }
+        
+        .modal-title {
+            font-size: 1rem;
+        }
+
+        .modal-content {
+            border-radius: 12px;
+        }
+        
+        .form-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .form-control {
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    {% include 'components/_header.html' %}
+    
+    <div class="main-container">
+        <div class="header-section">
+            <h1>
+                <i class="fas fa-sim-card"></i>
+                Controle de Recebimento de Chips
+            </h1>
+            <p>Gerencie e acompanhe todos os recebimentos de chips das operadoras</p>
+        </div>
+
+        <!-- Estatísticas Gerais -->
+        <div class="stats-container">
+            <div class="stat-card">
+                <div class="stat-number">{{ total_chips|default:0 }}</div>
+                <div class="stat-label">Total de Chips</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ total_entregue|default:0 }}</div>
+                <div class="stat-label">Chips Entregues</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ total_restante|default:0 }}</div>
+                <div class="stat-label">Chips Restantes</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ recebimentos|length }}</div>
+                <div class="stat-label">Total de Lotes</div>
+            </div>
+        </div>
+
+        <!-- Chips por Operadora -->
+        <div class="operadora-section">
+            <h3><i class="fas fa-building"></i> Chips por Operadora</h3>
+            <div class="operadora-cards">
+                {% for stat in stats_operadora %}
+                <div class="operadora-card">
+                    <div class="operadora-card-header">
+                        <div class="operadora-name">
+                            <i class="fas fa-broadcast-tower"></i> {{ stat.operadora }}
+                        </div>
+                    </div>
+                    <div class="operadora-stats-grid">
+                        <div class="operadora-stat">
+                            <div class="operadora-stat-value">{{ stat.total_chips }}</div>
+                            <div class="operadora-stat-label">Total</div>
+                        </div>
+                        <div class="operadora-stat">
+                            <div class="operadora-stat-value">{{ stat.total_entregue|default:0 }}</div>
+                            <div class="operadora-stat-label">Entregues</div>
+                        </div>
+                        
+                        <div class="operadora-stat" style="{% if stat.chips_restantes < 500 %}background: #f8d7da; border: 2px solid #dc3545;{% else %}background: #f8f9fa;{% endif %}">
+                            <div class="operadora-stat-value" style="{% if stat.chips_restantes < 500 %}color: #dc3545;{% else %}color: #e6a500;{% endif %}">{{ stat.chips_restantes }}</div>
+                            <div class="operadora-stat-label" style="{% if stat.chips_restantes < 500 %}color: #721c24; font-weight: 700;{% endif %}">Restantes</div>
+                        </div>
+                        
+                        <div class="operadora-stat">
+                            <div class="operadora-stat-value">{{ stat.total_lotes }}</div>
+                            <div class="operadora-stat-label">Lotes</div>
+                        </div>
+                    </div>
+                    {% if stat.chips_restantes > 0 %}
+                    <button class="btn-entrega-operadora" onclick="abrirModalEntrega('{{ stat.operadora }}', {{ stat.chips_restantes }})">
+                        <i class="fas fa-hand-holding"></i> Entregar Chips
+                    </button>
+                    {% else %}
+                    <button class="btn-entrega-operadora" disabled style="background:#ccc;cursor:not-allowed;">
+                        <i class="fas fa-check-double"></i> Estoque Esgotado
+                    </button>
+                    {% endif %}
+                </div>
+                {% empty %}
+                <p class="text-center text-muted">Nenhuma operadora registrada</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Histórico de Entregas -->
+        {% if historico_entregas %}
+        <div class="historico-section">
+            <h3><i class="fas fa-history"></i> Histórico de Entregas (Últimas 20)</h3>
+            <div class="historico-container">
+                {% for entrega in historico_entregas %}
+                <div class="historico-item">
+                    <div class="historico-data">
+                        <i class="fas fa-calendar"></i> {{ entrega.data_entrega|date:"d/m/Y H:i" }}
+                    </div>
+                    <div class="historico-info">
+                        <strong>{{ entrega.recebimento.operadora }}</strong> - 
+                        <span class="historico-quantidade">{{ entrega.quantidade_entregue }} chips</span> entregues para 
+                        <strong>{{ entrega.responsavel }}</strong>
+                        {% if entrega.observacao %}
+                        <br><small style="color:#666;"><i class="fas fa-comment"></i> {{ entrega.observacao }}</small>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Action Bar -->
+        <div class="action-header">
+            <h2><i class="fas fa-history"></i> Histórico de Recebimentos</h2>
+            <button class="btn-add" data-bs-toggle="modal" data-bs-target="#modalNovoRecebimento">
+                <i class="fas fa-plus-circle"></i> Novo Recebimento
+            </button>
+        </div>
+
+        <!-- Tabela de Recebimentos -->
+        <div class="table-card">
+            {% if recebimentos %}
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Datas</th>
+                            <th>Operadora</th>
+                            <th>Quantidade</th>
+                            <th>ICCID Range</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in recebimentos %}
+                        <tr>
+                            <td>
+                                <small>
+                                    <strong>Solicitação:</strong> {{ r.data_solicitacao_compra|date:"d/m/Y" }} | 
+                                    <strong>| Chegada:</strong> {{ r.data_chegada_golden|date:"d/m/Y" }} |
+                                    <strong>| Ativação:</strong> {{ r.data_ativacao|date:"d/m/Y" }}
+                                </small>
+                            </td>                      
+                            <td><strong>{{ r.operadora }}</strong></td>
+                            <td>
+                                <span class="badge badge-qty">
+                                    <i class="fas fa-box"></i> {{ r.quantidade }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="iccid-display">{{ r.iccid_inicial }} até {{ r.iccid_final }}</div>
+
+
+                            </td>
+                            <td>
+
+                                <button class="btn-action btn-delete" onclick="deletarRecebimento({{ r.id }}, '{{ r.operadora }}')">
+                                    <i class="fas fa-trash"></i> Deletar
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <i class="fas fa-inbox"></i>
+                <h4>Nenhum recebimento registrado</h4>
+                <p>Clique no botão "Novo Recebimento" para começar</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Modal Novo Recebimento -->
+    <div class="modal fade" id="modalNovoRecebimento" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-plus-circle"></i> Novo Recebimento de Chips
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Data de Solicitação *</label>
+                                <input type="date" name="data_solicitacao_compra" class="form-control" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Data de Chegada *</label>
+                                <input type="date" name="data_chegada_golden" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Operadora *</label>
+                                <input type="text" name="operadora" class="form-control" placeholder="Ex: Vivo, Claro, TIM" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Quantidade *</label>
+                                <input type="number" name="quantidade" class="form-control" min="1" placeholder="Quantidade de chips" required>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">ICCID Inicial *</label>
+                                <input type="text" name="iccid_inicial" class="form-control" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">ICCID Final *</label>
+                                <input type="text" name="iccid_final" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Data de Ativação *</label>
+                            <input type="date" name="data_ativacao" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn-add">
+                            <i class="fas fa-save"></i> Salvar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Editar -->
+    <div class="modal fade" id="modalEditarRecebimento" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-edit"></i> Atualizar Informações
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="post" id="formEditarRecebimento">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            <strong id="edit-operadora-info"></strong> - <span id="edit-quantidade-info"></span> chips
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Data de Envio à Configuração</label>
+                            <input type="date" name="data_envio_configuracao" id="edit_data_envio_configuracao" class="form-control">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Nome do Recebedor</label>
+                            <input type="text" name="nome_recebedor" id="edit_nome_recebedor" class="form-control">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn-add">
+                            <i class="fas fa-save"></i> Atualizar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Entrega de Chips -->
+    <div class="modal fade" id="modalEntregarChips" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-hand-holding"></i> Registrar Entrega de Chips
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="post" action="/compras/recebimento-chip/entrega/0/" id="formEntregarChips">
+                    {% csrf_token %}
+                    <input type="hidden" name="operadora" id="entrega-operadora-hidden">
+                    <div class="modal-body">
+                        <div class="alert alert-warning">
+                            <strong><i class="fas fa-building"></i> <span id="entrega-operadora"></span></strong><br>
+                            <strong>Disponível:</strong> <span id="entrega-disponivel"></span> chips
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Quantidade a Entregar *</label>
+                            <input type="number" name="quantidade_entrega" id="quantidade_entrega" class="form-control" min="1" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Responsável pela Entrega *</label>
+                            <input type="text" name="responsavel_entrega" class="form-control" placeholder="Nome do responsável" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Observação</label>
+                            <textarea name="observacao_entrega" class="form-control" rows="2" placeholder="Observações sobre a entrega (opcional)"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn-add">
+                            <i class="fas fa-check"></i> Confirmar Entrega
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    function editarRecebimento(id) {
+        fetch(`/compras/recebimento-chip/editar/${id}/`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('edit-operadora-info').textContent = data.operadora;
+            document.getElementById('edit-quantidade-info').textContent = data.quantidade;
+            document.getElementById('edit_data_envio_configuracao').value = data.data_envio_configuracao;
+            document.getElementById('edit_nome_recebedor').value = data.nome_recebedor;
+            document.getElementById('formEditarRecebimento').action = `/compras/recebimento-chip/editar/${id}/`;
+            
+            new bootstrap.Modal(document.getElementById('modalEditarRecebimento')).show();
+        })
+        .catch(error => {
+            console.error('Erro:', error);
+            alert('Erro ao carregar dados');
+        });
+    }
+
+    function abrirModalEntrega(operadora, disponivel) {
+        document.getElementById('entrega-operadora').textContent = operadora;
+        document.getElementById('entrega-operadora-hidden').value = operadora;
+        document.getElementById('entrega-disponivel').textContent = disponivel;
+        document.getElementById('quantidade_entrega').max = disponivel;
+        document.getElementById('quantidade_entrega').value = '';
+        
+        new bootstrap.Modal(document.getElementById('modalEntregarChips')).show();
+    }
+    
+    function deletarRecebimento(id, operadora) {
+        if (confirm(`Tem certeza que deseja deletar o recebimento de ${operadora}?\\n\\nEsta ação não pode ser desfeita!`)) {
+            fetch(`/compras/recebimento-chip/deletar/${id}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => {
+                if (response.ok) {
+                    alert('Recebimento deletado com sucesso!');
+                    location.reload();
+                } else {
+                    alert('Erro ao deletar recebimento!');
+                }
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                alert('Erro ao deletar recebimento!');
+            });
+        }
+    }
+
+    {% if messages %}
+        {% for message in messages %}
+            alert("{{ message }}");
+        {% endfor %}
+    {% endif %}
+    </script>
+</body>
+</html>

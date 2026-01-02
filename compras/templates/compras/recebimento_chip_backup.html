@@ -1,0 +1,1359 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Recebimento de Chips</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body.with-header {
+            padding-top: 60px;
+        }
+        
+        body.with-header .main-container {
+            padding-top: 1rem;
+        }
+    </style>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #f5f5f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+        }
+
+        .main-container {
+            width: 100vw;
+            min-height: 100vh;
+            padding: 2rem;
+            background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+        }
+
+        .header-section {
+            background: linear-gradient(135deg, #e6a500 0%, #ffb820 100%);
+            padding: 2rem 2.5rem;
+            border-radius: 20px;
+            margin-bottom: 2rem;
+            box-shadow: 0 8px 24px rgba(230, 165, 0, 0.25);
+        }
+
+        .header-section h1 {
+            color: #1a1a1a;
+            font-size: 2rem;
+            font-weight: 700;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .header-section p {
+            color: #2d2d2d;
+            margin: 0.5rem 0 0 0;
+            font-size: 1rem;
+        }
+
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            border-left: 5px solid #e6a500;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+        }
+
+        .stat-number {
+            font-size: 3rem;
+            font-weight: 700;
+            color: #e6a500;
+            line-height: 1;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 1rem;
+            margin-top: 0.5rem;
+            font-weight: 500;
+        }
+
+        .action-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .action-header h2 {
+            color: #1a1a1a;
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .btn-add {
+            background: #e6a500;
+            color: #1a1a1a;
+            padding: 1rem 2rem;
+            border-radius: 12px;
+            border: none;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-add:hover {
+            background: #ffb820;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(230, 165, 0, 0.3);
+        }
+
+        .table-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #2d2d2d;
+        }
+
+        thead th {
+            color: white;
+            padding: 1.25rem 1rem;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid #f0f0f0;
+            transition: background 0.2s;
+        }
+
+        tbody tr:hover {
+            background: #fffbf0;
+        }
+
+        tbody td {
+            padding: 1.25rem 1rem;
+            color: #2d2d2d;
+            font-size: 0.95rem;
+        }
+
+        .badge {
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+        }
+
+        .badge-qty {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .iccid-display {
+            font-family: 'Courier New', monospace;
+            background: #f8f9fa;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            display: inline-block;
+            margin: 0.1rem 0;
+        }
+
+        .btn-edit {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #e6a500;
+            padding: 0.625rem 1.25rem;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+        }
+
+        .btn-edit:hover {
+            background: #e6a500;
+            color: #1a1a1a;
+            transform: scale(1.05);
+        }
+
+        .modal-content {
+            border-radius: 20px;
+            border: none;
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #e6a500 0%, #ffb820 100%);
+            color: #1a1a1a;
+            border-radius: 20px 20px 0 0;
+            padding: 1.5rem 2rem;
+            border: none;
+        }
+
+        .modal-title {
+            font-weight: 700;
+            font-size: 1.35rem;
+        }
+
+        .modal-body {
+            padding: 2rem;
+        }
+
+        .form-label {
+            font-weight: 600;
+            color: #2d2d2d;
+            margin-bottom: 0.5rem;
+            font-size: 0.95rem;
+        }
+
+        .form-control {
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .form-control:focus {
+            border-color: #e6a500;
+            box-shadow: 0 0 0 0.2rem rgba(230, 165, 0, 0.15);
+        }
+
+        .section-divider {
+            border-top: 2px solid #f0f0f0;
+            margin: 1.5rem 0;
+            position: relative;
+        }
+
+        .section-divider span {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 0 1rem;
+            color: #666;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            color: #ccc;
+            margin-bottom: 1rem;
+        }
+
+        .empty-state h4 {
+            color: #666;
+            margin-bottom: 0.5rem;
+        }
+
+        .empty-state p {
+            color: #999;
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                padding: 1rem;
+            }
+
+            .header-section h1 {
+                font-size: 1.5rem;
+            }
+
+            thead th, tbody td {
+                padding: 0.75rem 0.5rem;
+                font-size: 0.85rem;
+            }
+        }
+    </style>
+</head>
+<body class="with-header">
+    {% include 'components/_header.html' %}
+    
+    <div class="main-container">
+        <!-- Header -->
+        <div class="header-section">
+            <h1>
+                <i class="fas fa-sim-card"></i>
+                Controle de Recebimento de Chips
+            </h1>
+            <p>Gerencie e acompanhe todos os recebimentos de chips das operadoras</p>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-container">
+            <div class="stat-card">
+                <div class="stat-number">{{ recebimentos|length }}</div>
+                <div class="stat-label">Total de Recebimentos</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">
+                    {% with pendentes=0 %}
+                        {% for r in recebimentos %}
+                            {% if not r.data_envio_configuracao or not r.nome_recebedor %}
+                                {% with pendentes=pendentes|add:1 %}{% endwith %}
+                            {% endif %}
+                        {% endfor %}
+                        {{ pendentes }}
+                    {% endwith %}
+                </div>
+                <div class="stat-label">Pendentes</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">
+                    {% with completos=0 %}
+                        {% for r in recebimentos %}
+                            {% if r.data_envio_configuracao and r.nome_recebedor %}
+                                {% with completos=completos|add:1 %}{% endwith %}
+                            {% endif %}
+                        {% endfor %}
+                        {{ completos }}
+                    {% endwith %}
+                </div>
+                <div class="stat-label">Completos</div>
+            </div>
+        </div>
+
+        <!-- Action Bar -->
+        <div class="action-header">
+            <h2><i class="fas fa-history"></i> Histórico de Recebimentos</h2>
+            <button class="btn-add" data-bs-toggle="modal" data-bs-target="#modalNovoRecebimento">
+                <i class="fas fa-plus-circle"></i>
+                Novo Recebimento
+            </button>
+        </div>
+
+        <!-- Table -->
+        <div class="table-card">
+            {% if recebimentos %}
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Operadora</th>
+                            <th>Qtd</th>
+                            <th>ICCID Range</th>
+                            <th>Solicitação</th>
+                            <th>Chegada</th>
+                            <th>Ativação</th>
+                            <th>Envio Config.</th>
+                            <th>Recebedor</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for recebimento in recebimentos %}
+                        <tr>
+                            <td><strong>{{ recebimento.operadora }}</strong></td>
+                            <td>
+                                <span class="badge badge-qty">
+                                    <i class="fas fa-box"></i> {{ recebimento.quantidade }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="iccid-display">{{ recebimento.iccid_inicial }}</div>
+                                <small class="text-muted">até</small>
+                                <div class="iccid-display">{{ recebimento.iccid_final }}</div>
+                            </td>
+                            <td><small>{{ recebimento.data_solicitacao_compra|date:"d/m/Y" }}</small></td>
+                            <td><small><strong>{{ recebimento.data_chegada_golden|date:"d/m/Y" }}</strong></small></td>
+                            <td><small>{{ recebimento.data_ativacao|date:"d/m/Y" }}</small></td>
+                            <td>
+                                {% if recebimento.data_envio_configuracao %}
+                                    <span class="badge badge-success">
+                                        <i class="fas fa-check"></i>
+                                        {{ recebimento.data_envio_configuracao|date:"d/m/Y" }}
+                                    </span>
+                                {% else %}
+                                    <span class="badge badge-pending">
+                                        <i class="fas fa-clock"></i> Pendente
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if recebimento.nome_recebedor %}
+                                    <small><i class="fas fa-user"></i> {{ recebimento.nome_recebedor }}</small>
+                                {% else %}
+                                    <small class="text-muted">-</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if recebimento.data_envio_configuracao and recebimento.nome_recebedor %}
+                                    <span class="badge badge-success">
+                                        <i class="fas fa-check-double"></i> Completo
+                                    </span>
+                                {% else %}
+                                    <span class="badge badge-pending">
+                                        <i class="fas fa-exclamation-circle"></i> Pendente
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <button class="btn-edit" onclick="editarRecebimento({{ recebimento.id }})">
+                                    <i class="fas fa-edit"></i> Editar
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <i class="fas fa-inbox"></i>
+                <h4>Nenhum recebimento registrado</h4>
+                <p>Clique no botão "Novo Recebimento" para começar</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Modal Novo Recebimento -->
+    <div class="modal fade" id="modalNovoRecebimento" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-plus-circle"></i>
+                        Novo Recebimento de Chips
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <h6 class="mb-3"><i class="fas fa-info-circle"></i> Informações do Recebimento</h6>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Data de Solicitação da Compra *</label>
+                                <input type="date" name="data_solicitacao_compra" class="form-control" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Data de Chegada na Golden *</label>
+                                <input type="date" name="data_chegada_golden" class="form-control" required>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Operadora *</label>
+                                <input type="text" name="operadora" class="form-control" placeholder="Ex: Vivo, Claro, TIM..." required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Quantidade *</label>
+                                <input type="number" name="quantidade" class="form-control" min="1" placeholder="Quantidade de chips" required>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">ICCID Inicial *</label>
+                                <input type="text" name="iccid_inicial" class="form-control" placeholder="ICCID Inicial" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">ICCID Final *</label>
+                                <input type="text" name="iccid_final" class="form-control" placeholder="ICCID Final" required>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Data de Ativação *</label>
+                            <input type="date" name="data_ativacao" class="form-control" required>
+                        </div>
+
+                        <div class="section-divider">
+                            <span>Informações Adicionais (Opcional)</span>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Data de Envio à Configuração</label>
+                                <input type="date" name="data_envio_configuracao" class="form-control">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Nome do Recebedor</label>
+                                <input type="text" name="nome_recebedor" class="form-control" placeholder="Nome do responsável">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times"></i> Cancelar
+                        </button>
+                        <button type="submit" class="btn-add">
+                            <i class="fas fa-save"></i> Salvar Recebimento
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Editar Recebimento -->
+    <div class="modal fade" id="modalEditarRecebimento" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-edit"></i>
+                        Atualizar Informações Adicionais
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="post" id="formEditarRecebimento">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            <strong id="edit-operadora-info"></strong> - <span id="edit-quantidade-info"></span> chips
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Data de Envio à Configuração</label>
+                            <input type="date" name="data_envio_configuracao" id="edit_data_envio_configuracao" class="form-control">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Nome do Recebedor</label>
+                            <input type="text" name="nome_recebedor" id="edit_nome_recebedor" class="form-control" placeholder="Nome do responsável">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times"></i> Cancelar
+                        </button>
+                        <button type="submit" class="btn-add">
+                            <i class="fas fa-save"></i> Atualizar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    function editarRecebimento(id) {
+        fetch(`/compras/recebimento-chip/editar/${id}/`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('edit-operadora-info').textContent = data.operadora;
+            document.getElementById('edit-quantidade-info').textContent = data.quantidade;
+            document.getElementById('edit_data_envio_configuracao').value = data.data_envio_configuracao;
+            document.getElementById('edit_nome_recebedor').value = data.nome_recebedor;
+            document.getElementById('formEditarRecebimento').action = `/compras/recebimento-chip/editar/${id}/`;
+            
+            new bootstrap.Modal(document.getElementById('modalEditarRecebimento')).show();
+        })
+        .catch(error => {
+            console.error('Erro:', error);
+            alert('Erro ao carregar dados do recebimento');
+        });
+    }
+
+    {% if messages %}
+        {% for message in messages %}
+            alert("{{ message }}");
+        {% endfor %}
+        
+        var modalNovo = bootstrap.Modal.getInstance(document.getElementById('modalNovoRecebimento'));
+        var modalEditar = bootstrap.Modal.getInstance(document.getElementById('modalEditarRecebimento'));
+        if (modalNovo) modalNovo.hide();
+        if (modalEditar) modalEditar.hide();
+    {% endif %}
+    </script>
+</body>
+</html>
+<style>
+    :root {
+        --primary-color: #e6a500;
+        --primary-hover: #cc9200;
+        --primary-dark: #b38200;
+        --success-color: #10b981;
+        --warning-color: #f59e0b;
+        --danger-color: #ef4444;
+        --gray-50: #f9fafb;
+        --gray-100: #f3f4f6;
+        --gray-200: #e5e7eb;
+        --gray-300: #d1d5db;
+        --gray-600: #4b5563;
+        --gray-700: #374151;
+        --gray-800: #1f2937;
+        --gray-900: #111827;
+    }
+
+    .page-header {
+        background: linear-gradient(135deg, var(--primary-color) 0%, #f4b740 100%);
+        color: #1f2937;
+        padding: 2.5rem 2rem;
+        border-radius: 16px;
+        margin-bottom: 2.5rem;
+        box-shadow: 0 8px 16px -4px rgba(230, 165, 0, 0.3);
+    }
+
+    .page-header h1 {
+        font-size: 2.25rem;
+        font-weight: 700;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        color: #111827;
+    }
+
+    .page-header p {
+        margin: 0.75rem 0 0 0;
+        opacity: 0.85;
+        font-size: 1.05rem;
+        color: #374151;
+    }
+
+    .stats-card {
+        background: white;
+        border-radius: 14px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+        border-left: 5px solid var(--primary-color);
+        margin-bottom: 2rem;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-item {
+        text-align: center;
+        padding: 1.5rem 1.25rem;
+        background: white;
+        border-radius: 12px;
+        border: 2px solid #fef3c7;
+        box-shadow: 0 2px 8px rgba(230, 165, 0, 0.1);
+    }
+
+    .stat-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: var(--primary-color);
+    }
+
+    .stat-label {
+        font-size: 0.95rem;
+        color: var(--gray-700);
+        margin-top: 0.5rem;
+        font-weight: 500;
+    }
+
+    .action-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        flex-wrap: wrap;
+        gap: 1.5rem;
+    }
+
+    .action-bar h5 {
+        color: var(--gray-800);
+        font-weight: 600;
+        font-size: 1.15rem;
+    }
+
+    .btn-modern {
+        padding: 0.875rem 1.75rem;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 1rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.625rem;
+        transition: all 0.2s;
+        border: none;
+        cursor: pointer;
+    }
+
+    .btn-primary-modern {
+        background: var(--primary-color);
+        color: #1f2937;
+    }
+
+    .btn-primary-modern:hover {
+        background: var(4px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+        border: 1px solid var(--gray-200);
+    }
+
+    .table-modern {
+        width: 100%;
+        margin: 0;
+    }
+
+    .table-modern thead {
+        background: linear-gradient(135deg, var(--gray-800) 0%, var(--gray-900) 100%);
+        color: white;
+    }
+
+    .table-modern thead th {
+        padding: 1.25rem 1.125rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        letter-spacing: 0.05em;
+        border: none;
+        color: white;
+    }
+
+    .table-modern tbody tr {
+        border-bottom: 1px solid var(--gray-200);
+        transition: all 0.2s;
+    }
+
+    .table-modern tbody tr:hover {
+        background: #fffbeb;
+        transform: scale(1.001);
+    }
+
+    .table-modern tbody td {
+        padding: 1.25rem 1.125rem;
+        vertical-align: middle;
+        color: var(--gray-700);
+        font-size: 0.95rem;
+    }
+
+    .table-modern tbody td strong {
+        color: var(--gray-900)
+
+    .table-modern tbody tr:hover {
+        background:45rem 0.875rem;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+    }
+
+    .badge-success {
+        background: #d1fae5;
+        color: #065f46;
+        border: 1px solid #a7f3d0;
+    }
+
+    .badge-warning {
+        background: #fef3c7;
+        color: #92400e;
+        border: 1px solid #fde68a;
+    }
+
+    .badge-primary {
+        background: #fef3c7;
+        color: #92400e;
+        border: 1px solid var(--primary-color);
+    }
+
+    .badge-info {
+        background: #fef3c7;
+        color: #78350f;
+        border: 1px solid var(--primary-color)
+
+    .badge-primary {
+        background: #dbeafe;
+        color: #1e40af;
+    }
+
+    .badge-info {
+        background: #e0e7ff;
+        color: #373625rem 1rem;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+    }
+
+    .btn-edit {
+        background: #fef3c7;
+        color: #92400e;
+        border: 1px solid var(--primary-color);
+    }
+
+    .btn-edit:hover {
+        background: var(--primary-color);
+        color: #1f2937;
+        transform: scale(1.05);
+        box-shadow: 0 4px 8px rgba(230, 165, 0, 0.3
+
+    .btn-edit:hover {
+        background: #bfdbfe;
+        transform: scale6px;
+        border: none;
+        box-shadow: 0 20px 35px -5px rgba(0, 0, 0, 0.15);
+    }
+
+    .modal-modern .modal-header {
+        background: linear-gradient(135deg, var(--primary-color) 0%, #f4b740 100%);
+        color: #1f2937;
+        border-radius: 16px 16px 0 0;
+        padding: 1.75rem 2rem;
+        border: none;
+    }
+
+    .modal-modern .modal-title {
+        font-weight: 700;
+        font-size: 1.25rem;
+        display: flex;
+        align-items: center;
+        gap: 0.625rem;
+        color: #111827;
+    }
+
+    .modal-modern .modal-body {
+        padding: 2rem;
+    }
+
+    .modal-modern .modal-body h6 {
+        color: var(--gray-800);
+        font-weight: 600;
+    }
+
+    .modal-modern .modal-5rem;
+    }
+
+    .form-group-modern label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 0.625rem;
+        color: var(--gray-800);
+        font-size: 0.925rem;
+    }
+
+    .form-group-modern .required::after {
+        content: " *";
+        color: var(--danger-color);
+    }
+
+    .form-control-modern {
+        width: 100%;
+        padding: 0.875rem 1rem;
+        border: 2px solid var(--gray-200);
+        border-radius: 10px;
+        font-size: 1rem;
+        transition: all 0.2s;
+        color: var(--gray-800);
+    }
+
+    .form-control-modern:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 4px rgba(230, 165, 0, 0.15);
+    }
+
+    .iccid-code {
+        font-family: 'Courier New', monospace;
+        background: #fef3c7;
+        padding: 0.375rem 0.625rem;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        color: #78350f;
+        border: 1px solid #fde68afocus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    }
+
+    .iccid-code {5rem 2rem;
+        color: var(--gray-700);
+    }
+
+    .empty-state i {
+        font-size: 5rem;
+        color: var(--gray-300);
+        margin-bottom: 1.5rem;
+    }
+
+    .empty-state h4 {
+        color: var(--gray-800);
+        font-weight: 600;
+        font-size: 1.25rem;
+    }
+
+    .divider {
+        border-top: 2px solid var(--gray-200);
+        margin: 2rem 0;
+        position: relative;
+    }
+
+    .divider-text {
+        position: absolute;
+        top: -13px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: white;
+        padding: 0 1.25rem;
+        color: var(--gray-800);
+        font-size: 0.9
+
+    .divider-text {
+        position: absolute;
+        top: -12px;
+    .btn-close-white {
+        filter: invert(1);
+    }
+
+    /* Responsividade */
+    @media (max-width: 768px) {
+        .table-modern {
+            font-size: 0.875rem;
+        }
+
+        .table-modern thead th,
+        .table-modern tbody td {
+            padding: 0.875rem 0.625rem;
+        }
+
+        .page-header h1 {
+            font-size: 1.75rem;
+        }
+
+        .stats-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="container-fluid px-4 py-4
+        }
+
+        .page-header h1 {
+            font-size: 1.5rem;
+        }
+    }
+</style>
+
+<div class="container-fluid px-4 py-3">
+    <!-- Page Header -->
+    <div class="page-header">
+        <h1>
+            <i class="fas fa-sim-card"></i>
+            Controle de Recebimento de Chips
+        </h1>
+        <p>Gerencie e acompanhe todos os recebimentos de chips das operadoras</p>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+        <div class="stat-item">
+            <div class="stat-value">{{ recebimentos|length }}</div>
+            <div class="stat-label">Total de Recebimentos</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">
+                {% with pendentes=recebimentos|length %}
+                    {% for r in recebimentos %}
+                        {% if not r.data_envio_configuracao or not r.nome_recebedor %}
+                        {% endif %}
+                    {% endfor %}
+                {% endwith %}
+                {{ recebimentos|length|add:"-"|add:recebimentos|length }}
+            </div>
+            <div class="stat-label">Pendentes</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">
+                {% for r in recebimentos %}
+                    {% if r.data_envio_configuracao and r.nome_recebedor %}
+                    {% endif %}
+                {% endfor %}
+            </div>
+            <div class="stat-label">Completos</div>
+        </div>
+    </div>
+
+    <!-- Action Bar -->
+    <div class="action-bar">
+        <h5 class="mb-0"><i class="fas fa-history"></i> Histórico de Recebimentos</h5>
+        <button class="btn-modern btn-primary-modern" data-bs-toggle="modal" data-bs-target="#modalNovoRecebimento">
+            <i class="fas fa-plus-circle"></i>
+            Novo Recebimento
+        </button>
+    </div>
+
+    <!-- Table -->
+    <div class="table-container">
+        {% if recebimentos %}
+            <div class="table-responsive">
+                <table class="table table-modern">
+                    <thead>
+                        <tr>
+                            <th>Operadora</th>
+                            <th>Quantidade</th>
+                            <th>ICCID Range</th>
+                            <th>Data Solicitação</th>
+                            <th>Data Chegada</th>
+                            <th>Data Ativação</th>
+                            <th>Envio Config.</th>
+                            <th>Recebedor</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for recebimento in recebimentos %}
+                        <tr>
+                            <td>
+                                <strong>{{ recebimento.operadora }}</strong>
+                            </td>
+                            <td>
+                                <span class="badge-modern badge-primary">
+                                    <i class="fas fa-box"></i>
+                                    {{ recebimento.quantidade }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="iccid-code">{{ recebimento.iccid_inicial }}</div>
+                                <small class="text-muted">até</small>
+                                <div class="iccid-code">{{ recebimento.iccid_final }}</div>
+                            </td>
+                            <td>
+                                <small>{{ recebimento.data_solicitacao_compra|date:"d/m/Y" }}</small>
+                            </td>
+                            <td>
+                                <small><strong>{{ recebimento.data_chegada_golden|date:"d/m/Y" }}</strong></small>
+                            </td>
+                            <td>
+                                <small>{{ recebimento.data_ativacao|date:"d/m/Y" }}</small>
+                            </td>
+                            <td>
+                                {% if recebimento.data_envio_configuracao %}
+                                    <span class="badge-modern badge-success">
+                                        <i class="fas fa-check-circle"></i>
+                                        {{ recebimento.data_envio_configuracao|date:"d/m/Y" }}
+                                    </span>
+                                {% else %}
+                                    <span class="badge-modern badge-warning">
+                                        <i class="fas fa-clock"></i>
+                                        Pendente
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if recebimento.nome_recebedor %}
+                                    <small><i class="fas fa-user"></i> {{ recebimento.nome_recebedor }}</small>
+                                {% else %}
+                                    <small class="text-muted">-</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if recebimento.data_envio_configuracao and recebimento.nome_recebedor %}
+                                    <span class="badge-modern badge-success">
+                                        <i class="fas fa-check-double"></i>
+                                        Completo
+                                    </span>
+                                {% else %}
+                                    <span class="badge-modern badge-warning">
+                                        <i class="fas fa-exclamation-circle"></i>
+                                        Pendente
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <button class="btn-action btn-edit" onclick="editarRecebimento({{ recebimento.id }})" title="Editar informações adicionais">
+                                    <i class="fas fa-edit"></i>
+                                    Editar
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <i class="fas fa-inbox"></i>
+                <h4>Nenhum recebimento registrado</h4>
+                <p class="text-muted">Clique no botão "Novo Recebimento" para começar</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal Novo Recebimento -->
+<div class="modal fade modal-modern" id="modalNovoRecebimento" tabindex="-1" aria-labelledby="modalNovoRecebimentoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalNovoRecebimentoLabel">
+                    <i class="fas fa-plus-circle"></i>
+                    Novo Recebimento de Chips
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <!-- Informações Principais -->
+                    <h6 class="mb-3"><i class="fas fa-info-circle"></i> Informações do Recebimento</h6>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group-modern">
+                                <label class="required" for="{{ form.data_solicitacao_compra.id_for_label }}">
+                                    {{ form.data_solicitacao_compra.label }}
+                                </label>
+                                <input type="date" name="data_solicitacao_compra" class="form-control-modern" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group-modern">
+                                <label class="required" for="{{ form.data_chegada_golden.id_for_label }}">
+                                    {{ form.data_chegada_golden.label }}
+                                </label>
+                                <input type="date" name="data_chegada_golden" class="form-control-modern" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group-modern">
+                                <label class="required" for="{{ form.operadora.id_for_label }}">
+                                    {{ form.operadora.label }}
+                                </label>
+                                <input type="text" name="operadora" class="form-control-modern" placeholder="Ex: Vivo, Claro, TIM..." required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group-modern">
+                                <label class="required" for="{{ form.quantidade.id_for_label }}">
+                                    {{ form.quantidade.label }}
+                                </label>
+                                <input type="number" name="quantidade" class="form-control-modern" min="1" placeholder="Quantidade de chips" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group-modern">
+                                <label class="required" for="{{ form.iccid_inicial.id_for_label }}">
+                                    {{ form.iccid_inicial.label }}
+                                </label>
+                                <input type="text" name="iccid_inicial" class="form-control-modern" placeholder="ICCID Inicial" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group-modern">
+                                <label class="required" for="{{ form.iccid_final.id_for_label }}">
+                                    {{ form.iccid_final.label }}
+                                </label>
+                                <input type="text" name="iccid_final" class="form-control-modern" placeholder="ICCID Final" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group-modern">
+                        <label class="required" for="{{ form.data_ativacao.id_for_label }}">
+                            {{ form.data_ativacao.label }}
+                        </label>
+                        <input type="date" name="data_ativacao" class="form-control-modern" required>
+                    </div>
+
+                    <div class="divider">
+                        <span class="divider-text">Informações Adicionais (Opcional)</span>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group-modern">
+                                <label for="{{ form.data_envio_configuracao.id_for_label }}">
+                                    {{ form.data_envio_configuracao.label }}
+                                </label>
+                                <input type="date" name="data_envio_configuracao" class="form-control-modern">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group-modern">
+                                <label for="{{ form.nome_recebedor.id_for_label }}">
+                                    {{ form.nome_recebedor.label }}
+                                </label>
+                                <input type="text" name="nome_recebedor" class="form-control-modern" placeholder="Nome do responsável">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button type="submit" class="btn-modern btn-primary-modern">
+                        <i class="fas fa-save"></i> Salvar Recebimento
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Recebimento -->
+<div class="modal fade modal-modern" id="modalEditarRecebimento" tabindex="-1" aria-labelledby="modalEditarRecebimentoLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalEditarRecebimentoLabel">
+                    <i class="fas fa-edit"></i>
+                    Atualizar Informações Adicionais
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" id="formEditarRecebimento">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong id="edit-operadora-info"></strong> - <span id="edit-quantidade-info"></span> chips
+                    </div>
+
+                    <div class="form-group-modern">
+                        <label for="edit_data_envio_configuracao">
+                            Data de Envio à Configuração
+                        </label>
+                        <input type="date" name="data_envio_configuracao" id="edit_data_envio_configuracao" class="form-control-modern">
+                    </div>
+
+                    <div class="form-group-modern">
+                        <label for="edit_nome_recebedor">
+                            Nome do Recebedor
+                        </label>
+                        <input type="text" name="nome_recebedor" id="edit_nome_recebedor" class="form-control-modern" placeholder="Nome do responsável">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button type="submit" class="btn-modern btn-primary-modern">
+                        <i class="fas fa-save"></i> Atualizar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function editarRecebimento(id) {
+    // Fazer requisição AJAX para obter dados do recebimento
+    fetch(`/compras/recebimento-chip/editar/${id}/`, {
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Atualizar informações no modal
+        document.getElementById('edit-operadora-info').textContent = data.operadora;
+        document.getElementById('edit-quantidade-info').textContent = data.quantidade;
+        document.getElementById('edit_data_envio_configuracao').value = data.data_envio_configuracao;
+        document.getElementById('edit_nome_recebedor').value = data.nome_recebedor;
+        
+        // Atualizar action do formulário
+        document.getElementById('formEditarRecebimento').action = `/compras/recebimento-chip/editar/${id}/`;
+        
+        // Abrir modal
+        var modal = new bootstrap.Modal(document.getElementById('modalEditarRecebimento'));
+        modal.show();
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('Erro ao carregar dados do recebimento');
+    });
+}
+
+// Fechar modal após mensagens de sucesso
+{% if messages %}
+    var modalNovo = document.getElementById('modalNovoRecebimento');
+    var modalEditar = document.getElementById('modalEditarRecebimento');
+    if (modalNovo) {
+        var bsModal = bootstrap.Modal.getInstance(modalNovo);
+        if (bsModal) bsModal.hide();
+    }
+    if (modalEditar) {
+        var bsModal = bootstrap.Modal.getInstance(modalEditar);
+        if (bsModal) bsModal.hide();
+    }
+{% endif %}
+</script>
+</body>
+</html>
