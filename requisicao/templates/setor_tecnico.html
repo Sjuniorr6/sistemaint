@@ -167,8 +167,8 @@
     <div class="row">
         {% for registro in equipamentos %}
             {% if registro.status == 'Aprovado pelo CEO' %}
-                <div class="col-md-4 mb-4">
-                    <div class="card card-status {% if registro.status == 'Aprovado' %}Aprovado{% elif registro.status == 'Reprovado' %}Reprovado{% elif registro.status == 'Configurado' %}Configurado{% elif registro.status == 'Pendente' %}Pendente{% elif registro.status == 'Expedido' %}Expedido{% elif registro.status == 'Reprovado pelo CEO' %}Reprovado-pelo-CEO{% elif registro.status == 'Aprovado pelo CEO' %}Aprovado-pelo-CEO{% elif registro.status == 'Reprovado pela Diretoria' %}Reprovado-pela-Diretoria{% elif registro.status == 'Aprovado pela Diretoria' %}Aprovado-pela-Diretoria{% elif registro.status == 'Enviado para o Cliente' %}Enviado-para-o-Cliente{% elif registro.status == 'Aprovado Inteligência' %}Aprovado-Inteligencia{% endif %}">
+                <div class="col-12 col-md-6 col-lg-4 mb-4">
+                    <div class="card card-status h-100 {% if registro.status == 'Aprovado' %}Aprovado{% elif registro.status == 'Reprovado' %}Reprovado{% elif registro.status == 'Configurado' %}Configurado{% elif registro.status == 'Pendente' %}Pendente{% elif registro.status == 'Expedido' %}Expedido{% elif registro.status == 'Reprovado pelo CEO' %}Reprovado-pelo-CEO{% elif registro.status == 'Aprovado pelo CEO' %}Aprovado-pelo-CEO{% elif registro.status == 'Reprovado pela Diretoria' %}Reprovado-pela-Diretoria{% elif registro.status == 'Aprovado pela Diretoria' %}Aprovado-pela-Diretoria{% elif registro.status == 'Enviado para o Cliente' %}Enviado-para-o-Cliente{% elif registro.status == 'Aprovado Inteligência' %}Aprovado-Inteligencia{% endif %}">
                         <div class="card-body">
                             {% if registro.status == 'Aprovado pelo CEO' %}
                                 <h3>Requisição</h3>
@@ -178,40 +178,40 @@
                             <form method="post" class="requisicao-form">
                                 {% csrf_token %}
                                 <div class="mb-2 row">
-                                    <label class="col-sm-6 col-form-label"><h3><b>ID:</b> {{ registro.id }}</h3></label>
+                                    <label class="col-12 col-form-label"><h3><b>ID:</b> {{ registro.id }}</h3></label>
                                 </div>
                                 <div class="mb-2 row">
-                                    <label class="col-sm-6 col-form-label"><b>Nome:</b> {{ registro.nome.nome }}</label>
+                                    <label class="col-12 col-form-label"><b>Nome:</b> {{ registro.nome.nome }}</label>
                                 </div>
                                 <div class="mb-2 row">
-                                    <label class="col-sm-6 col-form-label"><b>Endereço:</b> {{ registro.endereco }}</label>
+                                    <label class="col-12 col-form-label"><b>Endereço:</b> {{ registro.endereco }}</label>
                                 </div>
                                 <div class="mb-2 row">
-                                    <label class="col-sm-6 col-form-label"><b>CNPJ:</b> {{ registro.cnpj }}</label>
+                                    <label class="col-12 col-form-label"><b>CNPJ:</b> {{ registro.cnpj }}</label>
                                 </div>
                                 <div class="mb-2 row">
-                                    <label class="col-sm-6 col-form-label"><b>Data:</b> {{ registro.data }}</label>
+                                    <label class="col-12 col-form-label"><b>Data:</b> {{ registro.data }}</label>
                                 </div>
                                 
                                 <div class="mb-2 row">
-                                    <label class="col-sm-6 col-form-label"><b>Comercial:</b> {{ registro.comercial }}</label>
+                                    <label class="col-12 col-form-label"><b>Comercial:</b> {{ registro.comercial }}</label>
                                 </div>
                                 <div class="mb-2 row">
-                                    <label class="col-sm-6 col-form-label"><b>Tipo de Produto:</b> {{ registro.tipo_produto }}</label>
+                                    <label class="col-12 col-form-label"><b>Tipo de Produto:</b> {{ registro.tipo_produto }}</label>
                                 </div>
                                <div>
-                                    <label class="col-sm-6 col-form-label"><b>Taxa envio:</b> {{ registro.taxa_envio }}</label>
+                                    <label class="col-12 col-form-label"><b>Taxa envio:</b> {{ registro.taxa_envio }}</label>
                                 </div>
                               
                                 <div class="mb-2 row">
-                                    <label class="col-sm-6 col-form-label"><b>Quantidade:</b> {{ registro.numero_de_equipamentos }}</label>
+                                    <label class="col-12 col-form-label"><b>Quantidade:</b> {{ registro.numero_de_equipamentos }}</label>
                                 </div>
                            
                                 <div class="mb-2 row">
-                                    <label class="col-sm-6 col-form-label"><b>ID Equipamentos:</b> {{ registro.id_equipamentos }}</label>
+                                    <label class="col-12 col-form-label"><b>ID Equipamentos:</b> {{ registro.id_equipamentos }}</label>
                                 </div>
                                 <div class="mb-2 row">
-                                    <label class="col-sm-6 col-form-label"><b>Observações:</b> {{ registro.observacoes }}</label>
+                                    <label class="col-12 col-form-label"><b>Observações:</b> {{ registro.observacoes }}</label>
                                 </div>
 
                                 <div class="d-flex flex-wrap gap-2 mt-3 justify-content-center">

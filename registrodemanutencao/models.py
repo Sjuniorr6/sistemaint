@@ -138,20 +138,6 @@ class registrodemanutencao(models.Model):
     data_devolucao = models.DateTimeField(null=True, blank=True)
 
 
-    
-   
-
-
-
-
-
-
-
-
-
-
-
-
 class ImagemRegistro(models.Model):
     SETORID = [
         ('Retorno', 'Retorno'),

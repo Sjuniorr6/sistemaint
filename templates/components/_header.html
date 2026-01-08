@@ -217,6 +217,27 @@
                 font-size: 0.9rem;
             }
         }
+            .dropdown-submenu {
+                position: relative;
+            }
+
+            .dropdown-submenu > .dropdown-menu {
+                top: 0;
+                left: 100%;
+                margin-left: 0.1rem;
+                display: none;
+            }
+
+            .dropdown-submenu:hover > .dropdown-menu {
+                display: block;
+            }
+
+            .dropdown-submenu > a::after {
+                /* content: "›"; */
+                float: right;
+                margin-left: 10px;
+            }
+
         /* If you want the burger icon to appear on all themes, add navbar-light (or define the image)
            Example: <nav class="navbar navbar-expand-lg navbar-light navbar-custom"> */
     </style>
@@ -366,30 +387,89 @@
                     <!-- Operacional -->
                     {% if perms.qualit.view_qualit %}
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="dropdownOperacional" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <a class="nav-link dropdown-toggle" href="#" id="dropdownOperacional" role="button"
+                        data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-card-checklist"></i> Operacional
                         </a>
+
                         <ul class="dropdown-menu" aria-labelledby="dropdownOperacional">
                             {% if perms.pparada.delete_paradasegura %}
-                            <li><a class="dropdown-item" href="{% url 'listar_qualits' %}">Consulta de Isca</a></li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'listar_qualits' %}">
+                                    Consulta de Isca
+                                </a>
+                            </li>
                             {% endif %}
-                            <!-- PENDENTE: Acionamentos (Novo sistema) -->
+
                             {% if perms.qualit.delete_qualit %}
-                            <li><a class="dropdown-item" href="{% url 'novo_antenista' %}">Novo Antenista</a></li>
-                            <li><a class="dropdown-item" href="{% url 'saida_equipamentos' %}">Requisição de Equipamentos Antenista</a></li>
-                            <li><a class="dropdown-item" href="{% url 'lista_antenistas' %}">Lista de Saídas para Antenistas</a></li>
-                            <li><a class="dropdown-item" href="{% url 'lista_antenistas_cadastrados' %}">Lista de Antenistas Cadastrados</a></li>
-                            <li><a class="dropdown-item" href="{% url 'RegistrarEstoqueantenistaView' %}">Estoque Antenista</a></li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'novo_antenista' %}">
+                                    Novo Antenista
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'saida_equipamentos' %}">
+                                    Requisição de Equipamentos Antenista
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'lista_antenistas' %}">
+                                    Lista de Saídas para Antenistas
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'lista_antenistas_cadastrados' %}">
+                                    Lista de Antenistas Cadastrados
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'RegistrarEstoqueantenistaView' %}">
+                                    Estoque Antenista
+                                </a>
+                            </li>
                             {% endif %}
+
                             {% if perms.reativacao.view_reativacao %}
-                            <li><a class="dropdown-item" href="{% url 'reativacao_id_iccid_adicionar' %}">Formulário de Reativação</a></li>
-                            <li><a class="dropdown-item" href="{% url 'reativacao_list' %}">Histórico de Reativação</a></li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'reativacao_id_iccid_adicionar' %}">
+                                    Formulário de Reativação
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'reativacao_list' %}">
+                                    Histórico de Reativação
+                                </a>
+                            </li>
                             {% endif %}
+
                             {% if perms.registrodemanutencao.view_registrodemanutencao %}
-                            <li><a class="dropdown-item" href="{% url 'historico_manutencaoListView' %}">Histórico de Manutenção</a></li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'historico_manutencaoListView' %}">
+                                    Histórico de Manutenção
+                                </a>
+                            </li>
                             {% endif %}
+
+                            <li class="dropdown-submenu">
+                                <a class="dropdown-item dropdown-toggle">
+                                    Acompanhamento
+                                </a>
+                                <ul class="dropdown-menu">
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'acompanhamentoList' %}">
+                                            Ver Acompanhamentos
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'acompanhamentoCreate' %}">
+                                            Criar Acompanhamento
+                                        </a>
+                                    </li>
+                                </ul>
+                            </li>
                         </ul>
                     </li>
+
                     {% endif %}
 
                     <!-- Inteligência -->

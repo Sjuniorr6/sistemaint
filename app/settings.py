@@ -141,12 +141,6 @@ CORS_ALLOW_HEADERS = [
     "content-type",
 ]
 
-
-
-
-
-
-
 WSGI_APPLICATION = 'app.wsgi.application'
 DATABASES = {
     'default': {

@@ -91,8 +91,8 @@
 
     <div class="row">
         {% for item in requisicoes %}
-        <div class="col-md-4 mb-4">
-            <div class="card card-status {% if item.status == 'Aprovado' %}Aprovado{% elif item.status == 'Reprovado' %}Reprovado{% elif item.status == 'Configurado' %}Configurado{% elif item.status == 'Pendente' %}Pendente{% elif item.status == 'Expedido' %}Expedido{% elif item.status == 'Enviado para o Cliente' %}Enviado-para-o-Cliente{% elif item.status == 'Reprovado pelo CEO' %}Reprovado-pelo-CEO{% elif item.status == 'Aprovado pelo CEO' %}Aprovado-pelo-CEO{% elif item.status == 'Reprovado pela Diretoria' %}Reprovado-pela-Diretoria{% elif item.status == 'Aprovado pela Diretoria' %}Aprovado-pela-Diretoria{% endif %}">
+        <div class="col-12 col-md-6 col-lg-4 mb-4">
+            <div class="card card-status h-100 {% if item.status == 'Aprovado' %}Aprovado{% elif item.status == 'Reprovado' %}Reprovado{% elif item.status == 'Configurado' %}Configurado{% elif item.status == 'Pendente' %}Pendente{% elif item.status == 'Expedido' %}Expedido{% elif item.status == 'Enviado para o Cliente' %}Enviado-para-o-Cliente{% elif item.status == 'Reprovado pelo CEO' %}Reprovado-pelo-CEO{% elif item.status == 'Aprovado pelo CEO' %}Aprovado-pelo-CEO{% elif item.status == 'Reprovado pela Diretoria' %}Reprovado-pela-Diretoria{% elif item.status == 'Aprovado pela Diretoria' %}Aprovado-pela-Diretoria{% endif %}">
                 <div class="card-body">
                     <h2>Requisição</h2>
                     <h5 class="card-title">{{ item.nome }}</h5>

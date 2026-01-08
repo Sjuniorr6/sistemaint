@@ -45,41 +45,24 @@ def parse_datetime_flexible(datetime_str):
 def cadastrar_horas(request):
     if request.method == 'POST':
         form = HorasForm(request.POST, request.FILES)
+
         if form.is_valid():
-            hora_inicial_str = form.cleaned_data.get('hora_inicial')
-            hora_final_str = form.cleaned_data.get('hora_final')
-            
-            # Se 'hora_final' estiver vazia, nula ou for igual a "0", não realiza o cálculo
-            if not hora_final_str or hora_final_str.strip() == "" or hora_final_str.strip() == "0":
-                formatted_time = "00:00:00"
-            else:
-                # Usa a função flexível para parsing
-                hora_inicial = parse_datetime_flexible(hora_inicial_str)
-                hora_final = parse_datetime_flexible(hora_final_str)
-                
-                if not hora_inicial or not hora_final:
-                    form.add_error(None, 'Formato inválido. Use DD/MM/AAAA HH:MM:SS ou AAAA-MM-DD HH:MM:SS para as datas.')
-                    return render(request, 'horas.html', {'form': form})
-                
-                if hora_final <= hora_inicial:
-                    form.add_error('hora_final', 'A hora final deve ser maior que a hora inicial.')
-                    return render(request, 'horas.html', {'form': form})
-                
-                diferenca = hora_final - hora_inicial
-                total_seconds = int(diferenca.total_seconds())
-                hours = total_seconds // 3600
-                minutes = (total_seconds % 3600) // 60
-                seconds = total_seconds % 60
-                formatted_time = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-            
             horas_instance = form.save(commit=False)
-            horas_instance.total = formatted_time
+
+            if horas_instance.hora_final and horas_instance.hora_inicial:
+                if horas_instance.hora_final <= horas_instance.hora_inicial:
+                    form.add_error(
+                        'hora_final',
+                        'A hora final deve ser maior que a hora inicial.'
+                    )
+                    return render(request, 'horas.html', {'form': form})
+
             horas_instance.save()
-            
+
             return redirect('consultar_horas')
     else:
         form = HorasForm()
-    
+
     return render(request, 'horas.html', {'form': form})
 
 import datetime
@@ -115,10 +98,12 @@ def consulta_horas(request):
 
         # soma os intervalos somente dos não-aprovados
         for item in records:
-            hi = parse_datetime_flexible(item.hora_inicial)
-            hf = parse_datetime_flexible(item.hora_final)
+            hi = item.hora_inicial
+            hf = item.hora_final
+
             if hi and hf and hf > hi:
                 total_seconds += int((hf - hi).total_seconds())
+
 
         grand_seconds += total_seconds
 
@@ -127,8 +112,8 @@ def consulta_horas(request):
         m, s     = divmod(resto, 60)
         formatted = f"{h:02d}:{m:02d}:{s:02d}"
 
-        # atualiza total_de_horas no banco (opcional)
-        records.update(total_de_horas=formatted)
+        # atualiza total no banco (opcional)
+        records.update(total=formatted)
 
         employee_data.append({
             'funcionario': records.first().funcionario if records.exists() else '',
@@ -251,8 +236,8 @@ def consulta_horas_pdf(request):
         total_seconds = 0
         rows = []
         for it in records:
-            hi = parse_datetime_flexible(it.hora_inicial)
-            hf = parse_datetime_flexible(it.hora_final)
+            hi = it.hora_inicial
+            hf = it.hora_final
             diff = (hf - hi).total_seconds() if hi and hf and hf > hi else 0
             total_seconds += int(diff)
             h, rem = divmod(int(diff), 3600)

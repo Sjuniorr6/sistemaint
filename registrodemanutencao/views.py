@@ -728,7 +728,6 @@ def minha_view(request):
     return render(request, 'meu_template.html', {'form': form})
 # Função para aprovar um registro de manutenção.
 
-
 class historico_manutencaoListView(PermissionRequiredMixin, LoginRequiredMixin, ListView):
     model = registrodemanutencao
     template_name = 'historico_manutencao.html'  # Nome do seu template para status "configuração"
@@ -747,6 +746,7 @@ class historico_manutencaoListView(PermissionRequiredMixin, LoginRequiredMixin, 
         
         # Novos filtros
         id_registro = self.request.GET.get('id_registro')
+        numero_equipamento = self.request.GET.get('numero_equipamento')
         tipo_entrada = self.request.GET.get('tipo_entrada')
         status = self.request.GET.get('status')
         data_inicio = self.request.GET.get('data_inicio')
@@ -765,7 +765,12 @@ class historico_manutencaoListView(PermissionRequiredMixin, LoginRequiredMixin, 
         # Aplicar novos filtros
         if id_registro:
             queryset = queryset.filter(id=id_registro)
-        
+
+        if numero_equipamento:
+            queryset = queryset.filter(
+                numero_equipamento__icontains=numero_equipamento.strip()
+        )
+
         if tipo_entrada:
             queryset = queryset.filter(tipo_entrada=tipo_entrada)
         
@@ -791,6 +796,7 @@ class historico_manutencaoListView(PermissionRequiredMixin, LoginRequiredMixin, 
             'retornoequipamentos': self.request.GET.get('retornoequipamentos', ''),
             'status_tratativa': self.request.GET.get('status_tratativa', ''),
             'id_registro': self.request.GET.get('id_registro', ''),
+            'numero_equipamento': self.request.GET.get('numero_equipamento', ''),
             'tipo_entrada': self.request.GET.get('tipo_entrada', ''),
             'status': self.request.GET.get('status', ''),
             'data_inicio': self.request.GET.get('data_inicio', ''),
@@ -803,7 +809,6 @@ class historico_manutencaoListView(PermissionRequiredMixin, LoginRequiredMixin, 
         context['status_choices'] = registrodemanutencao.STATUS_CHOICES
         
         return context
-
 
 @csrf_exempt
 def atualizar_status_tratativa(request, registro_id):
