@@ -978,7 +978,6 @@ class AuditLog(models.Model):
             ip_address=ip_address
         )
 
-
 class CampoAlterado(models.Model):
     """
     Modelo para registrar campos específicos que foram alterados em uma edição
@@ -994,3 +993,94 @@ class CampoAlterado(models.Model):
 
     def __str__(self):
         return f"{self.nome_campo}: {self.valor_anterior} → {self.valor_novo}"
+
+class registrodeacompanhamento(models.Model):
+    cliente = models.CharField(max_length=100)
+    origem = models.CharField(max_length=100)
+    destino = models.CharField(max_length=100)
+
+    agente = models.CharField(max_length=100)
+    placa_agente = models.CharField(max_length=10)
+    motorista = models.CharField(max_length=100)
+    placa_motorista = models.CharField(max_length=10)
+
+    data_solicitada = models.DateField()
+    horario_solicitado = models.TimeField()
+
+    data_inicial = models.DateField()
+    horario_inicio = models.TimeField()
+
+    data_final = models.DateField()
+    horario_finalizacao = models.TimeField()
+
+    km_inicio = models.IntegerField()
+    km_final = models.IntegerField()
+    km_total = models.IntegerField()
+
+    ocorrencia = models.TextField(blank=True, null=True)
+
+    # Nome do usuário que criou/atualizou o acompanhamento
+    nome_user = models.CharField(max_length=150, blank=True, null=True)
+
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-criado_em']
+
+    def __str__(self):
+        return f'Acompanhamento #{self.id} - {self.cliente}'
+
+class ListAcompanhamento(models.Model):
+    registro = models.ForeignKey(
+        'registrodeacompanhamento',
+        on_delete=models.CASCADE,
+        related_name='listagens'
+    )
+
+    cliente = models.CharField(
+        max_length=150,
+        db_index=True
+    )
+
+    origem = models.CharField(
+        max_length=150
+    )
+
+    destino = models.CharField(
+        max_length=150
+    )
+
+    data_inicial = models.DateField()
+    data_final = models.DateField()
+
+    km_total = models.PositiveIntegerField()
+
+    # STATUS_CHOICES = [
+    #     ('em_andamento', 'Em andamento'),
+    #     ('finalizado', 'Finalizado'),
+    #     ('cancelado', 'Cancelado'),
+    #     ('atrasado', 'Atrasado'),
+    # ]
+
+    # status = models.CharField(
+    #     max_length=20,
+    #     choices=STATUS_CHOICES,
+    #     default='em_andamento',
+    #     db_index=True
+    # )
+
+    # Controle
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Acompanhamento'
+        verbose_name_plural = 'Acompanhamentos'
+        ordering = ['-criado_em']
+
+    def __str__(self):
+        return f'{self.protocolo} - {self.cliente}'
+
+
+

@@ -26,6 +26,11 @@ urlpatterns = [
     path('requisicoes/list', views.RequisicaoDetailView.as_view(), name='RequisicaoDetailView'),
     path('requisicao/<int:pk>/update/', views.RequisicaoUpdateView.as_view(), name='RequisicaoUpdateView'),
     path('requisicao/<int:pk>/delete/', views.requisicoesDeleteView.as_view(), name='requisicoesdeleteview'),
+    
+    # Acompanhamento URLs
+    path("acompanhamento/novo/",views.AcompanhamentoCreateView.as_view(),name="acompanhamentoCreate",),
+    path("acompanhamento/list/",views.AcompanhamentoListView.as_view(),name="acompanhamentoList",),
+    path('acompanhamento/<int:pk>/editar/',views.RegistroAcompanhamentoUpdateView.as_view(),name='acompanhamentoUpdate'),
 #----------------------------------------------------------------------------------------------------------------
 
 #--------------------------------------------------------------------------------------------------------------------
@@ -50,7 +55,7 @@ urlpatterns = [
 #--------------------------------------------------------------------------------------------------------------------   
       path('expedicao_list/', views.expedicaoListViews.as_view(), name='expedicaoListViews'),
 #---------------------------------------------------------------------------------------------------------------------
- path('historico_list/', views.historicoListView.as_view(), name='historicoListViews'),
+    path('historico_list/', views.historicoListView.as_view(), name='historicoListViews'),
 #----------------------------------------------------------------------------------------------------------------------
     path('requisicao/diretoriaap/<int:id>/', views.aprovar_requisicao, name='aprovar_requisicao'),
     path('requisicao/diretoriaap/<int:id>/', views.reprovar_requisicao, name='reprovar_requisicao'),

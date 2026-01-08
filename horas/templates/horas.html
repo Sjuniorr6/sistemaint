@@ -114,35 +114,35 @@
             <label for="{{ form.hora_inicial.id_for_label }}" class="form-label">
                 <i class="fas fa-play-circle"></i> Hora Inicial
             </label>
-            <input type="text"
-                   name="{{ form.hora_inicial.html_name }}"
-                   id="{{ form.hora_inicial.id_for_label }}"
-                   class="form-control"
-                   value="{{ form.hora_inicial.value|default:'' }}"
-                   placeholder="DD/MM/AAAA HH:MM:SS"
-                   onclick="fillCurrentDateTime('{{ form.hora_inicial.id_for_label }}')">
-            <small class="form-text text-muted">Clique para preencher com data e hora atual</small>
+
+            <input type="datetime-local"
+                name="{{ form.hora_inicial.html_name }}"
+                id="{{ form.hora_inicial.id_for_label }}"
+                class="form-control"
+                value="{% if form.hora_inicial.value %}{{ form.hora_inicial.value|date:'Y-m-d\\TH:i' }}{% endif %}">
+
             {% for error in form.hora_inicial.errors %}
                 <div class="invalid-feedback d-block">{{ error }}</div>
             {% endfor %}
         </div>
+
         
         <div class="mb-3">
             <label for="{{ form.hora_final.id_for_label }}" class="form-label">
                 <i class="fas fa-stop-circle"></i> Hora Final
             </label>
-            <input type="text"
-                   name="{{ form.hora_final.html_name }}"
-                   id="{{ form.hora_final.id_for_label }}"
-                   class="form-control"
-                   value="{{ form.hora_final.value|default:'' }}"
-                   placeholder="DD/MM/AAAA HH:MM:SS"
-                   onclick="fillCurrentDateTime('{{ form.hora_final.id_for_label }}')">
-            <small class="form-text text-muted">Clique para preencher com data e hora atual</small>
+
+            <input type="datetime-local"
+                name="{{ form.hora_final.html_name }}"
+                id="{{ form.hora_final.id_for_label }}"
+                class="form-control"
+                value="{% if form.hora_final.value %}{{ form.hora_final.value|date:'Y-m-d\\TH:i' }}{% endif %}">
+
             {% for error in form.hora_final.errors %}
                 <div class="invalid-feedback d-block">{{ error }}</div>
             {% endfor %}
         </div>
+
         
         <div class="row">
             <div class="col-md-6 mb-3">
@@ -188,19 +188,20 @@
         
         <div class="mb-3">
             <label for="{{ form.total.id_for_label }}" class="form-label">
-                <i class="fas fa-calculator"></i> Total
+                <i class="fas fa-calculator"></i> Total de Horas Extras
             </label>
-            <input type="number"
-                   step="0.01"
-                   name="{{ form.total.html_name }}"
-                   id="{{ form.total.id_for_label }}"
-                   class="form-control"
-                   value="{{ form.total.value|default:'' }}">
+
+            {{ form.total }}
+
+            <small class="form-text text-muted">
+                Calculado automaticamente com base no horário inicial e final
+            </small>
+
             {% for error in form.total.errors %}
                 <div class="invalid-feedback d-block">{{ error }}</div>
             {% endfor %}
         </div>
-        
+
         <button type="submit" class="btn btn-submit">
             <i class="fas fa-save"></i> Salvar Horas
         </button>
@@ -221,22 +222,59 @@ function fillCurrentDateTime(fieldId) {
   document.getElementById(fieldId).value = dateTimeString;
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-  var horaInicialField = document.getElementById('{{ form.hora_inicial.id_for_label }}');
-  var horaFinalField = document.getElementById('{{ form.hora_final.id_for_label }}');
+// document.addEventListener('DOMContentLoaded', function() {
+//   var horaInicialField = document.getElementById('{{ form.hora_inicial.id_for_label }}');
+//   var horaFinalField = document.getElementById('{{ form.hora_final.id_for_label }}');
   
-  if (horaInicialField) {
-    horaInicialField.addEventListener('click', function() {
-      fillCurrentDateTime('{{ form.hora_inicial.id_for_label }}');
-    });
-  }
+//   if (horaInicialField) {
+//     horaInicialField.addEventListener('click', function() {
+//       fillCurrentDateTime('{{ form.hora_inicial.id_for_label }}');
+//     });
+//   }
   
-  if (horaFinalField) {
-    horaFinalField.addEventListener('click', function() {
-      fillCurrentDateTime('{{ form.hora_final.id_for_label }}');
-    });
-  }
+//   if (horaFinalField) {
+//     horaFinalField.addEventListener('click', function() {
+//       fillCurrentDateTime('{{ form.hora_final.id_for_label }}');
+//     });
+//   }
+// });
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const inicio = document.getElementById('id_hora_inicial');
+    const fim    = document.getElementById('id_hora_final');
+    const total  = document.getElementById('id_total');
+
+    function calcularTotal() {
+        if (!inicio.value || !fim.value) {
+            total.value = '';
+            return;
+        }
+
+        const dataInicio = new Date(inicio.value);
+        const dataFim    = new Date(fim.value);
+
+        if (dataFim <= dataInicio) {
+            total.value = '';
+            return;
+        }
+
+        const diffMs = dataFim - dataInicio;
+        const totalMinutos = Math.floor(diffMs / 60000);
+
+        const horas = Math.floor(totalMinutos / 60);
+        const minutos = totalMinutos % 60;
+
+        total.value =
+            String(horas).padStart(2, '0') +
+            ':' +
+            String(minutos).padStart(2, '0');
+    }
+
+    inicio.addEventListener('change', calcularTotal);
+    fim.addEventListener('change', calcularTotal);
 });
 </script>
+
 
 {% endblock %}

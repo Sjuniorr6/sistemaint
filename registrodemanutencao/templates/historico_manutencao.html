@@ -259,18 +259,22 @@
 
 <div class="container-page mt-4 mb-5" style="margin-left:1vw; padding-left:0; width:99vw; max-width:98vw;">
     <div class="panel mb-3">
-      
-
             <form method="get" action="{% url 'historico_manutencaoListView' %}">
                 {% csrf_token %}
 
-                                 <div class="filters-card modern-filters">
+                <div class="filters-card modern-filters">
                      <div class="row g-2 align-items-end">
                          <!-- Primeira linha de filtros -->
                          <div class="col-md-2 col-6 mb-1">
                              <label for="id_registro" class="form-label small mb-1" style="color:#111;">ID</label>
                              <input type="number" class="form-control rounded" id="id_registro" name="id_registro" 
                                     placeholder="ID do registro" value="{{ request.GET.id_registro }}">
+                         </div>
+                         <div class="col-md-2 col-6 mb-1">
+                             <label for="numero_equipamento" class="form-label small mb-1" style="color:#111;">Número Equipamento</label>
+                             <input type="text" class="form-control" name="numero_equipamento"
+                                placeholder="Número do equipamento"
+                                value="{{ request.GET.numero_equipamento }}">
                          </div>
                          <div class="col-md-2 col-6 mb-1">
                              <label for="nome" class="form-label small mb-1" style="color:#111;">Nome</label>
@@ -323,93 +327,110 @@
                              <a href="{% url 'historico_manutencaoListView' %}" class="btn btn-outline-secondary px-3 rounded-pill"><i class="bi bi-x-circle"></i> Limpar</a>
                          </div>
                      </div>
-                 </div>
+                </div>
             </form>
 
-                 <!-- Tabela -->
-         <div class="table-wrap">
-         
-             <div class="table-responsive">
-                <table class="table table-bordered table-striped">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Nome</th>
-                            <th>Data de Entrada</th>
-                            <th>Tipo de Entrada</th>
-                            <th>Tipo de Produto</th>
-                            <th>Quantidade</th>
-                            <th>ID Equipamento</th>
-                            <th>Entregue / Retirado</th>
-                            <th>Status</th>
-                            <th>Status Tratativa</th>
-                            <th>Customização Setor</th>
-                            <th>Observações</th>
-                            <th class="text-center">Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for manutencao in dasentradas %}
-                            <tr class="status-{{ manutencao.status|default_if_none:'indefinido'|slugify }}">
-                                <td>{{ manutencao.id }}</td>
-                                <td>{{ manutencao.nome }}</td>
-                                <td>{{ manutencao.data_criacao|date:"d/m/Y" }}</td>
-                                <td>{{ manutencao.tipo_entrada }}</td>
-                                <td>{{ manutencao.tipo_produto }}</td>
-                                <td>{{ manutencao.quantidade }}</td>
-                                <td>{{ manutencao.id_equipamentos }}</td>
-                                <td>{{ manutencao.entregue_por_retirado_por }}</td>
-
-                                <!-- Badge amigável para Status -->
-                                <td>
-                                    {% if manutencao.status %}
-                                        {% with s=manutencao.status|stringformat:"s" %}
-                                            {% if "aprov" in s|lower %}
-                                                <span class="badge bg-success text-light">{{ manutencao.status }}</span>
-                                            {% elif "reprov" in s|lower or "neg" in s|lower %}
-                                                <span class="badge bg-danger text-light">{{ manutencao.status }}</span>
-                                            {% elif "pend" in s|lower or "anal" in s|lower %}
-                                                <span class="badge bg-warning text-dark">{{ manutencao.status }}</span>
-                                            {% else %}
-                                                <span class="badge bg-secondary text-light">{{ manutencao.status }}</span>
-                                            {% endif %}
-                                        {% endwith %}
-                                    {% else %}
-                                        <span class="badge bg-secondary text-light">—</span>
-                                    {% endif %}
-                                </td>
-
-                                <!-- Select de Status Tratativa -->
-                                <td style="min-width: 220px;">
-                                    <select class="form-control form-control-sm status-tratativa-select" data-id="{{ manutencao.id }}">
-                                        {% for choice in status_tratativa_choices %}
-                                            <option value="{{ choice.0 }}" {% if manutencao.status_tratativa == choice.0 %}selected{% endif %}>{{ choice.1 }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </td>
-
-                                <td>{{ manutencao.customizacaoo }}</td>
-                                <td class="text-truncate" style="max-width: 320px;" title="{{ manutencao.observacoes }}">{{ manutencao.observacoes }}</td>
-                                <td class="text-center" style="min-width: 260px;">
-                                    {% if manutencao.status == "Comercial" %}
-                                    <a class="btn btn-info btn-action mb-1" href="{% url 'download_pdfmanutencao' manutencao.id %}">Download PDF</a>
-                                    {% endif %}
-                                    <a class="btn btn-success btn-action mb-1" href="{% url 'download_protocolo_entrada' manutencao.id %}">Protocolo</a>
-                                    <a class="btn btn-primary btn-action mb-1" href="{% url 'FormulariosUpdateView' manutencao.id %}">Editar</a>
-                                </td>
+            <!-- Tabela -->
+            <div class="table-wrap">
+                <div class="table-responsive">
+                    <table id="tabela-manutencoes" class="table table-bordered table-striped">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Nome</th>
+                                <th>Data de Entrada</th>
+                                <th>Tipo de Entrada</th>
+                                <th>Tipo de Produto</th>
+                                <th>Quantidade</th>
+                                <th>ID Equipamento</th>
+                                <th>Entregue / Retirado</th>
+                                <th>Status</th>
+                                <th>Status Tratativa</th>
+                                <th>Customização Setor</th>
+                                <th>Observações</th>
+                                <th class="text-center">Ações</th>
                             </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {% for manutencao in dasentradas %}
+                                <tr class="status-{{ manutencao.status|default_if_none:'indefinido'|slugify }}">
+                                    <td>{{ manutencao.id }}</td>
+                                    <td>{{ manutencao.nome }}</td>
+                                    <td>{{ manutencao.data_criacao|date:"d/m/Y" }}</td>
+                                    <td>{{ manutencao.tipo_entrada }}</td>
+                                    <td>{{ manutencao.tipo_produto }}</td>
+                                    <td>{{ manutencao.quantidade }}</td>
+                                    <td>{{ manutencao.numero_equipamento }}</td>
+                                    <td>{{ manutencao.entregue_por_retirado_por }}</td>
+
+                                    <!-- Badge amigável para Status -->
+                                    <td>
+                                        {% if manutencao.status %}
+                                            {% with s=manutencao.status|stringformat:"s" %}
+                                                {% if "aprov" in s|lower %}
+                                                    <span class="badge bg-success text-light">{{ manutencao.status }}</span>
+                                                {% elif "reprov" in s|lower or "neg" in s|lower %}
+                                                    <span class="badge bg-danger text-light">{{ manutencao.status }}</span>
+                                                {% elif "pend" in s|lower or "anal" in s|lower %}
+                                                    <span class="badge bg-warning text-dark">{{ manutencao.status }}</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary text-light">{{ manutencao.status }}</span>
+                                                {% endif %}
+                                            {% endwith %}
+                                        {% else %}
+                                            <span class="badge bg-secondary text-light">—</span>
+                                        {% endif %}
+                                    </td>
+
+                                    <!-- Select de Status Tratativa -->
+                                    <td style="min-width: 220px;">
+                                        <select class="form-control form-control-sm status-tratativa-select" data-id="{{ manutencao.id }}">
+                                            {% for choice in status_tratativa_choices %}
+                                                <option value="{{ choice.0 }}" {% if manutencao.status_tratativa == choice.0 %}selected{% endif %}>{{ choice.1 }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </td>
+
+                                    <td>{{ manutencao.customizacaoo }}</td>
+                                    <td class="text-truncate" style="max-width: 320px;" title="{{ manutencao.observacoes }}">{{ manutencao.observacoes }}</td>
+                                    <td class="text-center" style="min-width: 260px;">
+                                        {% if manutencao.status == "Comercial" %}
+                                        <a class="btn btn-info btn-action mb-1" href="{% url 'download_pdfmanutencao' manutencao.id %}">Download PDF</a>
+                                        {% endif %}
+                                        <a class="btn btn-success btn-action mb-1" href="{% url 'download_protocolo_entrada' manutencao.id %}">Protocolo</a>
+                                        <a class="btn btn-primary btn-action mb-1" href="{% url 'FormulariosUpdateView' manutencao.id %}">Editar</a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="p-3">
+                    {% include 'components/_pagination.html' %} 
+                
+                <!-- Paginação -->
+                </div>
             </div>
-            <div class="p-3">
-                {% include 'components/_pagination.html' %} 
-            
-            <!-- Paginação -->
-            </div>
-        </div>
     </div>
 </div>
+
+<script>
+    $(document).ready(function () {
+        $('#tabela-manutencoes').DataTable({
+            scrollX: true,
+            scrollCollapse: true,
+            autoWidth: false,
+
+            language: {
+                url: "https://cdn.datatables.net/plug-ins/1.13.8/i18n/pt-BR.json"
+            },
+
+            pageLength: 10,
+            lengthMenu: [10, 25, 50, 100],
+            order: [[1, 'desc']]
+        });
+    });
+</script>
 
 <!-- Botão voltar ao topo -->
 <button class="back-to-top" onclick="scrollToTop()" title="Voltar ao topo">

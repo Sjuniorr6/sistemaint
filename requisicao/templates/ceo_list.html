@@ -418,7 +418,7 @@
   {% if requisições_sem_alteracao %}
   <div class="alert-modern">
     <i class="bi bi-clock-history" style="color: #f59e0b; margin-right: 0.5rem;"></i>
-    <strong>Atenção!</strong> Existem {{ requisições_sem_alteracao.count }} requisições que não foram alteradas nas últimas 24 horas. IDs:
+    <strong>Atenção!</strong> <p class="text-secondary">Existem {{ requisições_sem_alteracao.count }} requisições que não foram alteradas nas últimas 24 horas. IDs:</p>
     {% for item in requisições_sem_alteracao %}
     <a href="{% url 'ceodetailview' item.id %}">{{ item.id }}</a>{% if not forloop.last %}{% endif %}
     {% endfor %}

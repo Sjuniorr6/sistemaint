@@ -114,7 +114,7 @@ class requisicaoFormup(forms.ModelForm):
 
 from django import forms
 from django.core.exceptions import ValidationError
-from .models import Requisicoes, Clientes, estoque_antenista
+from .models import Requisicoes, Clientes, estoque_antenista, registrodeacompanhamento
 
 class RequisicoesForm(forms.ModelForm):
     class Meta:
@@ -305,3 +305,50 @@ class AntenistaForm(forms.ModelForm):
             'nome': forms.TextInput(attrs={'class': 'form-control'}),
             'estado': forms.TextInput(attrs={'class': 'form-control'}),
         }
+
+# Formulário para cadastro e edição de acompanhamento
+class FormulariosForm(forms.ModelForm):
+    class Meta:
+        model = registrodeacompanhamento
+        fields = [
+            'cliente', 'origem', 'destino',
+
+            'agente', 'placa_agente', 'motorista', 'placa_motorista',
+
+            'data_solicitada', 'horario_solicitado', 'data_inicial', 
+            'horario_inicio', 'data_final', 'horario_finalizacao',
+
+            'km_inicio', 'km_final', 'km_total',
+
+            # 'status', 'atraso', 
+            
+            'ocorrencia',
+            'nome_user',
+        ]
+
+        widgets = {
+            'cliente': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Cliente'}),
+            'origem': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Origem'}),
+            'destino': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Destino'}),
+
+            'agente': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Agente'}),
+            'placa_agente': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Placa do Agente'}),
+            'motorista': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Motorista'}),
+            'placa_motorista': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Placa do Motorista'}),
+
+            'data_solicitada': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'},format='%Y-%m-%d'),
+            'data_inicial': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'},format='%Y-%m-%d'),
+            'data_final': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'},format='%Y-%m-%d'),
+
+            'horario_solicitado': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
+            'horario_inicio': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
+            'horario_finalizacao': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
+         
+            'km_inicio': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'KM Início', 'id': 'km_inicio'}),
+            'km_final': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'KM Final', 'id': 'km_final'}),
+            'km_total': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'KM Total', 'id': 'km_total', 'readonly': 'readonly'}),
+            'ocorrencia': forms.Textarea(attrs={'class': 'form-control', 'placeholder': 'Descreva a Ocorrência', 'rows': 3}),
+
+            'nome_user': forms.TextInput(attrs={'class': 'form-control', 'readonly': 'readonly'}),
+        }
+# registrodeacompanhamento/forms.py
