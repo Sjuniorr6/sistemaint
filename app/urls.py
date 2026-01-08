@@ -42,6 +42,7 @@ urlpatterns = [
     path('nestle/', include('Nestle.urls')),
     path('corte/', include('corte.urls')),
     path('compras/', include('compras.urls')),
+    path('inteligencia/kanban/', include('kanban_inteligencia.urls')),
    
      
      

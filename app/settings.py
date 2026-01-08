@@ -84,6 +84,7 @@ INSTALLED_APPS = [
     'Nestle',  
     'corte',
     'compras',
+    'kanban_inteligencia',
 ]
 
 MIDDLEWARE = [
