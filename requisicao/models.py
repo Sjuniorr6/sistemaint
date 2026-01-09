@@ -1027,6 +1027,9 @@ class registrodeacompanhamento(models.Model):
 
     class Meta:
         ordering = ['-criado_em']
+        permissions = [
+            ("view_listacompanhamento", "Pode visualizar lista de acompanhamentos"),
+        ]
 
     def __str__(self):
         return f'Acompanhamento #{self.id} - {self.cliente}'

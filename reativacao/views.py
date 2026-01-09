@@ -115,7 +115,7 @@ class RequisicoesListView(PermissionRequiredMixin, LoginRequiredMixin, ListView)
     model = Requisicoes
     template_name = 'requisicoes_list.html'
     context_object_name = 'requisicoes'
-    paginate_by = 5
+    paginate_by = 8
     permission_required = 'reativacao.view_reativacao'
 
     def get_queryset(self):
@@ -149,27 +149,29 @@ class ReativacaoListView(PermissionRequiredMixin, LoginRequiredMixin, View):
         status_reativacao_filtro = request.GET.get('status_reativacao_filtro')
         motivo_reativacao_filtro = request.GET.get('motivo_filtro')
         
+        # Queryset completa (SEM paginação)
         reativacoes = Reativacao.objects.all().order_by('-id')
 
         if cliente_filtro:
             reativacoes = reativacoes.filter(nome__id=cliente_filtro)
-        if status_reativacao_filtro:
-            reativacoes = reativacoes.filter(status_reativacao=status_reativacao_filtro)
-        if motivo_reativacao_filtro:
-            reativacoes = reativacoes.filter(motivo_reativacao=motivo_reativacao_filtro)
 
-        # Paginação
-        paginator = Paginator(reativacoes, 10)  # 10 registros por página
-        page_number = request.GET.get('page')
-        page_obj = paginator.get_page(page_number)
+        if status_reativacao_filtro:
+            reativacoes = reativacoes.filter(
+                status_reativacao=status_reativacao_filtro
+            )
+
+        if motivo_reativacao_filtro:
+            reativacoes = reativacoes.filter(
+                motivo_reativacao=motivo_reativacao_filtro
+            )
 
         return render(request, 'reativacao_list.html', {
-            'reativacoes': page_obj,  # Passando a página em vez da queryset completa
+            'reativacoes': reativacoes,  # queryset completa
             'clientes_choices': Clientes.objects.all(),
             'status_reativacao_choices': Reativacao.STATUS_CHOICES,
             'motivos_choices': Reativacao.MOTIVO_CHOICES,
-            'page_obj': page_obj,  # Adicionando page_obj ao contexto
         })
+
 
 def update_status(request):
     if request.method == 'POST':

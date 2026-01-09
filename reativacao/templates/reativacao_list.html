@@ -5,10 +5,23 @@
 
 {% include 'components/_header.html' %}
 {% block content %}
-<link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css"/>
+
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+
+<!-- DataTables PT-BR -->
+<script src="https://cdn.datatables.net/plug-ins/1.13.8/i18n/pt-BR.json"></script>
 
 <style>
+    .header-bottom{
+        margin-left: 0px !important;
+    }
     html, body {
         background-color: #45494E;
         color: #f2f4f7;
@@ -18,24 +31,12 @@
     }
 
     .container.mt-4, .container {
-        width: 100vw !important;
+        /* width: 100vw !important; */
         max-width: 100vw !important;
         margin: 0 !important;
         padding: 0 !important;
     }
-    .container-page {
-        width: 100vw;
-        max-width: none;
-        margin: 0;
-        padding: 0;
-        position: relative;
-        overflow-x: auto;
-        overflow-y: auto;
-        left: 0;
-        right: auto;
-        justify-content: flex-start;
-        align-items: flex-start;
-    }
+
     .content-card {
         background: #fff;
         border-radius: 12px;
@@ -66,12 +67,6 @@
         font-size: 1rem;
         font-weight: 500;
     }
-    .table-responsive {
-        overflow-x: auto;
-        overflow-y: auto;
-        max-height: 70vh;
-        margin-bottom: 1rem;
-    }
     .form-control {
         width: 100%;
         white-space: nowrap;
@@ -85,50 +80,53 @@
         background-color: #344038;
         color: white;
     }
-        .table, .table th, .table td {
-            font-size: 0.85rem;
-        }
-            .table th { 
-                text-align: center; 
-                vertical-align: top; 
-                padding-top: 0.3rem; 
-                padding-bottom: 0.3rem; 
-                height: 48px; 
-        }
 
-        /* Reduzir largura dos filtros de Status de Reativação e Motivo */
-        #status_reativacao_filtro, #motivo_filtro, #cliente_filtro {
-            width: 220px;
-            min-width: 180px;
-            display: inline-block;
-        }
-        /* Ajustar layout dos filtros e botões */
-        .modern-filters .row.g-3 {
-            flex-wrap: nowrap;
-            display: flex;
-            align-items: flex-end;
-        }
-        .modern-filters .col-md-4 {
-            flex: 0 0 auto;
-            width: auto;
-            margin-right: 12px;
-        }
-        .modern-filters .col-12.d-flex {
-            flex: 0 0 auto;
-            width: auto;
-            margin-left: 12px;
-        }
+    .table, .table th, .table td {
+        font-size: 0.85rem;
+    }
+
+    .table th { 
+        text-align: center; 
+        vertical-align: top; 
+        padding-top: 0.3rem; 
+        padding-bottom: 0.3rem; 
+        height: 48px; 
+    }
+
+    /* Reduzir largura dos filtros de Status de Reativação e Motivo */
+    #status_reativacao_filtro, #motivo_filtro, #cliente_filtro {
+        /* width: 220px;
+        min-width: 180px; */
+        display: inline-block;
+    }
+    /* Ajustar layout dos filtros e botões */
+    .modern-filters .row.g-3 {
+        display: flex;
+    }
+    .modern-filters .col-md-4 {
+        flex: 0 0 auto;
+        width: auto;
+        margin-right: 12px;
+    }
+    .modern-filters .col-12.d-flex {
+        flex: 0 0 auto;
+        width: auto;
+        margin-left: 12px;
+    }
+
+    .dataTables_length{
+        margin-bottom: 20px !important;
+    }
 </style>
 
-
-<div class="container-page mt-4 mb-5">
+<section class="mt-5 mb-5">
     <div class="content-card">
         <div class="text-center mb-4">
             <h4 class="panel-title mb-0" style="color: #111;">Lista de Reativações</h4>
         </div>
         <form method="get" action="{% url 'reativacao_list' %}">
             <div class="modern-filters">
-                <div class="row g-3 align-items-center">
+                <div class="row g-3 ">
                     <div class="col-md-4 col-12">
                         <label for="cliente_filtro" class="form-label small mb-1" style="color:#111;">Cliente</label>
                         <select name="cliente_filtro" id="cliente_filtro" class="form-select rounded">
@@ -163,9 +161,8 @@
                 </div>
             </div>
         </form>
-        <div class="table-wrap">
-            <div class="table-responsive">
-                <table class="table table-bordered table-striped">
+        <div class="table-responsive text-black">
+                <table id="tabela-reativacoes" class="table table-bordered table-striped table-hover">
                     <thead class="thead-dark">
                         <tr>
                             <th style="text-align: center;">ID</th>
@@ -181,8 +178,8 @@
                             <th style="text-align: center;">Status da Reativação</th>
                             <th style="text-align: center;">Quantidade</th>
                             <th style="text-align: center;">Status</th>
-                                    <th style="text-align: center;">Editar</th>
-                                    <th style="text-align: center;">Excluir</th>
+                            <th style="text-align: center;">Editar</th>
+                            <th style="text-align: center;">Excluir</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -277,11 +274,29 @@
                         {% endfor %}
                     </tbody>
                 </table>
-            </div>
-            <div class="p-3">
-                {% include 'components/_pagination.html' %}
-            </div>
+        </div>
+        <div class="p-3">
+            {% include 'components/_pagination.html' %}
         </div>
     </div>
-</div>
+</section>
+
+<script>
+    $(document).ready(function () {
+        $('#tabela-reativacoes').DataTable({
+            scrollX: true,
+            scrollCollapse: true,
+            autoWidth: false,
+
+            language: {
+                url: "https://cdn.datatables.net/plug-ins/1.13.8/i18n/pt-BR.json"
+            },
+
+            pageLength: 10,
+            lengthMenu: [10, 25, 50, 100],
+            order: [[1, 'desc']]
+        });
+    });
+</script>
+
 {% endblock %}
