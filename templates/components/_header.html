@@ -270,7 +270,7 @@
                     </li>
 
                     <!-- Compras -->
-                    <li class="nav-item dropdown">
+                    <!-- <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="dropdownCompras" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-cart-fill"></i> Compras
                         </a>
@@ -278,7 +278,7 @@
                             <li><a class="dropdown-item" href="{% url 'compras:cadastro_tipo_produto' %}">Cadastrar Produto</a></li>
                             <li><a class="dropdown-item" href="{% url 'compras:entrada_produto' %}">Entrada de Produto</a></li>
                         </ul>
-                    </li>
+                    </li> -->
 
                     <!-- Estoque (Produtos) -->
                     {% if perms.produto.view_produto %}
@@ -385,7 +385,7 @@
                     {% endif %}
 
                     <!-- Operacional -->
-                    {% if perms.qualit.view_qualit %}
+                    {% if perms.qualit.view_qualit or perms.requisicao.view_registrodeacompanhamento %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="dropdownOperacional" role="button"
                         data-bs-toggle="dropdown" aria-expanded="false">
@@ -393,6 +393,7 @@
                         </a>
 
                         <ul class="dropdown-menu" aria-labelledby="dropdownOperacional">
+
                             {% if perms.pparada.delete_paradasegura %}
                             <li>
                                 <a class="dropdown-item" href="{% url 'listar_qualits' %}">
@@ -429,19 +430,6 @@
                             </li>
                             {% endif %}
 
-                            {% if perms.reativacao.view_reativacao %}
-                            <li>
-                                <a class="dropdown-item" href="{% url 'reativacao_id_iccid_adicionar' %}">
-                                    Formulário de Reativação
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" href="{% url 'reativacao_list' %}">
-                                    Histórico de Reativação
-                                </a>
-                            </li>
-                            {% endif %}
-
                             {% if perms.registrodemanutencao.view_registrodemanutencao %}
                             <li>
                                 <a class="dropdown-item" href="{% url 'historico_manutencaoListView' %}">
@@ -450,23 +438,31 @@
                             </li>
                             {% endif %}
 
-                            <li class="dropdown-submenu">
-                                <a class="dropdown-item dropdown-toggle">
-                                    Acompanhamento
-                                </a>
-                                <ul class="dropdown-menu">
-                                    <li>
-                                        <a class="dropdown-item" href="{% url 'acompanhamentoList' %}">
-                                            Ver Acompanhamentos
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item" href="{% url 'acompanhamentoCreate' %}">
-                                            Criar Acompanhamento
-                                        </a>
-                                    </li>
-                                </ul>
-                            </li>
+                            {% if perms.requisicao.add_registrodeacompanhamento %}
+                                <li class="dropdown-submenu">
+                                    <a class="dropdown-item dropdown-toggle">
+                                        Acompanhamento
+                                    </a>
+                                    <ul class="dropdown-menu">
+                                        {% if perms.requisicao.view_listacompanhamento %}
+                                        <li>
+                                            <a class="dropdown-item" href="{% url 'acompanhamentoList' %}">
+                                                Ver Acompanhamentos
+                                            </a>
+                                        </li>
+                                        {% endif %}
+
+                                        {% if perms.requisicao.add_registrodeacompanhamento %}
+                                        <li>
+                                            <a class="dropdown-item" href="{% url 'acompanhamentoCreate' %}">
+                                                Criar Acompanhamento
+                                            </a>
+                                        </li>
+                                        {% endif %}
+                                    </ul>
+                                </li>
+                            {% endif %}
+
                         </ul>
                     </li>
 
