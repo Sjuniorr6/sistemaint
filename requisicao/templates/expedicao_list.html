@@ -499,22 +499,24 @@
           <div class="exp-actions">
             <a class="btn-exp pdf" href="{% url 'gerar_pdf_saida' registro.id %}" title="Download PDF">
               <i class="bi bi-file-earmark-arrow-down-fill"></i>
-              PDF 1
+              Protocolo de Saída
             </a>
             <a class="btn-exp pdf-alt" href="{% url 'download_pdf_requisicao' registro.id %}" title="Saída PDF">
               <i class="bi bi-file-earmark-pdf-fill"></i>
-              PDF 2
+              Requisição Pdf
             </a>
-
+            
             {% if perms.nestle.delete_gridinternacional %}
-            <a href="{% url 'requisicao_update' registro.id %}" class="btn-exp edit" title="Editar">
-              <i class="bi bi-pencil-square"></i>
-              Editar
-            </a>
-            <a href="{% url 'requisicoesdeleteview' registro.id %}" class="btn-exp delete" title="Excluir">
-              <i class="bi bi-trash-fill"></i>
-              Excluir
-            </a>
+              {% if user|has_group:"INTENCLIGENCIA" %}
+                <a href="{% url 'requisicao_update' registro.id %}" class="btn-exp edit" title="Editar">
+                  <i class="bi bi-pencil-square"></i>
+                  Editar
+                </a>
+              {% endif %}
+              <a href="{% url 'requisicoesdeleteview' registro.id %}" class="btn-exp delete" title="Excluir">
+                <i class="bi bi-trash-fill"></i>
+                Excluir
+              </a>
             {% endif %}
 
             <a class="btn-exp send" href="{% url 'expedicao_expedido' registro.id %}" title="Enviado ao Cliente">

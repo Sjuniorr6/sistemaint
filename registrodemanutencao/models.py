@@ -38,15 +38,17 @@ class registrodemanutencao(models.Model):
         ('Devolução/Estoque', 'Devolução/Estoque'),
     ]
 
-   
-
     STATUS_CHOICES = [
-        ('Aprovado', 'Aprovado'),
-        ('Reprovado pela Diretoria', 'Reprovado pela Diretoria'),
-        ('Aprovado pela Diretoria', 'Aprovado pela Diretoria'),
+        # ('Aprovado', 'Aprovado'),
+        # ('Reprovado pela Diretoria', 'Reprovado pela Diretoria'),
         ('Pendente', 'Pendente'),
-        ('Expedição', 'Expedição'),
-        ('expedido', 'expedido'),
+        ('Comercial', 'Comercial'),
+        ('Aprovado pela Inteligência', 'Aprovado pela Inteligência'),
+        ('Reprovado pela Inteligência', 'Reprovado pela Inteligência'),
+        ('Tratativa Finalizada', 'Tratativa Finalizada'),
+        # ('Aprovado pela Diretoria', 'Aprovado pela Diretoria'),
+        # ('Expedição', 'Expedição'),
+        # ('expedido', 'expedido'),
     ]
 
     STATUS_TRATATIVA_CHOICES = [

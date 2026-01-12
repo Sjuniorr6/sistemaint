@@ -77,6 +77,13 @@
         #tabela-acompanhamentos td {
             cursor: default;
         }
+
+        @media screen and (max-width: 767px) {
+            .header-tablee{
+                flex-direction: column;
+            }
+        }
+        
     </style>
 
     <div class="container mt-3 mb-5 text-center">
@@ -93,41 +100,46 @@
         <div class="row">
             <div class="col-12">
                 <div class="content-main text-start">
-                    <h2 class="fs-5">Filtragem para extrair Excel</h2>
+                    <h2 class="fs-5">Filtragem para extrair Excel / Pdf</h2>
                     <hr>
                     <div class="filtro-excel">
                         <form method="get" action="{% url 'acompanhamentoList' %}" class="search-form">
                             <div class="row">
-                                <div class="col-12 col-md-2 mb-2">
+                                <div class="col-12 col-md-3 col-lg-2 mb-2">
                                     <input type="date" class="search-input form-control" name="data" placeholder="Data Solicitada"
                                     value="{{ request.GET.data|default:'' }}" min="1" data-bs-theme="light">
                                 </div>
-                                <div class="col-12 col-md-2 mb-2">
+                                <div class="col-12 col-md-3 col-lg-2 mb-2">
                                     <input type="date" class="search-input form-control" name="data2" placeholder="Data Solicitada"
                                     value="{{ request.GET.data2|default:'' }}" min="1" data-bs-theme="light">
                                 </div>
-                                <div class="col-12 col-md-2 mb-2">
+                                <div class="col-12 col-md-3 col-lg-2 mb-2">
                                     <input type="text" class="search-input form-control" name="agente" placeholder="Nome do Agente..."
                                     value="{{ request.GET.agente|default:'' }}" data-bs-theme="light">
                                 </div>
-                                <div class="col-12 col-md-2 mb-2">
+                                <div class="col-12 col-md-3 col-lg-2 mb-2">
                                     <input type="text" class="search-input form-control" name="cliente" placeholder="Nome do Cliente..."
                                     value="{{ request.GET.cliente|default:'' }}" data-bs-theme="light">
                                 </div>
-                                <div class="col-12 col-md-2 mb-2 text-center">
+                                <div class="col-12 col-md-4 col-lg-1 mb-2 text-center">
                                     <button type="submit" class="btn btn-primary">
-                                    <i class="bi bi-search"></i> Buscar
+                                    <i class="bi bi-search"></i>
                                     </button>
                                 </div>
-                                <div class="col-12 col-md-2 mb-2 text-center">
+                                <div class="col-12 col-md-4 col-lg-1 mb-2 text-center">
+                                    <button type="submit" name="export" value="pdf" class="btn btn-success">
+                                        <i class="bi bi-file-earmark-spreadsheet"></i> PDF
+                                    </button>
+                                </div>
+                                <div class="col-12 col-md-4 col-lg-2 mb-2 text-center">
                                     <button type="submit" name="export" value="excel" class="btn btn-success">
                                         <i class="bi bi-file-earmark-spreadsheet"></i> Extrair Excel
                                     </button>
-                                </div>
+                                </div>              
                             </div>
                         </form>
 
-                        {% if data or data2 or agente or cliente %}
+                        {% if request.GET.data or request.GET.data2 or request.GET.agente or request.GET.cliente or request.GET.pendente %}
                             <div class="row mb-2 mt-3">
                                 <div class="col-12 text-center">
                                     <a href="{% url 'acompanhamentoList' %}" class="btn btn-secondary">
@@ -147,8 +159,13 @@
             <div class="col-12">
                 <div class="content-main">
                      <div class="table-responsive table-excel">
-                        <div class="text-center mb-2">
+                        <div class="header-tablee mb-2" style="display: flex; justify-content: space-between; align-items: center;">
                             <a href="{% url 'acompanhamentoCreate' %}" class="btn btn-primary"> + Acompanhamento</a>
+
+                            <a href="?{% for key, value in request.GET.items %}{% if key != 'pendente' %}{{ key }}={{ value }}&{% endif %}{% endfor %}pendente=true" class="badge bg-warning text-dark fs-6 mt-1 mt-md-0" style="text-decoration: none;">
+                                Pendentes: {{ pendentes_count }}
+                            </a>
+
                         </div>
                         <table id="tabela-acompanhamentos" class="table table-striped table-hover">
                             <thead>
@@ -158,6 +175,7 @@
                                     <th>Cliente</th>
                                     <th>Origem</th>
                                     <th>Destino</th>
+                                    <th>Responsável Agente</th>
                                     <th>Agente</th>
                                     <th>Placa Agente</th>
                                     <th>Motorista</th>
@@ -168,6 +186,7 @@
                                     <th>Horário Inicial</th>
                                     <th>Data Final</th>
                                     <th>Horário Final</th>
+                                    <th>Horário Total</th>
                                     <th>KM Início</th>
                                     <th>KM Final</th>
                                     <th>KM Total</th>
@@ -187,6 +206,7 @@
                                     <td>{{ item.cliente }}</td>
                                     <td>{{ item.origem }}</td>
                                     <td>{{ item.destino }}</td>
+                                    <td>{{ item.responsavel_agente }}</td>
                                     <td>{{ item.agente }}</td>
                                     <td>{{ item.placa_agente }}</td>
                                     <td>{{ item.motorista }}</td>
@@ -198,6 +218,7 @@
                                     <td>{{ item.horario_inicio|time:"H:i" }}</td>
                                     <td>{{ item.data_final|date:"d/m/Y" }} </td>
                                     <td>{{ item.horario_finalizacao|time:"H:i" }}</td>
+                                    <td>{{ item.horario_total }}</td>
 
                                     <td>{{ item.km_inicio }}</td>
                                     <td>{{ item.km_final }}</td>

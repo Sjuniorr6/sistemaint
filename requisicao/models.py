@@ -995,27 +995,30 @@ class CampoAlterado(models.Model):
         return f"{self.nome_campo}: {self.valor_anterior} → {self.valor_novo}"
 
 class registrodeacompanhamento(models.Model):
-    cliente = models.CharField(max_length=100)
-    origem = models.CharField(max_length=100)
-    destino = models.CharField(max_length=100)
+    cliente = models.CharField(max_length=100, blank=True, null=True)
+    origem = models.CharField(max_length=100, blank=True, null=True)
+    destino = models.CharField(max_length=100, blank=True, null=True)
 
-    agente = models.CharField(max_length=100)
-    placa_agente = models.CharField(max_length=10)
-    motorista = models.CharField(max_length=100)
-    placa_motorista = models.CharField(max_length=10)
+    responsavel_agente = models.CharField(max_length=100, blank=True, null=True)
+    agente = models.CharField(max_length=100, blank=True, null=True)
+    placa_agente = models.CharField(max_length=10, blank=True, null=True)
+    motorista = models.CharField(max_length=100, blank=True, null=True)
+    placa_motorista = models.CharField(max_length=10, blank=True, null=True)
 
-    data_solicitada = models.DateField()
-    horario_solicitado = models.TimeField()
+    data_solicitada = models.DateField(blank=True, null=True)
+    horario_solicitado = models.TimeField(blank=True, null=True)
 
-    data_inicial = models.DateField()
-    horario_inicio = models.TimeField()
+    data_inicial = models.DateField(blank=True, null=True)
+    horario_inicio = models.TimeField(blank=True, null=True)
 
-    data_final = models.DateField()
-    horario_finalizacao = models.TimeField()
+    data_final = models.DateField(blank=True, null=True)
+    horario_finalizacao = models.TimeField(blank=True, null=True)
 
-    km_inicio = models.IntegerField()
-    km_final = models.IntegerField()
-    km_total = models.IntegerField()
+    horario_total = models.DurationField(blank=True, null=True, help_text="Tempo total do acompanhamento")
+
+    km_inicio = models.IntegerField(blank=True, null=True)
+    km_final = models.IntegerField(blank=True, null=True)
+    km_total = models.IntegerField(blank=True, null=True)
 
     ocorrencia = models.TextField(blank=True, null=True)
 
@@ -1023,7 +1026,7 @@ class registrodeacompanhamento(models.Model):
     nome_user = models.CharField(max_length=150, blank=True, null=True)
 
     criado_em = models.DateTimeField(auto_now_add=True)
-    atualizado_em = models.DateTimeField(auto_now=True)
+    atualizado_em = models.DateTimeField(auto_now=True) 
 
     class Meta:
         ordering = ['-criado_em']
