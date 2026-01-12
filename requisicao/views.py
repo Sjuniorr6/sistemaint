@@ -1245,6 +1245,8 @@ from reportlab.lib.colors import HexColor
 import os
 from io import BytesIO
 from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A3
+from reportlab.lib.pagesizes import landscape
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import (
@@ -2260,7 +2262,7 @@ def salvar_ids_equipamentos(request, pk):
 # ============== KANBAN BOARD VIEWS ==============
 
 from django.db.models import Count, F
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 
 
 class KanbanGestaoView(PermissionRequiredMixin, LoginRequiredMixin, ListView):
@@ -2755,16 +2757,65 @@ class AcompanhamentoCreateView(
         initial = super().get_initial()
         user = getattr(self.request, 'user', None)
         if user:
-            nome = user.get_full_name() or user.username
-            initial['nome_user'] = nome
+            initial['nome_user'] = user.get_full_name() or user.username
         return initial
 
     def form_valid(self, form):
+        campos_para_validar = [
+            'cliente', 'origem', 'destino',
+            'agente', 'placa_agente', 'motorista', 'placa_motorista',
+            'data_solicitada', 'horario_solicitado',
+            'data_inicial', 'horario_inicio',
+            'data_final', 'horario_finalizacao',
+            'km_inicio', 'km_final',
+            'ocorrencia',
+        ]
+
+        dados = form.cleaned_data
+
+        # Verifica se TODOS estão vazios
+        todos_vazios = all(
+            not dados.get(campo)
+            for campo in campos_para_validar
+        )
+
+        if todos_vazios:
+            return redirect("acompanhamentoList")
+
         instance = form.save(commit=False)
 
-        # calcular km_total se possível
-        if instance.km_inicio is not None and instance.km_final is not None:
+        instance = form.save(commit=False)
+
+        # 👉 REGRA: horário final padrão
+        if instance.horario_finalizacao is None:
+            instance.horario_finalizacao = time(0, 0)
+
+        # 👉 REGRA: km final padrão
+        if instance.km_final is None:
+            instance.km_final = 0
+
+        # 👉 Cálculo do km total
+        if instance.km_inicio is not None:
             instance.km_total = instance.km_final - instance.km_inicio
+        else:
+            instance.km_total = 0
+
+        if instance.horario_inicio and instance.horario_finalizacao:
+            inicio = datetime.combine(
+                instance.data_inicial or datetime.today(),
+                instance.horario_inicio
+            )
+            fim = datetime.combine(
+                instance.data_final or instance.data_inicial or datetime.today(),
+                instance.horario_finalizacao
+            )
+
+            if fim >= inicio:
+                instance.horario_total = fim - inicio
+            else:
+                instance.horario_total = timedelta(0)
+        else:
+            instance.horario_total = timedelta(0)
 
         user = getattr(self.request, 'user', None)
         if user:
@@ -2772,6 +2823,8 @@ class AcompanhamentoCreateView(
 
         instance.save()
         return super().form_valid(form)
+
+# ...existing code...
 
 class AcompanhamentoListView(
     LoginRequiredMixin,
@@ -2783,6 +2836,32 @@ class AcompanhamentoListView(
     context_object_name = "acompanhamentos"
     permission_required = "requisicao.view_listacompanhamento"
 
+    def get_pendentes_filter(self):
+        filtro_pendentes = Q()
+        for field in self.model._meta.fields:
+            nome = field.name
+            if nome in ["id", "criado_em", "atualizado_em"]:
+                continue
+            # 🔹 Texto (CharField / TextField)
+            if field.get_internal_type() in ["CharField", "TextField"]:
+                filtro_pendentes |= Q(**{f"{nome}__isnull": True})
+                filtro_pendentes |= Q(**{nome: ""})
+            # 🔹 Data (DateField)
+            elif field.get_internal_type() == "DateField":
+                filtro_pendentes |= Q(**{f"{nome}__isnull": True})
+            # 🔹 Hora (TimeField)
+            elif field.get_internal_type() == "TimeField":
+                filtro_pendentes |= Q(**{f"{nome}__isnull": True})
+                filtro_pendentes |= Q(**{nome: time(0, 0)})
+            # 🔹 Duração (DurationField)
+            elif field.get_internal_type() == "DurationField":
+                filtro_pendentes |= Q(**{f"{nome}__isnull": True})
+            # 🔹 Números (IntegerField, etc)
+            elif field.get_internal_type() in ["IntegerField", "FloatField", "DecimalField"]:
+                filtro_pendentes |= Q(**{f"{nome}__isnull": True})
+                filtro_pendentes |= Q(**{nome: 0})
+        return filtro_pendentes
+
     def get_queryset(self):
         queryset = super().get_queryset()
 
@@ -2790,6 +2869,7 @@ class AcompanhamentoListView(
         data2 = self.request.GET.get("data2")
         agente = self.request.GET.get("agente")
         cliente = self.request.GET.get("cliente")
+        pendente = self.request.GET.get("pendente")
 
         if data and data2:
             if data > data2:
@@ -2806,71 +2886,74 @@ class AcompanhamentoListView(
         if cliente:
             queryset = queryset.filter(cliente__icontains=cliente)
 
+        if pendente == "true":
+            filtro = self.get_pendentes_filter()
+            queryset = queryset.filter(filtro)
+
         return queryset.order_by("-criado_em")
 
-    def render_to_response(self, context, **response_kwargs):
-        
-        if self.request.GET.get("export") == "excel":
-            return self.exportar_excel(context["acompanhamentos"])
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        filtro = self.get_pendentes_filter()
+        context['pendentes_count'] = self.model.objects.filter(filtro).distinct().count()
 
-        return super().render_to_response(context, **response_kwargs)
+        # Mantém filtros da tela
+        context["data"] = self.request.GET.get("data", "")
+        context["data2"] = self.request.GET.get("data2", "")
+        context["agente"] = self.request.GET.get("agente", "")
+        context["cliente"] = self.request.GET.get("cliente", "")
 
-    def exportar_excel(self, queryset):
-        workbook = openpyxl.Workbook()
-        sheet = workbook.active
-        sheet.title = "Acompanhamentos"
+        return context
 
-        headers = [
-            "Protocolo", "Cliente", "Origem", "Destino",
-            "Agente", "Placa Agente",
-            "Motorista", "Placa Motorista",
-            "Data Solicitada", "Hora Solicitada",
-            "Data Inicial", "Hora Inicial",
-            "Data Final", "Hora Final",
-            "KM Início", "KM Final", "KM Total",
-            "Ocorrência",
-            'Feito Por'
-        ]
-        sheet.append(headers)
+    # ...existing code...
 
-        for item in queryset:
-            sheet.append([
-                item.id,
-                item.cliente,
-                item.origem,
-                item.destino,
-                item.agente,
-                item.placa_agente,
-                item.motorista,
-                item.placa_motorista,
-                item.data_solicitada.strftime("%d/%m/%Y") if item.data_solicitada else "",
-                item.horario_solicitado.strftime("%H:%M") if item.horario_solicitado else "",
-                item.data_inicial.strftime("%d/%m/%Y") if item.data_inicial else "",
-                item.horario_inicio.strftime("%H:%M") if item.horario_inicio else "",
-                item.data_final.strftime("%d/%m/%Y") if item.data_final else "",
-                item.horario_finalizacao.strftime("%H:%M") if item.horario_finalizacao else "",
-                item.km_inicio,
-                item.km_final,
-                item.km_total,
-                item.ocorrencia,
-                item.nome_user,
-            ])
-
-        response = HttpResponse(
-            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-        response["Content-Disposition"] = 'attachment; filename="acompanhamentos.xlsx"'
-
-        workbook.save(response)
-        return response
 
     def get_context_data(self, **kwargs):
-            context = super().get_context_data(**kwargs)
-            context["data"] = self.request.GET.get("data", "")
-            context["data2"] = self.request.GET.get("data2", "")
-            context["agente"] = self.request.GET.get("agente", "")
-            context["cliente"] = self.request.GET.get("cliente", "")
-            return context
+        context = super().get_context_data(**kwargs)
+
+        base_qs = self.model.objects.all()
+        filtro_pendentes = Q()
+
+        for field in self.model._meta.fields:
+
+            nome = field.name
+
+            if nome in ["id", "criado_em", "atualizado_em"]:
+                continue
+
+            # 🔹 Texto (CharField / TextField)
+            if field.get_internal_type() in ["CharField", "TextField"]:
+                filtro_pendentes |= Q(**{f"{nome}__isnull": True})
+                filtro_pendentes |= Q(**{nome: ""})
+
+            # 🔹 Data (DateField)
+            elif field.get_internal_type() == "DateField":
+                filtro_pendentes |= Q(**{f"{nome}__isnull": True})
+
+            # 🔹 Hora (TimeField)
+            elif field.get_internal_type() == "TimeField":
+                filtro_pendentes |= Q(**{f"{nome}__isnull": True})
+                filtro_pendentes |= Q(**{nome: time(0, 0)})
+
+            # 🔹 Duração (DurationField)
+            elif field.get_internal_type() == "DurationField":
+                filtro_pendentes |= Q(**{f"{nome}__isnull": True})
+
+            # 🔹 Números (IntegerField, etc)
+            elif field.get_internal_type() in ["IntegerField", "FloatField", "DecimalField"]:
+                filtro_pendentes |= Q(**{f"{nome}__isnull": True})
+                filtro_pendentes |= Q(**{nome: 0})
+
+        context["pendentes_count"] = base_qs.filter(filtro_pendentes).distinct().count()
+
+        # Mantém filtros da tela
+        context["data"] = self.request.GET.get("data", "")
+        context["data2"] = self.request.GET.get("data2", "")
+        context["agente"] = self.request.GET.get("agente", "")
+        context["cliente"] = self.request.GET.get("cliente", "")
+
+        return context
+
 
 class RegistroAcompanhamentoUpdateView(
     LoginRequiredMixin,
@@ -2881,20 +2964,72 @@ class RegistroAcompanhamentoUpdateView(
     form_class = FormulariosForm
     template_name = "acompanhamento_create.html"
     success_url = reverse_lazy("acompanhamentoList")
-
     permission_required = "requisicao.change_registrodeacompanhamento"
 
     def form_valid(self, form):
+        campos_para_validar = [
+            'cliente', 'origem', 'destino',
+            'agente', 'placa_agente', 'motorista', 'placa_motorista',
+            'data_solicitada', 'horario_solicitado',
+            'data_inicial', 'horario_inicio',
+            'data_final', 'horario_finalizacao',
+            'km_inicio', 'km_final',
+            'ocorrencia',
+        ]
+
+        dados = form.cleaned_data
+
+        todos_vazios = all(
+            not dados.get(campo)
+            for campo in campos_para_validar
+        )
+
+        if todos_vazios:
+            return redirect("acompanhamentoList")
+
         instance = form.save(commit=False)
+
+        # 👉 Horário final padrão
+        if instance.horario_finalizacao is None:
+            instance.horario_finalizacao = time(0, 0)
+
+        # 👉 KM final padrão
+        if instance.km_final is None:
+            instance.km_final = 0
+
+        # 👉 KM total
+        if instance.km_inicio is not None:
+            instance.km_total = instance.km_final - instance.km_inicio
+        else:
+            instance.km_total = 0
 
         if instance.km_inicio is not None and instance.km_final is not None:
             instance.km_total = instance.km_final - instance.km_inicio
+
+        if instance.horario_inicio and instance.horario_finalizacao:
+            inicio = datetime.combine(
+                instance.data_inicial or datetime.today(),
+                instance.horario_inicio
+            )
+            fim = datetime.combine(
+                instance.data_final or instance.data_inicial or datetime.today(),
+                instance.horario_finalizacao
+            )
+
+            if fim >= inicio:
+                instance.horario_total = fim - inicio
+            else:
+                instance.horario_total = timedelta(0)
+        else:
+            instance.horario_total = timedelta(0)
+
         user = getattr(self.request, 'user', None)
         if user:
             instance.nome_user = user.get_full_name() or user.username
 
         instance.save()
         return super().form_valid(form)
+
 
 
 

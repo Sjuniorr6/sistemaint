@@ -81,13 +81,13 @@
                         <div class="row">
                             <p>Informações Iniciais</p>
                             <hr>
-                            <div class="col-12 col-md-3">
+                            <div class="col-12 col-md-4">
                                 {{ form.cliente }}
                             </div>
-                            <div class="col-12 col-md-3">
+                            <div class="col-12 col-md-4">
                                 {{ form.origem }}
                             </div>
-                            <div class="col-12 col-md-3">
+                            <div class="col-12 col-md-4">
                                 {{ form.destino }}
                             </div>
                         </div>
@@ -96,16 +96,21 @@
                         <div class="row mt-4">
                             <p>Informações de Agente / Motorista</p>
                             <hr>
-                            <div class="col-12 col-md-3">
+                            <div class="col-12 col-md-4">
+                                {{ form.responsavel_agente }}
+                            </div>
+                            <div class="col-12 col-md-4">
                                 {{ form.agente }}
                             </div>
-                            <div class="col-12 col-md-3">
+                            <div class="col-12 col-md-4">
                                 {{ form.placa_agente }}
                             </div>
-                            <div class="col-12 col-md-3">
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-12 col-md-6">
                                 {{ form.motorista }}
                             </div>
-                            <div class="col-12 col-md-3">
+                            <div class="col-12 col-md-6">
                                 {{ form.placa_motorista }}
                             </div>
                         </div>
@@ -119,36 +124,43 @@
                                 {{ form.data_solicitada }}
                             </div>
                             <div class="col-12 col-md-2">
-                                <label for="data_solicitada">Horário Solicitado</label>
+                                <label for="horario_solicitado">Horário Solicitado</label>
                                 {{ form.horario_solicitado }}
                             </div>
                             <div class="col-12 col-md-2">
-                                <label for="data_solicitada">Data Inicial</label>
+                                <label for="data_inicial">Data Inicial</label>
                                 {{ form.data_inicial }}
                             </div>
                             <div class="col-12 col-md-2">
-                                <label for="data_solicitada">Horário Início</label>
+                                <label for="horario_inicio">Horário Início</label>
                                 {{ form.horario_inicio }}
                             </div>
                             <div class="col-12 col-md-2">
-                                <label for="data_solicitada">Data Final</label>
+                                <label for="data_final">Data Final</label>
                                 {{ form.data_final }}
                             </div>
                             <div class="col-12 col-md-2">
-                                <label for="data_solicitada">Horário Finalizado</label>
+                                <label for="horario_finalizacao">Horário Finalizado</label>
                                 {{ form.horario_finalizacao }}
                             </div>
                         </div>
 
                         <!-- Quilometragem -->
                         <div class="row mt-3">
-                            <div class="col-12 col-md-4">
+                            <div class="col-12 col-md-3">
+                                <label for="horario_total">Horário Total</label>
+                                {{ form.horario_total }}
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label for="km_inicio">KM Início</label>
                                 {{ form.km_inicio }}
                             </div>
-                            <div class="col-12 col-md-4">
+                            <div class="col-12 col-md-3">
+                                <label for="km_final">KM Final</label>
                                 {{ form.km_final }}
                             </div>
-                            <div class="col-12 col-md-4">
+                            <div class="col-12 col-md-3">
+                                <label for="km_total">KM Total</label>
                                 {{ form.km_total }}
                             </div>
                         </div>
@@ -205,6 +217,53 @@
     kmFinal.addEventListener("input", calcularKmTotal);
 });
 </script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    const dataInicio = document.getElementById("id_data_inicial");
+    const horaInicio = document.getElementById("id_horario_inicio");
+
+    const dataFinal = document.getElementById("id_data_final");
+    const horaFinal = document.getElementById("id_horario_finalizacao");
+
+    const horarioTotal = document.getElementById("id_horario_total");
+
+    function calcularHorarioTotal() {
+
+        if (!dataInicio.value || !horaInicio.value || !dataFinal.value || !horaFinal.value) {
+            horarioTotal.value = "";
+            return;
+        }
+
+        const inicioDateTime = new Date(`${dataInicio.value}T${horaInicio.value}`);
+        const fimDateTime = new Date(`${dataFinal.value}T${horaFinal.value}`);
+
+        if (fimDateTime < inicioDateTime) {
+            horarioTotal.value = "";
+            return;
+        }
+
+        const diffMs = fimDateTime - inicioDateTime;
+
+        const totalMinutos = Math.floor(diffMs / 60000);
+
+        const horas = Math.floor(totalMinutos / 60);
+        const minutos = totalMinutos % 60;
+
+        horarioTotal.value =
+            String(horas).padStart(2, "0") + ":" +
+            String(minutos).padStart(2, "0");
+    }
+
+    dataInicio.addEventListener("change", calcularHorarioTotal);
+    horaInicio.addEventListener("change", calcularHorarioTotal);
+    dataFinal.addEventListener("change", calcularHorarioTotal);
+    horaFinal.addEventListener("change", calcularHorarioTotal);
+});
+</script>
+
+
 
 </body>
 

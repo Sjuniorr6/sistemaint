@@ -7,7 +7,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>{% block title %} | Manutenções | {% endblock %}</title>
+    <title>{% block title %} | Aprovar Manutenções | {% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -231,41 +231,6 @@
             background: linear-gradient(135deg, #ffe6cc 0%, #ffffff 100%);
             border-left: 4px solid #ff9800;
         }
-        
-        .aguardando-aprovacao { 
-            background: linear-gradient(135deg, #fff8dc 0%, #ffffff 100%);
-            border-left: 4px solid #ffd700;
-        }
-        
-        .pendente { 
-            background: linear-gradient(135deg, #e8e8e8 0%, #ffffff 100%);
-            border-left: 4px solid #666;
-        }
-        
-        .reprovado, .reprovado-pela-inteligencia { 
-            background: linear-gradient(135deg, #ffcccc 0%, #ffffff 100%);
-            border-left: 4px solid #dc3545;
-        }
-        
-        .configurado { 
-            background: linear-gradient(135deg, #ffe6cc 0%, #ffffff 100%);
-            border-left: 4px solid #ff9800;
-        }
-        
-        .expedido { 
-            background: linear-gradient(135deg, #cce6ff 0%, #ffffff 100%);
-            border-left: 4px solid #0b4ec9;
-        }
-        
-        .enviado-para-o-cliente { 
-            background: linear-gradient(135deg, #ccffcc 0%, #ffffff 100%);
-            border-left: 4px solid #28a745;
-        }
-        
-        .aprovado-pela-inteligencia { 
-            background: linear-gradient(135deg, #ccffcc 0%, #ffffff 100%);
-            border-left: 4px solid #28a745;
-        }
 
         /* Layout */
         .main {
@@ -371,14 +336,14 @@
 <div class="container mt-3">
     <!-- Header modernizado -->
     <div class="page-header">
-        <h1><i class="fas fa-cog"></i> Realizar Manutenção</h1>
+        <h1><i class="fas fa-cog"></i> Aprovar Manutenções</h1>
     </div>
 
     <!-- Formulário de Pesquisa Modernizado -->
     <div class="search-form">
         <form method="GET">
             <div class="row g-3 align-items-end">
-                <div class="col-md-2 col-12 mb-2 mb-md-0">
+                <div class="col-md-3 col-12 mb-2 mb-md-0">
                     <label class="form-label"><i class="fas fa-hashtag"></i> ID</label>
                     <input type="text" name="id" class="form-control" placeholder="Digite o ID" value="{{ request.GET.id }}">
                 </div>
@@ -390,18 +355,7 @@
                     <label class="form-label"><i class="fas fa-desktop"></i> Equipamento</label>
                     <input type="text" class="form-control" id="numero_equipamento" name="numero_equipamento" placeholder="Digite o equipamento" value="{{ request.GET.numero_equipamento|default:'' }}">
                 </div>
-                <div class="col-md-3 col-12 mb-2 mb-md-0">
-                    <label class="form-label"><i class="fas fa-filter"></i> Status</label>
-                    <select name="status" class="form-control">
-                        <option value="">Todos</option>
-                        <option value="Pendente" {% if request.GET.status == 'Pendente' %}selected{% endif %}>Pendente</option>
-                        <option value="Manutenção" {% if request.GET.status == 'Manutenção' %}selected{% endif %}>Manutenção</option>
-                        <!-- <option value="Aguardando Aprovação" {% if request.GET.status == 'Aguardando Aprovação' %}selected{% endif %}>Aguardando Aprovação</option> -->
-                        <!-- <option value="Aprovado pela Diretoria" {% if request.GET.status == 'Aprovado pela Diretoria' %}selected{% endif %}>Aprovado pela Diretoria</option> -->
-                        <option value="Reprovado pela Inteligência" {% if request.GET.status == 'Reprovado pela Inteligência' %}selected{% endif %}>Reprovado pela Inteligência</option>
-                    </select>
-                </div>
-                <div class="col-md-2 col-lg-1 col-12 mb-2 mb-md-0 d-flex align-items-end">
+                <div class="col-md-3 col-12 mb-2 mb-md-0 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary w-100">
                         <i class="fas fa-search"></i> Buscar
                     </button>
@@ -462,7 +416,8 @@
                         <div class="row">
                             <div class="col-12">
                                 <a class="btn btn-primary col-12" href="{% url 'download_pdfmanutencao' registro.id %}">
-                                    <i class="fas fa-file-pdf"></i> Laudo                                </a>
+                                    <i class="fas fa-file-pdf"></i> Laudo
+                                </a>
                             </div>
                             <div class="col-12">
                                 <a class="btn btn-warning col-12" href="{% url 'download_protocolo_entrada' registro.id %}">

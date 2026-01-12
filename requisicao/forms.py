@@ -90,8 +90,6 @@ class requisicaoFormup(forms.ModelForm):
             'id_equipamentos': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'placeholder': 'Cole os IDs dos equipamentos separados por espaços'}),
             'iccid': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'placeholder': 'Cole os ICCIDs separados por espaços'}),
             
-            
-         
         }
         permissions = [
             ("view_requisicoes", "Can view requisicoes"),
@@ -313,10 +311,10 @@ class FormulariosForm(forms.ModelForm):
         fields = [
             'cliente', 'origem', 'destino',
 
-            'agente', 'placa_agente', 'motorista', 'placa_motorista',
+            'responsavel_agente', 'agente', 'placa_agente', 'motorista', 'placa_motorista',
 
             'data_solicitada', 'horario_solicitado', 'data_inicial', 
-            'horario_inicio', 'data_final', 'horario_finalizacao',
+            'horario_inicio', 'data_final', 'horario_finalizacao', 'horario_total',
 
             'km_inicio', 'km_final', 'km_total',
 
@@ -331,6 +329,7 @@ class FormulariosForm(forms.ModelForm):
             'origem': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Origem'}),
             'destino': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Destino'}),
 
+            'responsavel_agente': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Responsável pelo Agente'}),
             'agente': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Agente'}),
             'placa_agente': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Placa do Agente'}),
             'motorista': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Motorista'}),
@@ -343,6 +342,9 @@ class FormulariosForm(forms.ModelForm):
             'horario_solicitado': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
             'horario_inicio': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
             'horario_finalizacao': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
+            'horario_total': forms.TextInput(
+                attrs={'class': 'form-control', 'readonly': True}
+            ),
          
             'km_inicio': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'KM Início', 'id': 'km_inicio'}),
             'km_final': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'KM Final', 'id': 'km_final'}),
@@ -350,5 +352,6 @@ class FormulariosForm(forms.ModelForm):
             'ocorrencia': forms.Textarea(attrs={'class': 'form-control', 'placeholder': 'Descreva a Ocorrência', 'rows': 3}),
 
             'nome_user': forms.TextInput(attrs={'class': 'form-control', 'readonly': 'readonly'}),
+            
         }
 # registrodeacompanhamento/forms.py
