@@ -2824,8 +2824,6 @@ class AcompanhamentoCreateView(
         instance.save()
         return super().form_valid(form)
 
-# ...existing code...
-
 class AcompanhamentoListView(
     LoginRequiredMixin,
     PermissionRequiredMixin,
@@ -2892,21 +2890,187 @@ class AcompanhamentoListView(
 
         return queryset.order_by("-criado_em")
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        filtro = self.get_pendentes_filter()
-        context['pendentes_count'] = self.model.objects.filter(filtro).distinct().count()
+    def render_to_response(self, context, **response_kwargs):
+        
+        if self.request.GET.get("export") == "excel":
+            return self.exportar_excel(context["acompanhamentos"])
+        
+        if self.request.GET.get("export") == "pdf":
+            return self.exportar_pdf(context["acompanhamentos"])
 
-        # Mantém filtros da tela
-        context["data"] = self.request.GET.get("data", "")
-        context["data2"] = self.request.GET.get("data2", "")
-        context["agente"] = self.request.GET.get("agente", "")
-        context["cliente"] = self.request.GET.get("cliente", "")
+        return super().render_to_response(context, **response_kwargs)
 
-        return context
+    def exportar_pdf(self, queryset):
+        
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=(1800, 900), topMargin=20, leftMargin=20, rightMargin=20, bottomMargin=20)
+        elements = []
+        
+        styles = getSampleStyleSheet()
+        title_style = styles["Title"]
 
-    # ...existing code...
+        cell_style = ParagraphStyle(
+            name="CellStyle",
+            fontName="Helvetica",
+            fontSize=7,
+            leading=9,
+            wordWrap="CJK",
+            alignment=0
+        )
 
+        # Título
+        title = Paragraph("Relatório de Acompanhamentos", title_style)
+        title.alignment = 1
+        elements.append(title)
+        elements.append(Paragraph("<br/>", styles["Normal"]))  # Espaço
+        
+        # Cabeçalhos
+        headers = [
+            "Protocolo", "Cliente", "Origem", "Destino",
+            "Responsavel Agente", "Agente", "Placa Agente",
+            "Motorista", "Placa Motorista",
+            "Data Solicitada", "Hora Solicitada",
+            "Data Inicial", "Hora Inicial",
+            "Data Final", "Hora Final", "Hora Total",
+            "KM Início", "KM Final", "KM Total",
+            "Ocorrência", "Feito Por"
+        ]
+        
+        # Dados
+        data = [headers]
+        for item in queryset:
+            row = [
+                str(item.id),
+                Paragraph(item.cliente or "", cell_style),
+                Paragraph(item.origem or "", cell_style),
+                Paragraph(item.destino or "", cell_style),
+                Paragraph(item.responsavel_agente or "", cell_style),
+                Paragraph(item.agente or "", cell_style),
+                item.placa_agente or "",
+                Paragraph(item.motorista or "", cell_style),
+                item.placa_motorista or "",
+                item.data_solicitada.strftime("%d/%m/%Y") if item.data_solicitada else "",
+                item.horario_solicitado.strftime("%H:%M") if item.horario_solicitado else "",
+                item.data_inicial.strftime("%d/%m/%Y") if item.data_inicial else "",
+                item.horario_inicio.strftime("%H:%M") if item.horario_inicio else "",
+                item.data_final.strftime("%d/%m/%Y") if item.data_final else "",
+                item.horario_finalizacao.strftime("%H:%M") if item.horario_finalizacao else "",
+                str(item.horario_total) if item.horario_total else "",
+                str(item.km_inicio) if item.km_inicio is not None else "",
+                str(item.km_final) if item.km_final is not None else "",
+                str(item.km_total) if item.km_total is not None else "",
+                Paragraph(item.ocorrencia or "", cell_style),
+                Paragraph(item.nome_user or "", cell_style),
+            ]
+            data.append(row)
+
+            colWidths = [
+                55,   # Protocolo
+                140,  # Cliente
+                120,  # Origem
+                120,  # Destino
+                130,  # Responsável
+                110,  # Agente
+                90,   # Placa Agente
+                120,  # Motorista
+                90,   # Placa Motorista
+                90,   # Data Solicitada
+                80,   # Hora Solicitada
+                90,   # Data Inicial
+                80,   # Hora Inicial
+                90,   # Data Final
+                80,   # Hora Final
+                80,   # Hora Total
+                70,   # KM Início
+                70,   # KM Final
+                70,   # KM Total
+                200,  # Ocorrência
+                110   # Feito Por
+            ]
+
+        # Criar tabela
+        table = Table(data, colWidths=[50, 80, 80, 80, 80, 80, 80, 80, 80, 80, 60, 80, 60, 80, 60, 60, 60, 60, 60, 100, 80])
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 7),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+
+            # Centraliza números / datas
+            ("ALIGN", (0, 1), (0, -1), "CENTER"),
+            ("ALIGN", (6, 1), (6, -1), "CENTER"),
+            ("ALIGN", (9, 1), (18, -1), "CENTER"),
+
+            # Texto longo à esquerda
+            ("ALIGN", (1, 1), (5, -1), "LEFT"),
+            ("ALIGN", (7, 1), (7, -1), "LEFT"),
+            ("ALIGN", (19, 1), (20, -1), "LEFT"),
+        ]))
+
+        
+        elements.append(table)
+        
+        # Gerar PDF
+        doc.build(elements)
+        buffer.seek(0)
+        
+        response = HttpResponse(buffer, content_type="application/pdf")
+        response["Content-Disposition"] = 'attachment; filename="acompanhamentos.pdf"'
+        buffer.close()
+        return response
+
+    def exportar_excel(self, queryset):
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        sheet.title = "Acompanhamentos"
+
+        headers = [
+            "Protocolo", "Cliente", "Origem", "Destino",
+            "Responsavel Agente", "Agente", "Placa Agente",
+            "Motorista", "Placa Motorista",
+            "Data Solicitada", "Hora Solicitada",
+            "Data Inicial", "Hora Inicial",
+            "Data Final", "Hora Final", "Hora Total",
+            "KM Início", "KM Final", "KM Total",
+            "Ocorrência",
+            'Feito Por'
+        ]
+        sheet.append(headers)
+
+        for item in queryset:
+            sheet.append([
+                item.id,
+                item.cliente,
+                item.origem,
+                item.destino,
+                item.responsavel_agente,
+                item.agente,
+                item.placa_agente,
+                item.motorista,
+                item.placa_motorista,
+                item.data_solicitada.strftime("%d/%m/%Y") if item.data_solicitada else "",
+                item.horario_solicitado.strftime("%H:%M") if item.horario_solicitado else "",
+                item.data_inicial.strftime("%d/%m/%Y") if item.data_inicial else "",
+                item.horario_inicio.strftime("%H:%M") if item.horario_inicio else "",
+                item.data_final.strftime("%d/%m/%Y") if item.data_final else "",
+                item.horario_finalizacao.strftime("%H:%M") if item.horario_finalizacao else "",
+                item.horario_total,
+                item.km_inicio,
+                item.km_final,
+                item.km_total,
+                item.ocorrencia,
+                item.nome_user,
+            ])
+
+        response = HttpResponse(
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = 'attachment; filename="acompanhamentos.xlsx"'
+
+        workbook.save(response)
+        return response
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
