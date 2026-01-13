@@ -28,6 +28,7 @@ class TarefaInteligencia(models.Model):
         ('baixa', 'Baixa'),
         ('media', 'Média'),
         ('alta', 'Alta'),
+        ('avaliar', 'Avaliar'),
     ]
     
     titulo = models.CharField(max_length=255, verbose_name='Título')
@@ -35,7 +36,7 @@ class TarefaInteligencia(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='a_fazer', verbose_name='Status')
     destinado = models.CharField(max_length=25, choices=DESTINADO_CHOICES, default='inteligencia', verbose_name='Destinado')
     responsavel = models.CharField(max_length=255, blank=True, null=True, verbose_name='Responsável')
-    responsavel_cor = models.CharField(max_length=20, default='azul', verbose_name='Cor do Responsável')
+    responsavel_cor = models.CharField(max_length=20, null=True, blank=True,default='azul', verbose_name='Cor do Responsável')
     data_criacao = models.DateField(auto_now_add=True, verbose_name='Data de Criação')
     data_conclusao = models.DateField(null=True, blank=True, verbose_name='Data de Conclusão')
     data_limite = models.DateField(null=True, blank=True, verbose_name='Prazo')

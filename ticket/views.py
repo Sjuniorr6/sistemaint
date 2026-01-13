@@ -1,20 +1,53 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse_lazy
 from .models import ticketmodel
-from .forms import ticketForm
 from django.views.generic import CreateView, ListView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q, Count
+
+from .models import ticketmodel
+from .forms import TicketKanbanForm
+from kanban_inteligencia.models import TarefaInteligencia
+from django.utils import timezone
+from datetime import timedelta  
+
 class ticketCreateView(LoginRequiredMixin, CreateView):
-    model = ticketmodel
+    model = TarefaInteligencia
+    form_class = TicketKanbanForm
     template_name = 'ticket.html'
-    form_class = ticketForm
     success_url = reverse_lazy('ticketListView')
 
     def form_valid(self, form):
-        form.instance.usuario = self.request.user  # Atribui o usuário logado
+        user = self.request.user
+
+        # ---------------------------------
+        # 🔐 PRIORIDADE DEFINIDA PELO GRUPO
+        # ---------------------------------
+        if user.groups.filter(name='diretoriamaster').exists():
+            form.instance.prioridade = 'alta'
+        else:
+            form.instance.prioridade = 'avaliar'  # equivalente a "avaliar"
+
+        # ---------------------------------
+        # ⏰ PRAZO AUTOMÁTICO (48 HORAS)
+        # ---------------------------------
+        form.instance.data_limite = timezone.now().date() + timedelta(days=2)
+
+        # ---------------------------------
+        # 👤 RESPONSÁVEL (opcional)
+        # ---------------------------------
+        # Pode ficar vazio — NÃO setamos nada aqui
+
         return super().form_valid(form)
 
+        # ---------------------------------
+        # Dados automáticos
+        # ---------------------------------
+        # if not form.instance.responsavel:
+        #     form.instance.responsavel = user.get_full_name() or user.username
+
+      
+    
 class ticketListView(ListView):
     def get_sector_colors(self):
         # Dicionário de cores para cada setor
