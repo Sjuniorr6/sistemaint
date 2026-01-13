@@ -2,6 +2,8 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
+from django.db.models import Case, When, IntegerField
+from django.utils import timezone
 from .models import TarefaInteligencia
 import json
 
@@ -12,11 +14,22 @@ def home(request):
     Kanban de Inteligência
     """
     tarefas = TarefaInteligencia.objects.all()
-    
-    a_fazer = tarefas.filter(status='a_fazer')
-    em_progresso = tarefas.filter(status='em_progresso')
-    validacao = tarefas.filter(status='validacao')
-    concluido = tarefas.filter(status='concluido')
+
+    def order_by_prioridade(queryset):
+        return queryset.annotate(
+            prioridade_order=Case(
+                When(prioridade='alta', then=3),
+                When(prioridade='media', then=2),
+                When(prioridade='baixa', then=1),
+                default=0,
+                output_field=IntegerField()
+            )
+        ).order_by('-prioridade_order')
+
+    a_fazer = order_by_prioridade(tarefas.filter(status='a_fazer'))
+    em_progresso = order_by_prioridade(tarefas.filter(status='em_progresso'))
+    validacao = order_by_prioridade(tarefas.filter(status='validacao'))
+    concluido = order_by_prioridade(tarefas.filter(status='concluido'))
     
     # Estatísticas
     total_tarefas = tarefas.count()
@@ -41,44 +54,26 @@ def home(request):
     
     return render(request, 'kanban_inteligencia/home.html', context)
 
-
 @login_required
 @require_POST
 def adicionar_tarefa(request):
-    """
-    Adiciona nova tarefa via AJAX
-    """
     try:
-        data = json.loads(request.body)
-        
-        data_limite = data.get('data_limite', None)
-        if data_limite == '':
-            data_limite = None
-        
         tarefa = TarefaInteligencia.objects.create(
-            titulo=data.get('titulo'),
-            descricao=data.get('descricao', ''),
-            data_limite=data_limite,
-            responsavel=data.get('responsavel', ''),
-            responsavel_cor=data.get('responsavel_cor', 'azul'),
-            cor=data.get('cor', 'azul'),
-            prioridade=data.get('prioridade', False)
+            titulo=request.POST.get('titulo'),
+            descricao=request.POST.get('descricao', ''),
+            data_limite=request.POST.get('data_limite') or None,
+            destinado=request.POST.get('destinado', 'inteligencia'),
+            responsavel=request.POST.get('responsavel', ''),
+            responsavel_cor=request.POST.get('responsavel_cor', 'azul'),
+            cor=request.POST.get('cor', 'azul'),
+            prioridade=request.POST.get('prioridade', 'media'),
+            imagem=request.FILES.get('imagem')  # 👈 AQUI ESTÁ O UPLOAD
         )
-        
-        return JsonResponse({
-            'success': True,
-            'tarefa': {
-                'id': tarefa.id,
-                'titulo': tarefa.titulo,
-                'descricao': tarefa.descricao,
-                'data_criacao': tarefa.data_criacao.strftime('%d/%m/%Y'),
-                'responsavel': tarefa.responsavel or '',
-                'responsavel_cor': tarefa.responsavel_cor,
-            }
-        })
+
+        return JsonResponse({'success': True})
+
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
-
 
 @login_required
 def obter_tarefa(request, tarefa_id):
@@ -96,6 +91,8 @@ def obter_tarefa(request, tarefa_id):
                 'descricao': tarefa.descricao,
                 'status': tarefa.status,
                 'data_limite': tarefa.data_limite.strftime('%Y-%m-%d') if tarefa.data_limite else '',
+                'imagem_url': tarefa.imagem.url if tarefa.imagem else None,
+                'destinado': tarefa.destinado or '',
                 'responsavel': tarefa.responsavel or '',
                 'responsavel_cor': tarefa.responsavel_cor,
                 'cor': tarefa.cor,
@@ -110,60 +107,40 @@ def obter_tarefa(request, tarefa_id):
 @login_required
 @require_POST
 def atualizar_tarefa(request, tarefa_id):
-    """
-    Atualiza uma tarefa existente
-    """
     try:
-        from django.utils import timezone
-        data = json.loads(request.body)
         tarefa = TarefaInteligencia.objects.get(id=tarefa_id)
-        
-        # Atualizar campos apenas se fornecidos
-        if 'titulo' in data:
-            tarefa.titulo = data.get('titulo', tarefa.titulo)
-        if 'descricao' in data:
-            tarefa.descricao = data.get('descricao', tarefa.descricao)
-        
-        # Atualizar status e data_conclusao
-        if 'status' in data:
-            novo_status = data.get('status', tarefa.status)
-            if novo_status == 'concluido' and tarefa.status != 'concluido':
-                tarefa.data_conclusao = timezone.now().date()
-            elif novo_status != 'concluido':
-                tarefa.data_conclusao = None
-            tarefa.status = novo_status
-        
-        if 'prioridade' in data:
-            tarefa.prioridade = data.get('prioridade', tarefa.prioridade)
-        
-        # Atualizar responsavel
-        if 'responsavel' in data:
-            tarefa.responsavel = data.get('responsavel', '')
-        
-        # Atualizar responsavel_cor
-        if 'responsavel_cor' in data:
-            tarefa.responsavel_cor = data.get('responsavel_cor', 'azul')
-        
-        # Atualizar cor
-        if 'cor' in data:
-            tarefa.cor = data.get('cor', 'azul')
-        
-        # Atualizar data_limite
-        if 'data_limite' in data:
-            data_limite = data.get('data_limite')
-            if data_limite == '' or data_limite is None:
-                tarefa.data_limite = None
-            else:
-                tarefa.data_limite = data_limite
-        
+
+        tarefa.titulo = request.POST.get('titulo', tarefa.titulo)
+        tarefa.descricao = request.POST.get('descricao', tarefa.descricao)
+        tarefa.status = request.POST.get('status', tarefa.status)
+        tarefa.prioridade = request.POST.get('prioridade', tarefa.prioridade)
+        tarefa.destinado = request.POST.get('destinado', tarefa.destinado)
+        tarefa.responsavel = request.POST.get('responsavel', tarefa.responsavel)
+        tarefa.responsavel_cor = request.POST.get('responsavel_cor', tarefa.responsavel_cor)
+        tarefa.cor = request.POST.get('cor', tarefa.cor)
+
+        data_limite = request.POST.get('data_limite')
+        tarefa.data_limite = data_limite or None
+
+        # Controle de conclusão
+        if tarefa.status == 'concluido' and not tarefa.data_conclusao:
+            tarefa.data_conclusao = timezone.now().date()
+        elif tarefa.status != 'concluido':
+            tarefa.data_conclusao = None
+
+        # 👇 ATUALIZA IMAGEM SE ENVIAR
+        if request.FILES.get('imagem'):
+            tarefa.imagem = request.FILES.get('imagem')
+
         tarefa.save()
-        
+
         return JsonResponse({'success': True})
+
     except TarefaInteligencia.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Tarefa não encontrada'}, status=404)
+
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
-
 
 @login_required
 @require_POST

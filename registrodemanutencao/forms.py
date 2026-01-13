@@ -45,7 +45,6 @@ class FormulariosForm(forms.ModelForm):
         }
 # registrodemanutencao/forms.py
 
-
 class FormulariosUpdateForm(forms.ModelForm):
     class Meta:
         model = registrodemanutencao
@@ -86,10 +85,6 @@ class FormulariosUpdateForm(forms.ModelForm):
             'observacoes': forms.TextInput(attrs={'class': 'form-control'}),
         }
 
-
-
-        
-
 from django.forms import inlineformset_factory
 
 ImagemRegistroFormSet = inlineformset_factory(
@@ -105,9 +100,6 @@ ImagemRegistroFormSet = inlineformset_factory(
         'observacao2': forms.TextInput(attrs={'class': 'form-control', 'rows': 3}),
         'faturamento': forms.Select(attrs={'class': 'form-control', 'rows': 3}),
         'tipo_problema': forms.Select(attrs={'class': 'form-control', 'rows': 1}),
-      
-      
-        
     }
 )
 

@@ -108,6 +108,7 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
+    margin-bottom: 35px;
 }
 
 .kanban-header .badge {
@@ -345,17 +346,51 @@ body {
         grid-template-columns: 1fr !important;
     }
 }
+
+.title-inteligencia, .title-desenvolvimento{
+    color: white;
+    text-decoration: none;
+}
+
+.title-inteligencia:hover i{
+    color: #ffc107;
+}
+
+.title-desenvolvimento:hover i{
+    color: #dc3545;
+}
+
+.kanban-card-image {
+    width: 100%;
+    margin: 10px 0;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-top: 30px;
+}
+
+.kanban-card-image img {
+    width: 100%;
+    max-height: 160px;
+    object-fit: cover;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    transition: transform 0.3s ease;
+}
+
+.kanban-card-image img:hover {
+    transform: scale(1.05);
+}
 </style>
 
 <div class="kanban-page">
     <!-- Botão Nova Tarefa -->
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2 class="text-white mb-0"><i class="bi bi-kanban"></i> Kanban Inteligência e Desenvolvimento</h2>
+        <h2 class="text-white mb-0" id="kanban-title" style="cursor: pointer;"><i class="bi bi-kanban"></i> Kanban <a class="title-inteligencia" style="cursor: pointer;">Inteligência <i class="bi bi-lightbulb-fill"></i></a> e <a class="title-desenvolvimento" style="cursor: pointer;">Desenvolvimento <i class="bi bi-braces"></i></a></h2>
         <button type="button" class="btn btn-primary" id="btnNovaTarefa">
             <i class="bi bi-plus-circle"></i> Nova Tarefa
         </button>
     </div>
-
+    
     <!-- Dashboard de Estatísticas -->
     <div class="stats-dashboard mb-4">
         <div class="row g-3" style="margin: 0 !important; width: 100% !important;">
@@ -365,7 +400,7 @@ body {
                         <i class="bi bi-clipboard-check"></i>
                     </div>
                     <div class="stat-content">
-                        <h3>{{ stats.total_tarefas }}</h3>
+                        <h3 id="stat-total">{{ stats.total_tarefas }}</h3>
                         <p>Total de Tarefas</p>
                     </div>
                 </div>
@@ -376,7 +411,7 @@ body {
                         <i class="bi bi-hourglass-split"></i>
                     </div>
                     <div class="stat-content">
-                        <h3>{{ stats.em_progresso }}</h3>
+                        <h3 id="stat-progresso">{{ stats.em_progresso }}</h3>
                         <p>Em Progresso</p>
                     </div>
                 </div>
@@ -387,7 +422,7 @@ body {
                         <i class="bi bi-exclamation-triangle-fill"></i>
                     </div>
                     <div class="stat-content">
-                        <h3>{{ stats.atrasadas }}</h3>
+                        <h3 id="stat-atrasadas">{{ stats.atrasadas }}</h3>
                         <p>Atrasadas</p>
                     </div>
                 </div>
@@ -398,7 +433,7 @@ body {
                         <i class="bi bi-check-circle-fill"></i>
                     </div>
                     <div class="stat-content">
-                        <h3>{{ stats.concluidas }}</h3>
+                        <h3 id="stat-concluidas">{{ stats.concluidas }}</h3>
                         <p>Concluídas</p>
                     </div>
                 </div>
@@ -409,7 +444,7 @@ body {
                         <i class="bi bi-graph-up-arrow"></i>
                     </div>
                     <div class="stat-content">
-                        <h3>{{ stats.taxa_conclusao }}%</h3>
+                        <h3 id="stat-taxa">{{ stats.taxa_conclusao }}%</h3>
                         <p>Taxa de Conclusão</p>
                         <div class="progress mt-2" style="height: 8px;">
                             <div class="progress-bar" role="progressbar" style="width: {{ stats.taxa_conclusao }}%;"
@@ -431,9 +466,9 @@ body {
                         <h4><i class="bi bi-list-task"></i> A Fazer</h4>
                         <span class="badge bg-secondary">{{ a_fazer.count }}</span>
                     </div>
-                    <div class="kanban-cards">
+                    <div class="kanban-cards" data-status="a_fazer">
                         {% for tarefa in a_fazer %}
-                        <div class="kanban-card cor-{{ tarefa.cor }} {% if tarefa.prioridade == 'alta' %}prioridade-alta{% endif %}" data-tarefa-id="{{ tarefa.id }}">
+                        <div draggable="true" data-prioridade="{{ tarefa.prioridade }}"  class="kanban-card cor-{{ tarefa.cor }} {% if tarefa.prioridade == 'alta' %}prioridade-alta{% endif %}" data-tarefa-id="{{ tarefa.id }}" data-destinado="{{ tarefa.destinado }}">
                             {% if tarefa.prioridade == 'alta' %}
                             <span class="priority-flag" title="Prioridade Alta">
                                 <i class="bi bi-exclamation-triangle-fill" style="color: #dc3545;"></i>
@@ -454,9 +489,15 @@ body {
                                 <i class="bi bi-pencil"></i>
                             </button>
                             <h4>{{ tarefa.titulo }}</h4>
-                            {% if tarefa.descricao %}
-                            <p style="color: rgba(255, 255, 255, 0.75); font-size: 0.85rem; margin: 8px 0 12px 0; line-height: 1.4; margin-top: 30px;">{{ tarefa.descricao|truncatewords:15 }}</p>
+                            {% if tarefa.imagem %}
+                                <div class="kanban-card-image">
+                                    <img src="{{ tarefa.imagem.url }}" alt="Imagem da tarefa">
+                                </div>
                             {% endif %}
+                            {% if tarefa.descricao %}
+                            <p style="color: rgba(255, 255, 255, 0.75); font-size: 0.85rem; margin: 8px 0 12px 0; line-height: 1.4;">{{ tarefa.descricao|truncatewords:15 }}</p>
+                            {% endif %}
+                            <span class="text-secondary"> Destinado: {{ tarefa.destinado }}</span>
                             <small>
                                 <span><i class="bi bi-hash"></i> ID: INT-{{ tarefa.id|stringformat:"03d" }}</span>
                                 <span><i class="bi bi-calendar-plus"></i> Criado: {{ tarefa.data_criacao|date:"d/m/Y" }}</span>
@@ -491,9 +532,9 @@ body {
                         <h4><i class="bi bi-gear-fill"></i> Em Progresso</h4>
                         <span class="badge bg-warning">{{ em_progresso.count }}</span>
                     </div>
-                    <div class="kanban-cards">
+                    <div class="kanban-cards" data-status="em_progresso">
                         {% for tarefa in em_progresso %}
-                        <div class="kanban-card cor-{{ tarefa.cor }} {% if tarefa.prioridade == 'alta' %}prioridade-alta{% endif %}" data-tarefa-id="{{ tarefa.id }}">
+                        <div draggable="true" data-prioridade="{{ tarefa.prioridade }}"  class="kanban-card cor-{{ tarefa.cor }} {% if tarefa.prioridade == 'alta' %}prioridade-alta{% endif %}" data-tarefa-id="{{ tarefa.id }}" data-destinado="{{ tarefa.destinado }}">
                             {% if tarefa.prioridade == 'alta' %}
                             <span class="priority-flag" title="Prioridade Alta">
                                 <i class="bi bi-exclamation-triangle-fill" style="color: #dc3545;"></i>
@@ -514,9 +555,15 @@ body {
                                 <i class="bi bi-pencil"></i>
                             </button>
                             <h4>{{ tarefa.titulo }}</h4>
-                            {% if tarefa.descricao %}
-                            <p style="color: rgba(255, 255, 255, 0.75); font-size: 0.85rem; margin: 8px 0 12px 0; line-height: 1.4; margin-top: 30px;">{{ tarefa.descricao|truncatewords:15 }}</p>
+                            {% if tarefa.imagem %}
+                                <div class="kanban-card-image">
+                                    <img src="{{ tarefa.imagem.url }}" alt="Imagem da tarefa">
+                                </div>
                             {% endif %}
+                            {% if tarefa.descricao %}
+                            <p style="color: rgba(255, 255, 255, 0.75); font-size: 0.85rem; margin: 8px 0 12px 0; line-height: 1.4;">{{ tarefa.descricao|truncatewords:15 }}</p>
+                            {% endif %}
+                            <span class="text-secondary"> Destinado: {{ tarefa.destinado }}</span>
                             <small>
                                 <span><i class="bi bi-hash"></i> ID: INT-{{ tarefa.id|stringformat:"03d" }}</span>
                                 <span><i class="bi bi-calendar-plus"></i> Criado: {{ tarefa.data_criacao|date:"d/m/Y" }}</span>
@@ -551,9 +598,9 @@ body {
                         <h4><i class="bi bi-shield-check"></i> Aguardando Validação</h4>
                         <span class="badge bg-success">{{ validacao.count }}</span>
                     </div>
-                    <div class="kanban-cards">
+                    <div class="kanban-cards" data-status="validacao">
                         {% for tarefa in validacao %}
-                        <div class="kanban-card cor-{{ tarefa.cor }} {% if tarefa.prioridade == 'alta' %}prioridade-alta{% endif %}" data-tarefa-id="{{ tarefa.id }}">
+                        <div draggable="true" data-prioridade="{{ tarefa.prioridade }}"  class="kanban-card cor-{{ tarefa.cor }} {% if tarefa.prioridade == 'alta' %}prioridade-alta{% endif %}" data-tarefa-id="{{ tarefa.id }}" data-destinado="{{ tarefa.destinado }}">
                             {% if tarefa.prioridade == 'alta' %}
                             <span class="priority-flag" title="Prioridade Alta">
                                 <i class="bi bi-exclamation-triangle-fill" style="color: #dc3545;"></i>
@@ -577,9 +624,15 @@ body {
                                 <i class="bi bi-check-circle-fill"></i> Aprovar
                             </button>
                             <h4>{{ tarefa.titulo }}</h4>
-                            {% if tarefa.descricao %}
-                            <p style="color: rgba(255, 255, 255, 0.75); font-size: 0.85rem; margin: 8px 0 12px 0; line-height: 1.4; margin-top: 30px;">{{ tarefa.descricao|truncatewords:15 }}</p>
+                            {% if tarefa.imagem %}
+                                <div class="kanban-card-image">
+                                    <img src="{{ tarefa.imagem.url }}" alt="Imagem da tarefa">
+                                </div>
                             {% endif %}
+                            {% if tarefa.descricao %}
+                            <p style="color: rgba(255, 255, 255, 0.75); font-size: 0.85rem; margin: 8px 0 12px 0; line-height: 1.4;">{{ tarefa.descricao|truncatewords:15 }}</p>
+                            {% endif %}
+                            <span class="text-secondary"> Destinado: {{ tarefa.destinado }}</span>
                             <small>
                                 <span><i class="bi bi-hash"></i> ID: INT-{{ tarefa.id|stringformat:"03d" }}</span>
                                 <span><i class="bi bi-calendar-plus"></i> Criado: {{ tarefa.data_criacao|date:"d/m/Y" }}</span>
@@ -614,9 +667,9 @@ body {
                         <h4><i class="bi bi-check-circle-fill"></i> Concluído</h4>
                         <span class="badge bg-info">{{ concluido.count }}</span>
                     </div>
-                    <div class="kanban-cards">
+                    <div class="kanban-cards" data-status="concluido">
                         {% for tarefa in concluido %}
-                        <div class="kanban-card cor-{{ tarefa.cor }} {% if tarefa.prioridade == 'alta' %}prioridade-alta{% endif %}" data-tarefa-id="{{ tarefa.id }}">
+                        <div draggable="true" data-prioridade="{{ tarefa.prioridade }}"  class="kanban-card cor-{{ tarefa.cor }} {% if tarefa.prioridade == 'alta' %}prioridade-alta{% endif %}" data-tarefa-id="{{ tarefa.id }}" data-destinado="{{ tarefa.destinado }}">
                             {% if tarefa.prioridade == 'alta' %}
                             <span class="priority-flag" title="Prioridade Alta">
                                 <i class="bi bi-exclamation-triangle-fill" style="color: #dc3545;"></i>
@@ -637,9 +690,16 @@ body {
                                 <i class="bi bi-pencil"></i>
                             </button>
                             <h4>{{ tarefa.titulo }}</h4>
-                            {% if tarefa.descricao %}
-                            <p style="color: rgba(255, 255, 255, 0.75); font-size: 0.85rem; margin: 8px 0 12px 0; line-height: 1.4; margin-top: 30px;">{{ tarefa.descricao|truncatewords:15 }}</p>
+                            {% if tarefa.imagem %}
+                                <div class="kanban-card-image">
+                                    <img src="{{ tarefa.imagem.url }}" alt="Imagem da tarefa">
+                                </div>
                             {% endif %}
+
+                            {% if tarefa.descricao %}
+                            <p style="color: rgba(255, 255, 255, 0.75); font-size: 0.85rem; margin: 8px 0 12px 0; line-height: 1.4;">{{ tarefa.descricao|truncatewords:15 }}</p>
+                            {% endif %}
+                            <span class="text-secondary"> Destinado: {{ tarefa.destinado }}</span>
                             <small>
                                 <span><i class="bi bi-hash"></i> ID: INT-{{ tarefa.id|stringformat:"03d" }}</span>
                                 <span><i class="bi bi-check2-all"></i> Finalizado</span>
@@ -663,6 +723,46 @@ body {
         </div>
     </div>
 </div>
+
+<!-- Modal Visualizar Tarefa -->
+<div class="modal fade" id="modalVisualizarTarefa" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">
+                    <i class="bi bi-eye"></i> Detalhes da Tarefa
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body">
+
+                <h4 id="viewTitulo" class="mb-3"></h4>
+
+                <div id="viewImagem" class="mb-3"></div>
+
+                <p id="viewDescricao" class="text-secondary"></p>
+
+                <hr>
+
+                <div class="row g-3">
+                    <div class="col-md-4"><b>Status:</b> <span id="viewStatus"></span></div>
+                    <div class="col-md-4"><b>Prioridade:</b> <span id="viewPrioridade"></span></div>
+                    <div class="col-md-4"><b>Destinado:</b> <span id="viewDestinado"></span></div>
+
+                    <div class="col-md-4"><b>Responsável:</b> <span id="viewResponsavel"></span></div>
+                    <div class="col-md-4"><b>Prazo:</b> <span id="viewPrazo"></span></div>
+                    <div class="col-md-4"><b>Status de Prazo:</b> <span id="viewAtraso"></span></div>
+
+                    <div class="col-md-4"><b>Criado em:</b> <span id="viewCriacao"></span></div>
+                    <div class="col-md-4"><b>Conclusão:</b> <span id="viewConclusao"></span></div>
+                    <div class="col-md-4"><b>ID:</b> <span id="viewId"></span></div>
+                </div>
+
+            </div>
+
+            <div class="modal-footer border-secondary">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
             </div>
         </div>
     </div>
@@ -693,6 +793,10 @@ body {
                                   placeholder="Detalhes da tarefa..."></textarea>
                     </div>
                     <div class="mb-3">
+                        <label for="editImagem" class="form-label">Adicionar Imagem</label>
+                        <input type="file" class="form-control" id="editImagem" name="imagem" accept="image/*">
+                    </div>
+                    <div class="mb-3">
                         <label for="editStatus" class="form-label">Status</label>
                         <select class="form-select" id="editStatus" name="status">
                             <option value="a_fazer">A Fazer</option>
@@ -704,6 +808,13 @@ body {
                     <div class="mb-3">
                         <label for="editDataLimite" class="form-label">Prazo</label>
                         <input type="date" class="form-control" id="editDataLimite" name="data_limite">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editDestinado" class="form-label">Destinado:</label>
+                        <select class="form-control" id="editDestinado" name="destinado">
+                            <option value="inteligencia" selected>Inteligência</option>
+                            <option value="desenvolvimento">Desenvolvimento</option>
+                        </select>
                     </div>
                     <div class="mb-3">
                         <label for="editResponsavel" class="form-label">Responsável</label>
@@ -777,8 +888,19 @@ body {
                                   placeholder="Detalhes da tarefa..."></textarea>
                     </div>
                     <div class="mb-3">
+                        <label for="imagem" class="form-label">Adicionar Imagem</label>
+                        <input type="file" class="form-control" id="imagem" name="imagem" accept="image/*">
+                    </div>
+                    <div class="mb-3">
                         <label for="dataLimite" class="form-label">Prazo</label>
                         <input type="date" class="form-control" id="dataLimite" name="data_limite">
+                    </div>
+                    <div class="mb-3">
+                        <label for="destinado" class="form-label">Destinado:</label>
+                        <select class="form-control" id="destinado" name="destinado">
+                            <option value="inteligencia" selected>Inteligência</option>
+                            <option value="desenvolvimento">Desenvolvimento</option>
+                        </select>
                     </div>
                     <div class="mb-3">
                         <label for="responsavel" class="form-label">Responsável</label>
@@ -826,8 +948,215 @@ body {
 </div>
 
 <script>
+    document.addEventListener('DOMContentLoaded', function () {
+
+        const btnNovaTarefa = document.getElementById('btnNovaTarefa');
+        const modalNovaTarefa = new bootstrap.Modal(document.getElementById('modalNovaTarefa'));
+        const modalEditarTarefa = new bootstrap.Modal(document.getElementById('modalEditarTarefa'));
+
+        const btnSalvarTarefa = document.getElementById('btnSalvarTarefa');
+        const btnAtualizarTarefa = document.getElementById('btnAtualizarTarefa');
+        const btnDeletarTarefa = document.getElementById('btnDeletarTarefa');
+
+        const formNovaTarefa = document.getElementById('formNovaTarefa');
+        const formEditarTarefa = document.getElementById('formEditarTarefa');
+
+        /* =========================
+        ABRIR MODAL NOVA TAREFA
+        ========================== */
+        btnNovaTarefa.addEventListener('click', () => {
+            formNovaTarefa.reset();
+            modalNovaTarefa.show();
+        });
+
+        /* =========================
+        SALVAR NOVA TAREFA
+        ========================== */
+        btnSalvarTarefa.addEventListener('click', async () => {
+
+            const titulo = document.getElementById('titulo').value.trim();
+            if (!titulo) {
+                alert('Preencha o título da tarefa');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('titulo', titulo);
+            formData.append('descricao', document.getElementById('descricao').value);
+            formData.append('data_limite', document.getElementById('dataLimite').value);
+            formData.append('destinado', document.getElementById('destinado').value);
+            formData.append('responsavel', document.getElementById('responsavel').value);
+            formData.append('responsavel_cor', document.getElementById('responsavelCor').value);
+            formData.append('cor', document.getElementById('cor').value);
+            formData.append('prioridade', document.getElementById('prioridade').value);
+
+            const imagem = document.getElementById('imagem').files[0];
+            if (imagem) {
+                formData.append('imagem', imagem);
+            }
+
+            const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+            try {
+                const response = await fetch('{% url "kanban_inteligencia:adicionar_tarefa" %}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrftoken
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    modalNovaTarefa.hide();
+                    location.reload();
+                } else {
+                    alert(data.error);
+                }
+
+            } catch (err) {
+                alert('Erro ao salvar tarefa');
+            }
+        });
+
+        /* =========================
+        ABRIR MODAL EDITAR TAREFA
+        ========================== */
+        document.querySelectorAll('.btn-editar-tarefa').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+
+                const tarefaId = btn.dataset.tarefaId;
+
+                try {
+                    const response = await fetch(
+                        `{% url "kanban_inteligencia:obter_tarefa" 0 %}`.replace('0', tarefaId)
+                    );
+                    const data = await response.json();
+
+                    if (!data.success) {
+                        alert(data.error);
+                        return;
+                    }
+
+                    document.getElementById('editTarefaId').value = data.tarefa.id;
+                    document.getElementById('editTitulo').value = data.tarefa.titulo;
+                    document.getElementById('editDescricao').value = data.tarefa.descricao || '';
+                    document.getElementById('editStatus').value = data.tarefa.status;
+                    document.getElementById('editDataLimite').value = data.tarefa.data_limite || '';
+                    document.getElementById('editDestinado').value = data.tarefa.destinado || '';
+                    document.getElementById('editResponsavel').value = data.tarefa.responsavel || '';
+                    document.getElementById('editResponsavelCor').value = data.tarefa.responsavel_cor || 'azul';
+                    document.getElementById('editCor').value = data.tarefa.cor || 'azul';
+                    document.getElementById('editPrioridade').value = data.tarefa.prioridade || 'media';
+
+                    modalEditarTarefa.show();
+
+                } catch {
+                    alert('Erro ao carregar tarefa');
+                }
+            });
+        });
+
+        /* =========================
+        ATUALIZAR TAREFA
+        ========================== */
+        btnAtualizarTarefa.addEventListener('click', async () => {
+
+            const tarefaId = document.getElementById('editTarefaId').value;
+            const titulo = document.getElementById('editTitulo').value.trim();
+
+            if (!titulo) {
+                alert('Preencha o título');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('titulo', titulo);
+            formData.append('descricao', document.getElementById('editDescricao').value);
+            formData.append('status', document.getElementById('editStatus').value);
+            formData.append('data_limite', document.getElementById('editDataLimite').value);
+            formData.append('destinado', document.getElementById('editDestinado').value);
+            formData.append('responsavel', document.getElementById('editResponsavel').value);
+            formData.append('responsavel_cor', document.getElementById('editResponsavelCor').value);
+            formData.append('cor', document.getElementById('editCor').value);
+            formData.append('prioridade', document.getElementById('editPrioridade').value);
+
+            const imagem = document.getElementById('editImagem').files[0];
+            if (imagem) {
+                formData.append('imagem', imagem);
+            }
+
+            const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+            try {
+                const response = await fetch(
+                    `{% url "kanban_inteligencia:atualizar_tarefa" 0 %}`.replace('0', tarefaId),
+                    {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': csrftoken
+                        },
+                        body: formData
+                    }
+                );
+
+                const data = await response.json();
+
+                if (data.success) {
+                    modalEditarTarefa.hide();
+                    location.reload();
+                } else {
+                    alert(data.error);
+                }
+
+            } catch {
+                alert('Erro ao atualizar tarefa');
+            }
+        });
+
+        /* =========================
+        DELETAR TAREFA
+        ========================== */
+        btnDeletarTarefa.addEventListener('click', async () => {
+
+            if (!confirm('Deseja realmente deletar esta tarefa?')) return;
+
+            const tarefaId = document.getElementById('editTarefaId').value;
+            const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+            try {
+                const response = await fetch(
+                    `{% url "kanban_inteligencia:deletar_tarefa" 0 %}`.replace('0', tarefaId),
+                    {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': csrftoken
+                        }
+                    }
+                );
+
+                const data = await response.json();
+
+                if (data.success) {
+                    modalEditarTarefa.hide();
+                    location.reload();
+                } else {
+                    alert(data.error);
+                }
+
+            } catch {
+                alert('Erro ao deletar tarefa');
+            }
+        });
+
+    });
+</script>
+
+<!-- <script>
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('Script carregado!');
+    // console.log('Script carregado!');
     
     const btnNovaTarefa = document.getElementById('btnNovaTarefa');
     const modalNovaTarefa = new bootstrap.Modal(document.getElementById('modalNovaTarefa'));
@@ -838,7 +1167,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const formNovaTarefa = document.getElementById('formNovaTarefa');
     const formEditarTarefa = document.getElementById('formEditarTarefa');
     
-    console.log('Quantidade de botões editar encontrados:', document.querySelectorAll('.btn-editar-tarefa').length);
+    // console.log('Quantidade de botões editar encontrados:', document.querySelectorAll('.btn-editar-tarefa').length);
     
     // Abrir modal nova tarefa
     btnNovaTarefa.addEventListener('click', function() {
@@ -858,6 +1187,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
         const descricao = document.getElementById('descricao').value.trim();
         const dataLimite = document.getElementById('dataLimite').value;
+        const destinado = document.getElementById('destinado').value.trim();
         const responsavel = document.getElementById('responsavel').value.trim();
         const responsavelCor = document.getElementById('responsavelCor').value;
         const cor = document.getElementById('cor').value;
@@ -874,6 +1204,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     titulo: titulo,
                     descricao: descricao,
                     data_limite: dataLimite,
+                    destinado: destinado,
                     responsavel: responsavel,
                     responsavel_cor: responsavelCor,
                     cor: cor,
@@ -899,12 +1230,12 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', async function(e) {
             e.stopPropagation();
             const tarefaId = this.getAttribute('data-tarefa-id');
-            console.log('Clicou para editar tarefa ID:', tarefaId);
+            // console.log('Clicou para editar tarefa ID:', tarefaId);
             
             try {
                 const response = await fetch(`{% url "kanban_inteligencia:obter_tarefa" 0 %}`.replace('0', tarefaId));
                 const data = await response.json();
-                console.log('Dados recebidos:', data);
+                // console.log('Dados recebidos:', data);
                 
                 if (data.success) {
                     document.getElementById('editTarefaId').value = data.tarefa.id;
@@ -912,6 +1243,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     document.getElementById('editDescricao').value = data.tarefa.descricao || '';
                     document.getElementById('editStatus').value = data.tarefa.status;
                     document.getElementById('editDataLimite').value = data.tarefa.data_limite || '';
+                    document.getElementById('editDestinado').value = data.tarefa.destinado || '';
                     document.getElementById('editResponsavel').value = data.tarefa.responsavel || '';
                     document.getElementById('editResponsavelCor').value = data.tarefa.responsavel_cor || 'azul';
                     document.getElementById('editCor').value = data.tarefa.cor || 'azul';
@@ -941,6 +1273,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const descricao = document.getElementById('editDescricao').value.trim();
         const status = document.getElementById('editStatus').value;
         const dataLimite = document.getElementById('editDataLimite').value;
+        const destinado = document.getElementById('editDestinado').value.trim();
         const responsavel = document.getElementById('editResponsavel').value.trim();
         const responsavelCor = document.getElementById('editResponsavelCor').value;
         const cor = document.getElementById('editCor').value;
@@ -958,6 +1291,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     descricao: descricao,
                     status: status,
                     data_limite: dataLimite,
+                    destinado: destinado,
                     responsavel: responsavel,
                     responsavel_cor: responsavelCor,
                     cor: cor,
@@ -1046,6 +1380,275 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+</script> -->
+
+<script>
+    async function atualizarStatus(tarefaId, status) {
+        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+        const formData = new FormData();
+        formData.append('status', status);
+
+        return fetch(
+            `{% url "kanban_inteligencia:atualizar_tarefa" 0 %}`.replace('0', tarefaId),
+            {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrftoken
+                },
+                body: formData
+            }
+        );
+    }
+</script>
+
+<script>
+    function ordenarPorPrioridade(coluna) {
+        const prioridadePeso = {
+            alta: 3,
+            media: 2,
+            baixa: 1
+        };
+
+        const cards = Array.from(coluna.querySelectorAll('.kanban-card'));
+
+        cards.sort((a, b) => {
+            const pA = prioridadePeso[a.dataset.prioridade] || 0;
+            const pB = prioridadePeso[b.dataset.prioridade] || 0;
+            return pB - pA;
+        });
+
+        cards.forEach(card => coluna.appendChild(card));
+    }
+</script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+
+        function filterCards(destino) {
+            document.querySelectorAll('.kanban-card').forEach(card => {
+                const cardDestino = card.getAttribute('data-destinado');
+
+                if (destino === 'all' || cardDestino === destino) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+
+            localStorage.setItem('kanbanFiltro', destino);
+        }
+
+        const filtroSalvo = localStorage.getItem('kanbanFiltro') || 'all';
+        filterCards(filtroSalvo);
+
+        document.getElementById('kanban-title').addEventListener('click', function (e) {
+            if (e.target.tagName !== 'A') {
+                localStorage.setItem('kanbanFiltro', 'all');
+                location.reload();
+            }
+        });
+
+        document.querySelector('.title-inteligencia').addEventListener('click', function (e) {
+            e.preventDefault();
+            localStorage.setItem('kanbanFiltro', 'inteligencia');
+            location.reload();
+        });
+
+        document.querySelector('.title-desenvolvimento').addEventListener('click', function (e) {
+            e.preventDefault();
+            localStorage.setItem('kanbanFiltro', 'desenvolvimento');
+            location.reload();
+        });
+
+    });
+</script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        let draggedCard = null;
+
+        document.querySelectorAll('.kanban-card').forEach(card => {
+            card.addEventListener('dragstart', () => {
+                draggedCard = card;
+            });
+
+            card.addEventListener('dragend', () => {
+                draggedCard = null;
+            });
+        });
+
+        document.querySelectorAll('.kanban-cards').forEach(column => {
+            column.addEventListener('dragover', e => e.preventDefault());
+
+            column.addEventListener('drop', async () => {
+                if (!draggedCard) return;
+
+                const origem = draggedCard.closest('.kanban-cards');
+                const destino = column;
+
+                const tarefaId = draggedCard.dataset.tarefaId;
+                const novoStatus = destino.dataset.status;
+
+                const emptyDestino = destino.querySelector('.empty-column');
+                if (emptyDestino) emptyDestino.remove();
+
+                destino.appendChild(draggedCard);
+
+                ordenarPorPrioridade(destino);
+                ordenarPorPrioridade(origem);
+
+                if (origem.querySelectorAll('.kanban-card').length === 0) {
+                    origem.innerHTML = `
+                        <div class="empty-column">
+                            <i class="bi bi-inbox"></i>
+                            <p>Nenhuma tarefa</p>
+                        </div>
+                    `;
+                }
+
+                try {
+                    const response = await atualizarStatus(tarefaId, novoStatus);
+                    const data = await response.json();
+
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Erro ao atualizar status');
+                        location.reload();
+                    }
+
+                } catch {
+                    alert('Erro de comunicação');
+                    location.reload();
+                }
+
+                // try {
+                //     const response = await atualizarStatus(tarefaId, novoStatus);
+                //     const data = await response.json();
+
+                //     if (!data.success) {
+                //         alert('Erro ao atualizar status');
+                //         location.reload();
+                //     }
+
+                // } catch {
+                //     alert('Erro de comunicação');
+                //     location.reload();
+                // }
+            });
+
+        });
+    });
+</script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        const modalVisualizar = new bootstrap.Modal(
+            document.getElementById('modalVisualizarTarefa')
+        );
+
+        document.querySelectorAll('.kanban-card').forEach(card => {
+            card.addEventListener('click', async (e) => {
+
+                if (
+                    e.target.closest('.btn-edit') ||
+                    e.target.closest('.btn-aprovar')
+                ) {
+                    return;
+                }
+
+                const tarefaId = card.dataset.tarefaId;
+
+                try {
+                    const response = await fetch(
+                        `{% url "kanban_inteligencia:obter_tarefa" 0 %}`.replace('0', tarefaId)
+                    );
+                    const data = await response.json();
+
+                    if (!data.success) {
+                        alert(data.error);
+                        return;
+                    }
+
+                    const t = data.tarefa;
+
+                    document.getElementById('viewTitulo').innerText = t.titulo;
+                    document.getElementById('viewDescricao').innerText = t.descricao || 'Sem descrição';
+
+                    document.getElementById('viewStatus').innerText = t.status;
+                    document.getElementById('viewPrioridade').innerText = t.prioridade;
+                    document.getElementById('viewDestinado').innerText = t.destinado;
+                    document.getElementById('viewResponsavel').innerText = t.responsavel || '-';
+                    document.getElementById('viewPrazo').innerText = t.data_limite || 'Sem prazo';
+                    document.getElementById('viewCriacao').innerText = t.data_criacao;
+                    document.getElementById('viewConclusao').innerText = t.data_conclusao || '-';
+                    document.getElementById('viewId').innerText = `INT-${String(t.id).padStart(3, '0')}`;
+                    document.getElementById('viewAtraso').innerText = t.esta_atrasada ? 'Atrasada' : 'No prazo';
+
+                    const imgContainer = document.getElementById('viewImagem');
+                    imgContainer.innerHTML = '';
+
+                    if (t.imagem_url) {
+                        imgContainer.innerHTML = `
+                            <img src="${t.imagem_url}"
+                                class="img-fluid rounded"
+                                style="max-height: auto; object-fit: cover;">
+                        `;
+                    }
+
+                    modalVisualizar.show();
+
+                } catch {
+                    alert('Erro ao carregar detalhes da tarefa');
+                }
+            });
+        });
+
+    });
+</script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+
+        function atualizarEstatisticas() {
+            const cardsVisiveis = Array.from(document.querySelectorAll('.kanban-card'))
+                .filter(card => card.style.display !== 'none');
+
+            const total = cardsVisiveis.length;
+
+            let emProgresso = 0;
+            let concluidas = 0;
+            let atrasadas = 0;
+
+            cardsVisiveis.forEach(card => {
+                const coluna = card.closest('.kanban-cards')?.dataset.status;
+
+                if (coluna === 'em_progresso') emProgresso++;
+                if (coluna === 'concluido') concluidas++;
+                if (card.querySelector('.text-danger')) atrasadas++;
+            });
+
+            const taxa = total > 0 ? Math.round((concluidas / total) * 100) : 0;
+
+            document.getElementById('stat-total').innerText = total;
+            document.getElementById('stat-progresso').innerText = emProgresso;
+            document.getElementById('stat-atrasadas').innerText = atrasadas;
+            document.getElementById('stat-concluidas').innerText = concluidas;
+            document.getElementById('stat-taxa').innerText = `${taxa}%`;
+
+            const progressBar = document.querySelector('.stat-taxa .progress-bar');
+            if (progressBar) {
+                progressBar.style.width = `${taxa}%`;
+                progressBar.setAttribute('aria-valuenow', taxa);
+            }
+        }
+
+        window.atualizarEstatisticas = atualizarEstatisticas;
+
+        atualizarEstatisticas();
+    });
 </script>
 
 {% endblock %}
