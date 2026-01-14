@@ -9,6 +9,7 @@ class TarefaInteligencia(models.Model):
         ('em_progresso', 'Em Progresso'),
         ('validacao', 'Aguardando Validação'),
         ('concluido', 'Concluído'),
+       
     ]
 
     DESTINADO_CHOICES = [
@@ -43,6 +44,7 @@ class TarefaInteligencia(models.Model):
     prioridade = models.CharField(max_length=20, choices=PRIORIDADE_CHOICES, default='media', verbose_name='Prioridade')
     cor = models.CharField(max_length=20, choices=COR_CHOICES, default='azul', verbose_name='Cor')
     imagem = models.ImageField(upload_to='imagens/kanban/', null=True, blank=True)
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
 
     class Meta:
         verbose_name = 'Tarefa de Inteligência'

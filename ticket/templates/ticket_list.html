@@ -451,7 +451,7 @@
   }
 </style>
 
-<div class="dashboard-container">
+<div class="container">
   <!-- Header -->
   <div class="dashboard-header">
     <h1>
@@ -486,92 +486,50 @@
   </div> -->
 
   <!-- Grid de Tickets -->
-  <div class="tickets-grid">
-    {% for item in ticket %}
-    {% if item.setor != 'Faturamento' or perms.faturamento.delete_formulario %}
-    <div class="ticket-card">
-      <div
-        class="ticket-status-bar {% if item.status == 'Pendente' %}pendente {% elif item.status == 'Atualizado' %}atualizado {% elif item.status == 'Negado' %}negado {% endif %}"
-      ></div>
+  
+  <div class="row">
 
-      <div class="ticket-content">
-        <div class="ticket-id-badge">
-          <i class="bi bi-hash"></i>
-          <span>{{ item.id }}</span>
-        </div>
+  {% for ticket in tickets %}
+    <div class="col-12 col-md-3 mb-3">
 
-        <div class="ticket-setor">
-          <i class="bi bi-building-fill"></i>
-          <span>{{ item.setor }}</span>
-        </div>
-
-        <div class="ticket-info">
-          <div class="ticket-info-item">
-            <i class="bi bi-person-fill"></i>
-            <span><strong>Responsável:</strong> {{ item.usuario.username }}</span>
-          </div>
-          <div class="ticket-info-item">
-            <i class="bi bi-calendar-check"></i>
-            <span><strong>Criado:</strong> {{ item.data_criacao|date:"d/m/Y H:i" }}</span>
-          </div>
-        </div>
-
-        <div style="text-align: center">
-          <span class="ticket-status-badge {% if item.status == 'Pendente' %}pendente{% elif item.status == 'Atualizado' %}atualizado{% elif item.status == 'Negado' %}negado{% endif %}">
-            {% if item.status == 'Pendente' %}
-            <i class="bi bi-hourglass-split"></i> Pendente
-            {% elif item.status == 'Atualizado' %}
-            <i class="bi bi-check-circle-fill"></i> Atualizado
-            {% elif item.status == 'Negado' %}
-            <i class="bi bi-x-circle-fill"></i> Negado
+      <!-- CARD: PRAZO -->
+      <div class="card card-prazo h-100">
+        <div class="card-body">
+          <h5 class="card-title">{{ ticket.titulo }}</h5>
+           <p class="text-secondary">{{ ticket.descricao }}</p>
+          {% if ticket.prioridade == 'avaliar' %}
+            
+            {% if ticket.is_diretoriamaster %}
+              <p class="card-text text-success">
+                Agradecemos seu ticket, retornaremos em breve.
+              </p>
             {% else %}
-            {{ item.status }}
+              <p class="card-text text-warning">
+                Ticket criado, retornaremos em até 48h.
+              </p>
             {% endif %}
-          </span>
-        </div>
-
-        {% if perms.ticket.change_ticketmodel %}
-        <div class="ticket-actions">
-          <a
-            href="{% url 'atualizar_status' item.id %}"
-            class="btn-action btn-update"
-          >
-            <i class="bi bi-arrow-up-circle"></i>
-            <span>Atualizar</span>
-          </a>
-          <a
-            href="{% url 'atualizar_status2' item.id %}"
-            class="btn-action btn-deny"
-          >
-            <i class="bi bi-x-circle"></i>
-            <span>Negar</span>
-          </a>
-        </div>
-        {% endif %}
-
-        <button
-          class="ticket-details-toggle"
-          onclick="toggleDetails('{{ item.id }}')"
-        >
-          <i class="bi bi-chevron-down"></i>
-          <span>Ver Detalhes</span>
-        </button>
-
-        <div id="details-{{ item.id }}" class="ticket-details">
-          <strong
-            ><i class="bi bi-exclamation-triangle-fill"></i> Erro
-            Relatado</strong
-          >
-          <p>{{ item.erro }}</p>
-
-          <strong><i class="bi bi-tools"></i> Correção Proposta</strong>
-          <p>{{ item.correcao }}</p>
+          {% else %}
+            <p class="card-text text-danger">
+             Prazo de entrega:  {{ ticket.data_limite|date:"d/m/Y" }}
+            </p>
+          {% endif %}
+          
         </div>
       </div>
+
     </div>
-    {% endif %}
-    {% endfor %}
-  </div>
+  {% empty %}
+
+    <div class="col-12">
+      <p class="text-muted text-center mt-4">
+        Nenhum ticket encontrado.
+      </p>
+    </div>
+
+  {% endfor %}
+
+</div>
+
 
   <!-- Paginação -->
   {% include 'components/_pagination.html' %}

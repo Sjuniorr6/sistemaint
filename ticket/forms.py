@@ -14,7 +14,7 @@ class TicketKanbanForm(forms.ModelForm):
             'destinado',
             # 'responsavel',
             # 'responsavel_cor',
-            'cor',
+            # 'cor',
             # 'prioridade',
         ]
 
@@ -49,7 +49,7 @@ class TicketKanbanForm(forms.ModelForm):
 
             # 'responsavel_cor': forms.Select(attrs={'class': 'form-control'}),
 
-            'cor': forms.Select(attrs={'class': 'form-select'}),
+            # 'cor': forms.Select(attrs={'class': 'form-select'}),
 
             # 'prioridade': forms.Select(attrs={'class': 'form-select'}),
         }
