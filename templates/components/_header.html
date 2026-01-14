@@ -466,6 +466,7 @@
                                     Histórico de Manutenção
                                 </a>
                             </li>
+                            
                             {% endif %}
 
                             {% if perms.requisicao.add_registrodeacompanhamento %}
@@ -474,6 +475,13 @@
                                         Acompanhamento
                                     </a>
                                     <ul class="dropdown-menu">
+                                        {% if perms.requisicao.view_listacompanhamento %}
+                                        <li>
+                                            <a class="dropdown-item" href="{% url 'acompanhamentoDashboard' %}">
+                                                Dashboard de Acompanhamento
+                                            </a>
+                                        </li>
+                                        {% endif %}
                                         {% if perms.requisicao.view_listacompanhamento %}
                                         <li>
                                             <a class="dropdown-item" href="{% url 'acompanhamentoList' %}">
