@@ -13,8 +13,17 @@ class RequisicoesAdmin(admin.ModelAdmin):
         'id_equipamentos', 'numero_de_equipamentos', 'aos_cuidados', 'iccid',
         'kanban_status', 'prioridade'
     )
-    search_fields = ('nome',)  # Campo de pesquisa para o admin
+
+    search_fields = (
+        'nome__nome',
+        'nome__cnpj',
+        'cnpj',
+        'iccid',
+        'id_equipamentos',
+    )
+
     list_filter = ('kanban_status', 'prioridade', 'status')
+
 
 admin.site.register(models.Requisicoes, RequisicoesAdmin)
 
