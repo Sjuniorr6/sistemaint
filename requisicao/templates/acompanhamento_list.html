@@ -190,6 +190,9 @@
                                     <th>KM Início</th>
                                     <th>KM Final</th>
                                     <th>KM Total</th>
+                                    <th>Pedágio</th>
+                                    <th>Franquia</th>
+                                    <th>Valor agente</th>
                                     <th>Ocorrência</th>
                                     <th>Usuário</th>
                                 </tr>
@@ -223,6 +226,13 @@
                                     <td>{{ item.km_inicio }}</td>
                                     <td>{{ item.km_final }}</td>
                                     <td>{{ item.km_total }}</td>
+                                    <td>{% if registro.pedagio %}
+                                            R$ {{ registro.pedagio }}
+                                        {% else %}
+                                            Sem Pedágio
+                                        {% endif %}</td>
+                                    <td>{{ item.franquia }}</td>
+                                    <td>{{ item.valor_agente }}</td>
                                     <td>{{ item.ocorrencia }}</td>
                                     <td>{{ item.nome_user }}</td>
                                 </tr>

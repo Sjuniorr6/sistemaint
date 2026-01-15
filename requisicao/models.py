@@ -1020,6 +1020,8 @@ class registrodeacompanhamento(models.Model):
     km_final = models.IntegerField(blank=True, null=True)
     km_total = models.IntegerField(blank=True, null=True)
 
+    pedagio = models.DecimalField(max_digits=8, decimal_places=2, blank=True, null=True, verbose_name="Valor do Pedágio (R$)")
+    valor_agente = models.DecimalField(max_digits=8, decimal_places=2, blank=True, null=True, verbose_name="Valor do Agente (R$)")
     ocorrencia = models.TextField(blank=True, null=True)
 
     # Nome do usuário que criou/atualizou o acompanhamento
@@ -1062,20 +1064,6 @@ class ListAcompanhamento(models.Model):
 
     km_total = models.PositiveIntegerField()
 
-    # STATUS_CHOICES = [
-    #     ('em_andamento', 'Em andamento'),
-    #     ('finalizado', 'Finalizado'),
-    #     ('cancelado', 'Cancelado'),
-    #     ('atrasado', 'Atrasado'),
-    # ]
-
-    # status = models.CharField(
-    #     max_length=20,
-    #     choices=STATUS_CHOICES,
-    #     default='em_andamento',
-    #     db_index=True
-    # )
-
     # Controle
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
@@ -1087,6 +1075,7 @@ class ListAcompanhamento(models.Model):
 
     def __str__(self):
         return f'{self.protocolo} - {self.cliente}'
+
 
 
 

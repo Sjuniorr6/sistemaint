@@ -61,6 +61,7 @@ class FormulariosUpdateForm(forms.ModelForm):
             'recebimento',
             'entregue_por_retirado_por',
             'motivo',
+            'tipo_contrato',
             'quantidade',
             'observacoes',
         ]
@@ -77,6 +78,7 @@ class FormulariosUpdateForm(forms.ModelForm):
             'recebimento': forms.Select(attrs={'class': 'form-control'}),
             'entregue_por_retirado_por': forms.Select(attrs={'class': 'form-control'}),
             'motivo': forms.Select(attrs={'class': 'form-control'}),
+            'tipo_contrato': forms.Select(attrs={'class': 'form-control'}),
             'data_devolucao': forms.DateTimeInput(attrs={
                 'class': 'form-control',
                 'readonly': 'readonly',

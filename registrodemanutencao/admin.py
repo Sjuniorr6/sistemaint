@@ -27,13 +27,13 @@ class RegistroDeManutencaoAdmin(admin.ModelAdmin):
                        'recebimento', 'entregue_por_retirado_por', 'id_equipamentos', 'quantidade')
         }),
         ("Detalhes da Manutenção", {
-            'fields': ('faturamento', 'setor', 'customizacaoo', 'numero_equipamento', 'observacoes', 'tratativa', 'status')
+            # 'fields': ('faturamento', 'setor', 'customizacaoo', 'numero_equipamento', 'observacoes', 'tratativa', 'status')
+            'fields': ('customizacaoo', 'numero_equipamento', 'observacoes', 'tratativa', 'status')
         }),
         ("Imagens", {
             'fields': ('imagem', 'imagem2')
         }),
     )
-
 
 # Classe para personalizar o modelo ImagemRegistro
 class ImagemRegistroAdmin(admin.ModelAdmin):
@@ -48,7 +48,6 @@ class ImagemRegistroAdmin(admin.ModelAdmin):
 
     imagem_display.short_description = "Imagem"
 
-
 # Classe para personalizar o modelo retorno
 class RetornoAdmin(admin.ModelAdmin):
     list_display = ('cliente', 'produto', 'tipo_problema', 'imagem_display', 'id_equipamentos')
@@ -61,7 +60,6 @@ class RetornoAdmin(admin.ModelAdmin):
         return "Sem imagem"
 
     imagem_display.short_description = "Imagem"
-
 
 # Registros no Django Admin
 admin.site.register(registrodemanutencao, RegistroDeManutencaoAdmin)

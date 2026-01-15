@@ -405,7 +405,7 @@ def download_protocolo_entrada(request, pk):
         ["Nº REGISTRO:", str(registro.id), "DATA:", registro.data_criacao.strftime("%d/%m/%Y")],
         ["NOME:", str(registro.nome), "TIPO ENTRADA:", registro.tipo_entrada],
         ["MOTIVO:", registro.motivo, "TIPO PRODUTO:", registro.tipo_produto],
-        ["CUSTOMIZAÇÃO:", registro.tipo_customizacao, "ENTREGUE POR:", registro.entregue_por_retirado_por],
+        ["CUSTOMIZAÇÃO:", registro.customizacaoo, "ENTREGUE POR:", registro.entregue_por_retirado_por],
         ["QUANTIDADE", registro.quantidade, "TIPO DE CONTRATO:", registro.tipo_contrato],
     ]
 
@@ -423,6 +423,33 @@ def download_protocolo_entrada(request, pk):
     elements.append(table)
 
     elements.append(Spacer(1, 12))
+
+    # ===== CAMPO DE OBSERVAÇÕES =====
+    elements.append(Paragraph("<b>OBSERVAÇÕES:</b>", styles["Body"]))
+    elements.append(Spacer(1, 6))
+
+    observacao_texto = getattr(registro, "observacoes", "") or ""
+
+    observacao_table = Table(
+        [[observacao_texto]],
+        colWidths=[550],
+        rowHeights=[80]  # Altura do campo (ajuste se quiser)
+    )
+
+    observacao_table.setStyle(TableStyle([
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+
+    elements.append(observacao_table)
+    elements.append(Spacer(1, 15))
+
 
     # Título para ID Equipamentos
     title_style = ParagraphStyle(
@@ -461,10 +488,6 @@ def download_protocolo_entrada(request, pk):
     buffer.close()
 
     return response
-
-
-
-
 
 # protocolo de manutenção
 from reportlab.lib.pagesizes import letter
@@ -1337,7 +1360,7 @@ Estamos à disposição para fornecer qualquer esclarecimento adicional. Recomen
     except Exception as e:
         messages.error(request, f"Erro ao enviar email: {str(e)}")
     
-    return redirect('entradasListView')   
+    return redirect('realizadasListView')   
 
     
 

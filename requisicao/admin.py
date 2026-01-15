@@ -105,3 +105,5 @@ class RegistroAcompanhamentoAdmin(admin.ModelAdmin):
     search_fields = ('id', 'cliente', 'motorista')
     list_filter = ('data_inicial', 'data_final')
 
+
+

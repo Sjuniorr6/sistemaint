@@ -33,6 +33,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from django.contrib.contenttypes.models import ContentType
 import json
+from django.views.generic import TemplateView
+
 
 
 from registrodemanutencao.forms import FormulariosUpdateForm
@@ -3082,7 +3084,7 @@ class AcompanhamentoListView(
 
             nome = field.name
 
-            if nome in ["id", "criado_em", "atualizado_em"]:
+            if nome in ["id", "criado_em", "atualizado_em", "ocorrencia", "pedagio"]:  # Excluindo "ocorrencia" da contagem de pendentes
                 continue
 
             # 🔹 Texto (CharField / TextField)
@@ -3119,11 +3121,8 @@ class AcompanhamentoListView(
         return context
 
 
-class RegistroAcompanhamentoUpdateView(
-    LoginRequiredMixin,
-    PermissionRequiredMixin,
-    UpdateView
-):
+class RegistroAcompanhamentoUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
+
     model = registrodeacompanhamento
     form_class = FormulariosForm
     template_name = "acompanhamento_create.html"
@@ -3133,101 +3132,43 @@ class RegistroAcompanhamentoUpdateView(
     def form_valid(self, form):
         return super().form_valid(form)
 
+class AcompanhamentoDashboardView(
+    LoginRequiredMixin,
+    PermissionRequiredMixin,
+    TemplateView
+):
+    template_name = "acompanhamento_dashboard.html"
+    permission_required = "requisicao.view_listacompanhamento"
+
 
 @login_required
-def acompanhamento_dashboard(request):
-    """
-    Dashboard de Acompanhamento - Exibe estatísticas e métricas dos registros de acompanhamento
-    """
-    from django.db.models import Count, Q, Avg, Sum
-    from datetime import datetime, timedelta
-    
-    # Data atual e período de análise
-    hoje = timezone.now()
-    mes_atual = hoje.month
-    ano_atual = hoje.year
-    inicio_mes = hoje.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    
-    # Todos os acompanhamentos
-    todos_acompanhamentos = registrodeacompanhamento.objects.all()
-    
-    # Estatísticas gerais
-    total_registros = todos_acompanhamentos.count()
-    
-    # Contagem por status baseado em datas
-    # Pendentes: sem data final ou horário de finalização
-    pendentes = todos_acompanhamentos.filter(
-        Q(data_final__isnull=True) | Q(horario_finalizacao__isnull=True)
-    ).count()
-    
-    # Concluídos: com data final E horário de finalização
-    concluidos = todos_acompanhamentos.filter(
-        data_final__isnull=False,
-        horario_finalizacao__isnull=False
-    ).count()
-    
-    # Em andamento: com data inicial mas sem finalização completa
-    em_andamento = todos_acompanhamentos.filter(
-        data_inicial__isnull=False
-    ).filter(
-        Q(data_final__isnull=True) | Q(horario_finalizacao__isnull=True)
-    ).count()
-    
-    # Registros do mês atual
-    registros_mes = todos_acompanhamentos.filter(
-        criado_em__month=mes_atual,
-        criado_em__year=ano_atual
-    ).count()
-    
-    # Contagem por cliente (top 5)
-    por_cliente = todos_acompanhamentos.values(
-        'cliente'
-    ).annotate(
-        total=Count('id')
-    ).order_by('-total')[:5]
-    
-    # Contagem por origem/destino (top 5 rotas)
-    por_rota = todos_acompanhamentos.values(
-        'origem', 'destino'
-    ).annotate(
-        total=Count('id')
-    ).order_by('-total')[:5]
-    
-    # Últimos registros criados
-    ultimos_registros = todos_acompanhamentos.order_by('-criado_em')[:10]
-    
-    # Taxa de conclusão
-    taxa_conclusao = round((concluidos / total_registros * 100) if total_registros > 0 else 0, 1)
-    
-    # Acompanhamentos com atraso (mais de 7 dias sem atualização)
-    sete_dias_atras = hoje - timedelta(days=7)
-    com_atraso = todos_acompanhamentos.filter(
-        atualizado_em__lt=sete_dias_atras,
-        data_final__isnull=True
-    ).count()
-    
-    # KM total percorrido
-    km_total = todos_acompanhamentos.aggregate(
-        total=Sum('km_total')
-    )['total'] or 0
-    
-    context = {
-        'total_registros': total_registros,
-        'pendentes': pendentes,
-        'concluidos': concluidos,
-        'em_andamento': em_andamento,
-        'registros_mes': registros_mes,
-        'por_cliente': por_cliente,
-        'por_rota': por_rota,
-        'ultimos_registros': ultimos_registros,
-        'taxa_conclusao': taxa_conclusao,
-        'com_atraso': com_atraso,
-        'km_total': km_total,
-        'mes_atual': hoje.strftime('%B %Y'),
-    }
-    
-    return render(request, 'acompanhamento_dashboard.html', context)
+def acompanhamento_dashboard_data(request):
 
+    periodo = request.GET.get('periodo', 'mensal')
+    hoje = timezone.now()
+
+    if periodo == 'semanal':
+        data_inicio = hoje - timedelta(days=7)
+    elif periodo == 'quinzenal':
+        data_inicio = hoje - timedelta(days=15)
+    else:
+        data_inicio = hoje - timedelta(days=30)
+
+    dados = (
+        registrodeacompanhamento.objects
+        .filter(criado_em__gte=data_inicio)
+        .exclude(cliente__isnull=True)
+        .exclude(cliente="")
+        .exclude(cliente__icontains="teste")
+        .values('cliente')
+        .annotate(total=Count('id'))
+        .order_by('-total')[:10]
+    )
+
+    return JsonResponse({
+        'labels': [d['cliente'] for d in dados],
+        'valores': [d['total'] for d in dados],
+    })
 
 
 

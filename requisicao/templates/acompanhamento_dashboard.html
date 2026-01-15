@@ -33,12 +33,14 @@
         }
 
         .stat-card {
-            background: white;
-            border-radius: 10px;
+            border-radius: 14px;
             padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            transition: transform 0.2s;
+            transition: all 0.25s ease;
+            background-clip: padding-box;
+
+            box-shadow:
+                0 6px 16px rgba(0, 0, 0, 0.35),
+                inset 0 1px 0 rgba(255, 255, 255, 0.04);
         }
 
         .stat-card:hover {
@@ -53,7 +55,6 @@
         }
 
         .stat-label {
-            color: #6c757d;
             font-size: 0.9rem;
             text-transform: uppercase;
             letter-spacing: 1px;
@@ -104,6 +105,120 @@
         .bg-warning-light { background-color: rgba(255, 193, 7, 0.1); }
         .bg-danger-light { background-color: rgba(220, 53, 69, 0.1); }
         .bg-info-light { background-color: rgba(13, 202, 240, 0.1); }
+
+        .bg-personalizado { background: linear-gradient(127.09deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%) border-box;}
+
+        .divider-text {
+            display: flex;
+            align-items: center;
+            text-align: center;
+            color: #666;
+            font-weight: 600;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+        }
+
+        .divider-text::before,
+        .divider-text::after {
+            content: "";
+            flex: 1;
+            border-bottom: 1px solid black;
+        }
+
+        .divider-text span {
+            padding: 0 14px;
+            white-space: nowrap;
+        }
+
+        .dashboard-filters {
+            display: flex;
+            align-items: flex-end;
+            gap: 16px;
+            padding: 14px 18px;
+            border-radius: 12px;
+            background: #45494E;
+            box-shadow:
+                0 10px 25px rgba(0, 0, 0, 0.45),
+                inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .filter-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #cfd8e3;
+        }
+
+        .filter-group select {
+            min-width: 160px;
+            padding: 8px 12px;
+            border-radius: 8px;
+
+            background: #45494E;
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+
+            font-size: 14px;
+            outline: none;
+        }
+
+        .filter-group select:focus {
+            border-color: #4da3ff;
+            box-shadow: 0 0 0 2px rgba(77, 163, 255, 0.25);
+        }
+
+        .filter-action {
+            margin-left: auto;
+        }
+
+        .btn-apply {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+
+            background: linear-gradient(180deg, #3fa9ff, #1f7edb);
+            color: #fff;
+            font-weight: 600;
+            font-size: 14px;
+
+            cursor: pointer;
+            box-shadow: 0 6px 16px rgba(31, 126, 219, 0.45);
+            transition: all 0.2s ease;
+        }
+
+        .btn-apply:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 22px rgba(31, 126, 219, 0.6);
+        }
+
+        .filter-month {
+            min-width: 160px;
+            padding: 8px 12px;
+            border-radius: 8px;
+
+            background: #45494E;
+            color: #ffffff;
+
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            font-size: 14px;
+            outline: none;
+        }
+
+        .filter-month::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+            opacity: 0.85;
+            cursor: pointer;
+        }
+
+        .filter-month:focus {
+            border-color: #4da3ff;
+            box-shadow: 0 0 0 2px rgba(77, 163, 255, 0.25);
+        }
     </style>
 </head>
 
@@ -112,103 +227,164 @@
 
     <div class="container-fluid mt-4 mb-5">
         <!-- Cabeçalho -->
-        <div class="row mb-4">
+        <!-- <div class="row mb-4">
             <div class="col-12">
                 <h1 class="dashboard-title">
                     <i class="bi bi-bar-chart-fill"></i> Dashboard de Acompanhamento
                 </h1>
                 <p class="text-white">Visão geral dos registros de acompanhamento - {{ mes_atual }}</p>
             </div>
-        </div>
+        </div> -->
 
         <!-- Cards de Estatísticas -->
-        <div class="row">
-            <!-- Total de Registros -->
-            <div class="col-md-3 col-sm-6">
-                <div class="stat-card position-relative bg-primary-light">
-                    <i class="bi bi-file-earmark-text stat-icon color-primary"></i>
-                    <div class="stat-label">Total de Registros</div>
-                    <div class="stat-number color-primary">{{ total_registros }}</div>
-                    <small class="text-muted">Todos os acompanhamentos</small>
+        <div class="bg-white p-3 rounded-4">
+            <div class="row">
+                <!-- Total de Registros -->
+                <div class="col-md-3 col-sm-6 p-2">
+                    <div class="stat-card shadow position-relative bg-primary">
+                        <i class="bi bi-file-earmark-text stat-icon "></i>
+                        <div class="stat-label text-white">Total de Registros</div>
+                        <div class="stat-number text-white ">18</div>
+                        <!-- <small class="text-muted">Todos os acompanhamentos</small> -->
+                    </div>
                 </div>
-            </div>
 
-            <!-- Pendentes -->
-            <div class="col-md-3 col-sm-6">
-                <div class="stat-card position-relative bg-warning-light">
-                    <i class="bi bi-hourglass-split stat-icon color-warning"></i>
-                    <div class="stat-label">Pendentes</div>
-                    <div class="stat-number color-warning">{{ pendentes }}</div>
-                    <small class="text-muted">Aguardando retorno</small>
+                <!-- Pendentes -->
+                <div class="col-md-3 col-sm-6 p-2">
+                    <div class="stat-card shadow position-relative bg-warning">
+                        <i class="bi bi-hourglass-split stat-icon"></i>
+                        <div class="stat-label text-white">Registros Pendentes</div>
+                        <div class="stat-number text-white">2</div>
+                        <!-- <small class="text-muted">Aguardando retorno</small> -->
+                    </div>
                 </div>
-            </div>
 
-            <!-- Concluídos -->
-            <div class="col-md-3 col-sm-6">
-                <div class="stat-card position-relative bg-success-light">
-                    <i class="bi bi-check-circle stat-icon color-success"></i>
-                    <div class="stat-label">Concluídos</div>
-                    <div class="stat-number color-success">{{ concluidos }}</div>
-                    <small class="text-muted">Finalizados</small>
+                <!-- Concluídos -->
+                <div class="col-md-3 col-sm-6 p-2">
+                    <div class="stat-card shadow position-relative bg-success">
+                        <i class="bi bi-check-circle stat-icon "></i>
+                        <div class="stat-label text-white">Concluídos</div>
+                        <div class="stat-number text-white ">18</div>
+                        <!-- <small class="text-muted">Finalizados</small> -->
+                    </div>
                 </div>
-            </div>
 
-            <!-- Em Andamento -->
-            <div class="col-md-3 col-sm-6">
-                <div class="stat-card position-relative bg-info-light">
-                    <i class="bi bi-arrow-repeat stat-icon color-info"></i>
-                    <div class="stat-label">Em Andamento</div>
-                    <div class="stat-number color-info">{{ em_andamento }}</div>
-                    <small class="text-muted">Em processamento</small>
-                </div>
-            </div>
-        </div>
-
-        <!-- Segunda linha de cards -->
-        <div class="row">
-            <!-- Registros do Mês -->
-            <div class="col-md-4 col-sm-6">
-                <div class="stat-card">
-                    <div class="stat-label">Registros Este Mês</div>
-                    <div class="stat-number color-primary">{{ registros_mes }}</div>
-                    <div class="progress progress-custom">
-                        <div class="progress-bar bg-primary" style="width: {% widthratio registros_mes total_registros 100 %}%"></div>
+                <!-- Em Andamento -->
+                <div class="col-md-3 col-sm-6 p-2">
+                    <div class="stat-card shadow position-relative bg-info">
+                        <i class="bi bi-arrow-repeat stat-icon "></i>
+                        <div class="stat-label text-white">Em Andamento</div>
+                        <div class="stat-number text-white ">3</div>
+                        <!-- <small class="text-muted">Em processamento</small> -->
                     </div>
                 </div>
             </div>
 
-            <!-- Taxa de Conclusão -->
-            <div class="col-md-4 col-sm-6">
-                <div class="stat-card">
-                    <div class="stat-label">Taxa de Conclusão</div>
-                    <div class="stat-number color-success">{{ taxa_conclusao }}%</div>
-                    <div class="progress progress-custom">
-                        <div class="progress-bar bg-success" style="width: {{ taxa_conclusao }}%"></div>
+            <div class="row mt-3 mb-2">
+                <div class="col-12">
+                    <div class="divider-text">
+                        <span>Janeiro de 2026</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Com Atraso -->
-            <div class="col-md-4 col-sm-6">
-                <div class="stat-card">
-                    <div class="stat-label">Com Atraso (>7 dias)</div>
-                    <div class="stat-number color-danger">{{ com_atraso }}</div>
-                    <small class="text-muted">Necessitam atenção</small>
+            <div class="row mt-3 mb-4">
+                <div class="col-12">
+                    <form class="dashboard-filters">
+                        <!-- Período -->
+                        <div class="filter-group">
+                            <label>Período:</label>
+                            <input
+                                type="month"
+                                name="periodo"
+                                class="filter-month"
+                                value="{{ periodo_atual }}"
+                            >
+                        </div>
+
+                        <!-- Cliente -->
+                        <div class="filter-group">
+                            <label>Cliente:</label>
+                            <select name="cliente">
+                                <option value="todos">Todos</option>
+                                {% for cliente in clientes %}
+                                    <option value="{{ cliente.id }}">{{ cliente.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Agente -->
+                        <div class="filter-group">
+                            <label>Agente:</label>
+                            <select name="agente">
+                                <option value="todos">Todos</option>
+                                {% for agente in agentes %}
+                                    <option value="{{ agente.id }}">{{ agente.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Botão -->
+                        <div class="filter-action">
+                            <button type="submit" class="btn-apply">
+                                ✓ Aplicar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+
+            <!-- Segunda linha de cards -->
+            <div class="row">
+                <div class="col-md-4 col-sm-6 p-2">
+                    <div class="stat-card">
+                        <div class="stat-label text-black">Registros Este Mês</div>
+                        <div class="stat-number color-primary">30</div>
+                    </div>
+                </div>
+
+                <div class="col-md-4 col-sm-6 p-2">
+                    <div class="stat-card">
+                        <div class="stat-label text-black">KM Rodados</div>
+                        <div class="stat-number color-success">75.000 KM</div>
+                    </div>
+                </div>
+
+                <div class="col-md-4 col-sm-6 p-2">
+                    <div class="stat-card">
+                        <div class="stat-label text-black">Clientes Ativos</div>
+                        <div class="stat-number color-danger">18</div>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- Gráficos -->
         <div class="row mt-4">
-            <!-- Gráfico por Cliente -->
+            <!-- ACOMPANHAMENTO POR CLIENTE -->
             <div class="col-md-6">
-                <div class="chart-container">
-                    <h5 class="mb-3"><i class="bi bi-building"></i> Top 5 Clientes</h5>
-                    <canvas id="clientesChart"></canvas>
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="mb-0">QTD Acompanhamento Cliente</h5>
+
+                            <select id="filtroPeriodo" class="form-select w-auto">
+                                <option value="semanal">Semanal</option>
+                                <option value="quinzenal">Quinzenal</option>
+                                <option value="mensal" selected>Mensal</option>
+                            </select>
+                        </div>
+
+                        <div style="height: 320px;">
+                            <canvas id="graficoAcompanhamentoCliente"></canvas>
+                        </div>
+
+                    </div>
                 </div>
             </div>
 
-            <!-- Gráfico por Rotas -->
             <div class="col-md-6">
                 <div class="chart-container">
                     <h5 class="mb-3"><i class="bi bi-signpost-2"></i> Top 5 Rotas</h5>
@@ -217,7 +393,6 @@
             </div>
         </div>
 
-        <!-- Card Extra: KM Total -->
         <div class="row mt-4">
             <div class="col-md-12">
                 <div class="stat-card text-center">
@@ -229,84 +404,9 @@
             </div>
         </div>
 
-        <!-- Últimos Registros -->
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="table-container">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5><i class="bi bi-clock-history"></i> Últimos 10 Registros</h5>
-                        <a href="{% url 'acompanhamentoList' %}" class="btn btn-sm btn-primary">
-                            <i class="bi bi-list-ul"></i> Ver Todos
-                        </a>
-                    </div>
-                    
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Cliente</th>
-                                    <th>Origem → Destino</th>
-                                    <th>KM Total</th>
-                                    <th>Status</th>
-                                    <th>Data Criação</th>
-                                    <th>Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for registro in ultimos_registros %}
-                                <tr>
-                                    <td><strong>#{{ registro.id }}</strong></td>
-                                    <td>{{ registro.cliente|default:"N/A" }}</td>
-                                    <td>
-                                        <small>
-                                            {{ registro.origem|default:"?" }} 
-                                            <i class="bi bi-arrow-right"></i> 
-                                            {{ registro.destino|default:"?" }}
-                                        </small>
-                                    </td>
-                                    <td>
-                                        {% if registro.km_total %}
-                                            {{ registro.km_total }} km
-                                        {% else %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if registro.data_final and registro.horario_finalizacao %}
-                                            <span class="badge bg-success">Concluído</span>
-                                        {% elif registro.data_inicial %}
-                                            <span class="badge bg-info">Em Andamento</span>
-                                        {% else %}
-                                            <span class="badge bg-warning">Pendente</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ registro.criado_em|date:"d/m/Y H:i" }}</td>
-                                    <td>
-                                        <a href="{% url 'acompanhamentoUpdate' registro.pk %}" 
-                                           class="btn btn-sm btn-outline-primary" 
-                                           title="Editar">
-                                            <i class="bi bi-pencil"></i>
-                                        </a>
-                                    </td>
-                                </tr>
-                                {% empty %}
-                                <tr>
-                                    <td colspan="7" class="text-center text-muted py-4">
-                                        <i class="bi bi-inbox" style="font-size: 2rem;"></i><br>
-                                        Nenhum registro encontrado
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
 
         <!-- Botões de Ação -->
-        <div class="row mt-4">
+        <!-- <div class="row mt-4">
             <div class="col-12 text-center">
                 <a href="{% url 'acompanhamentoCreate' %}" class="btn btn-success btn-lg me-2">
                     <i class="bi bi-plus-circle"></i> Novo Acompanhamento
@@ -315,95 +415,94 @@
                     <i class="bi bi-list-ul"></i> Listar Todos
                 </a>
             </div>
-        </div>
+        </div> -->
     </div>
 
     <script>
-        // Gráfico de Clientes
-        const ctxClientes = document.getElementById('clientesChart').getContext('2d');
-        const clientesChart = new Chart(ctxClientes, {
-            type: 'bar',
-            data: {
-                labels: [
-                    {% for item in por_cliente %}
-                        '{{ item.cliente|default:"Sem Cliente" }}'{% if not forloop.last %},{% endif %}
-                    {% endfor %}
-                ],
-                datasets: [{
-                    label: 'Quantidade de Registros',
-                    data: [
-                        {% for item in por_cliente %}
-                            {{ item.total }}{% if not forloop.last %},{% endif %}
-                        {% endfor %}
-                    ],
-                    backgroundColor: 'rgba(13, 110, 253, 0.8)',
-                    borderColor: 'rgba(13, 110, 253, 1)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            precision: 0
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                }
-            }
-        });
+        document.addEventListener('DOMContentLoaded', function () {
 
-        // Gráfico de Rotas
-        const ctxRotas = document.getElementById('rotasChart').getContext('2d');
-        const rotasChart = new Chart(ctxRotas, {
-            type: 'doughnut',
-            data: {
-                labels: [
-                    {% for item in por_rota %}
-                        '{{ item.origem|default:"?" }} → {{ item.destino|default:"?" }}'{% if not forloop.last %},{% endif %}
-                    {% endfor %}
-                ],
-                datasets: [{
-                    data: [
-                        {% for item in por_rota %}
-                            {{ item.total }}{% if not forloop.last %},{% endif %}
-                        {% endfor %}
-                    ],
-                    backgroundColor: [
-                        'rgba(13, 110, 253, 0.8)',
-                        'rgba(25, 135, 84, 0.8)',
-                        'rgba(255, 193, 7, 0.8)',
-                        'rgba(220, 53, 69, 0.8)',
-                        'rgba(13, 202, 240, 0.8)'
-                    ],
-                    borderColor: [
-                        'rgba(13, 110, 253, 1)',
-                        'rgba(25, 135, 84, 1)',
-                        'rgba(255, 193, 7, 1)',
-                        'rgba(220, 53, 69, 1)',
-                        'rgba(13, 202, 240, 1)'
-                    ],
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    }
-                }
+            const canvas = document.getElementById('graficoAcompanhamentoCliente');
+            const ctx = canvas.getContext('2d');
+            let graficoCliente = null;
+
+            function carregarGrafico(periodo = 'mensal') {
+
+                fetch('/requisicao/acompanhamento/dashboard/data/?periodo=' + periodo)
+                    .then(response => response.json())
+                    .then(data => {
+
+                        // Fallback se não houver dados
+                        if (!data.labels.length) {
+                            data.labels = ['Sem dados'];
+                            data.valores = [0];
+                        }
+
+                        // Destroi gráfico anterior
+                        if (graficoCliente) {
+                            graficoCliente.destroy();
+                        }
+
+                        graficoCliente = new Chart(ctx, {
+                            type: 'bar',
+                            data: {
+                                labels: data.labels,
+                                datasets: [{
+                                    label: 'Qtd. de Acompanhamentos',
+                                    data: data.valores,
+                                    backgroundColor: '#4e73df',
+                                    borderRadius: 6,
+                                    maxBarThickness: 50
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: {
+                                        display: false
+                                    },
+                                    tooltip: {
+                                        callbacks: {
+                                            label: function (context) {
+                                                return `${context.parsed.y} acompanhamentos`;
+                                            }
+                                        }
+                                    }
+                                },
+                                scales: {
+                                    x: {
+                                        ticks: {
+                                            autoSkip: false,
+                                            maxRotation: 45,
+                                            minRotation: 30
+                                        },
+                                        grid: {
+                                            display: false
+                                        }
+                                    },
+                                    y: {
+                                        beginAtZero: true,
+                                        ticks: {
+                                            precision: 0
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    });
             }
+
+            // 🔹 Inicial
+            carregarGrafico('mensal');
+
+            // 🔹 Atualiza ao trocar o filtro
+            document.getElementById('filtroPeriodo').addEventListener('change', function () {
+                carregarGrafico(this.value);
+            });
+
         });
     </script>
-</body>
+
+   </body>
 
 </html>

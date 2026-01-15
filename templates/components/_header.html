@@ -247,7 +247,7 @@
             }
 
             .dropdown-submenu > .dropdown-menu {
-                top: 0;
+                top: -20px;
                 left: 100%;
                 margin-left: 0.1rem;
                 display: none;
@@ -469,19 +469,24 @@
                             
                             {% endif %}
 
+                            {% if perms.reativacao.view_reativacao %}
+                                <li><a class="dropdown-item" href="{% url 'reativacao_id_iccid_adicionar' %}">Formulário de Reativação</a></li>
+                                <li><a class="dropdown-item" href="{% url 'reativacao_list' %}">Histórico de Reativação</a></li>
+                            {% endif %}
+
                             {% if perms.requisicao.add_registrodeacompanhamento %}
                                 <li class="dropdown-submenu">
                                     <a class="dropdown-item dropdown-toggle">
                                         Acompanhamento
                                     </a>
                                     <ul class="dropdown-menu">
-                                        {% if perms.requisicao.view_listacompanhamento %}
+                                        <!-- {% if perms.requisicao.view_listacompanhamento %}
                                         <li>
                                             <a class="dropdown-item" href="{% url 'acompanhamentoDashboard' %}">
                                                 Dashboard de Acompanhamento
                                             </a>
                                         </li>
-                                        {% endif %}
+                                        {% endif %} -->
                                         {% if perms.requisicao.view_listacompanhamento %}
                                         <li>
                                             <a class="dropdown-item" href="{% url 'acompanhamentoList' %}">
@@ -494,6 +499,27 @@
                                         <li>
                                             <a class="dropdown-item" href="{% url 'acompanhamentoCreate' %}">
                                                 Criar Acompanhamento
+                                            </a>
+                                        </li>
+                                        {% endif %}
+                                    </ul>
+                                </li>
+                                <li class="dropdown-submenu">
+                                    <a class="dropdown-item dropdown-toggle">
+                                        Franquias
+                                    </a>
+                                    <ul class="dropdown-menu">
+                                        {% if perms.franquia.view_listfranquia %}
+                                        <li>
+                                            <a class="dropdown-item" href="{% url 'franquiaList' %}">
+                                                Ver Franquias
+                                            </a>
+                                        </li>
+                                        {% endif %}
+                                        {% if perms.franquia.add_registrodefranquia %}
+                                        <li>
+                                            <a class="dropdown-item" href="{% url 'franquiaCreate' %}">
+                                                Criar Franquia
                                             </a>
                                         </li>
                                         {% endif %}
