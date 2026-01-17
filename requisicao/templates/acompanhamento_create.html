@@ -81,13 +81,16 @@
                         <div class="row">
                             <p>Informações Iniciais</p>
                             <hr>
-                            <div class="col-12 col-md-4">
+                            <div class="col-12 col-md-3">
+                                {{ form.franquia }}
+                            </div>
+                            <div class="col-12 col-md-3">
                                 {{ form.cliente }}
                             </div>
-                            <div class="col-12 col-md-4">
+                            <div class="col-12 col-md-3">
                                 {{ form.origem }}
                             </div>
-                            <div class="col-12 col-md-4">
+                            <div class="col-12 col-md-3">
                                 {{ form.destino }}
                             </div>
                         </div>
@@ -162,6 +165,10 @@
                             <div class="col-12 col-md-3">
                                 <label for="km_total">KM Total</label>
                                 {{ form.km_total }}
+                            </div>
+                            <div class="col-12 col-md-3 mt-2">
+                                <label for="km_total">Pedágio</label>
+                                {{ form.pedagio }}
                             </div>
                         </div>
 
@@ -246,15 +253,18 @@ document.addEventListener("DOMContentLoaded", function () {
 
         const diffMs = fimDateTime - inicioDateTime;
 
-        const totalMinutos = Math.floor(diffMs / 60000);
+        const totalSegundos = Math.floor(diffMs / 1000);
 
-        const horas = Math.floor(totalMinutos / 60);
-        const minutos = totalMinutos % 60;
+        const horas = Math.floor(totalSegundos / 3600);
+        const minutos = Math.floor((totalSegundos % 3600) / 60);
+        const segundos = totalSegundos % 60;
 
         horarioTotal.value =
             String(horas).padStart(2, "0") + ":" +
-            String(minutos).padStart(2, "0");
+            String(minutos).padStart(2, "0") + ":" +
+            String(segundos).padStart(2, "0");
     }
+
 
     dataInicio.addEventListener("change", calcularHorarioTotal);
     horaInicio.addEventListener("change", calcularHorarioTotal);

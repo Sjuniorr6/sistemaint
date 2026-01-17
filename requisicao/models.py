@@ -7,7 +7,8 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
-
+from franquia.models import registrodefranquia
+from datetime import timedelta
 
 class Antenista(models.Model):
     """Modelo simples para armazenar antenistas cadastrados via UI.
@@ -1014,14 +1015,58 @@ class registrodeacompanhamento(models.Model):
     data_final = models.DateField(blank=True, null=True)
     horario_finalizacao = models.TimeField(blank=True, null=True)
 
-    horario_total = models.DurationField(blank=True, null=True, help_text="Tempo total do acompanhamento")
+    horario_total = models.DurationField(
+        blank=True,
+        null=True,
+        help_text="Tempo total do acompanhamento"
+    )
+
+    horario_excedente = models.DurationField(
+        blank=True,
+        null=True,
+        help_text="Tempo excedente em relação à franquia"
+    )
 
     km_inicio = models.IntegerField(blank=True, null=True)
     km_final = models.IntegerField(blank=True, null=True)
-    km_total = models.IntegerField(blank=True, null=True)
 
-    pedagio = models.DecimalField(max_digits=8, decimal_places=2, blank=True, null=True, verbose_name="Valor do Pedágio (R$)")
-    valor_agente = models.DecimalField(max_digits=8, decimal_places=2, blank=True, null=True, verbose_name="Valor do Agente (R$)")
+    km_total = models.IntegerField(
+        blank=True,
+        null=True,
+        help_text="KM total rodado"
+    )
+
+    km_excedente = models.IntegerField(
+        blank=True,
+        null=True,
+        help_text="KM excedente em relação à franquia"
+    )
+
+    franquia = models.ForeignKey(
+        registrodefranquia,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="acompanhamentos",
+        help_text="Franquia contratada para este acompanhamento"
+    )
+
+    pedagio = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        verbose_name="Valor do Pedágio (R$)"
+    )
+
+    valor_agente = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        verbose_name="Valor do Agente (R$)"
+    )
+
     ocorrencia = models.TextField(blank=True, null=True)
 
     # Nome do usuário que criou/atualizou o acompanhamento
@@ -1038,6 +1083,31 @@ class registrodeacompanhamento(models.Model):
 
     def __str__(self):
         return f'Acompanhamento #{self.id} - {self.cliente}'
+
+    def calcular_horario_excedente(self):
+        if not self.franquia or not self.horario_total:
+            return None
+
+        if self.franquia.franquia_horas is None:
+            return None
+
+        segundos_franquia = self.franquia.franquia_horas * 3600
+        segundos_totais = int(self.horario_total.total_seconds())
+
+        segundos_excedentes = segundos_totais - segundos_franquia
+
+        if segundos_excedentes > 0:
+            return timedelta(seconds=segundos_excedentes)
+
+        return None
+
+    def save(self, *args, **kwargs):
+
+        # garante cálculo sempre
+        self.horario_excedente = self.calcular_horario_excedente()
+
+        super().save(*args, **kwargs)
+
 
 class ListAcompanhamento(models.Model):
     registro = models.ForeignKey(

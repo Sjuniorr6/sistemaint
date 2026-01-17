@@ -187,9 +187,11 @@
                                     <th>Data Final</th>
                                     <th>Horário Final</th>
                                     <th>Horário Total</th>
+                                    <th>Horário Excedente</th>
                                     <th>KM Início</th>
                                     <th>KM Final</th>
                                     <th>KM Total</th>
+                                    <th>KM Excedente</th>
                                     <th>Pedágio</th>
                                     <th>Franquia</th>
                                     <th>Valor agente</th>
@@ -222,17 +224,48 @@
                                     <td>{{ item.data_final|date:"d/m/Y" }} </td>
                                     <td>{{ item.horario_finalizacao|time:"H:i" }}</td>
                                     <td>{{ item.horario_total }}</td>
+                                    <td class="horario-excedente" data-id="{{ item.id }}">
+                                        {{ item.horario_excedente }}
+                                    </td>
 
                                     <td>{{ item.km_inicio }}</td>
                                     <td>{{ item.km_final }}</td>
                                     <td>{{ item.km_total }}</td>
-                                    <td>{% if registro.pedagio %}
-                                            R$ {{ registro.pedagio }}
+                                    <td class="km-excedente" data-id="{{ item.id }}">
+                                        {{ item.km_excedente }}
+                                    </td>
+                                    <td>{% if item.pedagio %}
+                                            R$ {{ item.pedagio }}
                                         {% else %}
                                             Sem Pedágio
-                                        {% endif %}</td>
-                                    <td>{{ item.franquia }}</td>
-                                    <td>{{ item.valor_agente }}</td>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if perms.requisicao.add_registrodeacompanhamento %}
+                                            <select class="form-select form-select-sm franquia-select" style="width: 150px;"data-acompanhamento-id="{{ item.id }}">
+                                                <option value="">Selecione</option>
+                                                {% for franquia in franquias %}
+                                                    <option value="{{ franquia.id }}"
+                                                        {% if item.franquia and item.franquia.id == franquia.id %}
+                                                            selected
+                                                        {% endif %}
+                                                    >
+                                                        {{ franquia.nome }}
+                                                    </option>
+                                                {% endfor %}
+                                            </select>
+                                        {% else %}
+                                            {% if item.franquia %}
+                                                {{ item.franquia.nome }}
+                                            {% endif %}
+                                        {% endif %}
+                                    </td>
+                                    <td class="valor-agente" data-id="{{ item.id }}">
+                                        {% if item.valor_agente %}
+                                            R$ {{ item.valor_agente }}
+                                        {% endif %}
+                                    </td>
+
                                     <td>{{ item.ocorrencia }}</td>
                                     <td>{{ item.nome_user }}</td>
                                 </tr>
@@ -244,6 +277,81 @@
             </div>
         </div>
     </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+
+            document.querySelectorAll(".franquia-select").forEach(select => {
+
+                select.addEventListener("change", function () {
+
+                    const acompanhamentoId = this.dataset.acompanhamentoId;
+                    const franquiaId = this.value;
+
+                    if (!acompanhamentoId) return;
+
+                    fetch("{% url 'acompanhamentoUpdateFranquia' %}", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-CSRFToken": "{{ csrf_token }}",
+                        },
+                        body: JSON.stringify({
+                            acompanhamento_id: acompanhamentoId,
+                            franquia_id: franquiaId
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+
+                        if (!data.success) {
+                            alert(data.error || "Erro ao salvar franquia.");
+                            return;
+                        }
+
+                        const valorCell = document.querySelector(
+                            `.valor-agente[data-id="${acompanhamentoId}"]`
+                        );
+
+                        if (valorCell) {
+                            valorCell.innerHTML = data.valor_agente
+                                ? `R$ ${data.valor_agente}`
+                                : "";
+                        }
+
+                        const horarioExcedenteCell = document.querySelector(
+                            `.horario-excedente[data-id="${acompanhamentoId}"]`
+                        );
+
+                        if (horarioExcedenteCell) {
+                            horarioExcedenteCell.innerHTML = data.horario_excedente || "";
+                        }
+
+                        const kmExcedenteCell = document.querySelector(
+                            `.km-excedente[data-id="${acompanhamentoId}"]`
+                        );
+
+                        if (kmExcedenteCell) {
+                            kmExcedenteCell.innerHTML = data.km_excedente && data.km_excedente !== "0"
+                                ? data.km_excedente
+                                : "";
+                        }
+
+                        this.classList.add("border-success");
+                        setTimeout(() => {
+                            this.classList.remove("border-success");
+                        }, 1200);
+                    })
+                    .catch(error => {
+                        console.error(error);
+                        alert("Erro de comunicação com o servidor.");
+                    });
+                });
+
+            });
+
+        });
+    </script>
 
     <script>
         $(document).ready(function () {
