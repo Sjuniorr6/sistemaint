@@ -9,6 +9,8 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from franquia.models import registrodefranquia
 from datetime import timedelta
+from decimal import Decimal
+
 
 class Antenista(models.Model):
     """Modelo simples para armazenar antenistas cadastrados via UI.
@@ -1085,6 +1087,7 @@ class registrodeacompanhamento(models.Model):
         return f'Acompanhamento #{self.id} - {self.cliente}'
 
     def calcular_horario_excedente(self):
+
         if not self.franquia or not self.horario_total:
             return None
 
@@ -1101,11 +1104,57 @@ class registrodeacompanhamento(models.Model):
 
         return None
 
-    def save(self, *args, **kwargs):
+    def recalcular_franquia_e_valores(self):
 
-        # garante cálculo sempre
+        # =============================
+        # HORÁRIO EXCEDENTE
+        # =============================
         self.horario_excedente = self.calcular_horario_excedente()
 
+        # Se não tem franquia, zera dependências
+        if not self.franquia:
+            self.km_excedente = None
+            self.valor_agente = None
+            return
+
+        franquia = self.franquia
+
+        # =============================
+        # KM EXCEDENTE
+        # =============================
+        km_excedente = 0
+        valor_km_excedente = Decimal("0.00")
+
+        if franquia.franquia_km is not None and self.km_total is not None:
+            km_excedente = max(0, self.km_total - franquia.franquia_km)
+
+            if km_excedente > 0 and franquia.valor_km_excedente:
+                valor_km_excedente = Decimal(km_excedente) * franquia.valor_km_excedente
+
+        self.km_excedente = km_excedente
+
+        # =============================
+        # VALOR TOTAL
+        # =============================
+        valor_total = Decimal("0.00")
+
+        if franquia.valor_acionamento:
+            valor_total += franquia.valor_acionamento
+
+        valor_total += valor_km_excedente
+
+        if self.horario_excedente and franquia.valor_horas_excedente:
+            horas = Decimal(self.horario_excedente.total_seconds()) / Decimal("3600")
+            valor_total += horas * franquia.valor_horas_excedente
+
+        if self.pedagio:
+            valor_total += self.pedagio
+
+        self.valor_agente = valor_total.quantize(Decimal("0.01"))
+
+    def save(self, *args, **kwargs):
+        # garante todos os cálculos sempre
+        self.recalcular_franquia_e_valores()
         super().save(*args, **kwargs)
 
 

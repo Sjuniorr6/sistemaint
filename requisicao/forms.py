@@ -310,7 +310,6 @@ class FormulariosForm(forms.ModelForm):
     class Meta:
         model = registrodeacompanhamento
         fields = [
-            'franquia',
 
             'cliente', 'origem', 'destino',
 
@@ -330,7 +329,6 @@ class FormulariosForm(forms.ModelForm):
         ]
 
         widgets = {
-            'franquia': forms.Select(attrs={'class': 'form-control',}),
 
             'cliente': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Cliente'}),
             'origem': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Origem'}),
@@ -365,12 +363,6 @@ class FormulariosForm(forms.ModelForm):
             
         }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.fields['franquia'].queryset = registrodefranquia.objects.all().order_by('nome')
-
-        self.fields['franquia'].empty_label = 'Selecione a Franquia'
 # registrodeacompanhamento/forms.py
 
 

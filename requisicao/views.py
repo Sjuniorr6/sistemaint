@@ -2740,6 +2740,11 @@ def api_requisicoes(request):
 # ------------------------------------------------------
 #                     ACOMPANHAMENTO
 # ------------------------------------------------------
+def format_decimal(value):
+    if value is None:
+        return ""
+    return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
 class AcompanhamentoCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
     model = registrodeacompanhamento
     form_class = FormulariosForm
@@ -2747,50 +2752,41 @@ class AcompanhamentoCreateView(LoginRequiredMixin, PermissionRequiredMixin, Crea
     success_url = reverse_lazy("acompanhamentoList")
     permission_required = "requisicao.add_registrodeacompanhamento"
 
-    def get_initial(self):
-        initial = super().get_initial()
-        user = getattr(self.request, 'user', None)
-        if user:
-            initial['nome_user'] = user.get_full_name() or user.username
-        return initial
-
     def form_valid(self, form):
         instance = form.save(commit=False)
 
-        if instance.horario_finalizacao is None:
-            instance.horario_finalizacao = time(0, 0)
+        # defaults
+        instance.horario_finalizacao = instance.horario_finalizacao or time(0, 0)
+        instance.km_final = instance.km_final or 0
 
-        if instance.km_final is None:
-            instance.km_final = 0
-
+        # KM total
         if instance.km_inicio is not None:
             instance.km_total = instance.km_final - instance.km_inicio
         else:
             instance.km_total = 0
 
+        # Horário total
         if instance.horario_inicio and instance.horario_finalizacao:
             inicio = datetime.combine(
                 instance.data_inicial or datetime.today(),
                 instance.horario_inicio
             )
-
             fim = datetime.combine(
                 instance.data_final or instance.data_inicial or datetime.today(),
                 instance.horario_finalizacao
             )
-
             instance.horario_total = max(fim - inicio, timedelta(0))
         else:
             instance.horario_total = timedelta(0)
 
-        instance.horario_excedente = instance.calcular_horario_excedente()
-
+        # auditoria
         user = self.request.user
         instance.nome_user = user.get_full_name() or user.username
 
+        # 🔥 save chama recalcular_franquia_e_valores()
         instance.save()
-
         return redirect(self.success_url)
+
 
 class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
     model = registrodeacompanhamento
@@ -2807,16 +2803,11 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
             "atualizado_em", 
             "nome_user", 
             "ocorrencia", 
-            "franquia", 
             "km_excedente", 
-            "horario_excedente", 
-            "pedagio", 
-            "valor_agente", 
-            "valor_acionamento", 
-            "valor_km_excedente", 
-            "valor_horario_excedente", 
-            "franquia_km", 
-            "franquia_horas"]:
+            "horario_excedente",
+            "data_final",
+            "horario_finalizacao",
+            "pedagio"]:
 
                 continue
             # Texto (CharField / TextField)
@@ -2882,7 +2873,7 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
     def exportar_pdf(self, queryset):
         
         buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=(1800, 900), topMargin=20, leftMargin=20, rightMargin=20, bottomMargin=20)
+        doc = SimpleDocTemplate(buffer, pagesize=(2000, 900), topMargin=20, leftMargin=20, rightMargin=20, bottomMargin=20)
         elements = []
         
         styles = getSampleStyleSheet()
@@ -2910,8 +2901,9 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
             "Motorista", "Placa Motorista",
             "Data Solicitada", "Hora Solicitada",
             "Data Inicial", "Hora Inicial",
-            "Data Final", "Hora Final", "Hora Total",
-            "KM Início", "KM Final", "KM Total",
+            "Data Final", "Hora Final", "Hora Total", 
+            "KM Início", "KM Final", "KM Total", "Pedágio", "Franquia", "Hora Excedente", "KM Excedente",
+            "Valor Agente",
             "Ocorrência", "Feito Por"
         ]
         
@@ -2920,27 +2912,46 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
         for item in queryset:
             row = [
                 str(item.id),
-                Paragraph(item.cliente or "", cell_style),
+
+                Paragraph(str(item.cliente) if item.cliente else "", cell_style),
                 Paragraph(item.origem or "", cell_style),
                 Paragraph(item.destino or "", cell_style),
                 Paragraph(item.responsavel_agente or "", cell_style),
                 Paragraph(item.agente or "", cell_style),
+
                 item.placa_agente or "",
+
                 Paragraph(item.motorista or "", cell_style),
                 item.placa_motorista or "",
+
                 item.data_solicitada.strftime("%d/%m/%Y") if item.data_solicitada else "",
                 item.horario_solicitado.strftime("%H:%M") if item.horario_solicitado else "",
+
                 item.data_inicial.strftime("%d/%m/%Y") if item.data_inicial else "",
                 item.horario_inicio.strftime("%H:%M") if item.horario_inicio else "",
+
                 item.data_final.strftime("%d/%m/%Y") if item.data_final else "",
                 item.horario_finalizacao.strftime("%H:%M") if item.horario_finalizacao else "",
+
                 str(item.horario_total) if item.horario_total else "",
+
                 str(item.km_inicio) if item.km_inicio is not None else "",
                 str(item.km_final) if item.km_final is not None else "",
                 str(item.km_total) if item.km_total is not None else "",
+
+                Paragraph(format_decimal(item.pedagio), cell_style),
+
+                Paragraph(str(item.franquia.nome) if item.franquia else "", cell_style),
+
+                str(item.horario_excedente) if item.horario_excedente else "",
+                str(item.km_excedente) if item.km_excedente is not None else "",
+
+                Paragraph(format_decimal(item.valor_agente), cell_style),
+
                 Paragraph(item.ocorrencia or "", cell_style),
                 Paragraph(item.nome_user or "", cell_style),
             ]
+
             data.append(row)
 
             colWidths = [
@@ -2963,6 +2974,10 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
                 70,   # KM Início
                 70,   # KM Final
                 70,   # KM Total
+                70,   # Pedágio
+                70,   # Franquia
+                80,   # Hora Excedente
+                70,   # KM Excedente
                 200,  # Ocorrência
                 110   # Feito Por
             ]
@@ -3012,7 +3027,9 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
             "Data Solicitada", "Hora Solicitada",
             "Data Inicial", "Hora Inicial",
             "Data Final", "Hora Final", "Hora Total",
-            "KM Início", "KM Final", "KM Total",
+            "KM Início", "KM Final", "KM Total", "Pedágio",
+            "Franquia", "Hora Excedente", "KM Excedente",
+            "Valor Agente",
             "Ocorrência",
             'Feito Por'
         ]
@@ -3039,6 +3056,11 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
                 item.km_inicio,
                 item.km_final,
                 item.km_total,
+                item.pedagio,
+                item.franquia.nome if item.franquia else "",
+                item.horario_excedente,
+                item.km_excedente,
+                item.valor_agente,
                 item.ocorrencia,
                 item.nome_user,
             ])
@@ -3063,9 +3085,16 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
             nome = field.name
 
             if nome in [
-                "id", "criado_em", "atualizado_em",
-                "pedagio", "valor_agente", "ocorrencia",
-                "franquia", "franquia_km", "franquia_horas"
+                "id", 
+                "criado_em", 
+                "atualizado_em",
+                "nome_user",
+                "ocorrencia", 
+                "pedagio", 
+                "km_excedente", 
+                "horario_excedente",
+                "data_final",
+                "horario_finalizacao"
             ]:
                 continue
 
@@ -3097,7 +3126,6 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
         return context
 
 class RegistroAcompanhamentoUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
-
     model = registrodeacompanhamento
     form_class = FormulariosForm
     template_name = "acompanhamento_create.html"
@@ -3107,160 +3135,70 @@ class RegistroAcompanhamentoUpdateView(LoginRequiredMixin, PermissionRequiredMix
     def form_valid(self, form):
         instance = form.save(commit=False)
 
-        # Recalcula total
+        # preserva franquia (não vem do form)
+        instance.franquia = self.get_object().franquia
+
+        # recalcula horário total
         if instance.horario_inicio and instance.horario_finalizacao:
             inicio = datetime.combine(
                 instance.data_inicial or datetime.today(),
                 instance.horario_inicio
             )
-
             fim = datetime.combine(
                 instance.data_final or instance.data_inicial or datetime.today(),
                 instance.horario_finalizacao
             )
-
             instance.horario_total = max(fim - inicio, timedelta(0))
 
-        # RECÁLCULO DO EXCEDENTE
-        instance.horario_excedente = instance.calcular_horario_excedente()
+        # auditoria
+        user = self.request.user
+        instance.nome_user = user.get_full_name() or user.username
 
+        # 🔥 save recalcula tudo
         instance.save()
         return redirect(self.success_url)
+
 
 @login_required
 @permission_required("requisicao.add_registrodeacompanhamento", raise_exception=False)
 def atualizar_franquia_acompanhamento(request):
 
-    # ===== BLOQUEIO DE MÉTODO =====
     if request.method != "POST":
-        return JsonResponse({
-            "success": False,
-            "error": "Método inválido."
-        }, status=405)
+        return JsonResponse({"success": False, "error": "Método inválido."}, status=405)
 
-    # ===== BLOQUEIO DE PERMISSÃO EM JSON =====
-    if not request.user.has_perm("requisicao.add_registrodeacompanhamento"):
-        return JsonResponse({
-            "success": False,
-            "error": "Usuário sem permissão para atualizar franquia."
-        }, status=403)
+    data = json.loads(request.body)
 
-    try:
-        print("BODY RECEBIDO:", request.body)
+    acompanhamento = get_object_or_404(
+        registrodeacompanhamento,
+        id=data.get("acompanhamento_id")
+    )
 
-        data = json.loads(request.body)
+    franquia_id = data.get("franquia_id")
 
-        acompanhamento_id = data.get("acompanhamento_id")
-        franquia_id = data.get("franquia_id")
+    if not franquia_id:
+        acompanhamento.franquia = None
+    else:
+        acompanhamento.franquia = get_object_or_404(registrodefranquia, id=franquia_id)
 
-        acompanhamento = get_object_or_404(
-            registrodeacompanhamento,
-            id=acompanhamento_id
-        )
+    user = request.user
+    acompanhamento.nome_user = user.get_full_name() or user.username
 
-        # ===========================================
-        # REMOVER FRANQUIA
-        # ===========================================
-        if not franquia_id:
-            acompanhamento.franquia = None
-            acompanhamento.km_excedente = None
-            acompanhamento.valor_agente = None
+    # 🔥 UM ÚNICO PONTO DE CÁLCULO
+    acompanhamento.save()
 
-            acompanhamento.horario_excedente = acompanhamento.calcular_horario_excedente()
+    horario_excedente_str = ""
+    if acompanhamento.horario_excedente:
+        total = int(acompanhamento.horario_excedente.total_seconds())
+        horario_excedente_str = f"{total//3600}:{(total%3600)//60:02d}:{total%60:02d}"
 
-            acompanhamento.save()
-
-            return JsonResponse({
-                "success": True,
-                "valor_agente": None,
-                "km_excedente": None,
-                "horario_excedente": ""
-            })
-
-        # ===========================================
-        # APLICAR FRANQUIA
-        # ===========================================
-        franquia = get_object_or_404(registrodefranquia, id=franquia_id)
-
-        acompanhamento.franquia = franquia
-
-        # ===========================================
-        # calcular horário excedente
-        # ===========================================
-        acompanhamento.horario_excedente = acompanhamento.calcular_horario_excedente()
-
-        # ===========================================
-        # CÁLCULO DE KM EXCEDENTE
-        # ===========================================
-        km_excedente = 0
-        valor_km_excedente = Decimal("0.00")
-
-        if franquia.franquia_km and acompanhamento.km_total:
-            km_excedente = max(0, acompanhamento.km_total - franquia.franquia_km)
-
-            if km_excedente > 0 and franquia.valor_km_excedente:
-                valor_km_excedente = Decimal(str(km_excedente)) * franquia.valor_km_excedente
-
-        acompanhamento.km_excedente = km_excedente
-
-        # ===========================================
-        # CÁLCULO DO VALOR TOTAL
-        # ===========================================
-        valor_total = Decimal("0.00")
-
-        if franquia.valor_acionamento:
-            valor_total += franquia.valor_acionamento
-
-        valor_total += valor_km_excedente
-
-        if acompanhamento.horario_excedente and franquia.valor_horas_excedente:
-
-            segundos = acompanhamento.horario_excedente.total_seconds()
-
-            horas_decimal = Decimal(str(segundos)) / Decimal("3600")
-
-            valor_horas = horas_decimal * franquia.valor_horas_excedente
-
-            valor_total += valor_horas
-
-        if acompanhamento.pedagio:
-            valor_total += acompanhamento.pedagio
-
-        valor_total = valor_total.quantize(Decimal("0.01"))
-
-        acompanhamento.valor_agente = valor_total
-
-        # ===========================================
-        # SALVAR
-        # ===========================================
-        acompanhamento.save()
-
-        # ===========================================
-        # FORMATAR RETORNO
-        # ===========================================
-        horario_excedente_str = ""
-
-        if acompanhamento.horario_excedente:
-            total_segundos = int(acompanhamento.horario_excedente.total_seconds())
-            horas = total_segundos // 3600
-            minutos = (total_segundos % 3600) // 60
-            segundos = total_segundos % 60
-
-            horario_excedente_str = f"{horas}:{minutos:02d}:{segundos:02d}"
-
-        return JsonResponse({
-            "success": True,
-            "valor_agente": f"{valor_total:.2f}",
-            "km_excedente": acompanhamento.km_excedente or 0,
-            "horario_excedente": horario_excedente_str
-        })
-
-    except Exception as e:
-        print("💥 ERRO:", str(e))
-        return JsonResponse({
-            "success": False,
-            "error": str(e)
-        }, status=500)
+    return JsonResponse({
+        "success": True,
+        "valor_agente": str(acompanhamento.valor_agente) if acompanhamento.valor_agente else "",
+        "km_excedente": acompanhamento.km_excedente or 0,
+        "horario_excedente": horario_excedente_str,
+        "nome_user": acompanhamento.nome_user,
+        "franquia_nome": acompanhamento.franquia.nome if acompanhamento.franquia else ""
+    })
 
     
 class AcompanhamentoDashboardView(LoginRequiredMixin, PermissionRequiredMixin, TemplateView):
