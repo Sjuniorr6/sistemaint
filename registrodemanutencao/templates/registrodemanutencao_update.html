@@ -65,7 +65,7 @@
                             value="{{ form.instance.data_devolucao|date:'d/m/Y H:i' }}" readonly>
                     </div>
                     <div class="form-group col-md-2">
-                        <label for="{{ form.tipo_entrada.id_for_label }}">Tipo Contrato:</label>
+                        <label for="{{ form.tipo_contrato.id_for_label }}">Tipo Contrato:</label>
                         {{ form.tipo_contrato }}
                         {% if form.tipo_contrato.errors %}
                         <div class="text-danger">{{ form.tipo_contrato.errors }}</div>

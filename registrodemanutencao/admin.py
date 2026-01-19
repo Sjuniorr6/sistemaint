@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import registrodemanutencao, ImagemRegistro, retorno
+from .models import registrodemanutencao, ImagemRegistro, retorno, registro_manutencao_backup
 
 
 # Classe para personalizar o modelo registrodemanutencao
@@ -49,6 +49,7 @@ class ImagemRegistroAdmin(admin.ModelAdmin):
     imagem_display.short_description = "Imagem"
 
 # Classe para personalizar o modelo retorno
+@admin.register(retorno)
 class RetornoAdmin(admin.ModelAdmin):
     list_display = ('cliente', 'produto', 'tipo_problema', 'imagem_display', 'id_equipamentos')
     search_fields = ('cliente__nome', 'produto__nome')
@@ -61,7 +62,20 @@ class RetornoAdmin(admin.ModelAdmin):
 
     imagem_display.short_description = "Imagem"
 
+class RegistroManutencaoBackupAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'manutencao_original_id',
+        'cliente_nome_snapshot',
+        'produto_nome_snapshot',
+        'status',
+        'backup_criado_por',
+        'backup_criado_em',
+    )
+    readonly_fields = [field.name for field in registro_manutencao_backup._meta.fields]
+
 # Registros no Django Admin
 admin.site.register(registrodemanutencao, RegistroDeManutencaoAdmin)
 admin.site.register(ImagemRegistro, ImagemRegistroAdmin)
-admin.site.register(retorno, RetornoAdmin)
+# admin.site.register(retorno, RetornoAdmin)
+admin.site.register(registro_manutencao_backup, RegistroManutencaoBackupAdmin)

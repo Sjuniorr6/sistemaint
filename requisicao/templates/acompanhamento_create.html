@@ -225,8 +225,8 @@
 <script>
 document.addEventListener("DOMContentLoaded", function () {
 
-    const dataInicio = document.getElementById("id_data_inicial");
-    const horaInicio = document.getElementById("id_horario_inicio");
+    const dataSolicitada = document.getElementById("id_data_solicitada");
+    const horaSolicitada = document.getElementById("id_horario_solicitado");
 
     const dataFinal = document.getElementById("id_data_final");
     const horaFinal = document.getElementById("id_horario_finalizacao");
@@ -235,12 +235,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function calcularHorarioTotal() {
 
-        if (!dataInicio.value || !horaInicio.value || !dataFinal.value || !horaFinal.value) {
+        if (!dataSolicitada.value || !horaSolicitada.value || !dataFinal.value || !horaFinal.value) {
             horarioTotal.value = "";
             return;
         }
 
-        const inicioDateTime = new Date(`${dataInicio.value}T${horaInicio.value}`);
+        const inicioDateTime = new Date(`${dataSolicitada.value}T${horaSolicitada.value}`);
         const fimDateTime = new Date(`${dataFinal.value}T${horaFinal.value}`);
 
         if (fimDateTime < inicioDateTime) {
@@ -263,14 +263,12 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
 
-    dataInicio.addEventListener("change", calcularHorarioTotal);
-    horaInicio.addEventListener("change", calcularHorarioTotal);
+    dataSolicitada.addEventListener("change", calcularHorarioTotal);
+    horaSolicitada.addEventListener("change", calcularHorarioTotal);
     dataFinal.addEventListener("change", calcularHorarioTotal);
     horaFinal.addEventListener("change", calcularHorarioTotal);
 });
 </script>
-
-
 
 </body>
 

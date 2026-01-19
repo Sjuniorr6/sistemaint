@@ -362,6 +362,15 @@
                 </div>
             </div>
         </form>
+        {% if request.GET.id or request.GET.nome or request.GET.numero_equipamento %}
+            <div class="row mb-2 mt-3">
+                <div class="col-12 text-center">
+                    <a href="{% url 'aprovarListView' %}" class="btn btn-secondary">
+                        <i class="bi bi-x-circle"></i> Limpar Todos os Filtros
+                    </a>
+                </div>
+            </div>
+        {% endif %} 
     </div>
 </div>
 <div class="container-fluid">
