@@ -33,6 +33,8 @@ from django.http import HttpResponse
 from.forms import RetornoForm
 from .services import criar_backup_manutencao
 
+from datetime import date
+
 # View para listar todos os registros de manutenção com paginação.4
 #-----------------------------------------------------------------------
 class entradasListView(PermissionRequiredMixin, LoginRequiredMixin, ListView):
@@ -51,7 +53,11 @@ class entradasListView(PermissionRequiredMixin, LoginRequiredMixin, ListView):
                 'Aguardando Aprovação',
                 'Aprovado pela Diretoria',
                 'Reprovado pela Inteligência'
-            ]
+            ],
+
+            
+ # 👇 FILTRO DE DATA: SOMENTE A PARTIR DE 2026
+            data_criacao__gte=date(2026, 1, 1)
         )
 
         equipamentos_param = self.request.GET.get('numero_equipamento')
