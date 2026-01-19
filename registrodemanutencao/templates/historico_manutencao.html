@@ -16,21 +16,11 @@
         html, body {
             background-color: #45494E;
             color: #f2f4f7;
-            background-repeat: no-repeat;
-            background-size: contain;
-            background-position: center;
-            background-attachment: fixed;
-            overflow-y: hidden;
-            overflow-x: hidden;
+
         }
 
         /* Sobrescreve o container centralizador do base.html */
-        .container.mt-4, .container {
-            width: 100vw !important;
-            max-width: 100vw !important;
-            margin: 0 !important;
-            padding: 0 !important;
-        }
+      
 
         .container-page {
             width: 100vw;
@@ -270,11 +260,11 @@
 <body>
   {% include 'components/_header.html' %}
 
-<div class="container-page mt-4 mb-5" style="margin-left:1vw; padding-left:0; width:99vw; max-width:98vw;">
-    <div class="panel mb-3">
+<div class="container-fluid mt-4 mb-5">
+    <div class="row">
+        <div class="col-12">
             <form method="get" action="{% url 'historico_manutencaoListView' %}">
                 {% csrf_token %}
-
                 <div class="filters-card modern-filters">
                      <div class="row g-2 align-items-end">
                          <!-- Primeira linha de filtros -->
@@ -342,7 +332,11 @@
                      </div>
                 </div>
             </form>
-
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-12">
+            <div class="panel mb-3">
             <!-- Tabela -->
                 <div class="table-responsive">
                     <table id="tabela-manutencoes" class="table table-bordered table-striped">
@@ -406,7 +400,7 @@
                                     <td>{{ manutencao.customizacaoo }}</td>
                                     <td class="text-truncate" style="max-width: 320px;" title="{{ manutencao.observacoes }}">{{ manutencao.observacoes }}</td>
                                     <td class="text-center" style="min-width: 260px;">
-                                        {% if manutencao.status == "Comercial" %}
+                                        {% if manutencao.status == "Comercial" or manutencao.status == "Aprovado pela Inteligência" or manutencao.status == "Tratativa Finalizada" %}
                                         <a class="btn btn-info btn-action mb-1" href="{% url 'download_pdfmanutencao' manutencao.id %}">Download PDF</a>
                                         {% endif %}
                                         <a class="btn btn-success btn-action mb-1" href="{% url 'download_protocolo_entrada' manutencao.id %}">Protocolo</a>
@@ -422,6 +416,8 @@
                 
                 <!-- Paginação -->
                 </div>
+            </div>
+        </div>
     </div>
 </div>
 

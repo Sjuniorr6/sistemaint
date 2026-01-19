@@ -564,6 +564,7 @@
                             <!-- Manutenção -->
                             {% if perms.produto.change_produto %}
                             <li><a class="dropdown-item" href="{% url 'aprovarListView' %}">Aprovar Manutenções</a></li>
+                            <li><a class="dropdown-item" href="{% url 'backupListView' %}">Backup Manutenções</a></li>
                             {% endif %}
                             
                             <!-- Operação Nestlé -->
@@ -631,7 +632,29 @@
                     </li>
                 </ul>
             </div>
-        </div>
-    </nav>
-</body>
-</html>
+        </nav>
+    </div>
+    {% load user_groups %}
+        {% if user|has_group:"COMERCIAL" %}
+            <div class="alert-comercial mt-3">
+                <div class="container">
+                    <div class="row">
+                        <div class="col-12">
+
+                            {% if manutencoes_pendentes > 0 %}
+                            <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                                <a href="{% url 'realizadasListView' %}" style="text-decoration: none; color: black;">
+                                    <strong>⚠ Atenção!</strong>
+                                    Existem <strong>{{ manutencoes_pendentes }}</strong> manutenções aguardando finalização.
+                                </a>
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                            {% endif %}
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+
+

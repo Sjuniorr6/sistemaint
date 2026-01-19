@@ -27,11 +27,13 @@ from .views import (
     reprovar_manutencao2,
     download_protocolo_entrada,
     editado_manutencao,
-    atualizar_status_tratativa
+    atualizar_status_tratativa,
+    backupListView
 )
 urlpatterns = [
     path('configlist/historico', historico_manutencaoListView.as_view(), name='historico_manutencaoListView'),
     path('configlist/entradaslist', entradasListView.as_view(), name='entradasListView'),
+    path('configlist/backuplist', backupListView.as_view(), name='backupListView'),
     path('configlist/aprovarlist', aprovarListView.as_view(), name='aprovarListView'),
     path('configlist/realizadaslist', realizadasListView.as_view(), name='realizadasListView'),
     path('registrodemanutencao/create/', FormulariosCreateView.as_view(), name='FormulariosCreateView'),

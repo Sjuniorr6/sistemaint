@@ -17,20 +17,19 @@
         <!-- jQuery -->
         <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 
+        <!-- Select2 CSS -->
+        <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+        <!-- Select2 JS -->
+        <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
         <!-- DataTables JS -->
         <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 
         <!-- DataTables PT-BR -->
         <script src="https://cdn.datatables.net/plug-ins/1.13.8/i18n/pt-BR.json"></script>
-        
-    {% load static %}
-    {% load user_groups %}
-</head>
 
-<body>
-    {% include 'components/_header.html' %}
-
-    <style>
+        <style>
         body {
             max-width: 100%;
             overflow-x: hidden;
@@ -83,8 +82,30 @@
                 flex-direction: column;
             }
         }
-        
+
+        .select2-container .select2-selection--single {
+            height: 31px;
+            padding: 2px 6px;
+            font-size: 0.875rem;
+        }
+
+        .select2-selection__rendered {
+            line-height: 26px !important;
+        }
+
+        .select2-selection__arrow {
+            height: 28px !important;
+        }
+ 
     </style>
+        
+    {% load static %}
+    {% load user_groups %}
+</head>
+
+<body>
+    {% include 'components/_header.html' %}
+
 
     <div class="container mt-3 mb-5 text-center">
         <div class="row">
@@ -236,7 +257,7 @@
 
                                     <td>
                                         {% if perms.requisicao.add_registrodeacompanhamento %}
-                                            <select class="form-select form-select-sm franquia-select" style="width: 150px;"data-acompanhamento-id="{{ item.id }}">
+                                            <select class="form-select form-select-sm franquia-select select-franquia" style="width: 150px;" data-acompanhamento-id="{{ item.id }}">
                                                 <option value="">Selecione</option>
                                                 {% for franquia in franquias %}
                                                     <option value="{{ franquia.id }}"
@@ -281,107 +302,124 @@
     </div>
 
     <script>
-        document.addEventListener("DOMContentLoaded", function () {
+        $(document).on('change', '.franquia-select', function () {
 
-            document.querySelectorAll(".franquia-select").forEach(select => {
+            const acompanhamentoId = $(this).data('acompanhamento-id');
+            const franquiaId = $(this).val();
 
-                select.addEventListener("change", function () {
+            if (!acompanhamentoId) return;
 
-                    const acompanhamentoId = this.dataset.acompanhamentoId;
-                    const franquiaId = this.value;
+            fetch("{% url 'acompanhamentoUpdateFranquia' %}", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": "{{ csrf_token }}",
+                },
+                body: JSON.stringify({
+                    acompanhamento_id: acompanhamentoId,
+                    franquia_id: franquiaId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
 
-                    if (!acompanhamentoId) return;
+                if (!data.success) {
+                    alert(data.error || "Erro ao salvar franquia.");
+                    return;
+                }
 
-                    fetch("{% url 'acompanhamentoUpdateFranquia' %}", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "X-CSRFToken": "{{ csrf_token }}",
-                        },
-                        body: JSON.stringify({
-                            acompanhamento_id: acompanhamentoId,
-                            franquia_id: franquiaId
-                        })
-                    })
-                    .then(response => response.json())
-                    .then(data => {
+                const valorCell = document.querySelector(
+                    `.valor-agente[data-id="${acompanhamentoId}"]`
+                );
 
-                        if (!data.success) {
-                            alert(data.error || "Erro ao salvar franquia.");
-                            return;
-                        }
+                if (valorCell) {
+                    valorCell.innerHTML = data.valor_agente
+                        ? `R$ ${data.valor_agente}`
+                        : "";
+                }
 
-                        const valorCell = document.querySelector(
-                            `.valor-agente[data-id="${acompanhamentoId}"]`
-                        );
+                const horarioExcedenteCell = document.querySelector(
+                    `.horario-excedente[data-id="${acompanhamentoId}"]`
+                );
 
-                        if (valorCell) {
-                            valorCell.innerHTML = data.valor_agente
-                                ? `R$ ${data.valor_agente}`
-                                : "";
-                        }
+                if (horarioExcedenteCell) {
+                    horarioExcedenteCell.innerHTML = data.horario_excedente || "";
+                }
 
-                        const horarioExcedenteCell = document.querySelector(
-                            `.horario-excedente[data-id="${acompanhamentoId}"]`
-                        );
+                const kmExcedenteCell = document.querySelector(
+                    `.km-excedente[data-id="${acompanhamentoId}"]`
+                );
 
-                        if (horarioExcedenteCell) {
-                            horarioExcedenteCell.innerHTML = data.horario_excedente || "None";
-                        }
+                if (kmExcedenteCell) {
+                    kmExcedenteCell.innerHTML =
+                        data.km_excedente && data.km_excedente !== "0"
+                            ? data.km_excedente
+                            : "";
+                }
 
-                        const kmExcedenteCell = document.querySelector(
-                            `.km-excedente[data-id="${acompanhamentoId}"]`
-                        );
+                const userCell = document.querySelector(
+                    `.user[data-id="${acompanhamentoId}"]`
+                );
 
-                        if (kmExcedenteCell) {
-                            kmExcedenteCell.innerHTML = data.km_excedente && data.km_excedente !== "0"
-                                ? data.km_excedente
-                                : "0";
-                        }
+                if (userCell) {
+                    userCell.innerHTML = data.nome_user || "";
+                }
 
-                        const UserCell = document.querySelector(
-                            `.user[data-id="${acompanhamentoId}"]`
-                        );
+                // feedback visual
+                $(this).closest('.select2-container')
+                    .find('.select2-selection')
+                    .addClass('border border-success');
 
-                        if (UserCell) {
-                            UserCell.innerHTML = data.nome_user && data.nome_user !== ""
-                                ? data.nome_user
-                                : "";
-                        }
+                setTimeout(() => {
+                    $(this).closest('.select2-container')
+                        .find('.select2-selection')
+                        .removeClass('border border-success');
+                }, 1200);
 
-                        this.classList.add("border-success");
-                        setTimeout(() => {
-                            this.classList.remove("border-success");
-                        }, 1200);
-                    })
-                    .catch(error => {
-                        console.error(error);
-                        alert("Erro de comunicação com o servidor.");
-                    });
-                });
-
+            })
+            .catch(error => {
+                console.error(error);
+                alert("Erro de comunicação com o servidor.");
             });
-
         });
     </script>
 
     <script>
-        $(document).ready(function () {
-            $('#tabela-acompanhamentos').DataTable({
-                scrollX: true,
-                scrollCollapse: true,
-                autoWidth: false,
-
-                language: {
-                    url: "https://cdn.datatables.net/plug-ins/1.13.8/i18n/pt-BR.json"
-                },
-
-                pageLength: 10,
-                lengthMenu: [10, 25, 50, 100],
-                order: [[1, 'desc']]
-            });
+    function inicializarSelectFranquia() {
+        $('.select-franquia').select2({
+            width: 'resolve',
+            placeholder: 'Selecione',
+            allowClear: true,
+            dropdownAutoWidth: true,
+            language: {
+                noResults: function () {
+                    return "Nenhuma franquia encontrada";
+                }
+            }
         });
-    </script>
+    }
+
+    $(document).ready(function () {
+
+        const table = $('#tabela-acompanhamentos').DataTable({
+            scrollX: true,
+            scrollCollapse: true,
+            autoWidth: false,
+            language: {
+                url: "https://cdn.datatables.net/plug-ins/1.13.8/i18n/pt-BR.json"
+            },
+            pageLength: 10,
+            lengthMenu: [10, 25, 50, 100],
+            order: [[1, 'desc']],
+            drawCallback: function () {
+                inicializarSelectFranquia();
+            }
+        });
+
+        inicializarSelectFranquia();
+    });
+</script>
+
 
 </body>
 

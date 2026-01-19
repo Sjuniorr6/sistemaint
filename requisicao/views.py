@@ -2766,13 +2766,13 @@ class AcompanhamentoCreateView(LoginRequiredMixin, PermissionRequiredMixin, Crea
             instance.km_total = 0
 
         # Horário total
-        if instance.horario_inicio and instance.horario_finalizacao:
+        if instance.horario_solicitado and instance.horario_finalizacao:
             inicio = datetime.combine(
-                instance.data_inicial or datetime.today(),
-                instance.horario_inicio
+                instance.data_solicitada or datetime.today(),
+                instance.horario_solicitado
             )
             fim = datetime.combine(
-                instance.data_final or instance.data_inicial or datetime.today(),
+                instance.data_final or instance.data_solicitada or datetime.today(),
                 instance.horario_finalizacao
             )
             instance.horario_total = max(fim - inicio, timedelta(0))
@@ -2871,7 +2871,7 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
         return super().render_to_response(context, **response_kwargs)
 
     def exportar_pdf(self, queryset):
-        
+    
         buffer = BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=(2000, 900), topMargin=20, leftMargin=20, rightMargin=20, bottomMargin=20)
         elements = []
@@ -2909,78 +2909,46 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
         
         # Dados
         data = [headers]
+        total_valor_agente = Decimal("0.00")
+        
         for item in queryset:
             row = [
                 str(item.id),
-
                 Paragraph(str(item.cliente) if item.cliente else "", cell_style),
                 Paragraph(item.origem or "", cell_style),
                 Paragraph(item.destino or "", cell_style),
                 Paragraph(item.responsavel_agente or "", cell_style),
                 Paragraph(item.agente or "", cell_style),
-
                 item.placa_agente or "",
-
                 Paragraph(item.motorista or "", cell_style),
                 item.placa_motorista or "",
-
                 item.data_solicitada.strftime("%d/%m/%Y") if item.data_solicitada else "",
                 item.horario_solicitado.strftime("%H:%M") if item.horario_solicitado else "",
-
                 item.data_inicial.strftime("%d/%m/%Y") if item.data_inicial else "",
                 item.horario_inicio.strftime("%H:%M") if item.horario_inicio else "",
-
                 item.data_final.strftime("%d/%m/%Y") if item.data_final else "",
                 item.horario_finalizacao.strftime("%H:%M") if item.horario_finalizacao else "",
-
                 str(item.horario_total) if item.horario_total else "",
-
                 str(item.km_inicio) if item.km_inicio is not None else "",
                 str(item.km_final) if item.km_final is not None else "",
                 str(item.km_total) if item.km_total is not None else "",
-
                 Paragraph(format_decimal(item.pedagio), cell_style),
-
                 Paragraph(str(item.franquia.nome) if item.franquia else "", cell_style),
-
                 str(item.horario_excedente) if item.horario_excedente else "",
                 str(item.km_excedente) if item.km_excedente is not None else "",
-
                 Paragraph(format_decimal(item.valor_agente), cell_style),
-
                 Paragraph(item.ocorrencia or "", cell_style),
                 Paragraph(item.nome_user or "", cell_style),
             ]
+            
+            if item.valor_agente:
+                total_valor_agente += Decimal(str(item.valor_agente))
 
             data.append(row)
 
-            colWidths = [
-                55,   # Protocolo
-                140,  # Cliente
-                120,  # Origem
-                120,  # Destino
-                130,  # Responsável
-                110,  # Agente
-                90,   # Placa Agente
-                120,  # Motorista
-                90,   # Placa Motorista
-                90,   # Data Solicitada
-                80,   # Hora Solicitada
-                90,   # Data Inicial
-                80,   # Hora Inicial
-                90,   # Data Final
-                80,   # Hora Final
-                80,   # Hora Total
-                70,   # KM Início
-                70,   # KM Final
-                70,   # KM Total
-                70,   # Pedágio
-                70,   # Franquia
-                80,   # Hora Excedente
-                70,   # KM Excedente
-                200,  # Ocorrência
-                110   # Feito Por
-            ]
+        total_row = [""] * len(headers)
+        total_row[23] = Paragraph(f"Total: {format_decimal(total_valor_agente)}", cell_style)
+        data.append(total_row)
 
         # Criar tabela
         table = Table(data, colWidths=[50, 80, 80, 80, 80, 80, 80, 80, 80, 80, 60, 80, 60, 80, 60, 60, 60, 60, 60, 100, 80])
@@ -2991,6 +2959,10 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
             ("FONTSIZE", (0, 0), (-1, -1), 7),
             ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            
+            # Linha de total com fundo destacado
+            ("BACKGROUND", (0, -1), (-1, -1), colors.lightgrey),
+            ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
 
             # Centraliza números / datas
             ("ALIGN", (0, 1), (0, -1), "CENTER"),
@@ -3003,7 +2975,6 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
             ("ALIGN", (19, 1), (20, -1), "LEFT"),
         ]))
 
-        
         elements.append(table)
         
         # Gerar PDF
@@ -3035,6 +3006,8 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
         ]
         sheet.append(headers)
 
+        total_valor_agente = Decimal("0.00")
+
         for item in queryset:
             sheet.append([
                 item.id,
@@ -3064,6 +3037,22 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
                 item.ocorrencia,
                 item.nome_user,
             ])
+            
+            if item.valor_agente:
+                total_valor_agente += Decimal(str(item.valor_agente))
+
+        sheet.append([])
+        
+        total_row = [""] * len(headers)
+        total_row[23] = f"TOTAL: R$ {total_valor_agente:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        sheet.append(total_row)
+        
+        from openpyxl.styles import Font, PatternFill
+        last_row = sheet.max_row
+        for col in range(1, len(headers) + 1):
+            cell = sheet.cell(row=last_row, column=col)
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color="D3D3D3", end_color="D3D3D3", fill_type="solid")
 
         response = HttpResponse(
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -3139,13 +3128,13 @@ class RegistroAcompanhamentoUpdateView(LoginRequiredMixin, PermissionRequiredMix
         instance.franquia = self.get_object().franquia
 
         # recalcula horário total
-        if instance.horario_inicio and instance.horario_finalizacao:
+        if instance.horario_solicitado and instance.horario_finalizacao:
             inicio = datetime.combine(
-                instance.data_inicial or datetime.today(),
-                instance.horario_inicio
+                instance.data_solicitada or datetime.today(),
+                instance.horario_solicitado
             )
             fim = datetime.combine(
-                instance.data_final or instance.data_inicial or datetime.today(),
+                instance.data_final or instance.data_solicitada or datetime.today(),
                 instance.horario_finalizacao
             )
             instance.horario_total = max(fim - inicio, timedelta(0))
@@ -3157,7 +3146,6 @@ class RegistroAcompanhamentoUpdateView(LoginRequiredMixin, PermissionRequiredMix
         # 🔥 save recalcula tudo
         instance.save()
         return redirect(self.success_url)
-
 
 @login_required
 @permission_required("requisicao.add_registrodeacompanhamento", raise_exception=False)
@@ -3183,7 +3171,6 @@ def atualizar_franquia_acompanhamento(request):
     user = request.user
     acompanhamento.nome_user = user.get_full_name() or user.username
 
-    # 🔥 UM ÚNICO PONTO DE CÁLCULO
     acompanhamento.save()
 
     horario_excedente_str = ""
@@ -3200,7 +3187,6 @@ def atualizar_franquia_acompanhamento(request):
         "franquia_nome": acompanhamento.franquia.nome if acompanhamento.franquia else ""
     })
 
-    
 class AcompanhamentoDashboardView(LoginRequiredMixin, PermissionRequiredMixin, TemplateView):
     template_name = "acompanhamento_dashboard.html"
     permission_required = "requisicao.view_listacompanhamento"

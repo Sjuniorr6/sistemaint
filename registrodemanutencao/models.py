@@ -1,15 +1,9 @@
 from django.db import models
-
-# Create your models here.
-from django.db import models
 from acompanhamento.models import Clientes   
 from produto.models import Produto    
 from datetime import timedelta  # CORRETO
-
+from django.contrib.auth.models import User
 from django.utils import timezone
-# registrodemanutencao/models.py
-
-from django.db import models
 
 class registrodemanutencao(models.Model):
     TRATATIVAS = [
@@ -139,7 +133,6 @@ class registrodemanutencao(models.Model):
     data_criacao = models.DateTimeField(auto_now_add=True, null=True, blank=True)
     data_devolucao = models.DateTimeField(null=True, blank=True)
 
-
 class ImagemRegistro(models.Model):
     SETORID = [
         ('Retorno', 'Retorno'),
@@ -193,3 +186,67 @@ class retorno(models.Model):
 
     def __str__(self):
         return f"{self.cliente} - {self.produto} - {self.tipo_problema}" 
+
+class registro_manutencao_backup(models.Model):
+
+    manutencao_original_id = models.IntegerField(
+        verbose_name="ID da Manutenção Original"
+    )
+
+    nome = models.ForeignKey(
+        'acompanhamento.Clientes',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+
+    tipo_entrada = models.CharField(max_length=50, null=True, blank=True)
+    tipo_produto = models.ForeignKey(
+        'produto.Produto',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+
+    # SNAPSHOT CLIENTE
+    cliente_id_snapshot = models.IntegerField(null=True, blank=True)
+    cliente_nome_snapshot = models.CharField(max_length=255, null=True, blank=True)
+
+    # SNAPSHOT PRODUTO
+    produto_id_snapshot = models.IntegerField(null=True, blank=True)
+    produto_nome_snapshot = models.CharField(max_length=255, null=True, blank=True)
+
+    motivo = models.CharField(max_length=50, null=True, blank=True)
+    tipo_customizacao = models.CharField(max_length=50, null=True, blank=True)
+    recebimento = models.CharField(max_length=50, null=True, blank=True)
+    entregue_por_retirado_por = models.CharField(max_length=50, null=True, blank=True)
+
+    id_equipamentos = models.TextField(max_length=1200, blank=True)
+    quantidade = models.IntegerField(null=True, blank=True)
+
+    tipo_contrato = models.CharField(max_length=50, null=True, blank=True)
+    customizacaoo = models.CharField(max_length=250, blank=True)
+    numero_equipamento = models.TextField(max_length=2500, blank=True)
+    observacoes = models.TextField(max_length=250, blank=True)
+
+    tratativa = models.CharField(max_length=50, null=True, blank=True)
+
+    imagem = models.CharField(max_length=255, null=True, blank=True)
+    imagem2 = models.CharField(max_length=255, null=True, blank=True)
+
+    status = models.CharField(max_length=50, null=True, blank=True)
+    status_tratativa = models.CharField(max_length=50, null=True, blank=True)
+
+    data_criacao_original = models.DateTimeField(null=True, blank=True)
+    data_devolucao = models.DateTimeField(null=True, blank=True)
+
+    backup_criado_em = models.DateTimeField(auto_now_add=True)
+    backup_criado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+
+    def __str__(self):
+        return f"Backup {self.id} | Manutenção {self.manutencao_original_id}"

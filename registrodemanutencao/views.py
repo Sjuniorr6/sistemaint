@@ -12,7 +12,7 @@ from reportlab.lib import colors
 from reportlab.pdfgen import canvas
 import os
 from django.conf import settings
-from .models import registrodemanutencao
+from .models import registrodemanutencao, registro_manutencao_backup
 from django.views.generic import ListView, CreateView, DetailView, DeleteView, UpdateView
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect, get_object_or_404
@@ -31,6 +31,8 @@ from django.urls import reverse_lazy
 from django.db.models import Q
 from django.http import HttpResponse
 from.forms import RetornoForm
+from .services import criar_backup_manutencao
+
 # View para listar todos os registros de manutenção com paginação.4
 #-----------------------------------------------------------------------
 class entradasListView(PermissionRequiredMixin, LoginRequiredMixin, ListView):
@@ -73,8 +75,47 @@ class entradasListView(PermissionRequiredMixin, LoginRequiredMixin, ListView):
 
         return queryset.order_by('-id')
 
-#----------------------------------------------------------------------------
+# View para listar todos os backups de Manutenção
+#-----------------------------------------------------------------------
+class backupListView(PermissionRequiredMixin, LoginRequiredMixin, ListView):
+    model = registro_manutencao_backup
+    template_name = "backup_entradas.html"
+    context_object_name = 'dasentradas'
+    paginate_by = 12
+    
+    permission_required = 'registrodemanutencao.view_registrodemanutencao'
 
+    def get_queryset(self):
+        queryset = registro_manutencao_backup.objects.all()
+
+        equipamentos_param = self.request.GET.get('numero_equipamento')
+        manutencao_original_id_param = self.request.GET.get('manutencao_original_id')
+        nome_param = self.request.GET.get('nome')
+        status_param = self.request.GET.get('status')
+
+        if equipamentos_param:
+            queryset = queryset.filter(
+                numero_equipamento__icontains=equipamentos_param
+            )
+
+        if manutencao_original_id_param:
+            queryset = queryset.filter(
+                manutencao_original_id=manutencao_original_id_param
+            )
+
+        if nome_param:
+            queryset = queryset.filter(
+                nome__nome__icontains=nome_param
+            )
+
+        if status_param:
+            queryset = queryset.filter(
+                status=status_param
+            )
+
+        return queryset.order_by('-id')
+
+#----------------------------------------------------------------------------
 # View para listar todos os registros de manutenções para aprovação Inteligencia
 #-----------------------------------------------------------------------
 class aprovarListView(PermissionRequiredMixin, LoginRequiredMixin, ListView):
@@ -211,32 +252,43 @@ class FormulariosUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateV
 
     def post(self, request, *args, **kwargs):
         self.object = self.get_object()
+
+        objeto_original = registrodemanutencao.objects.get(pk=self.object.pk)
+
         form = self.form_class(request.POST, request.FILES, instance=self.object)
         imagens_formset = ImagemRegistroFormSet(request.POST, request.FILES, instance=self.object)
 
         if form.is_valid() and imagens_formset.is_valid():
-            return self.form_valid(form, imagens_formset)
+            return self.form_valid(form, imagens_formset, objeto_original)
         else:
-            # Para depuração, adicione mais informações
             print("Form errors:", form.errors)
             print("Formset errors:", imagens_formset.errors)
             return self.form_invalid(form, imagens_formset)
 
-    def form_valid(self, form, imagens_formset):
+
+    def form_valid(self, form, imagens_formset, objeto_original):
+        if form.has_changed() or imagens_formset.has_changed():
+            criar_backup_manutencao(
+                manutencao=objeto_original,
+                usuario=self.request.user
+            )
+
         self.object = form.save()
         imagens_formset.instance = self.object
         imagens_formset.save()
-        
-        # Verificar se veio da página de histórico e manter os filtros
+
         referer = self.request.META.get('HTTP_REFERER', '')
         if 'historico' in referer:
-            # Manter os filtros aplicados no redirecionamento
             params = self.request.GET.copy()
             if params:
-                return redirect(f"{reverse('historico_manutencaoListView')}?{params.urlencode()}")
+                return redirect(
+                    f"{reverse('historico_manutencaoListView')}?{params.urlencode()}"
+                )
             return redirect('historico_manutencaoListView')
-        
+
         return redirect(self.success_url)
+
+
 
     def form_invalid(self, form, imagens_formset):
         context = self.get_context_data(form=form, imagens_formset=imagens_formset)
@@ -1158,7 +1210,7 @@ Estamos à disposição para fornecer qualquer esclarecimento adicional. Recomen
     except Exception as e:
         messages.error(request, f"Erro ao enviar email: {str(e)}")
     
-    return redirect('entradasListView')   
+    return redirect('aprovarListView')   
 
 def aprovar_manutencao_comercial(request, id):
     registro = get_object_or_404(registrodemanutencao, id=id)
