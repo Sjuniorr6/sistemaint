@@ -34,18 +34,14 @@ from django.utils import timezone
 from django.contrib.contenttypes.models import ContentType
 import json
 from django.views.generic import TemplateView
-
-
-
 from registrodemanutencao.forms import FormulariosUpdateForm
 from django.core.mail import send_mail
 from django.contrib.auth.mixins import PermissionRequiredMixin, LoginRequiredMixin
-
 from django.shortcuts import render, redirect
 from django.forms import inlineformset_factory
-
 from .forms import ControleForm
-
+from franquia.models import registrodefranquia
+from decimal import Decimal
 
 # ------------------------------------------------------
 class RequisicoesViews(PermissionRequiredMixin, LoginRequiredMixin, ListView):
@@ -2744,64 +2740,32 @@ def api_requisicoes(request):
 # ------------------------------------------------------
 #                     ACOMPANHAMENTO
 # ------------------------------------------------------
-class AcompanhamentoCreateView(
-    LoginRequiredMixin,
-    PermissionRequiredMixin,
-    CreateView
-):
+def format_decimal(value):
+    if value is None:
+        return ""
+    return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+class AcompanhamentoCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
     model = registrodeacompanhamento
     form_class = FormulariosForm
     template_name = "acompanhamento_create.html"
     success_url = reverse_lazy("acompanhamentoList")
     permission_required = "requisicao.add_registrodeacompanhamento"
 
-    def get_initial(self):
-        initial = super().get_initial()
-        user = getattr(self.request, 'user', None)
-        if user:
-            initial['nome_user'] = user.get_full_name() or user.username
-        return initial
-
     def form_valid(self, form):
-        campos_para_validar = [
-            'cliente', 'origem', 'destino',
-            'agente', 'placa_agente', 'motorista', 'placa_motorista',
-            'data_solicitada', 'horario_solicitado',
-            'data_inicial', 'horario_inicio',
-            'data_final', 'horario_finalizacao',
-            'km_inicio', 'km_final',
-            'ocorrencia',
-        ]
-
-        dados = form.cleaned_data
-
-        # Verifica se TODOS estão vazios
-        todos_vazios = all(
-            not dados.get(campo)
-            for campo in campos_para_validar
-        )
-
-        if todos_vazios:
-            return redirect("acompanhamentoList")
-
         instance = form.save(commit=False)
 
-        instance = form.save(commit=False)
+        # defaults
+        instance.horario_finalizacao = instance.horario_finalizacao or time(0, 0)
+        instance.km_final = instance.km_final or 0
 
-        # 👉 REGRA: horário final padrão
-        if instance.horario_finalizacao is None:
-            instance.horario_finalizacao = time(0, 0)
-
-        # 👉 REGRA: km final padrão
-        if instance.km_final is None:
-            instance.km_final = 0
-
-        # 👉 Cálculo do km total
+        # KM total
         if instance.km_inicio is not None:
             instance.km_total = instance.km_final - instance.km_inicio
         else:
             instance.km_total = 0
 
+        # Horário total
         if instance.horario_inicio and instance.horario_finalizacao:
             inicio = datetime.combine(
                 instance.data_inicial or datetime.today(),
@@ -2811,26 +2775,20 @@ class AcompanhamentoCreateView(
                 instance.data_final or instance.data_inicial or datetime.today(),
                 instance.horario_finalizacao
             )
-
-            if fim >= inicio:
-                instance.horario_total = fim - inicio
-            else:
-                instance.horario_total = timedelta(0)
+            instance.horario_total = max(fim - inicio, timedelta(0))
         else:
             instance.horario_total = timedelta(0)
 
-        user = getattr(self.request, 'user', None)
-        if user:
-            instance.nome_user = user.get_full_name() or user.username
+        # auditoria
+        user = self.request.user
+        instance.nome_user = user.get_full_name() or user.username
 
+        # 🔥 save chama recalcular_franquia_e_valores()
         instance.save()
-        return super().form_valid(form)
+        return redirect(self.success_url)
 
-class AcompanhamentoListView(
-    LoginRequiredMixin,
-    PermissionRequiredMixin,
-    ListView
-):
+
+class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
     model = registrodeacompanhamento
     template_name = "acompanhamento_list.html"
     context_object_name = "acompanhamentos"
@@ -2840,23 +2798,33 @@ class AcompanhamentoListView(
         filtro_pendentes = Q()
         for field in self.model._meta.fields:
             nome = field.name
-            if nome in ["id", "criado_em", "atualizado_em"]:
+            if nome in ["id", 
+            "criado_em", 
+            "atualizado_em", 
+            "nome_user", 
+            "ocorrencia", 
+            "km_excedente", 
+            "horario_excedente",
+            "data_final",
+            "horario_finalizacao",
+            "pedagio"]:
+
                 continue
-            # 🔹 Texto (CharField / TextField)
+            # Texto (CharField / TextField)
             if field.get_internal_type() in ["CharField", "TextField"]:
                 filtro_pendentes |= Q(**{f"{nome}__isnull": True})
                 filtro_pendentes |= Q(**{nome: ""})
-            # 🔹 Data (DateField)
+            # Data (DateField)
             elif field.get_internal_type() == "DateField":
                 filtro_pendentes |= Q(**{f"{nome}__isnull": True})
-            # 🔹 Hora (TimeField)
+            # Hora (TimeField)
             elif field.get_internal_type() == "TimeField":
                 filtro_pendentes |= Q(**{f"{nome}__isnull": True})
                 filtro_pendentes |= Q(**{nome: time(0, 0)})
-            # 🔹 Duração (DurationField)
+            # Duração (DurationField)
             elif field.get_internal_type() == "DurationField":
                 filtro_pendentes |= Q(**{f"{nome}__isnull": True})
-            # 🔹 Números (IntegerField, etc)
+            # Números (IntegerField, etc)
             elif field.get_internal_type() in ["IntegerField", "FloatField", "DecimalField"]:
                 filtro_pendentes |= Q(**{f"{nome}__isnull": True})
                 filtro_pendentes |= Q(**{nome: 0})
@@ -2905,7 +2873,7 @@ class AcompanhamentoListView(
     def exportar_pdf(self, queryset):
         
         buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=(1800, 900), topMargin=20, leftMargin=20, rightMargin=20, bottomMargin=20)
+        doc = SimpleDocTemplate(buffer, pagesize=(2000, 900), topMargin=20, leftMargin=20, rightMargin=20, bottomMargin=20)
         elements = []
         
         styles = getSampleStyleSheet()
@@ -2933,8 +2901,9 @@ class AcompanhamentoListView(
             "Motorista", "Placa Motorista",
             "Data Solicitada", "Hora Solicitada",
             "Data Inicial", "Hora Inicial",
-            "Data Final", "Hora Final", "Hora Total",
-            "KM Início", "KM Final", "KM Total",
+            "Data Final", "Hora Final", "Hora Total", 
+            "KM Início", "KM Final", "KM Total", "Pedágio", "Franquia", "Hora Excedente", "KM Excedente",
+            "Valor Agente",
             "Ocorrência", "Feito Por"
         ]
         
@@ -2943,27 +2912,46 @@ class AcompanhamentoListView(
         for item in queryset:
             row = [
                 str(item.id),
-                Paragraph(item.cliente or "", cell_style),
+
+                Paragraph(str(item.cliente) if item.cliente else "", cell_style),
                 Paragraph(item.origem or "", cell_style),
                 Paragraph(item.destino or "", cell_style),
                 Paragraph(item.responsavel_agente or "", cell_style),
                 Paragraph(item.agente or "", cell_style),
+
                 item.placa_agente or "",
+
                 Paragraph(item.motorista or "", cell_style),
                 item.placa_motorista or "",
+
                 item.data_solicitada.strftime("%d/%m/%Y") if item.data_solicitada else "",
                 item.horario_solicitado.strftime("%H:%M") if item.horario_solicitado else "",
+
                 item.data_inicial.strftime("%d/%m/%Y") if item.data_inicial else "",
                 item.horario_inicio.strftime("%H:%M") if item.horario_inicio else "",
+
                 item.data_final.strftime("%d/%m/%Y") if item.data_final else "",
                 item.horario_finalizacao.strftime("%H:%M") if item.horario_finalizacao else "",
+
                 str(item.horario_total) if item.horario_total else "",
+
                 str(item.km_inicio) if item.km_inicio is not None else "",
                 str(item.km_final) if item.km_final is not None else "",
                 str(item.km_total) if item.km_total is not None else "",
+
+                Paragraph(format_decimal(item.pedagio), cell_style),
+
+                Paragraph(str(item.franquia.nome) if item.franquia else "", cell_style),
+
+                str(item.horario_excedente) if item.horario_excedente else "",
+                str(item.km_excedente) if item.km_excedente is not None else "",
+
+                Paragraph(format_decimal(item.valor_agente), cell_style),
+
                 Paragraph(item.ocorrencia or "", cell_style),
                 Paragraph(item.nome_user or "", cell_style),
             ]
+
             data.append(row)
 
             colWidths = [
@@ -2986,6 +2974,10 @@ class AcompanhamentoListView(
                 70,   # KM Início
                 70,   # KM Final
                 70,   # KM Total
+                70,   # Pedágio
+                70,   # Franquia
+                80,   # Hora Excedente
+                70,   # KM Excedente
                 200,  # Ocorrência
                 110   # Feito Por
             ]
@@ -3035,7 +3027,9 @@ class AcompanhamentoListView(
             "Data Solicitada", "Hora Solicitada",
             "Data Inicial", "Hora Inicial",
             "Data Final", "Hora Final", "Hora Total",
-            "KM Início", "KM Final", "KM Total",
+            "KM Início", "KM Final", "KM Total", "Pedágio",
+            "Franquia", "Hora Excedente", "KM Excedente",
+            "Valor Agente",
             "Ocorrência",
             'Feito Por'
         ]
@@ -3062,6 +3056,11 @@ class AcompanhamentoListView(
                 item.km_inicio,
                 item.km_final,
                 item.km_total,
+                item.pedagio,
+                item.franquia.nome if item.franquia else "",
+                item.horario_excedente,
+                item.km_excedente,
+                item.valor_agente,
                 item.ocorrencia,
                 item.nome_user,
             ])
@@ -3077,42 +3076,48 @@ class AcompanhamentoListView(
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
+        context["franquias"] = registrodefranquia.objects.all().order_by("nome")
+
         base_qs = self.model.objects.all()
         filtro_pendentes = Q()
 
         for field in self.model._meta.fields:
-
             nome = field.name
 
-            if nome in ["id", "criado_em", "atualizado_em", "ocorrencia", "pedagio"]:  # Excluindo "ocorrencia" da contagem de pendentes
+            if nome in [
+                "id", 
+                "criado_em", 
+                "atualizado_em",
+                "nome_user",
+                "ocorrencia", 
+                "pedagio", 
+                "km_excedente", 
+                "horario_excedente",
+                "data_final",
+                "horario_finalizacao"
+            ]:
                 continue
 
-            # 🔹 Texto (CharField / TextField)
             if field.get_internal_type() in ["CharField", "TextField"]:
                 filtro_pendentes |= Q(**{f"{nome}__isnull": True})
                 filtro_pendentes |= Q(**{nome: ""})
 
-            # 🔹 Data (DateField)
             elif field.get_internal_type() == "DateField":
                 filtro_pendentes |= Q(**{f"{nome}__isnull": True})
 
-            # 🔹 Hora (TimeField)
             elif field.get_internal_type() == "TimeField":
                 filtro_pendentes |= Q(**{f"{nome}__isnull": True})
                 filtro_pendentes |= Q(**{nome: time(0, 0)})
 
-            # 🔹 Duração (DurationField)
             elif field.get_internal_type() == "DurationField":
                 filtro_pendentes |= Q(**{f"{nome}__isnull": True})
 
-            # 🔹 Números (IntegerField, etc)
             elif field.get_internal_type() in ["IntegerField", "FloatField", "DecimalField"]:
                 filtro_pendentes |= Q(**{f"{nome}__isnull": True})
                 filtro_pendentes |= Q(**{nome: 0})
 
         context["pendentes_count"] = base_qs.filter(filtro_pendentes).distinct().count()
 
-        # Mantém filtros da tela
         context["data"] = self.request.GET.get("data", "")
         context["data2"] = self.request.GET.get("data2", "")
         context["agente"] = self.request.GET.get("agente", "")
@@ -3120,9 +3125,7 @@ class AcompanhamentoListView(
 
         return context
 
-
 class RegistroAcompanhamentoUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
-
     model = registrodeacompanhamento
     form_class = FormulariosForm
     template_name = "acompanhamento_create.html"
@@ -3130,16 +3133,77 @@ class RegistroAcompanhamentoUpdateView(LoginRequiredMixin, PermissionRequiredMix
     permission_required = "requisicao.change_registrodeacompanhamento"
 
     def form_valid(self, form):
-        return super().form_valid(form)
+        instance = form.save(commit=False)
 
-class AcompanhamentoDashboardView(
-    LoginRequiredMixin,
-    PermissionRequiredMixin,
-    TemplateView
-):
+        # preserva franquia (não vem do form)
+        instance.franquia = self.get_object().franquia
+
+        # recalcula horário total
+        if instance.horario_inicio and instance.horario_finalizacao:
+            inicio = datetime.combine(
+                instance.data_inicial or datetime.today(),
+                instance.horario_inicio
+            )
+            fim = datetime.combine(
+                instance.data_final or instance.data_inicial or datetime.today(),
+                instance.horario_finalizacao
+            )
+            instance.horario_total = max(fim - inicio, timedelta(0))
+
+        # auditoria
+        user = self.request.user
+        instance.nome_user = user.get_full_name() or user.username
+
+        # 🔥 save recalcula tudo
+        instance.save()
+        return redirect(self.success_url)
+
+
+@login_required
+@permission_required("requisicao.add_registrodeacompanhamento", raise_exception=False)
+def atualizar_franquia_acompanhamento(request):
+
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "Método inválido."}, status=405)
+
+    data = json.loads(request.body)
+
+    acompanhamento = get_object_or_404(
+        registrodeacompanhamento,
+        id=data.get("acompanhamento_id")
+    )
+
+    franquia_id = data.get("franquia_id")
+
+    if not franquia_id:
+        acompanhamento.franquia = None
+    else:
+        acompanhamento.franquia = get_object_or_404(registrodefranquia, id=franquia_id)
+
+    user = request.user
+    acompanhamento.nome_user = user.get_full_name() or user.username
+
+    # 🔥 UM ÚNICO PONTO DE CÁLCULO
+    acompanhamento.save()
+
+    horario_excedente_str = ""
+    if acompanhamento.horario_excedente:
+        total = int(acompanhamento.horario_excedente.total_seconds())
+        horario_excedente_str = f"{total//3600}:{(total%3600)//60:02d}:{total%60:02d}"
+
+    return JsonResponse({
+        "success": True,
+        "valor_agente": str(acompanhamento.valor_agente) if acompanhamento.valor_agente else "",
+        "km_excedente": acompanhamento.km_excedente or 0,
+        "horario_excedente": horario_excedente_str,
+        "nome_user": acompanhamento.nome_user,
+        "franquia_nome": acompanhamento.franquia.nome if acompanhamento.franquia else ""
+    })
+
+    
+class AcompanhamentoDashboardView(LoginRequiredMixin, PermissionRequiredMixin, TemplateView):
     template_name = "acompanhamento_dashboard.html"
     permission_required = "requisicao.view_listacompanhamento"
-
 
 @login_required
 def acompanhamento_dashboard_data(request):

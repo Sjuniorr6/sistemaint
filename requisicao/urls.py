@@ -31,6 +31,12 @@ urlpatterns = [
     path("acompanhamento/novo/",views.AcompanhamentoCreateView.as_view(),name="acompanhamentoCreate",),
     path("acompanhamento/list/",views.AcompanhamentoListView.as_view(),name="acompanhamentoList",),
     path('acompanhamento/<int:pk>/editar/',views.RegistroAcompanhamentoUpdateView.as_view(),name='acompanhamentoUpdate'),
+    path(
+        "acompanhamento/atualizar-franquia/",
+        views.atualizar_franquia_acompanhamento,
+        name="acompanhamentoUpdateFranquia"
+    ),
+
     # Página
     path(
     "acompanhamento/dashboard/",

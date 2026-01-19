@@ -1,6 +1,7 @@
 from django import forms
 from .models import Requisicoes, Clientes,estoque_antenista
 from datetime import datetime
+from franquia.models import registrodefranquia
 
 class RequisicaoForm(forms.ModelForm):
     class Meta:
@@ -309,6 +310,7 @@ class FormulariosForm(forms.ModelForm):
     class Meta:
         model = registrodeacompanhamento
         fields = [
+
             'cliente', 'origem', 'destino',
 
             'responsavel_agente', 'agente', 'placa_agente', 'motorista', 'placa_motorista',
@@ -318,13 +320,16 @@ class FormulariosForm(forms.ModelForm):
 
             'km_inicio', 'km_final', 'km_total',
 
-            # 'status', 'atraso', 
+            'pedagio',
+
+            # 'status', 'atraso',
             
             'ocorrencia',
             'nome_user',
         ]
 
         widgets = {
+
             'cliente': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Cliente'}),
             'origem': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Origem'}),
             'destino': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Destino'}),
@@ -342,18 +347,22 @@ class FormulariosForm(forms.ModelForm):
             'horario_solicitado': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
             'horario_inicio': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
             'horario_finalizacao': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
-            'horario_total': forms.TextInput(
-                attrs={'class': 'form-control', 'readonly': True}
+            'horario_total': forms.TimeInput(
+                attrs={'class': 'form-control', 'readonly': True, 'type': 'time'}
             ),
          
             'km_inicio': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'KM Início', 'id': 'km_inicio'}),
             'km_final': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'KM Final', 'id': 'km_final'}),
             'km_total': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'KM Total', 'id': 'km_total', 'readonly': 'readonly'}),
+            
+            'pedagio': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Valor do Pedágio', 'step': '0.01', 'min': 0}),
+            
             'ocorrencia': forms.Textarea(attrs={'class': 'form-control', 'placeholder': 'Descreva a Ocorrência', 'rows': 3}),
 
             'nome_user': forms.TextInput(attrs={'class': 'form-control', 'readonly': 'readonly'}),
             
         }
+
 # registrodeacompanhamento/forms.py
 
 
