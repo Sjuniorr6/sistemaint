@@ -371,6 +371,14 @@ class Requisicoes(models.Model):
         default='',
         help_text='IDs dos equipamentos que passaram pela auditoria antes da expedição'
     )
+    memoria_apagada = models.BooleanField(
+        default=False,
+        help_text='Indica se Apagaram a Memória do Equipamento'
+    )
+    verificacao_tp = models.BooleanField(
+        default=False,
+        help_text='Indica se houve verificação do TP conforme a Requisição'
+    )
     verificacao_plataforma = models.BooleanField(
         default=False,
         help_text='Indica se houve verificação via plataforma durante a auditoria'
@@ -997,203 +1005,6 @@ class CampoAlterado(models.Model):
     def __str__(self):
         return f"{self.nome_campo}: {self.valor_anterior} → {self.valor_novo}"
 
-class registrodeacompanhamento(models.Model):
-    cliente = models.CharField(max_length=100, blank=True, null=True)
-    origem = models.CharField(max_length=100, blank=True, null=True)
-    destino = models.CharField(max_length=100, blank=True, null=True)
-
-    responsavel_agente = models.CharField(max_length=100, blank=True, null=True)
-    agente = models.CharField(max_length=100, blank=True, null=True)
-    placa_agente = models.CharField(max_length=10, blank=True, null=True)
-    motorista = models.CharField(max_length=100, blank=True, null=True)
-    placa_motorista = models.CharField(max_length=10, blank=True, null=True)
-
-    data_solicitada = models.DateField(blank=True, null=True)
-    horario_solicitado = models.TimeField(blank=True, null=True)
-
-    data_inicial = models.DateField(blank=True, null=True)
-    horario_inicio = models.TimeField(blank=True, null=True)
-
-    data_final = models.DateField(blank=True, null=True)
-    horario_finalizacao = models.TimeField(blank=True, null=True)
-
-    horario_total = models.DurationField(
-        blank=True,
-        null=True,
-        help_text="Tempo total do acompanhamento"
-    )
-
-    horario_excedente = models.DurationField(
-        blank=True,
-        null=True,
-        help_text="Tempo excedente em relação à franquia"
-    )
-
-    km_inicio = models.IntegerField(blank=True, null=True)
-    km_final = models.IntegerField(blank=True, null=True)
-
-    km_total = models.IntegerField(
-        blank=True,
-        null=True,
-        help_text="KM total rodado"
-    )
-
-    km_excedente = models.IntegerField(
-        blank=True,
-        null=True,
-        help_text="KM excedente em relação à franquia"
-    )
-
-    franquia = models.ForeignKey(
-        registrodefranquia,
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True,
-        related_name="acompanhamentos",
-        help_text="Franquia contratada para este acompanhamento"
-    )
-
-    pedagio = models.DecimalField(
-        max_digits=8,
-        decimal_places=2,
-        blank=True,
-        null=True,
-        verbose_name="Valor do Pedágio (R$)"
-    )
-
-    valor_agente = models.DecimalField(
-        max_digits=8,
-        decimal_places=2,
-        blank=True,
-        null=True,
-        verbose_name="Valor do Agente (R$)"
-    )
-
-    ocorrencia = models.TextField(blank=True, null=True)
-
-    # Nome do usuário que criou/atualizou o acompanhamento
-    nome_user = models.CharField(max_length=150, blank=True, null=True)
-
-    criado_em = models.DateTimeField(auto_now_add=True)
-    atualizado_em = models.DateTimeField(auto_now=True) 
-
-    class Meta:
-        ordering = ['-criado_em']
-        permissions = [
-            ("view_listacompanhamento", "Pode visualizar lista de acompanhamentos"),
-        ]
-
-    def __str__(self):
-        return f'Acompanhamento #{self.id} - {self.cliente}'
-
-    def calcular_horario_excedente(self):
-
-        if not self.franquia or not self.horario_total:
-            return None
-
-        if self.franquia.franquia_horas is None:
-            return None
-
-        segundos_franquia = self.franquia.franquia_horas * 3600
-        segundos_totais = int(self.horario_total.total_seconds())
-
-        segundos_excedentes = segundos_totais - segundos_franquia
-
-        if segundos_excedentes > 0:
-            return timedelta(seconds=segundos_excedentes)
-
-        return None
-
-    def recalcular_franquia_e_valores(self):
-
-        # =============================
-        # HORÁRIO EXCEDENTE
-        # =============================
-        self.horario_excedente = self.calcular_horario_excedente()
-
-        # Se não tem franquia, zera dependências
-        if not self.franquia:
-            self.km_excedente = None
-            self.valor_agente = None
-            return
-
-        franquia = self.franquia
-
-        # =============================
-        # KM EXCEDENTE
-        # =============================
-        km_excedente = 0
-        valor_km_excedente = Decimal("0.00")
-
-        if franquia.franquia_km is not None and self.km_total is not None:
-            km_excedente = max(0, self.km_total - franquia.franquia_km)
-
-            if km_excedente > 0 and franquia.valor_km_excedente:
-                valor_km_excedente = Decimal(km_excedente) * franquia.valor_km_excedente
-
-        self.km_excedente = km_excedente
-
-        # =============================
-        # VALOR TOTAL
-        # =============================
-        valor_total = Decimal("0.00")
-
-        if franquia.valor_acionamento:
-            valor_total += franquia.valor_acionamento
-
-        valor_total += valor_km_excedente
-
-        if self.horario_excedente and franquia.valor_horas_excedente:
-            horas = Decimal(self.horario_excedente.total_seconds()) / Decimal("3600")
-            valor_total += horas * franquia.valor_horas_excedente
-
-        if self.pedagio:
-            valor_total += self.pedagio
-
-        self.valor_agente = valor_total.quantize(Decimal("0.01"))
-
-    def save(self, *args, **kwargs):
-        # garante todos os cálculos sempre
-        self.recalcular_franquia_e_valores()
-        super().save(*args, **kwargs)
-
-
-class ListAcompanhamento(models.Model):
-    registro = models.ForeignKey(
-        'registrodeacompanhamento',
-        on_delete=models.CASCADE,
-        related_name='listagens'
-    )
-
-    cliente = models.CharField(
-        max_length=150,
-        db_index=True
-    )
-
-    origem = models.CharField(
-        max_length=150
-    )
-
-    destino = models.CharField(
-        max_length=150
-    )
-
-    data_inicial = models.DateField()
-    data_final = models.DateField()
-
-    km_total = models.PositiveIntegerField()
-
-    # Controle
-    criado_em = models.DateTimeField(auto_now_add=True)
-    atualizado_em = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = 'Acompanhamento'
-        verbose_name_plural = 'Acompanhamentos'
-        ordering = ['-criado_em']
-
-    def __str__(self):
-        return f'{self.protocolo} - {self.cliente}'
 
 
 

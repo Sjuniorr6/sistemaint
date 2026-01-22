@@ -26,28 +26,7 @@ urlpatterns = [
     path('requisicoes/list', views.RequisicaoDetailView.as_view(), name='RequisicaoDetailView'),
     path('requisicao/<int:pk>/update/', views.RequisicaoUpdateView.as_view(), name='RequisicaoUpdateView'),
     path('requisicao/<int:pk>/delete/', views.requisicoesDeleteView.as_view(), name='requisicoesdeleteview'),
-    
-    # Acompanhamento URLs
-    path("acompanhamento/novo/",views.AcompanhamentoCreateView.as_view(),name="acompanhamentoCreate",),
-    path("acompanhamento/list/",views.AcompanhamentoListView.as_view(),name="acompanhamentoList",),
-    path('acompanhamento/<int:pk>/editar/',views.RegistroAcompanhamentoUpdateView.as_view(),name='acompanhamentoUpdate'),
-    path(
-        "acompanhamento/atualizar-franquia/",
-        views.atualizar_franquia_acompanhamento,
-        name="acompanhamentoUpdateFranquia"
-    ),
 
-    # Página
-    path(
-    "acompanhamento/dashboard/",
-    views.AcompanhamentoDashboardView.as_view(),
-    name="acompanhamentoDashboard"
-    ),
-    path(
-        "acompanhamento/dashboard/data/",
-        views.acompanhamento_dashboard_data,
-        name="acompanhamento_dashboard_data"
-    ),
 
 
 #----------------------------------------------------------------------------------------------------------------

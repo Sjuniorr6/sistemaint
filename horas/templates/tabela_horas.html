@@ -1,10 +1,32 @@
-{% extends 'base.html' %}
-{% load static %}
-{% block content %}
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<!DOCTYPE html>
+<html lang="pt-br" data-bs-theme="light">
 
-<style>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>{% block title %} | Criar Acompanhamento | {% endblock %}</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Select2 -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <style>
+    body {
+      max-width: 100%;
+      overflow-x: hidden;
+      background: #45494E;
+    }
     /* Header modernizado */
     .page-header {
         background: linear-gradient(135deg, #665b1d 0%, #bfa16c 100%);
@@ -79,24 +101,6 @@
         box-shadow: 0 8px 20px rgba(40, 167, 69, 0.3);
     }
     
-    .container.mt-4, .container {
-        width: 100vw !important;
-        max-width: 100vw !important;
-        margin: 0 auto !important;
-        padding: 0 !important;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
-        .container-fluid {
-                width: 100vw;
-                max-width: 100vw;
-                margin: 0;
-                padding: 0;
-                position: relative;
-                overflow-x: auto;
-                overflow-y: auto;
-        }
 
   .card-custom {
     border-radius: 18px;
@@ -168,177 +172,189 @@
     margin-bottom: 0.5rem;
   }
 </style>
-<div class="container-fluid py-5" style="width: 90vw; min-width: 90vw; margin-left: 0;">
-  <!-- Header modernizado -->
-  <div class="page-header">
-    <h1><i class="fas fa-clock"></i> Consulta de Horas por Funcionário</h1>
-  </div>
-  
-  <div class="card card-custom" style="width: 100%;">
-    <div class="card-body">
-      
-      <!-- Mensagens de feedback -->
-      {% if messages %}
-        {% for message in messages %}
-          <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-          </div>
-        {% endfor %}
-      {% endif %}
-      
-      <!-- Formulário de Filtro -->
-      <form method="get" class="mb-4">
-        <div class="row g-3 align-items-end">
-          <div class="col-md-4">
-            <label for="data_inicial" class="form-label">Data Inicial</label>
-            <div class="input-group">
-              <span class="input-group-text"><i class="bi bi-calendar-date"></i></span>
-              <input type="date" name="data_inicial" id="data_inicial" class="form-control" value="{{ request.GET.data_inicial }}" />
-            </div>
-          </div>
-          <div class="col-md-4">
-            <label for="data_final" class="form-label">Data Final</label>
-            <div class="input-group">
-              <span class="input-group-text"><i class="bi bi-calendar-date"></i></span>
-              <input type="date" name="data_final" id="data_final" class="form-control" value="{{ request.GET.data_final }}" />
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="d-flex justify-content-end gap-2">
-              <button type="submit" class="btn btn-primary btn-action"><i class="bi bi-funnel"></i> Filtrar</button>
-              <a href="{% url 'consulta_horas_pdf' %}?data_inicial={{ request.GET.data_inicial }}&data_final={{ request.GET.data_final }}" class="btn btn-secondary btn-action" target="_blank">
-                <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
-              </a>
-                                                              <form method="get" action="{% url 'enviar_email_relatorio_horas' %}" class="d-inline">
-                   <input type="hidden" name="data_inicial" value="{{ request.GET.data_inicial }}" />
-                   <input type="hidden" name="data_final" value="{{ request.GET.data_final }}" />
-                   <button type="submit" class="btn btn-success btn-action">
-                     <i class="bi bi-envelope"></i> Enviar por E‑mail
-                   </button>
-                 </form>
 
 
+    {% load static %}
+    {% load user_groups %}
+</head>
+
+<body>
+  {% include 'components/_header.html' %}
+
+  <div class="container-fluid py-5">
+    <!-- Header modernizado -->
+    <div class="page-header">
+      <h1><i class="fas fa-clock"></i> Consulta de Horas por Funcionário</h1>
+    </div>
+    
+    <div class="card card-custom" style="width: 100%;">
+      <div class="card-body">
+        
+        <!-- Mensagens de feedback -->
+        {% if messages %}
+          {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+        
+        <!-- Formulário de Filtro -->
+        <form method="get" class="mb-4">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+              <label for="data_inicial" class="form-label">Data Inicial</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-calendar-date"></i></span>
+                <input type="date" name="data_inicial" id="data_inicial" class="form-control" value="{{ request.GET.data_inicial }}" />
+              </div>
+            </div>
+            <div class="col-md-4">
+              <label for="data_final" class="form-label">Data Final</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-calendar-date"></i></span>
+                <input type="date" name="data_final" id="data_final" class="form-control" value="{{ request.GET.data_final }}" />
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="d-flex justify-content-end gap-2">
+                <button type="submit" class="btn btn-primary btn-action"><i class="bi bi-funnel"></i> Filtrar</button>
+                <a href="{% url 'consulta_horas_pdf' %}?data_inicial={{ request.GET.data_inicial }}&data_final={{ request.GET.data_final }}" class="btn btn-secondary btn-action" target="_blank">
+                  <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
+                </a>
+                                                                <form method="get" action="{% url 'enviar_email_relatorio_horas' %}" class="d-inline">
+                    <input type="hidden" name="data_inicial" value="{{ request.GET.data_inicial }}" />
+                    <input type="hidden" name="data_final" value="{{ request.GET.data_final }}" />
+                    <button type="submit" class="btn btn-success btn-action">
+                      <i class="bi bi-envelope"></i> Enviar por E‑mail
+                    </button>
+                  </form>
+
+
+                  
                 
-               
+              </div>
             </div>
           </div>
-        </div>
-      </form>
+        </form>
 
-      {% for employee in employee_data %}
-      <div class="funcionario-title"><i class="bi bi-person-badge me-1"></i>Funcionário: {{ employee.funcionario }}</div>
-      <div class="table-responsive" style="width: 100%;">
-        <table class="table table-bordered table-hover table-custom mb-5" style="width: 100%; min-width: 1200px;">
-          <thead class="table-light text-nowrap">
-            <tr>
-              <th>Funcionário</th>
-              <th>Hora Inicial</th>
-              <th>Comprovante Hora Inicial</th>
-              <th>Hora Final</th>
-              <th>Comprovante Hora Final</th>
-              <th>Motivo</th>
-              <th>Total</th>
-              <th>Ação</th>
-            </tr>
-          </thead>
-      <tbody>
-        {% for item in employee.records %}
-        <tr>
-          <td class="text-nowrap funcionario-cell">{{ item.funcionario }}</td>
-          <td class="text-nowrap"><i class="bi bi-clock me-1"></i> {{ item.hora_inicial }}</td>
-          <td class="text-nowrap">
-                    {% if item.comprovante1 %}
-                    <div class="comprovante-box">
-                      <span class="hora">{{ item.comprovante1.hora }}</span>
-                      <span class="data">{{ item.comprovante1.data }}</span>
-                      {% if item.comprovante1.url %}
-                        <img src="{{ item.comprovante1.url }}" alt="Comprovante 1" class="img-comprovante mt-2" />
-                      {% endif %}
-                    </div>
-                    {% else %}<span class="text-muted">—</span>{% endif %}
-          </td>
-          <td class="text-nowrap"><i class="bi bi-clock me-1"></i> {{ item.hora_final }}</td>
-          <td class="text-nowrap">
-                    {% if item.comprovante2 %}
-                    <div class="comprovante-box">
-                      <span class="hora">{{ item.comprovante2.hora }}</span>
-                      <span class="data">{{ item.comprovante2.data }}</span>
-                      {% if item.comprovante2.url %}
-                        <img src="{{ item.comprovante2.url }}" alt="Comprovante 2" class="img-comprovante mt-2" />
-                      {% endif %}
-                    </div>
-                    {% else %}<span class="text-muted">—</span>{% endif %}
-          </td>
-          <td class="text-nowrap">{{ item.motivo }}</td>
-          <td class="text-nowrap"><i class="bi bi-calculator me-1"></i> {{ item.total }}</td>
-          <td class="text-nowrap">
-            <div class="d-flex gap-2 justify-content-center">
-              <button type="button" id="botao-{{ item.pk }}" onclick="validar(event, '{{ item.pk }}')" class="btn btn-warning btn-action">
-                <i class="bi bi-check2-circle"></i> Validar
-              </button>
-              <a href="{% url 'update_horas' item.pk %}" class="btn btn-primary btn-action">
-                <i class="bi bi-pencil-square"></i> Editar
-              </a>
-            </div>
-          </td>
-        </tr>
+        {% for employee in employee_data %}
+        <div class="funcionario-title"><i class="bi bi-person-badge me-1"></i>Funcionário: {{ employee.funcionario }}</div>
+        <div class="table-responsive" style="width: 100%;">
+          <table class="table table-bordered table-hover table-custom mb-5" style="width: 100%; min-width: 1200px;">
+            <thead class="table-light text-nowrap">
+              <tr>
+                <th>Funcionário</th>
+                <th>Hora Inicial</th>
+                <th>Comprovante Hora Inicial</th>
+                <th>Hora Final</th>
+                <th>Comprovante Hora Final</th>
+                <th>Motivo</th>
+                <th>Total</th>
+                <th>Ação</th>
+              </tr>
+            </thead>
+        <tbody>
+          {% for item in employee.records %}
+          <tr>
+            <td class="text-nowrap funcionario-cell">{{ item.funcionario }}</td>
+            <td class="text-nowrap"><i class="bi bi-clock me-1"></i> {{ item.hora_inicial }}</td>
+            <td class="text-nowrap">
+                      {% if item.comprovante1 %}
+                      <div class="comprovante-box">
+                        <span class="hora">{{ item.comprovante1.hora }}</span>
+                        <span class="data">{{ item.comprovante1.data }}</span>
+                        {% if item.comprovante1.url %}
+                          <img src="{{ item.comprovante1.url }}" alt="Comprovante 1" class="img-comprovante mt-2" />
+                        {% endif %}
+                      </div>
+                      {% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="text-nowrap"><i class="bi bi-clock me-1"></i> {{ item.hora_final }}</td>
+            <td class="text-nowrap">
+                      {% if item.comprovante2 %}
+                      <div class="comprovante-box">
+                        <span class="hora">{{ item.comprovante2.hora }}</span>
+                        <span class="data">{{ item.comprovante2.data }}</span>
+                        {% if item.comprovante2.url %}
+                          <img src="{{ item.comprovante2.url }}" alt="Comprovante 2" class="img-comprovante mt-2" />
+                        {% endif %}
+                      </div>
+                      {% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="text-nowrap">{{ item.motivo }}</td>
+            <td class="text-nowrap"><i class="bi bi-calculator me-1"></i> {{ item.total }}</td>
+            <td class="text-nowrap">
+              <div class="d-flex gap-2 justify-content-center">
+                <button type="button" id="botao-{{ item.pk }}" onclick="validar(event, '{{ item.pk }}')" class="btn btn-warning btn-action">
+                  <i class="bi bi-check2-circle"></i> Validar
+                </button>
+                <a href="{% url 'update_horas' item.pk %}" class="btn btn-primary btn-action">
+                  <i class="bi bi-pencil-square"></i> Editar
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="8" class="text-center text-muted">Nenhum registro encontrado para este funcionário.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="7" class="text-end"><strong>Total de Horas:</strong></td>
+            <td><strong><i class="bi bi-calculator"></i> {{ employee.total }}</strong></td>
+          </tr>
+        </tfoot>
+          </table>
+        </div>
         {% empty %}
-        <tr>
-          <td colspan="8" class="text-center text-muted">Nenhum registro encontrado para este funcionário.</td>
-        </tr>
+        <p class="text-center text-muted">Nenhum registro encontrado.</p>
         {% endfor %}
-      </tbody>
-      <tfoot>
-        <tr>
-          <td colspan="7" class="text-end"><strong>Total de Horas:</strong></td>
-          <td><strong><i class="bi bi-calculator"></i> {{ employee.total }}</strong></td>
-        </tr>
-      </tfoot>
-        </table>
       </div>
-      {% empty %}
-      <p class="text-center text-muted">Nenhum registro encontrado.</p>
-      {% endfor %}
     </div>
   </div>
-</div>
 
-<script>
-  // Função auxiliar para ler o cookie CSRF
-  function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== "") {
-      document.cookie.split(";").forEach((c) => {
-        const [k, v] = c.trim().split("=");
-        if (k === name) cookieValue = decodeURIComponent(v);
-      });
+  <script>
+    // Função auxiliar para ler o cookie CSRF
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== "") {
+        document.cookie.split(";").forEach((c) => {
+          const [k, v] = c.trim().split("=");
+          if (k === name) cookieValue = decodeURIComponent(v);
+        });
+      }
+      return cookieValue;
     }
-    return cookieValue;
-  }
 
-  function validar(event, id) {
-    event.preventDefault();
-    fetch("{% url 'validar_hora' %}", {
-      method: "POST",
-      headers: {
-        "X-CSRFToken": getCookie("csrftoken"),
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({ pk: id }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.status === "success") {
-          document.getElementById("botao-" + id).style.display = "none";
-          const statusEl = document.getElementById("status-" + id);
-          if (statusEl) {
-            statusEl.innerText = "Aprovado";
-            statusEl.style.fontWeight = "bold";
-            statusEl.style.color = "green";
+    function validar(event, id) {
+      event.preventDefault();
+      fetch("{% url 'validar_hora' %}", {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": getCookie("csrftoken"),
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({ pk: id }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.status === "success") {
+            document.getElementById("botao-" + id).style.display = "none";
+            const statusEl = document.getElementById("status-" + id);
+            if (statusEl) {
+              statusEl.innerText = "Aprovado";
+              statusEl.style.fontWeight = "bold";
+              statusEl.style.color = "green";
+            }
           }
-        }
-      });
-  }
-</script>
-{% endblock %}
+        });
+    }
+  </script>
+
+</body>
+
+</html>

@@ -124,7 +124,7 @@
                     <h2 class="fs-5">Filtragem para extrair Excel / Pdf</h2>
                     <hr>
                     <div class="filtro-excel">
-                        <form method="get" action="{% url 'acompanhamentoList' %}" class="search-form">
+                        <form method="get" action="{% url 'acompanhamentosList' %}" class="search-form">
                             <div class="row">
                                 <div class="col-12 col-md-3 col-lg-2 mb-2">
                                     <input type="date" class="search-input form-control" name="data" placeholder="Data Solicitada"
@@ -163,7 +163,7 @@
                         {% if request.GET.data or request.GET.data2 or request.GET.agente or request.GET.cliente or request.GET.pendente %}
                             <div class="row mb-2 mt-3">
                                 <div class="col-12 text-center">
-                                    <a href="{% url 'acompanhamentoList' %}" class="btn btn-secondary">
+                                    <a href="{% url 'acompanhamentosList' %}" class="btn btn-secondary">
                                         <i class="bi bi-x-circle"></i> Limpar Todos os Filtros
                                     </a>
                                 </div>
@@ -181,7 +181,7 @@
                 <div class="content-main">
                      <div class="table-responsive table-excel">
                         <div class="header-tablee mb-2" style="display: flex; justify-content: space-between; align-items: center;">
-                            <a href="{% url 'acompanhamentoCreate' %}" class="btn btn-primary"> + Acompanhamento</a>
+                            <a href="{% url 'AcompanhamentosCreate' %}" class="btn btn-primary"> + Acompanhamento</a>
 
                             <a href="?{% for key, value in request.GET.items %}{% if key != 'pendente' %}{{ key }}={{ value }}&{% endif %}{% endfor %}pendente=true" class="badge bg-warning text-dark fs-6 mt-1 mt-md-0" style="text-decoration: none;">
                                 Pendentes: {{ pendentes_count }}
@@ -194,6 +194,7 @@
                                     <th>Ações</th>
                                     <th>Protocolo</th>
                                     <th>Cliente</th>
+                                    <th>Tipo Serviço</th>
                                     <th>Origem</th>
                                     <th>Destino</th>
                                     <th>Responsável Agente</th>
@@ -216,76 +217,212 @@
                                     <th>Horário Excedente</th>
                                     <th>KM Excedente</th>
                                     <th>Valor agente</th>
+                                    <th>Total</th>
                                     <th>Ocorrência</th>
                                     <th>Usuário</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for item in acompanhamentos %}
+                                {% for item in itens %}
                                 <tr>
                                     <td>
-                                        <a href="{% url 'acompanhamentoUpdate' item.pk %}" class="btn btn-warning btn-sm">
-                                            <i class="bi bi-pencil"></i>
-                                        </a>
-                                    </td>
-                                    <td>{{ item.id }}</td>
-                                    <td>{{ item.cliente }}</td>
-                                    <td>{{ item.origem }}</td>
-                                    <td>{{ item.destino }}</td>
-                                    <td>{{ item.responsavel_agente }}</td>
-                                    <td>{{ item.agente }}</td>
-                                    <td>{{ item.placa_agente }}</td>
-                                    <td>{{ item.motorista }}</td>
-                                    <td>{{ item.placa_motorista }}</td>
-
-                                    <td>{{ item.data_solicitada|date:"d/m/Y" }} </td>
-                                    <td>{{ item.horario_solicitado|time:"H:i" }}</td>
-                                    <td>{{ item.data_inicial|date:"d/m/Y" }} </td>
-                                    <td>{{ item.horario_inicio|time:"H:i" }}</td>
-                                    <td>{{ item.data_final|date:"d/m/Y" }} </td>
-                                    <td>{{ item.horario_finalizacao|time:"H:i" }}</td>
-                                    <td>{{ item.horario_total }}</td>
-                                    <td>{{ item.km_inicio }}</td>
-                                    <td>{{ item.km_final }}</td>
-                                    <td>{{ item.km_total }}</td>
-                                    <td>{% if item.pedagio %}
-                                            R$ {{ item.pedagio }}
+                                        {% if item.validar_acompanhamento == 0 %}
+                                            <a href="{% url 'acompanhamentosUpdate' item.pk %}" class="btn btn-warning btn-sm">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
                                         {% else %}
-                                            Sem Pedágio
-                                        {% endif %}
-                                    </td>
-
-                                    <td>
-                                        {% if perms.requisicao.add_registrodeacompanhamento %}
-                                            <select class="form-select form-select-sm franquia-select select-franquia" style="width: 150px;" data-acompanhamento-id="{{ item.id }}">
-                                                <option value="">Selecione</option>
-                                                {% for franquia in franquias %}
-                                                    <option value="{{ franquia.id }}"
-                                                        {% if item.franquia and item.franquia.id == franquia.id %}
-                                                            selected
-                                                        {% endif %}
-                                                    >
-                                                        {{ franquia.nome }}
-                                                    </option>
-                                                {% endfor %}
-                                            </select>
-                                        {% else %}
-                                            {% if item.franquia %}
-                                                {{ item.franquia.nome }}
+                                            {% if item.validar_pagamento == 0 %}
+                                                {% if user|has_group:"DiretoriaFinanceiro" %}
+                                                <a href="{% url 'acompanhamentosUpdate' item.pk %}" class="btn btn-warning btn-sm">
+                                                    <i class="bi bi-pencil"></i>
+                                                </a>
+                                                {% else %}
+                                                    Validado Diretoria
+                                                {% endif %}
+                                            {% else %}
+                                                Pago
                                             {% endif %}
                                         {% endif %}
                                     </td>
+                                    <td>{{ item.id }}</td>
+                                    <td>{{ item.cliente }}</td>
+                                    <td>
+                                        {{ item.tipo_servico }}
+                                    </td>
+                                    <td>{{ item.origem }}</td>
+                                    <td>{{ item.destino }}</td>
+                                    <td>
+                                        {% for agente in item.agentes.all %}
+                                            {{ agente.responsavel_agente|default:"" }}<br>
+                                        {% endfor %}
+                                    </td>
+
+                                    <td>
+                                        {% for agente in item.agentes.all %}
+                                            {{ agente.agente }}<br>
+                                        {% endfor %}
+                                    </td>
+
+                                    <td>
+                                        {% for agente in item.agentes.all %}
+                                            {{ agente.placa_agente|default:"" }}<br>
+                                        {% endfor %}
+                                    </td>
+
+                                    <td>
+                                        {% for agente in item.agentes.all %}
+                                            {{ agente.motorista|default:"" }}<br>
+                                        {% endfor %}
+                                    </td>
+
+                                    <td>
+                                        {% for agente in item.agentes.all %}
+                                            {{ agente.placa_motorista|default:"" }}<br>
+                                        {% endfor %}
+                                    </td>
+
+                                    <td>
+                                        {% for agente in item.agentes.all %}
+                                            {{ agente.data_solicitada|date:"d/m/Y" }}<br>
+                                        {% endfor %}
+                                    </td>
+
+                                    <td>
+                                        {% for agente in item.agentes.all %}
+                                            {{ agente.horario_solicitado|time:"H:i" }}<br>
+                                        {% endfor %}
+                                    </td>
+
+                                    <td>
+                                        {% for agente in item.agentes.all %}
+                                            {{ agente.data_inicio|date:"d/m/Y" }}<br>
+                                        {% endfor %}
+                                    </td>
+
+                                    <td>
+                                        {% for agente in item.agentes.all %}
+                                            {{ agente.horario_inicio|time:"H:i" }}<br>
+                                        {% endfor %}
+                                    </td>
+
+                                    <td>
+                                        {% for agente in item.agentes.all %}
+                                            {{ agente.data_finalizacao|date:"d/m/Y" }}<br>
+                                        {% endfor %}
+                                    </td>
+
+                                    <td>
+                                        {% for agente in item.agentes.all %}
+                                            {{ agente.horario_finalizacao|time:"H:i" }}<br>
+                                        {% endfor %}
+                                    </td>
+
+                                    <td>
+                                        {% for agente in item.agentes.all %}
+                                            {{ agente.horario_total }}<br>
+                                        {% endfor %}
+                                    </td>
+
+                                    <td>
+                                        {% for agente in item.agentes.all %}
+                                            {{ agente.km_inicio }}<br>
+                                        {% endfor %}
+                                    </td>
+
+                                    <td>
+                                        {% for agente in item.agentes.all %}
+                                            {{ agente.km_final }}<br>
+                                        {% endfor %}
+                                    </td>
+
+                                    <td>
+                                        {% for agente in item.agentes.all %}
+                                            {{ agente.km_total }}<br>
+                                        {% endfor %}
+                                    </td>
+
+                                    <td>
+                                        {% for agente in item.agentes.all %}
+                                            {% if agente.pedagio and agente.pedagio > 0 %}
+                                                R$ {{ agente.pedagio }}<br>
+                                            {% else %}
+                                                Sem Pedágio<br>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </td>
+                                    <td>
+                                        {% with agentes=item.agentes.all %}
+                                            {% if perms.requisicao.add_registrodeacompanhamento %}
+
+                                                <select
+                                                    class="form-select form-select-sm franquia-select select-franquia"
+                                                    style="width: 150px;"
+                                                    data-acompanhamento-id="{{ item.id }}"
+                                                    {% if item.validar_acompanhamento or item.validar_pagamento %}
+                                                        disabled
+                                                    {% endif %}
+                                                >
+                                                    <option value="">Selecione</option>
+
+                                                    {% for franquia in franquias %}
+                                                        <option
+                                                            value="{{ franquia.id }}"
+                                                            {% if agentes and agentes.0.franquia and agentes.0.franquia.id == franquia.id %}
+                                                                selected
+                                                            {% endif %}
+                                                        >
+                                                            {{ franquia.nome }}
+                                                        </option>
+                                                    {% endfor %}
+                                                </select>
+
+                                            {% else %}
+                                                {% if agentes and agentes.0.franquia %}
+                                                    {{ agentes.0.franquia.nome }}
+                                                {% else %}
+                                                    
+                                                {% endif %}
+                                            {% endif %}
+                                        {% endwith %}
+                                    </td>
                                     <td class="horario-excedente" data-id="{{ item.id }}">
-                                        {{ item.horario_excedente }}
+                                        {% for agente in item.agentes.all %}
+                                            {% if agente.horario_excedente %}
+                                                {{ agente.horario_excedente }}<br>
+                                            {% else %}
+                                                <br>
+                                            {% endif %}
+                                        {% endfor %}
                                     </td>
-                                    <td class="km-excedente" data-id="{{ item.id }}">
-                                        {{ item.km_excedente }}
+
+                                   <td class="km-excedente" data-id="{{ item.id }}">
+                                        {% for agente in item.agentes.all %}
+                                            {% if agente.km_excedente and agente.km_excedente > 0 %}
+                                                {{ agente.km_excedente }}<br>
+                                            {% else %}
+                                                <br>
+                                            {% endif %}
+                                        {% endfor %}
                                     </td>
+
                                     <td class="valor-agente" data-id="{{ item.id }}">
-                                        {% if item.valor_agente %}
-                                            R$ {{ item.valor_agente }}
+                                        {% for agente in item.agentes.all %}
+                                            {% if agente.valor_agente %}
+                                                R$ {{ agente.valor_agente|floatformat:2 }}<br>
+                                            {% else %}
+                                                <br>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </td>
+
+                                    <td>
+                                        {% if item.total_valor_agentes > 0 %}
+                                            {{ item.total_valor_agentes_formatado }}
+                                        {% else %}
+                                            —
                                         {% endif %}
                                     </td>
+
 
                                     <td>{{ item.ocorrencia }}</td>
                                     <td class="user" data-id="{{ item.id }}">
@@ -309,7 +446,7 @@
 
             if (!acompanhamentoId) return;
 
-            fetch("{% url 'acompanhamentoUpdateFranquia' %}", {
+            fetch("{% url 'acompanhamentosUpdateFranquia' %}", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -324,63 +461,57 @@
             .then(data => {
 
                 if (!data.success) {
-                    alert(data.error || "Erro ao salvar franquia.");
+                    alert("Erro ao salvar franquia");
                     return;
                 }
 
+                const horarioCell = document.querySelector(
+                    `.horario-excedente[data-id="${acompanhamentoId}"]`
+                );
+                const kmCell = document.querySelector(
+                    `.km-excedente[data-id="${acompanhamentoId}"]`
+                );
                 const valorCell = document.querySelector(
                     `.valor-agente[data-id="${acompanhamentoId}"]`
                 );
 
-                if (valorCell) {
-                    valorCell.innerHTML = data.valor_agente
-                        ? `R$ ${data.valor_agente}`
-                        : "";
+                if (horarioCell && kmCell && valorCell) {
+                    horarioCell.innerHTML = "";
+                    kmCell.innerHTML = "";
+                    valorCell.innerHTML = "";
+
+                    data.agentes.forEach(a => {
+                        horarioCell.innerHTML += `${a.horario_excedente}<br>`;
+                        kmCell.innerHTML += `${a.km_excedente}<br>`;
+                        valorCell.innerHTML += `${a.valor_agente}<br>`;
+                    });
                 }
 
-                const horarioExcedenteCell = document.querySelector(
-                    `.horario-excedente[data-id="${acompanhamentoId}"]`
-                );
-
-                if (horarioExcedenteCell) {
-                    horarioExcedenteCell.innerHTML = data.horario_excedente || "";
+                // total
+                const totalCell = valorCell.closest("tr").querySelector("td:nth-child(27)");
+                if (totalCell) {
+                    totalCell.innerHTML = data.total;
                 }
 
-                const kmExcedenteCell = document.querySelector(
-                    `.km-excedente[data-id="${acompanhamentoId}"]`
-                );
-
-                if (kmExcedenteCell) {
-                    kmExcedenteCell.innerHTML =
-                        data.km_excedente && data.km_excedente !== "0"
-                            ? data.km_excedente
-                            : "";
-                }
-
+                // usuário
                 const userCell = document.querySelector(
                     `.user[data-id="${acompanhamentoId}"]`
                 );
-
                 if (userCell) {
-                    userCell.innerHTML = data.nome_user || "";
+                    userCell.innerHTML = data.usuario;
                 }
 
                 // feedback visual
-                $(this).closest('.select2-container')
+                $(event.target)
+                    .closest('.select2-container')
                     .find('.select2-selection')
                     .addClass('border border-success');
 
                 setTimeout(() => {
-                    $(this).closest('.select2-container')
-                        .find('.select2-selection')
-                        .removeClass('border border-success');
+                    $('.select2-selection').removeClass('border border-success');
                 }, 1200);
-
-            })
-            .catch(error => {
-                console.error(error);
-                alert("Erro de comunicação com o servidor.");
             });
+
         });
     </script>
 

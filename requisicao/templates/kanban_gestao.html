@@ -818,6 +818,32 @@ body {
                     
                     <div class="mb-3">
                         <div class="form-check" style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 8px;">
+                            <input class="form-check-input" type="checkbox" id="memoriaApagada" name="memoria_apagada" 
+                                   style="width: 1.2rem; height: 1.2rem; cursor: pointer;">
+                            <label class="form-check-label" for="memoriaApagada" style="margin-left: 10px; cursor: pointer;">
+                                <i class="bi bi-laptop"></i> Memória Apagada?
+                            </label>
+                            <small class="d-block mt-2" style="color: rgba(255, 255, 255, 0.6); margin-left: 2rem;">
+                                Marque se a Memória foi Apagada
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check" style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 8px;">
+                            <input class="form-check-input" type="checkbox" id="verificacaoDeTP" name="verificacao_tp" 
+                                   style="width: 1.2rem; height: 1.2rem; cursor: pointer;">
+                            <label class="form-check-label" for="verificacaoDeTP" style="margin-left: 10px; cursor: pointer;">
+                                <i class="bi bi-laptop"></i> Verificação de TP conforme Requisição?
+                            </label>
+                            <small class="d-block mt-2" style="color: rgba(255, 255, 255, 0.6); margin-left: 2rem;">
+                                Marque se foi realizada a verificação conforme requisição
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check" style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 8px;">
                             <input class="form-check-input" type="checkbox" id="verificacaoPlataforma" name="verificacao_plataforma" 
                                    style="width: 1.2rem; height: 1.2rem; cursor: pointer;">
                             <label class="form-check-label" for="verificacaoPlataforma" style="margin-left: 10px; cursor: pointer;">
@@ -846,7 +872,7 @@ body {
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                         <i class="bi bi-x-circle"></i> Cancelar
                     </button>
-                    <button type="submit" class="btn btn-success">
+                    <button type="submit" id="btnConfirmarExpedicao" class="btn btn-success" disabled>
                         <i class="bi bi-truck"></i> Confirmar e Expedir
                     </button>
                 </div>
@@ -1210,6 +1236,44 @@ function confirmarAtribuicao() {
 }
 
 // Função para abrir modal de checklist de expedição
+// 1. Função auxiliar para validar o estado do formulário e habilitar/desabilitar o botão
+function validarChecklistExpedicao() {
+    const btnSubmit = document.getElementById('btnConfirmarExpedicao');
+    if (!btnSubmit) return; // Segurança caso o ID não exista no HTML
+
+    const idsAuditadosField = document.getElementById('idsAuditados');
+    
+    // IDs das checkboxes que devem estar marcadas
+    const checkboxIds = [
+        'memoriaApagada',
+        'verificacaoDeTP',
+        'verificacaoPlataforma',
+        'customizacaoConforme'
+    ];
+
+    // Verifica se todas as checkboxes estão marcadas (true)
+    const todosCheckboxesMarcados = checkboxIds.every(id => {
+        const cb = document.getElementById(id);
+        return cb ? cb.checked : false;
+    });
+
+    // Verifica se o campo de texto está preenchido OU se ele está desativado (caso de Carregador + Cabo)
+    const idsValidos = idsAuditadosField.disabled || idsAuditadosField.value.trim().length > 0;
+
+    // O botão só habilita se ambos os critérios forem atendidos
+    btnSubmit.disabled = !(todosCheckboxesMarcados && idsValidos);
+}
+
+// 2. Configuração dos Event Listeners (executa uma vez ao carregar a página)
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('formChecklistExpedicao');
+    if (form) {
+        // Monitora qualquer entrada ou clique dentro do formulário
+        form.addEventListener('input', validarChecklistExpedicao);
+    }
+});
+
+// 3. Sua função original atualizada
 function abrirModalChecklistExpedicao(requisicaoId, ehCarregadorCabo = false) {
     // Configura o action do form com a URL correta
     const form = document.getElementById('formChecklistExpedicao');
@@ -1222,6 +1286,8 @@ function abrirModalChecklistExpedicao(requisicaoId, ehCarregadorCabo = false) {
     // Limpa campos
     const idsAuditadosField = document.getElementById('idsAuditados');
     idsAuditadosField.value = '';
+    document.getElementById('memoriaApagada').checked = false;
+    document.getElementById('verificacaoDeTP').checked = false;
     document.getElementById('verificacaoPlataforma').checked = false;
     document.getElementById('customizacaoConforme').checked = false;
     
@@ -1242,6 +1308,9 @@ function abrirModalChecklistExpedicao(requisicaoId, ehCarregadorCabo = false) {
         idsAuditadosField.style.backgroundColor = '#1e1e1e';
         if (marcaObrigatorio) marcaObrigatorio.style.display = 'inline';
     }
+    
+    // INVOCA A VALIDAÇÃO para garantir que o botão comece desativado ao abrir
+    validarChecklistExpedicao();
     
     // Abre modal
     const modal = new bootstrap.Modal(document.getElementById('modalChecklistExpedicao'));
