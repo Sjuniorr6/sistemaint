@@ -85,6 +85,7 @@ INSTALLED_APPS = [
     'corte',
     'compras',
     'franquia',
+    'acompanhamentos',
     'kanban_inteligencia',
 ]
 

@@ -489,7 +489,7 @@
                                         {% endif %} -->
                                         {% if perms.requisicao.view_listacompanhamento %}
                                         <li>
-                                            <a class="dropdown-item" href="{% url 'acompanhamentoList' %}">
+                                            <a class="dropdown-item" href="{% url 'acompanhamentosList' %}">
                                                 Ver Acompanhamentos
                                             </a>
                                         </li>
@@ -497,8 +497,36 @@
 
                                         {% if perms.requisicao.add_registrodeacompanhamento %}
                                         <li>
-                                            <a class="dropdown-item" href="{% url 'acompanhamentoCreate' %}">
+                                            <a class="dropdown-item" href="{% url 'AcompanhamentosCreate' %}">
                                                 Criar Acompanhamento
+                                            </a>
+                                        </li>
+                                        {% endif %}
+                                        {% if perms.acompanhamentos.view_listcliente_acompanhamento %}
+                                        <li>
+                                            <a class="dropdown-item" href="{% url 'clienteAcompanhamentoList' %}">
+                                                Ver Clientes
+                                            </a>
+                                        </li>
+                                        {% endif %}
+                                        {% if perms.acompanhamentos.add_registrodeclienteacompanhamento %}
+                                        <li>
+                                            <a class="dropdown-item" href="{% url 'clienteAcompanhamentoCreate' %}">
+                                                Cadastro Cliente
+                                            </a>
+                                        </li>
+                                        {% endif %}
+                                        {% if perms.acompanhamentos.view_listagente_acompanhamento %}
+                                        <li>
+                                            <a class="dropdown-item" href="{% url 'agenteAcompanhamentoList' %}">
+                                                Ver Agentes
+                                            </a>
+                                        </li>
+                                        {% endif %}
+                                        {% if perms.acompanhamentos.add_registrodeagenteacompanhamento %}
+                                        <li>
+                                            <a class="dropdown-item" href="{% url 'agenteAcompanhamentoCreate' %}">
+                                                Cadastro Agente
                                             </a>
                                         </li>
                                         {% endif %}

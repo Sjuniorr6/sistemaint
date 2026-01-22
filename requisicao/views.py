@@ -41,7 +41,7 @@ from django.shortcuts import render, redirect
 from django.forms import inlineformset_factory
 from .forms import ControleForm
 from franquia.models import registrodefranquia
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 # ------------------------------------------------------
 class RequisicoesViews(PermissionRequiredMixin, LoginRequiredMixin, ListView):
@@ -76,8 +76,7 @@ from django.db import transaction
 from django.urls import reverse_lazy
 from django.views.generic.edit import CreateView
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
-from .models import Requisicoes, estoque_antenista, registrodeacompanhamento, ListAcompanhamento
-from .forms import FormulariosForm
+from .models import Requisicoes, estoque_antenista
 from .forms import RequisicaoForm
 
 logger = logging.getLogger(__name__)
@@ -921,6 +920,8 @@ def expedir_requisicao(request, id):
     if request.method == "POST":
         # Captura dados do checklist de auditoria
         ids_auditados = request.POST.get("ids_auditados", "").strip()
+        memoria_apagada = request.POST.get("memoria_apagada") == "on"
+        verificacao_tp = request.POST.get("verificacao_tp") == "on"
         verificacao_plataforma = request.POST.get("verificacao_plataforma") == "on"
         customizacao_conforme = request.POST.get("customizacao_conforme") == "on"
 
@@ -928,6 +929,8 @@ def expedir_requisicao(request, id):
 
         # Salva informações do checklist
         registro.ids_auditados = ids_auditados
+        registro.memoria_apagada = memoria_apagada
+        registro.verificacao_tp = verificacao_tp
         registro.verificacao_plataforma = verificacao_plataforma
         registro.customizacao_conforme = customizacao_conforme
 
@@ -945,6 +948,8 @@ def expedir_requisicao(request, id):
             detalhes={
                 "tipo_expedicao": "total",
                 "ids_auditados": ids_auditados,
+                "memoria_apagada": memoria_apagada,
+                "verificacao_tp": verificacao_tp,
                 "verificacao_plataforma": verificacao_plataforma,
                 "customizacao_conforme": customizacao_conforme,
                 "quantidade": registro.numero_de_equipamentos,
@@ -2695,7 +2700,6 @@ from django.views.decorators.cache import cache_page
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-
 @api_view(["GET"])
 @cache_page(60 * 30)  # Cache de 30 minutos
 def api_requisicoes(request):
@@ -2736,489 +2740,6 @@ def api_requisicoes(request):
         )
 
     return Response({"total": len(dados), "requisicoes": dados})
-
-# ------------------------------------------------------
-#                     ACOMPANHAMENTO
-# ------------------------------------------------------
-def format_decimal(value):
-    if value is None:
-        return ""
-    return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-class AcompanhamentoCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
-    model = registrodeacompanhamento
-    form_class = FormulariosForm
-    template_name = "acompanhamento_create.html"
-    success_url = reverse_lazy("acompanhamentoList")
-    permission_required = "requisicao.add_registrodeacompanhamento"
-
-    def form_valid(self, form):
-        instance = form.save(commit=False)
-
-        # defaults
-        instance.horario_finalizacao = instance.horario_finalizacao or time(0, 0)
-        instance.km_final = instance.km_final or 0
-
-        # KM total
-        if instance.km_inicio is not None:
-            instance.km_total = instance.km_final - instance.km_inicio
-        else:
-            instance.km_total = 0
-
-        # Horário total
-        if instance.horario_solicitado and instance.horario_finalizacao:
-            inicio = datetime.combine(
-                instance.data_solicitada or datetime.today(),
-                instance.horario_solicitado
-            )
-            fim = datetime.combine(
-                instance.data_final or instance.data_solicitada or datetime.today(),
-                instance.horario_finalizacao
-            )
-            instance.horario_total = max(fim - inicio, timedelta(0))
-        else:
-            instance.horario_total = timedelta(0)
-
-        # auditoria
-        user = self.request.user
-        instance.nome_user = user.get_full_name() or user.username
-
-        # 🔥 save chama recalcular_franquia_e_valores()
-        instance.save()
-        return redirect(self.success_url)
-
-
-class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
-    model = registrodeacompanhamento
-    template_name = "acompanhamento_list.html"
-    context_object_name = "acompanhamentos"
-    permission_required = "requisicao.view_listacompanhamento"
-
-    def get_pendentes_filter(self):
-        filtro_pendentes = Q()
-        for field in self.model._meta.fields:
-            nome = field.name
-            if nome in ["id", 
-            "criado_em", 
-            "atualizado_em", 
-            "nome_user", 
-            "ocorrencia", 
-            "km_excedente", 
-            "horario_excedente",
-            "data_final",
-            "horario_finalizacao",
-            "pedagio"]:
-
-                continue
-            # Texto (CharField / TextField)
-            if field.get_internal_type() in ["CharField", "TextField"]:
-                filtro_pendentes |= Q(**{f"{nome}__isnull": True})
-                filtro_pendentes |= Q(**{nome: ""})
-            # Data (DateField)
-            elif field.get_internal_type() == "DateField":
-                filtro_pendentes |= Q(**{f"{nome}__isnull": True})
-            # Hora (TimeField)
-            elif field.get_internal_type() == "TimeField":
-                filtro_pendentes |= Q(**{f"{nome}__isnull": True})
-                filtro_pendentes |= Q(**{nome: time(0, 0)})
-            # Duração (DurationField)
-            elif field.get_internal_type() == "DurationField":
-                filtro_pendentes |= Q(**{f"{nome}__isnull": True})
-            # Números (IntegerField, etc)
-            elif field.get_internal_type() in ["IntegerField", "FloatField", "DecimalField"]:
-                filtro_pendentes |= Q(**{f"{nome}__isnull": True})
-                filtro_pendentes |= Q(**{nome: 0})
-        return filtro_pendentes
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-
-        data = self.request.GET.get("data")
-        data2 = self.request.GET.get("data2")
-        agente = self.request.GET.get("agente")
-        cliente = self.request.GET.get("cliente")
-        pendente = self.request.GET.get("pendente")
-
-        if data and data2:
-            if data > data2:
-                data, data2 = data2, data
-            queryset = queryset.filter(data_solicitada__range=[data, data2])
-        elif data:
-            queryset = queryset.filter(data_solicitada=data)
-        elif data2:
-            queryset = queryset.filter(data_solicitada=data2)
-
-        if agente:
-            queryset = queryset.filter(agente__icontains=agente)
-
-        if cliente:
-            queryset = queryset.filter(cliente__icontains=cliente)
-
-        if pendente == "true":
-            filtro = self.get_pendentes_filter()
-            queryset = queryset.filter(filtro)
-
-        return queryset.order_by("-criado_em")
-
-    def render_to_response(self, context, **response_kwargs):
-        
-        if self.request.GET.get("export") == "excel":
-            return self.exportar_excel(context["acompanhamentos"])
-        
-        if self.request.GET.get("export") == "pdf":
-            return self.exportar_pdf(context["acompanhamentos"])
-
-        return super().render_to_response(context, **response_kwargs)
-
-    def exportar_pdf(self, queryset):
-    
-        buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=(2000, 900), topMargin=20, leftMargin=20, rightMargin=20, bottomMargin=20)
-        elements = []
-        
-        styles = getSampleStyleSheet()
-        title_style = styles["Title"]
-
-        cell_style = ParagraphStyle(
-            name="CellStyle",
-            fontName="Helvetica",
-            fontSize=7,
-            leading=9,
-            wordWrap="CJK",
-            alignment=0
-        )
-
-        # Título
-        title = Paragraph("Relatório de Acompanhamentos", title_style)
-        title.alignment = 1
-        elements.append(title)
-        elements.append(Paragraph("<br/>", styles["Normal"]))  # Espaço
-        
-        # Cabeçalhos
-        headers = [
-            "Protocolo", "Cliente", "Origem", "Destino",
-            "Responsavel Agente", "Agente", "Placa Agente",
-            "Motorista", "Placa Motorista",
-            "Data Solicitada", "Hora Solicitada",
-            "Data Inicial", "Hora Inicial",
-            "Data Final", "Hora Final", "Hora Total", 
-            "KM Início", "KM Final", "KM Total", "Pedágio", "Franquia", "Hora Excedente", "KM Excedente",
-            "Valor Agente",
-            "Ocorrência", "Feito Por"
-        ]
-        
-        # Dados
-        data = [headers]
-        total_valor_agente = Decimal("0.00")
-        
-        for item in queryset:
-            row = [
-                str(item.id),
-                Paragraph(str(item.cliente) if item.cliente else "", cell_style),
-                Paragraph(item.origem or "", cell_style),
-                Paragraph(item.destino or "", cell_style),
-                Paragraph(item.responsavel_agente or "", cell_style),
-                Paragraph(item.agente or "", cell_style),
-                item.placa_agente or "",
-                Paragraph(item.motorista or "", cell_style),
-                item.placa_motorista or "",
-                item.data_solicitada.strftime("%d/%m/%Y") if item.data_solicitada else "",
-                item.horario_solicitado.strftime("%H:%M") if item.horario_solicitado else "",
-                item.data_inicial.strftime("%d/%m/%Y") if item.data_inicial else "",
-                item.horario_inicio.strftime("%H:%M") if item.horario_inicio else "",
-                item.data_final.strftime("%d/%m/%Y") if item.data_final else "",
-                item.horario_finalizacao.strftime("%H:%M") if item.horario_finalizacao else "",
-                str(item.horario_total) if item.horario_total else "",
-                str(item.km_inicio) if item.km_inicio is not None else "",
-                str(item.km_final) if item.km_final is not None else "",
-                str(item.km_total) if item.km_total is not None else "",
-                Paragraph(format_decimal(item.pedagio), cell_style),
-                Paragraph(str(item.franquia.nome) if item.franquia else "", cell_style),
-                str(item.horario_excedente) if item.horario_excedente else "",
-                str(item.km_excedente) if item.km_excedente is not None else "",
-                Paragraph(format_decimal(item.valor_agente), cell_style),
-                Paragraph(item.ocorrencia or "", cell_style),
-                Paragraph(item.nome_user or "", cell_style),
-            ]
-            
-            if item.valor_agente:
-                total_valor_agente += Decimal(str(item.valor_agente))
-
-            data.append(row)
-
-        total_row = [""] * len(headers)
-        total_row[23] = Paragraph(f"Total: {format_decimal(total_valor_agente)}", cell_style)
-        data.append(total_row)
-
-        # Criar tabela
-        table = Table(data, colWidths=[50, 80, 80, 80, 80, 80, 80, 80, 80, 80, 60, 80, 60, 80, 60, 60, 60, 60, 60, 100, 80])
-        table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 7),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            
-            # Linha de total com fundo destacado
-            ("BACKGROUND", (0, -1), (-1, -1), colors.lightgrey),
-            ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
-
-            # Centraliza números / datas
-            ("ALIGN", (0, 1), (0, -1), "CENTER"),
-            ("ALIGN", (6, 1), (6, -1), "CENTER"),
-            ("ALIGN", (9, 1), (18, -1), "CENTER"),
-
-            # Texto longo à esquerda
-            ("ALIGN", (1, 1), (5, -1), "LEFT"),
-            ("ALIGN", (7, 1), (7, -1), "LEFT"),
-            ("ALIGN", (19, 1), (20, -1), "LEFT"),
-        ]))
-
-        elements.append(table)
-        
-        # Gerar PDF
-        doc.build(elements)
-        buffer.seek(0)
-        
-        response = HttpResponse(buffer, content_type="application/pdf")
-        response["Content-Disposition"] = 'attachment; filename="acompanhamentos.pdf"'
-        buffer.close()
-        return response
-
-    def exportar_excel(self, queryset):
-        workbook = openpyxl.Workbook()
-        sheet = workbook.active
-        sheet.title = "Acompanhamentos"
-
-        headers = [
-            "Protocolo", "Cliente", "Origem", "Destino",
-            "Responsavel Agente", "Agente", "Placa Agente",
-            "Motorista", "Placa Motorista",
-            "Data Solicitada", "Hora Solicitada",
-            "Data Inicial", "Hora Inicial",
-            "Data Final", "Hora Final", "Hora Total",
-            "KM Início", "KM Final", "KM Total", "Pedágio",
-            "Franquia", "Hora Excedente", "KM Excedente",
-            "Valor Agente",
-            "Ocorrência",
-            'Feito Por'
-        ]
-        sheet.append(headers)
-
-        total_valor_agente = Decimal("0.00")
-
-        for item in queryset:
-            sheet.append([
-                item.id,
-                item.cliente,
-                item.origem,
-                item.destino,
-                item.responsavel_agente,
-                item.agente,
-                item.placa_agente,
-                item.motorista,
-                item.placa_motorista,
-                item.data_solicitada.strftime("%d/%m/%Y") if item.data_solicitada else "",
-                item.horario_solicitado.strftime("%H:%M") if item.horario_solicitado else "",
-                item.data_inicial.strftime("%d/%m/%Y") if item.data_inicial else "",
-                item.horario_inicio.strftime("%H:%M") if item.horario_inicio else "",
-                item.data_final.strftime("%d/%m/%Y") if item.data_final else "",
-                item.horario_finalizacao.strftime("%H:%M") if item.horario_finalizacao else "",
-                item.horario_total,
-                item.km_inicio,
-                item.km_final,
-                item.km_total,
-                item.pedagio,
-                item.franquia.nome if item.franquia else "",
-                item.horario_excedente,
-                item.km_excedente,
-                item.valor_agente,
-                item.ocorrencia,
-                item.nome_user,
-            ])
-            
-            if item.valor_agente:
-                total_valor_agente += Decimal(str(item.valor_agente))
-
-        sheet.append([])
-        
-        total_row = [""] * len(headers)
-        total_row[23] = f"TOTAL: R$ {total_valor_agente:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-        sheet.append(total_row)
-        
-        from openpyxl.styles import Font, PatternFill
-        last_row = sheet.max_row
-        for col in range(1, len(headers) + 1):
-            cell = sheet.cell(row=last_row, column=col)
-            cell.font = Font(bold=True)
-            cell.fill = PatternFill(start_color="D3D3D3", end_color="D3D3D3", fill_type="solid")
-
-        response = HttpResponse(
-            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-        response["Content-Disposition"] = 'attachment; filename="acompanhamentos.xlsx"'
-
-        workbook.save(response)
-        return response
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-
-        context["franquias"] = registrodefranquia.objects.all().order_by("nome")
-
-        base_qs = self.model.objects.all()
-        filtro_pendentes = Q()
-
-        for field in self.model._meta.fields:
-            nome = field.name
-
-            if nome in [
-                "id", 
-                "criado_em", 
-                "atualizado_em",
-                "nome_user",
-                "ocorrencia", 
-                "pedagio", 
-                "km_excedente", 
-                "horario_excedente",
-                "data_final",
-                "horario_finalizacao"
-            ]:
-                continue
-
-            if field.get_internal_type() in ["CharField", "TextField"]:
-                filtro_pendentes |= Q(**{f"{nome}__isnull": True})
-                filtro_pendentes |= Q(**{nome: ""})
-
-            elif field.get_internal_type() == "DateField":
-                filtro_pendentes |= Q(**{f"{nome}__isnull": True})
-
-            elif field.get_internal_type() == "TimeField":
-                filtro_pendentes |= Q(**{f"{nome}__isnull": True})
-                filtro_pendentes |= Q(**{nome: time(0, 0)})
-
-            elif field.get_internal_type() == "DurationField":
-                filtro_pendentes |= Q(**{f"{nome}__isnull": True})
-
-            elif field.get_internal_type() in ["IntegerField", "FloatField", "DecimalField"]:
-                filtro_pendentes |= Q(**{f"{nome}__isnull": True})
-                filtro_pendentes |= Q(**{nome: 0})
-
-        context["pendentes_count"] = base_qs.filter(filtro_pendentes).distinct().count()
-
-        context["data"] = self.request.GET.get("data", "")
-        context["data2"] = self.request.GET.get("data2", "")
-        context["agente"] = self.request.GET.get("agente", "")
-        context["cliente"] = self.request.GET.get("cliente", "")
-
-        return context
-
-class RegistroAcompanhamentoUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
-    model = registrodeacompanhamento
-    form_class = FormulariosForm
-    template_name = "acompanhamento_create.html"
-    success_url = reverse_lazy("acompanhamentoList")
-    permission_required = "requisicao.change_registrodeacompanhamento"
-
-    def form_valid(self, form):
-        instance = form.save(commit=False)
-
-        # preserva franquia (não vem do form)
-        instance.franquia = self.get_object().franquia
-
-        # recalcula horário total
-        if instance.horario_solicitado and instance.horario_finalizacao:
-            inicio = datetime.combine(
-                instance.data_solicitada or datetime.today(),
-                instance.horario_solicitado
-            )
-            fim = datetime.combine(
-                instance.data_final or instance.data_solicitada or datetime.today(),
-                instance.horario_finalizacao
-            )
-            instance.horario_total = max(fim - inicio, timedelta(0))
-
-        # auditoria
-        user = self.request.user
-        instance.nome_user = user.get_full_name() or user.username
-
-        # 🔥 save recalcula tudo
-        instance.save()
-        return redirect(self.success_url)
-
-@login_required
-@permission_required("requisicao.add_registrodeacompanhamento", raise_exception=False)
-def atualizar_franquia_acompanhamento(request):
-
-    if request.method != "POST":
-        return JsonResponse({"success": False, "error": "Método inválido."}, status=405)
-
-    data = json.loads(request.body)
-
-    acompanhamento = get_object_or_404(
-        registrodeacompanhamento,
-        id=data.get("acompanhamento_id")
-    )
-
-    franquia_id = data.get("franquia_id")
-
-    if not franquia_id:
-        acompanhamento.franquia = None
-    else:
-        acompanhamento.franquia = get_object_or_404(registrodefranquia, id=franquia_id)
-
-    user = request.user
-    acompanhamento.nome_user = user.get_full_name() or user.username
-
-    acompanhamento.save()
-
-    horario_excedente_str = ""
-    if acompanhamento.horario_excedente:
-        total = int(acompanhamento.horario_excedente.total_seconds())
-        horario_excedente_str = f"{total//3600}:{(total%3600)//60:02d}:{total%60:02d}"
-
-    return JsonResponse({
-        "success": True,
-        "valor_agente": str(acompanhamento.valor_agente) if acompanhamento.valor_agente else "",
-        "km_excedente": acompanhamento.km_excedente or 0,
-        "horario_excedente": horario_excedente_str,
-        "nome_user": acompanhamento.nome_user,
-        "franquia_nome": acompanhamento.franquia.nome if acompanhamento.franquia else ""
-    })
-
-class AcompanhamentoDashboardView(LoginRequiredMixin, PermissionRequiredMixin, TemplateView):
-    template_name = "acompanhamento_dashboard.html"
-    permission_required = "requisicao.view_listacompanhamento"
-
-@login_required
-def acompanhamento_dashboard_data(request):
-
-    periodo = request.GET.get('periodo', 'mensal')
-    hoje = timezone.now()
-
-    if periodo == 'semanal':
-        data_inicio = hoje - timedelta(days=7)
-    elif periodo == 'quinzenal':
-        data_inicio = hoje - timedelta(days=15)
-    else:
-        data_inicio = hoje - timedelta(days=30)
-
-    dados = (
-        registrodeacompanhamento.objects
-        .filter(criado_em__gte=data_inicio)
-        .exclude(cliente__isnull=True)
-        .exclude(cliente="")
-        .exclude(cliente__icontains="teste")
-        .values('cliente')
-        .annotate(total=Count('id'))
-        .order_by('-total')[:10]
-    )
-
-    return JsonResponse({
-        'labels': [d['cliente'] for d in dados],
-        'valores': [d['total'] for d in dados],
-    })
 
 
 

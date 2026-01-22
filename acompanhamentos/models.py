@@ -1,0 +1,447 @@
+from django.db import models 
+from django.utils import timezone
+from django.contrib.auth.models import User
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
+from franquia.models import registrodefranquia
+from datetime import datetime, timedelta, date
+from decimal import Decimal
+
+# ------------------------------------------------------
+#                 Registro de Agentes
+# ------------------------------------------------------
+class registrodeagenteacompanhamento(models.Model):
+    # =========================
+    # DADOS PRINCIPAIS
+    # =========================
+    nome = models.CharField(
+        max_length=150,
+        verbose_name="Nome do Agente"
+    )
+
+    cpf = models.CharField(
+        max_length=14,
+        blank=True,
+        null=True,
+        verbose_name="CPF"
+    )
+
+    pix = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        verbose_name="Chave Pix"
+    )
+    
+    banco = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        verbose_name="Banco"
+    )
+
+    agencia = models.CharField(
+        max_length=10,
+        blank=True,
+        null=True,
+        verbose_name="Agência"
+    )
+
+    conta = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        verbose_name="Conta"
+    )
+
+    tipo_conta = models.CharField(
+        max_length=30,
+        blank=True,
+        null=True,
+        verbose_name="Tipo de Conta"
+    )
+
+    # =========================
+    # CONTROLE
+    # =========================
+    nome_user = models.CharField(
+        max_length=150,
+        blank=True,
+        null=True,
+        verbose_name="Usuário responsável"
+    )
+
+    criado_em = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Criado em"
+    )
+
+    atualizado_em = models.DateTimeField(
+        auto_now=True,
+        verbose_name="Atualizado em"
+    )
+
+    class Meta:
+        ordering = ['-criado_em']
+        verbose_name = "Registro de Agentes"
+        verbose_name_plural = "Registros de Agentes"
+
+    def __str__(self):
+        return f"{self.nome}"
+
+# ------------------------------------------------------
+#                 Registro de Clientes
+# ------------------------------------------------------
+class registrodeclienteacompanhamento(models.Model):
+    nome = models.CharField(max_length=100, verbose_name="Nome do Cliente")
+    cnpj = models.CharField(max_length=20, blank=True, null=True, verbose_name="CNPJ")
+    email = models.EmailField(blank=True, null=True, verbose_name="Email")
+
+    # Nome do usuário que criou/atualizou o Cliente
+    nome_user = models.CharField(max_length=150, blank=True, null=True)
+
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True) 
+
+    class Meta:
+        ordering = ['-criado_em']
+
+
+    def __str__(self):
+        return f'{self.nome}'
+
+# ------------------------------------------------------
+#            Registro de Serviços Acompanhamento
+# ------------------------------------------------------
+class servicosacompanhamentos(models.Model):
+    TIPO_SERVICO_CHOICES = (
+        ('moto', 'Moto'),
+        ('carro', 'Carro'),
+    )
+
+    AGENTES_CHOICES = (
+        (1, '1 Agente'),
+        (2, '2 Agentes'),
+    )
+
+    tipo = models.CharField(
+        max_length=10,
+        choices=TIPO_SERVICO_CHOICES,
+        verbose_name="Tipo do Serviço"
+    )
+
+    agentes = models.PositiveSmallIntegerField(
+        choices=AGENTES_CHOICES,
+        verbose_name="Quantidade de Agentes"
+    )
+
+    nomeclatura = models.CharField(
+        max_length=150,
+        verbose_name="Nomenclatura do Serviço"
+    )
+
+    criado_em = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Criado em"
+    )
+
+    atualizado_em = models.DateTimeField(
+        auto_now=True,
+        verbose_name="Atualizado em"
+    )
+
+    class Meta:
+        ordering = ['-criado_em']
+        verbose_name = "Serviço de Acompanhamento"
+        verbose_name_plural = "Serviços de Acompanhamento"
+
+    def __str__(self):
+        return f"{self.get_tipo_display()} | {self.agentes} agente(s) - {self.nomeclatura}"
+
+# ------------------------------------------------------
+#               Registro de Acompanhamentos
+# ------------------------------------------------------
+class registroacompanhamento(models.Model):
+    STATUS_CHOICES = (
+        ("pendente", "Pendente"),
+        ("aguardando", "Aguardando Autorização"),
+        ("faturado", "Faturado"),
+    )
+    
+    cliente = models.ForeignKey(
+        registrodeclienteacompanhamento,
+        on_delete=models.SET_NULL,
+        null=True
+    )
+
+    tipo_servico = models.ForeignKey(
+        servicosacompanhamentos,
+        on_delete=models.SET_NULL,
+        null=True
+    )
+
+    origem = models.CharField(max_length=100)
+    destino = models.CharField(max_length=100)
+
+    valor_contrato = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True
+    )
+
+    lucro_total = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="pendente"
+    )
+
+    nf = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        verbose_name="Nota Fiscal"
+    )
+
+    validar_acompanhamento = models.BooleanField(default=False)
+    validar_pagamento = models.BooleanField(default=False)
+
+    ocorrencia = models.TextField(blank=True, null=True)
+    nome_user = models.CharField(max_length=150, blank=True, null=True)
+
+    criado_em = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ["-criado_em"]
+        verbose_name = "Acompanhamentos"
+        verbose_name_plural = "Acompanhamentoss"
+    
+    def __str__(self):
+        return f"#{self.id} - {self.cliente}"
+
+    def recalcular_lucro_total(self):
+        total_agentes = sum(
+            (agente.valor_agente or Decimal("0.00"))
+            for agente in self.agentes.all()
+        )
+
+        if self.valor_contrato is not None:
+            self.lucro_total = self.valor_contrato - total_agentes
+        else:
+            self.lucro_total = None
+
+        self.save(update_fields=["lucro_total"])
+
+    @property
+    def total_valor_agentes(self):
+        return sum(
+            (agente.valor_agente or Decimal("0.00"))
+            for agente in self.agentes.all()
+        )
+
+    @property
+    def total_valor_agentes_formatado(self):
+        valor = self.total_valor_agentes
+        return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+class registroacompanhamentoagente(models.Model):
+    
+    acompanhamento = models.ForeignKey(
+        "registroacompanhamento",
+        on_delete=models.CASCADE,
+        related_name="agentes"
+    )
+
+    responsavel_agente = models.CharField(max_length=100, blank=True, null=True)
+
+    agente = models.ForeignKey(
+        registrodeagenteacompanhamento,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+
+    franquia = models.ForeignKey(
+        registrodefranquia,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+
+    placa_agente = models.CharField(
+        max_length=10,
+        blank=True,
+        null=True
+    )
+
+    motorista = models.CharField(max_length=100, blank=True, null=True)
+    placa_motorista = models.CharField(max_length=10, blank=True, null=True)
+    
+    bancario = models.BooleanField(
+        default=False,
+        verbose_name="Pagamento Bancário?"
+    )
+
+    pix = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        verbose_name="Chave Pix"
+    )
+
+    banco = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        verbose_name="Banco"
+    )
+
+    agencia = models.CharField(
+        max_length=10,
+        blank=True,
+        null=True,
+        verbose_name="Agência"
+    )
+
+    conta = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        verbose_name="Conta"
+    )
+
+    tipo_conta = models.CharField(
+        max_length=30,
+        blank=True,
+        null=True,
+        verbose_name="Tipo de Conta"
+    )
+
+    km_inicio = models.IntegerField()
+    km_final = models.IntegerField()
+    km_total = models.IntegerField(blank=True, null=True)
+
+    km_excedente = models.IntegerField(blank=True, null=True)
+
+    horario_solicitado = models.TimeField()
+    horario_inicio = models.TimeField()
+    horario_finalizacao = models.TimeField()
+
+    data_solicitada = models.DateField()
+    data_inicio = models.DateField()
+    data_finalizacao = models.DateField()
+
+    horario_total = models.DurationField(blank=True, null=True)
+    horario_excedente = models.DurationField(blank=True, null=True)
+
+    pedagio = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("0.00")
+    )
+
+    valor_agente = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        blank=True,
+        null=True
+    )
+
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-criado_em"]
+        verbose_name = "Agente do Acompanhamento"
+        verbose_name_plural = "Agentes do Acompanhamento"
+
+    def __str__(self):
+        return f"{self.agente}"
+
+    def calcular_horario_total(self):
+        inicio = datetime.combine(self.data_solicitada, self.horario_solicitado)
+        fim = datetime.combine(self.data_finalizacao, self.horario_finalizacao)
+
+        if fim < inicio:
+            fim += timedelta(days=1)
+
+        return fim - inicio
+
+    def calcular_horario_excedente(self):
+        if not self.franquia or not self.horario_total:
+            return None
+
+        if self.franquia.franquia_horas is None:
+            return None
+
+        segundos_franquia = self.franquia.franquia_horas * 3600
+        segundos_totais = int(self.horario_total.total_seconds())
+
+        excedente = segundos_totais - segundos_franquia
+
+        if excedente > 0:
+            return timedelta(seconds=excedente)
+
+        return None
+
+    def recalcular_franquia_e_valores(self):
+        self.horario_excedente = self.calcular_horario_excedente()
+
+        if not self.franquia:
+            self.km_excedente = 0
+            self.valor_agente = Decimal("0.00")
+            return
+
+        km_excedente = 0
+        valor_km_excedente = Decimal("0.00")
+
+        if self.franquia.franquia_km is not None and self.km_total is not None:
+            km_excedente = max(0, self.km_total - self.franquia.franquia_km)
+
+            if km_excedente > 0 and self.franquia.valor_km_excedente:
+                valor_km_excedente = (
+                    Decimal(km_excedente) * self.franquia.valor_km_excedente
+                )
+
+        self.km_excedente = km_excedente
+
+        valor_total = Decimal("0.00")
+
+        if self.franquia.valor_acionamento:
+            valor_total += self.franquia.valor_acionamento
+
+        valor_total += valor_km_excedente
+
+        if self.horario_excedente and self.franquia.valor_horas_excedente:
+            horas = (
+                Decimal(self.horario_excedente.total_seconds()) / Decimal("3600")
+            )
+            valor_total += horas * self.franquia.valor_horas_excedente
+
+        if self.pedagio:
+            valor_total += self.pedagio
+
+        self.valor_agente = valor_total.quantize(Decimal("0.01"))
+
+    def save(self, *args, **kwargs):
+        if self.km_inicio is not None and self.km_final is not None:
+            self.km_total = self.km_final - self.km_inicio
+
+        if (
+            self.data_solicitada
+            and self.horario_solicitado
+            and self.data_finalizacao
+            and self.horario_finalizacao
+        ):
+            self.horario_total = self.calcular_horario_total()
+
+        self.recalcular_franquia_e_valores()
+        super().save(*args, **kwargs)

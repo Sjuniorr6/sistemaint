@@ -44,9 +44,6 @@ urlpatterns = [
     path('compras/', include('compras.urls')),
     path('inteligencia/kanban/', include('kanban_inteligencia.urls')),
     path('franquia/', include('franquia.urls')),
-   
-     
-     
-    
+    path('acompanhamentos/', include('acompanhamentos.urls')), 
     
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

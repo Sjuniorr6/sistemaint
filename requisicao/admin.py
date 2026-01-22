@@ -96,23 +96,6 @@ class ControleModelAdmin(admin.ModelAdmin):
 
 admin.site.register(ControleModel, ControleModelAdmin)
 
-from django.contrib import admin
-from .models import registrodeacompanhamento
-
-
-@admin.register(registrodeacompanhamento)
-class RegistroAcompanhamentoAdmin(admin.ModelAdmin):
-    list_display = (
-        'id',
-        'cliente',
-        'origem',
-        'destino',
-        'data_inicial',
-        'data_final',
-        'km_total',
-    )
-    search_fields = ('id', 'cliente', 'motorista')
-    list_filter = ('data_inicial', 'data_final')
 
 
 
