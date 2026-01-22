@@ -179,7 +179,8 @@ class registroacompanhamento(models.Model):
     tipo_servico = models.ForeignKey(
         servicosacompanhamentos,
         on_delete=models.SET_NULL,
-        null=True
+        null=True,
+        blank=True
     )
 
     origem = models.CharField(max_length=100)
@@ -254,11 +255,21 @@ class registroacompanhamento(models.Model):
         return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 class registroacompanhamentoagente(models.Model):
-    
+    TIPO_CHOICES = (
+        ("principal", "Agente Principal"),
+        ("carona", "Agente no Mesmo Veículo"),
+    )
+
     acompanhamento = models.ForeignKey(
         "registroacompanhamento",
         on_delete=models.CASCADE,
         related_name="agentes"
+    )
+
+    tipo_agente = models.CharField(
+        max_length=20,
+        choices=TIPO_CHOICES,
+        default="principal"
     )
 
     responsavel_agente = models.CharField(max_length=100, blank=True, null=True)
@@ -325,6 +336,21 @@ class registroacompanhamentoagente(models.Model):
         null=True,
         verbose_name="Tipo de Conta"
     )
+
+    nome_completo_conta = models.CharField(
+        max_length=150,
+        blank=True,
+        null=True,
+        verbose_name="Nome Completo (Conta Bancária)"
+    )
+
+    cpf_conta = models.CharField(
+        max_length=14,
+        blank=True,
+        null=True,
+        verbose_name="CPF (Conta Bancária)"
+    )
+
 
     km_inicio = models.IntegerField()
     km_final = models.IntegerField()
@@ -431,17 +457,53 @@ class registroacompanhamentoagente(models.Model):
 
         self.valor_agente = valor_total.quantize(Decimal("0.01"))
 
+    # def save(self, *args, **kwargs):
+    #     if self.km_inicio is not None and self.km_final is not None:
+    #         self.km_total = self.km_final - self.km_inicio
+
+    #     if (
+    #         self.data_solicitada
+    #         and self.horario_solicitado
+    #         and self.data_finalizacao
+    #         and self.horario_finalizacao
+    #     ):
+    #         self.horario_total = self.calcular_horario_total()
+
+    #     self.recalcular_franquia_e_valores()
+    #     super().save(*args, **kwargs)
+
     def save(self, *args, **kwargs):
+
         if self.km_inicio is not None and self.km_final is not None:
             self.km_total = self.km_final - self.km_inicio
+        else:
+            self.km_total = None
 
         if (
-            self.data_solicitada
-            and self.horario_solicitado
-            and self.data_finalizacao
-            and self.horario_finalizacao
+            self.data_solicitada and self.horario_solicitado and
+            self.data_finalizacao and self.horario_finalizacao
         ):
-            self.horario_total = self.calcular_horario_total()
+            inicio = datetime.combine(self.data_solicitada, self.horario_solicitado)
+            fim = datetime.combine(self.data_finalizacao, self.horario_finalizacao)
+
+            if fim < inicio:
+                fim += timedelta(days=1)
+
+            self.horario_total = fim - inicio
+        else:
+            self.horario_total = None
+
+        if self.tipo_agente == "carona":
+            self.valor_agente = Decimal("0.00")
+            self.km_excedente = None
+            self.horario_excedente = None
+
+            super().save(*args, **kwargs)
+            return
 
         self.recalcular_franquia_e_valores()
+
         super().save(*args, **kwargs)
+
+
+

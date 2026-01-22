@@ -118,6 +118,8 @@ class RegistroAcompanhamentoAgenteForm(forms.ModelForm):
         exclude = ("acompanhamento",)
 
         widgets = {
+            "tipo_agente": forms.HiddenInput(),
+            
             "responsavel_agente": forms.TextInput(attrs={"class": "form-control", 'placeholder': 'Responsável pelo Agente'}),
 
             "agente": forms.Select(attrs={"class": "form-control select2"}),
@@ -168,6 +170,8 @@ class RegistroAcompanhamentoAgenteForm(forms.ModelForm):
             "agencia": forms.TextInput(attrs={"class": "form-control", 'placeholder': 'Agência'}),
             "conta": forms.TextInput(attrs={"class": "form-control", 'placeholder': 'Conta'}),
             "tipo_conta": forms.TextInput(attrs={"class": "form-control", 'placeholder': 'Tipo de Conta'}),
+            'nome_completo_conta': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nome Completo'}),
+            'cpf_conta': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'CPF da Conta'}),
         }
 
 # ===============================

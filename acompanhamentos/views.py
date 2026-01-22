@@ -109,7 +109,7 @@ class AgenteAcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, 
     model = registrodeagenteacompanhamento
     template_name = "agente_acompanhamento_list.html"
     context_object_name = "agente_acompanhamentos"
-    permission_required = "agente_acompanhamento.view_listagente_acompanhamento"
+    permission_required = "acompanhamentos.view_registrodeagenteacompanhamento"
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -178,7 +178,7 @@ class ClienteAcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin,
     model = registrodeclienteacompanhamento
     template_name = "cliente_acompanhamento_list.html"
     context_object_name = "cliente_acompanhamentos"
-    permission_required = "cliente_acompanhamento.view_listcliente_acompanhamento"
+    permission_required = "acompanhamentos.view_registrodeclienteacompanhamento"
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -247,7 +247,7 @@ class ServicoAcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin,
     model = servicosacompanhamentos
     template_name = "servico_acompanhamento_list.html"
     context_object_name = "servico_acompanhamentos"
-    permission_required = "servico_acompanhamento.view_listservico_acompanhamento"
+    permission_required = "servico_acompanhamento.view_servicosacompanhamentos"
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -281,6 +281,12 @@ def moeda(valor):
         return ""
     return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+def agentes_nao_carona(agentes):
+    return [a for a in agentes if a.tipo_agente != "carona"]
+
+def join_values_nao_carona(values):
+    return "\n".join(str(v) for v in values if v)
+
 class AcompanhamentoCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
     model = registroacompanhamento
     form_class = RegistroAcompanhamentoForm
@@ -297,6 +303,12 @@ class AcompanhamentoCreateView(LoginRequiredMixin, PermissionRequiredMixin, Crea
             )
         else:
             context["agentes_formset"] = RegistroAcompanhamentoAgenteCreateFormSet()
+
+        context["agentes_cadastrados"] = (
+            registrodeagenteacompanhamento.objects
+            .all()
+            .order_by("nome")
+        )
 
         return context
 
@@ -325,6 +337,48 @@ class AcompanhamentoCreateView(LoginRequiredMixin, PermissionRequiredMixin, Crea
             agente.acompanhamento = acompanhamento
             agente.save()
 
+        caronas = self.request.POST.getlist("carona_agente[]")
+
+        agente_principal = (
+            acompanhamento.agentes
+            .filter(tipo_agente="principal")
+            .first()
+        )
+
+        for agente_id in caronas:
+            if agente_id and agente_principal:
+                agente_obj = registrodeagenteacompanhamento.objects.filter(id=agente_id).first()
+
+                registroacompanhamentoagente.objects.create(
+                    acompanhamento=acompanhamento,
+                    tipo_agente="carona",
+                    responsavel_agente=agente_principal.responsavel_agente,
+
+                    agente=agente_obj,
+
+                    placa_agente=agente_principal.placa_agente,
+                    motorista=agente_principal.motorista,
+                    placa_motorista=agente_principal.placa_motorista,
+
+                    km_inicio=agente_principal.km_inicio,
+                    km_final=agente_principal.km_final,
+                    km_total=agente_principal.km_total,
+
+                    data_solicitada=agente_principal.data_solicitada,
+                    horario_solicitado=agente_principal.horario_solicitado,
+
+                    data_inicio=agente_principal.data_inicio,
+                    horario_inicio=agente_principal.horario_inicio,
+
+                    data_finalizacao=agente_principal.data_finalizacao,
+                    horario_finalizacao=agente_principal.horario_finalizacao,
+
+                    pedagio=Decimal("0.00"),
+                    valor_agente=Decimal("0.00"),
+                )
+
+
+
         for obj in agentes_formset.deleted_objects:
             obj.delete()
 
@@ -337,10 +391,12 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
     model = registroacompanhamento
     template_name = "acompanhamento_list.html"
     context_object_name = "itens"
-    permission_required = "acompanhamentos.view_listacompanhamento"
+    permission_required = "acompanhamentos.view_registroacompanhamento"
 
     def get_pendentes_queryset(self):
         return registroacompanhamento.objects.filter(
+            Q(tipo_servico__isnull=True) |
+
             Q(agentes__responsavel_agente__isnull=True) |
             Q(agentes__responsavel_agente="") |
 
@@ -397,7 +453,6 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
             qs = qs.filter(cliente__nome__icontains=cliente)
 
         return qs.distinct().order_by("-criado_em")
-
 
     def render_to_response(self, context, **response_kwargs):
 
@@ -463,6 +518,7 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
 
         for item in queryset:
             agentes = item.agentes.all()
+            agentes_validos = agentes_nao_carona(agentes)
 
             total_geral += item.total_valor_agentes
 
@@ -473,32 +529,35 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
                 Paragraph(item.origem or "", cell_style),
                 Paragraph(item.destino or "", cell_style),
 
-                Paragraph(join_values(a.responsavel_agente for a in agentes), cell_style),
+                Paragraph(
+                    join_values(a.responsavel_agente for a in agentes_validos),
+                    cell_style
+                ),
                 Paragraph(join_values(str(a.agente) for a in agentes), cell_style),
-                Paragraph(join_values(a.placa_agente for a in agentes), cell_style),
+                Paragraph(join_values(a.placa_agente for a in agentes_validos), cell_style),
 
-                Paragraph(join_values(a.motorista for a in agentes), cell_style),
-                Paragraph(join_values(a.placa_motorista for a in agentes), cell_style),
+                Paragraph(join_values(a.motorista for a in agentes_validos), cell_style),
+                Paragraph(join_values(a.placa_motorista for a in agentes_validos), cell_style),
 
-                join_values(a.data_solicitada.strftime("%d/%m/%Y") for a in agentes if a.data_solicitada),
-                join_values(a.horario_solicitado.strftime("%H:%M") for a in agentes if a.horario_solicitado),
+                join_values_nao_carona(a.data_solicitada.strftime("%d/%m/%Y") for a in agentes_validos if a.data_solicitada),
+                join_values_nao_carona(a.horario_solicitado.strftime("%H:%M") for a in agentes_validos if a.horario_solicitado),
 
-                join_values(a.data_inicio.strftime("%d/%m/%Y") for a in agentes if a.data_inicio),
-                join_values(a.horario_inicio.strftime("%H:%M") for a in agentes if a.horario_inicio),
+                join_values_nao_carona(a.data_inicio.strftime("%d/%m/%Y") for a in agentes_validos if a.data_inicio),
+                join_values_nao_carona(a.horario_inicio.strftime("%H:%M") for a in agentes_validos if a.horario_inicio),
 
-                join_values(a.data_finalizacao.strftime("%d/%m/%Y") for a in agentes if a.data_finalizacao),
-                join_values(a.horario_finalizacao.strftime("%H:%M") for a in agentes if a.horario_finalizacao),
+                join_values_nao_carona(a.data_finalizacao.strftime("%d/%m/%Y") for a in agentes_validos if a.data_finalizacao),
+                join_values_nao_carona(a.horario_finalizacao.strftime("%H:%M") for a in agentes_validos if a.horario_finalizacao),
 
-                join_values(str(a.horario_total) for a in agentes if a.horario_total),
-                join_values(str(a.horario_excedente) for a in agentes if a.horario_excedente),
+                join_values_nao_carona(str(a.horario_total) for a in agentes_validos if a.horario_total),
+                join_values_nao_carona(str(a.horario_excedente) for a in agentes_validos if a.horario_excedente),
 
-                join_values(str(a.km_inicio) for a in agentes if a.km_inicio is not None),
-                join_values(str(a.km_final) for a in agentes if a.km_final is not None),
-                join_values(str(a.km_total) for a in agentes if a.km_total is not None),
-                join_values(str(a.km_excedente) for a in agentes if a.km_excedente),
+                join_values_nao_carona(str(a.km_inicio) for a in agentes_validos if a.km_inicio is not None),
+                join_values_nao_carona(str(a.km_final) for a in agentes_validos if a.km_final is not None),
+                join_values_nao_carona(str(a.km_total) for a in agentes_validos if a.km_total is not None),
+                join_values_nao_carona(str(a.km_excedente) for a in agentes_validos if a.km_excedente),
 
-                join_values(moeda(a.pedagio) for a in agentes if a.pedagio),
-                join_values(a.franquia.nome if a.franquia else "" for a in agentes),
+                join_values_nao_carona(moeda(a.pedagio) for a in agentes_validos if a.pedagio),
+                join_values(a.franquia.nome if a.franquia else "" for a in agentes_validos),
 
                 join_values(moeda(a.valor_agente) for a in agentes if a.valor_agente),
                 moeda(item.total_valor_agentes),
@@ -559,6 +618,7 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
 
         for item in queryset:
             agentes = item.agentes.all()
+            agentes_validos = agentes_nao_carona(agentes)
             total_geral += item.total_valor_agentes or Decimal("0.00")
 
             sheet.append([
@@ -568,32 +628,32 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
                 item.origem,
                 item.destino,
 
-                join_values(a.responsavel_agente for a in agentes),
+                join_values(a.responsavel_agente for a in agentes_validos),
                 join_values(str(a.agente) for a in agentes),
-                join_values(a.placa_agente for a in agentes),
+                join_values(a.placa_agente for a in agentes_validos),
 
-                join_values(a.motorista for a in agentes),
-                join_values(a.placa_motorista for a in agentes),
+                join_values(a.motorista for a in agentes_validos),
+                join_values(a.placa_motorista for a in agentes_validos),
 
-                join_values(a.data_solicitada.strftime("%d/%m/%Y") for a in agentes if a.data_solicitada),
-                join_values(a.horario_solicitado.strftime("%H:%M") for a in agentes if a.horario_solicitado),
+                join_values(a.data_solicitada.strftime("%d/%m/%Y") for a in agentes_validos if a.data_solicitada),
+                join_values(a.horario_solicitado.strftime("%H:%M") for a in agentes_validos if a.horario_solicitado),
 
-                join_values(a.data_inicio.strftime("%d/%m/%Y") for a in agentes if a.data_inicio),
-                join_values(a.horario_inicio.strftime("%H:%M") for a in agentes if a.horario_inicio),
+                join_values(a.data_inicio.strftime("%d/%m/%Y") for a in agentes_validos if a.data_inicio),
+                join_values(a.horario_inicio.strftime("%H:%M") for a in agentes_validos if a.horario_inicio),
 
-                join_values(a.data_finalizacao.strftime("%d/%m/%Y") for a in agentes if a.data_finalizacao),
-                join_values(a.horario_finalizacao.strftime("%H:%M") for a in agentes if a.horario_finalizacao),
+                join_values(a.data_finalizacao.strftime("%d/%m/%Y") for a in agentes_validos if a.data_finalizacao),
+                join_values(a.horario_finalizacao.strftime("%H:%M") for a in agentes_validos if a.horario_finalizacao),
 
-                join_values(str(a.horario_total) for a in agentes if a.horario_total),
-                join_values(str(a.horario_excedente) for a in agentes if a.horario_excedente),
+                join_values(str(a.horario_total) for a in agentes_validos if a.horario_total),
+                join_values(str(a.horario_excedente) for a in agentes_validos if a.horario_excedente),
 
-                join_values(str(a.km_inicio) for a in agentes if a.km_inicio is not None),
-                join_values(str(a.km_final) for a in agentes if a.km_final is not None),
-                join_values(str(a.km_total) for a in agentes if a.km_total is not None),
-                join_values(str(a.km_excedente) for a in agentes if a.km_excedente),
+                join_values(str(a.km_inicio) for a in agentes_validos if a.km_inicio is not None),
+                join_values(str(a.km_final) for a in agentes_validos if a.km_final is not None),
+                join_values(str(a.km_total) for a in agentes_validos if a.km_total is not None),
+                join_values(str(a.km_excedente) for a in agentes_validos if a.km_excedente),
 
-                join_values(moeda(a.pedagio) for a in agentes if a.pedagio),
-                join_values(a.franquia.nome if a.franquia else "" for a in agentes),
+                join_values(moeda(a.pedagio) for a in agentes_validos if a.pedagio),
+                join_values(a.franquia.nome if a.franquia else "" for a in agentes_validos),
 
                 join_values(moeda(a.valor_agente) for a in agentes if a.valor_agente),
                 moeda(item.total_valor_agentes),
@@ -724,6 +784,11 @@ class AcompanhamentoFaturamentoListView(LoginRequiredMixin, PermissionRequiredMi
 
     def get_pendentes_queryset(self):
         return registroacompanhamento.objects.filter(
+            # ========================
+            # OPERACIONAL
+            # ========================
+            Q(tipo_servico__isnull=True) |
+
             Q(agentes__responsavel_agente__isnull=True) |
             Q(agentes__responsavel_agente="") |
 
@@ -741,8 +806,19 @@ class AcompanhamentoFaturamentoListView(LoginRequiredMixin, PermissionRequiredMi
             Q(agentes__km_inicio__isnull=True) |
             Q(agentes__km_final__isnull=True) |
 
-            Q(agentes__franquia__isnull=True)
+            Q(agentes__franquia__isnull=True) |
+
+            # ========================
+            # FINANCEIRO
+            # ========================
+            Q(validar_acompanhamento=False) |
+            Q(valor_contrato__isnull=True) |
+            Q(lucro_total__isnull=True) |
+            Q(validar_pagamento=False) |
+            Q(nf__isnull=True) |
+            Q(nf="")
         ).distinct()
+
 
     def get_queryset(self):
         qs = (
@@ -854,6 +930,7 @@ class AcompanhamentoFaturamentoListView(LoginRequiredMixin, PermissionRequiredMi
 
         for item in queryset:
             agentes = item.agentes.all()
+            agentes_validos = agentes_nao_carona(agentes)
 
             total_geral += item.total_valor_agentes
             total_contrato += item.valor_contrato or Decimal("0.00")
@@ -866,32 +943,32 @@ class AcompanhamentoFaturamentoListView(LoginRequiredMixin, PermissionRequiredMi
                 Paragraph(item.origem or "", cell_style),
                 Paragraph(item.destino or "", cell_style),
 
-                Paragraph(join_values(a.responsavel_agente for a in agentes), cell_style),
+                Paragraph(join_values(a.responsavel_agente for a in agentes_validos), cell_style),
                 Paragraph(join_values(str(a.agente) for a in agentes), cell_style),
-                Paragraph(join_values(a.placa_agente for a in agentes), cell_style),
+                Paragraph(join_values(a.placa_agente for a in agentes_validos), cell_style),
 
-                Paragraph(join_values(a.motorista for a in agentes), cell_style),
-                Paragraph(join_values(a.placa_motorista for a in agentes), cell_style),
+                Paragraph(join_values(a.motorista for a in agentes_validos), cell_style),
+                Paragraph(join_values(a.placa_motorista for a in agentes_validos), cell_style),
 
-                join_values(a.data_solicitada.strftime("%d/%m/%Y") for a in agentes if a.data_solicitada),
-                join_values(a.horario_solicitado.strftime("%H:%M") for a in agentes if a.horario_solicitado),
+                join_values_nao_carona(a.data_solicitada.strftime("%d/%m/%Y") for a in agentes_validos if a.data_solicitada),
+                join_values_nao_carona(a.horario_solicitado.strftime("%H:%M") for a in agentes_validos if a.horario_solicitado),
 
-                join_values(a.data_inicio.strftime("%d/%m/%Y") for a in agentes if a.data_inicio),
-                join_values(a.horario_inicio.strftime("%H:%M") for a in agentes if a.horario_inicio),
+                join_values(a.data_inicio.strftime("%d/%m/%Y") for a in agentes_validos if a.data_inicio),
+                join_values(a.horario_inicio.strftime("%H:%M") for a in agentes_validos if a.horario_inicio),
 
-                join_values(a.data_finalizacao.strftime("%d/%m/%Y") for a in agentes if a.data_finalizacao),
-                join_values(a.horario_finalizacao.strftime("%H:%M") for a in agentes if a.horario_finalizacao),
+                join_values(a.data_finalizacao.strftime("%d/%m/%Y") for a in agentes_validos if a.data_finalizacao),
+                join_values(a.horario_finalizacao.strftime("%H:%M") for a in agentes_validos if a.horario_finalizacao),
 
-                join_values(str(a.horario_total) for a in agentes if a.horario_total),
-                join_values(str(a.horario_excedente) for a in agentes if a.horario_excedente),
+                join_values_nao_carona(str(a.horario_total) for a in agentes_validos if a.horario_total),
+                join_values(str(a.horario_excedente) for a in agentes_validos if a.horario_excedente),
 
-                join_values(str(a.km_inicio) for a in agentes if a.km_inicio is not None),
-                join_values(str(a.km_final) for a in agentes if a.km_final is not None),
-                join_values(str(a.km_total) for a in agentes if a.km_total is not None),
-                join_values(str(a.km_excedente) for a in agentes if a.km_excedente),
+                join_values_nao_carona(str(a.km_inicio) for a in agentes_validos if a.km_inicio is not None),
+                join_values_nao_carona(str(a.km_final) for a in agentes_validos if a.km_final is not None),
+                join_values_nao_carona(str(a.km_total) for a in agentes_validos if a.km_total is not None),
+                join_values(str(a.km_excedente) for a in agentes_validos if a.km_excedente),
 
-                join_values(moeda(a.pedagio) for a in agentes if a.pedagio),
-                join_values(a.franquia.nome if a.franquia else "" for a in agentes),
+                join_values(moeda(a.pedagio) for a in agentes_validos if a.pedagio),
+                join_values(a.franquia.nome if a.franquia else "" for a in agentes_validos),
 
                 join_values(moeda(a.valor_agente) for a in agentes if a.valor_agente),
                 moeda(item.total_valor_agentes),
@@ -974,6 +1051,7 @@ class AcompanhamentoFaturamentoListView(LoginRequiredMixin, PermissionRequiredMi
 
         for item in queryset:
             agentes = item.agentes.all()
+            agentes_validos = agentes_nao_carona(agentes)
 
             total_geral += item.total_valor_agentes or Decimal("0.00")
             total_contrato += item.valor_contrato or Decimal("0.00")
@@ -986,32 +1064,32 @@ class AcompanhamentoFaturamentoListView(LoginRequiredMixin, PermissionRequiredMi
                 item.origem,
                 item.destino,
 
-                join_values(a.responsavel_agente for a in agentes),
+                join_values(a.responsavel_agente for a in agentes_validos),
                 join_values(str(a.agente) for a in agentes),
-                join_values(a.placa_agente for a in agentes),
+                join_values(a.placa_agente for a in agentes_validos),
 
-                join_values(a.motorista for a in agentes),
-                join_values(a.placa_motorista for a in agentes),
+                join_values(a.motorista for a in agentes_validos),
+                join_values(a.placa_motorista for a in agentes_validos),
 
-                join_values(a.data_solicitada.strftime("%d/%m/%Y") for a in agentes if a.data_solicitada),
-                join_values(a.horario_solicitado.strftime("%H:%M") for a in agentes if a.horario_solicitado),
+                join_values(a.data_solicitada.strftime("%d/%m/%Y") for a in agentes_validos if a.data_solicitada),
+                join_values(a.horario_solicitado.strftime("%H:%M") for a in agentes_validos if a.horario_solicitado),
 
-                join_values(a.data_inicio.strftime("%d/%m/%Y") for a in agentes if a.data_inicio),
-                join_values(a.horario_inicio.strftime("%H:%M") for a in agentes if a.horario_inicio),
+                join_values(a.data_inicio.strftime("%d/%m/%Y") for a in agentes_validos if a.data_inicio),
+                join_values(a.horario_inicio.strftime("%H:%M") for a in agentes_validos if a.horario_inicio),
 
-                join_values(a.data_finalizacao.strftime("%d/%m/%Y") for a in agentes if a.data_finalizacao),
-                join_values(a.horario_finalizacao.strftime("%H:%M") for a in agentes if a.horario_finalizacao),
+                join_values(a.data_finalizacao.strftime("%d/%m/%Y") for a in agentes_validos if a.data_finalizacao),
+                join_values(a.horario_finalizacao.strftime("%H:%M") for a in agentes_validos if a.horario_finalizacao),
 
-                join_values(str(a.horario_total) for a in agentes if a.horario_total),
-                join_values(str(a.horario_excedente) for a in agentes if a.horario_excedente),
+                join_values(str(a.horario_total) for a in agentes_validos if a.horario_total),
+                join_values(str(a.horario_excedente) for a in agentes_validos if a.horario_excedente),
 
-                join_values(str(a.km_inicio) for a in agentes if a.km_inicio is not None),
-                join_values(str(a.km_final) for a in agentes if a.km_final is not None),
-                join_values(str(a.km_total) for a in agentes if a.km_total is not None),
-                join_values(str(a.km_excedente) for a in agentes if a.km_excedente),
+                join_values(str(a.km_inicio) for a in agentes_validos if a.km_inicio is not None),
+                join_values(str(a.km_final) for a in agentes_validos if a.km_final is not None),
+                join_values(str(a.km_total) for a in agentes_validos if a.km_total is not None),
+                join_values(str(a.km_excedente) for a in agentes_validos if a.km_excedente),
 
-                join_values(moeda(a.pedagio) for a in agentes if a.pedagio),
-                join_values(a.franquia.nome if a.franquia else "" for a in agentes),
+                join_values(moeda(a.pedagio) for a in agentes_validos if a.pedagio),
+                join_values(a.franquia.nome if a.franquia else "" for a in agentes_validos),
 
                 join_values(moeda(a.valor_agente) for a in agentes if a.valor_agente),
                 moeda(item.total_valor_agentes),

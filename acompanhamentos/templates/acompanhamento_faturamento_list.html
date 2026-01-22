@@ -253,7 +253,9 @@
                                     <td>{{ item.destino }}</td>
                                     <td>
                                         {% for agente in item.agentes.all %}
-                                            {{ agente.responsavel_agente|default:"" }}<br>
+                                            {% if agente.tipo_agente != "carona" %}
+                                                {{ agente.responsavel_agente|default:"" }}<br>
+                                            {% endif %}
                                         {% endfor %}
                                     </td>
 
@@ -265,117 +267,152 @@
 
                                     <td>
                                         {% for agente in item.agentes.all %}
-                                            {{ agente.placa_agente|default:"" }}<br>
+                                            {% if agente.tipo_agente != "carona" %}
+                                                {{ agente.placa_agente|default:"" }}<br>
+                                            {% endif %}
                                         {% endfor %}
                                     </td>
 
                                     <td>
                                         {% for agente in item.agentes.all %}
-                                            {{ agente.motorista|default:"" }}<br>
+                                            {% if agente.tipo_agente != "carona" %}
+                                                {{ agente.motorista|default:"" }}<br>
+                                            {% endif %}
                                         {% endfor %}
                                     </td>
 
                                     <td>
                                         {% for agente in item.agentes.all %}
-                                            {{ agente.placa_motorista|default:"" }}<br>
+                                            {% if agente.tipo_agente != "carona" %}
+                                                {{ agente.placa_motorista|default:"" }}<br>
+                                            {% endif %}
                                         {% endfor %}
                                     </td>
 
                                     <td>
                                         {% for agente in item.agentes.all %}
-                                            {{ agente.data_solicitada|date:"d/m/Y" }}<br>
+                                            {% if agente.tipo_agente != "carona" %}
+                                                {{ agente.data_solicitada|date:"d/m/Y" }}<br>
+                                            {% endif %}
                                         {% endfor %}
                                     </td>
 
                                     <td>
                                         {% for agente in item.agentes.all %}
-                                            {{ agente.horario_solicitado|time:"H:i" }}<br>
+                                            {% if agente.tipo_agente != "carona" %}
+                                                {{ agente.horario_solicitado|time:"H:i" }}<br>
+                                            {% endif %}
                                         {% endfor %}
                                     </td>
 
                                     <td>
                                         {% for agente in item.agentes.all %}
-                                            {{ agente.data_inicio|date:"d/m/Y" }}<br>
+                                            {% if agente.tipo_agente != "carona" %}
+                                                {{ agente.data_inicio|date:"d/m/Y" }}<br>
+                                            {% endif %}
                                         {% endfor %}
                                     </td>
 
                                     <td>
                                         {% for agente in item.agentes.all %}
-                                            {{ agente.horario_inicio|time:"H:i" }}<br>
+                                            {% if agente.tipo_agente != "carona" %}
+                                                {{ agente.horario_inicio|time:"H:i" }}<br>
+                                            {% endif %}
                                         {% endfor %}
                                     </td>
 
                                     <td>
                                         {% for agente in item.agentes.all %}
-                                            {{ agente.data_finalizacao|date:"d/m/Y" }}<br>
+                                            {% if agente.tipo_agente != "carona" %}
+                                                {{ agente.data_finalizacao|date:"d/m/Y" }}<br>
+                                            {% endif %}
                                         {% endfor %}
                                     </td>
 
                                     <td>
                                         {% for agente in item.agentes.all %}
-                                            {{ agente.horario_finalizacao|time:"H:i" }}<br>
+                                            {% if agente.tipo_agente != "carona" %}
+                                                {{ agente.horario_finalizacao|time:"H:i" }}<br>
+                                            {% endif %}
                                         {% endfor %}
                                     </td>
 
                                     <td>
                                         {% for agente in item.agentes.all %}
-                                            {{ agente.horario_total }}<br>
+                                            {% if agente.tipo_agente != "carona" %}
+                                                {{ agente.horario_total }}<br>
+                                            {% endif %}
                                         {% endfor %}
                                     </td>
 
                                     <td>
                                         {% for agente in item.agentes.all %}
-                                            {{ agente.km_inicio }}<br>
+                                            {% if agente.tipo_agente != "carona" %}
+                                                {{ agente.km_inicio }}<br>
+                                            {% endif %}
                                         {% endfor %}
                                     </td>
 
                                     <td>
                                         {% for agente in item.agentes.all %}
-                                            {{ agente.km_final }}<br>
+                                            {% if agente.tipo_agente != "carona" %}
+                                                {{ agente.km_final }}<br>
+                                            {% endif %}
                                         {% endfor %}
                                     </td>
 
                                     <td>
                                         {% for agente in item.agentes.all %}
-                                            {{ agente.km_total }}<br>
+                                            {% if agente.tipo_agente != "carona" %}
+                                                {{ agente.km_total }}<br>
+                                            {% endif %}
                                         {% endfor %}
                                     </td>
 
                                     <td>
                                         {% for agente in item.agentes.all %}
-                                            {% if agente.pedagio and agente.pedagio > 0 %}
-                                                R$ {{ agente.pedagio }}<br>
-                                            {% else %}
-                                                Sem Pedágio<br>
+                                            {% if agente.tipo_agente != "carona" %}
+                                                {% if agente.pedagio and agente.pedagio > 0 %}
+                                                    R$ {{ agente.pedagio }}<br>
+                                                    
+                                                {% else %}
+                                                    Sem Pedágio<br>
+                                                {% endif %}
                                             {% endif %}
                                         {% endfor %}
                                     </td>
                                     <td>
                                         {% for agente in item.agentes.all %}
-                                            {% if agente.franquia %}
-                                                {{ agente.franquia.nome }}<br>
-                                            {% else %}
-                                                —<br>
+                                            {% if agente.tipo_agente != "carona" %}
+                                                {% if agente.franquia %}
+                                                    {{ agente.franquia.nome }}<br>
+                                                {% else %}
+                                                    —<br>
+                                                {% endif %}
                                             {% endif %}
                                         {% endfor %}
                                     </td>
 
                                     <td class="horario-excedente" data-id="{{ item.id }}">
                                         {% for agente in item.agentes.all %}
-                                            {% if agente.horario_excedente %}
-                                                {{ agente.horario_excedente }}<br>
-                                            {% else %}
-                                                <br>
+                                            {% if agente.tipo_agente != "carona" %}
+                                                {% if agente.horario_excedente %}
+                                                    {{ agente.horario_excedente }}<br>
+                                                {% else %}
+                                                    <br>
+                                                {% endif %}
                                             {% endif %}
                                         {% endfor %}
                                     </td>
 
                                    <td class="km-excedente" data-id="{{ item.id }}">
                                         {% for agente in item.agentes.all %}
-                                            {% if agente.km_excedente and agente.km_excedente > 0 %}
-                                                {{ agente.km_excedente }}<br>
-                                            {% else %}
-                                                <br>
+                                            {% if agente.tipo_agente != "carona" %}
+                                                {% if agente.km_excedente and agente.km_excedente > 0 %}
+                                                    {{ agente.km_excedente }}<br>
+                                                {% else %}
+                                                    <br>
+                                                {% endif %}
                                             {% endif %}
                                         {% endfor %}
                                     </td>

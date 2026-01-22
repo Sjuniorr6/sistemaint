@@ -300,6 +300,7 @@ class RegistroAcompanhamentoAgenteAdmin(admin.ModelAdmin):
         "km_excedente",
         "horario_total",
         "horario_excedente",
+        "tipo_agente",
         "valor_agente",
         "criado_em",
     )
@@ -308,6 +309,7 @@ class RegistroAcompanhamentoAgenteAdmin(admin.ModelAdmin):
         ("Vínculo", {
             "fields": (
                 "acompanhamento",
+                "tipo_agente",
                 "responsavel_agente",
                 "agente",
                 "franquia",
@@ -359,6 +361,8 @@ class RegistroAcompanhamentoAgenteAdmin(admin.ModelAdmin):
                 "agencia",
                 "conta",
                 "tipo_conta",
+                "nome_completo_conta",
+                "cpf_conta",
             )
         }),
 

@@ -214,9 +214,16 @@
                                             <label for="responsavel_agente" class="form-label">Resonsável Pelo Agente</label>
                                             {{ agente_form.responsavel_agente }}
                                         </div>
+                                        {{ agente_form.tipo_agente }}
                                         <div class="col-md-4">
-                                            <label for="agente" class="form-label">Agente</label>
+                                            <label class="form-label d-flex justify-content-between align-items-center">
+                                                Agente
+                                                <button type="button" class="btn btn-sm btn-outline-success add-carona">
+                                                    <i class="bi bi-plus-circle"></i>
+                                                </button>
+                                            </label>
                                             {{ agente_form.agente }}
+
                                         </div>
                                             <div class="col-md-4">
                                             <label for="placa_agente" class="form-label">Placa Agente</label>
@@ -312,6 +319,14 @@
                                             <label for="tipo_conta" class="form-label">Tipo da Conta</label>
                                             {{ agente_form.tipo_conta }}
                                         </div>
+                                        <div class="col-md-4 mt-2 mb-2">
+                                            <label for="tipo_conta" class="form-label">Nome Completo</label>
+                                            {{ agente_form.nome_completo_conta }}
+                                        </div>
+                                        <div class="col-md-4 mt-2 mb-2">
+                                            <label for="tipo_conta" class="form-label">CPF da Conta</label>
+                                            {{ agente_form.cpf_conta }}
+                                        </div>
                                     </div>
 
                                     {{ agente_form.DELETE }}
@@ -342,26 +357,28 @@
     <!-- /Form Novo Acompanhamento -->
 
 <script>
+    /* =====================================================
+    SELECT2 GLOBAL (PRECISA SER GLOBAL)
+    ===================================================== */
+    function initSelect2(context) {
+        $(context).find('select.select2').each(function () {
+            if (!$(this).data('select2')) {
+                $(this).select2({
+                    width: '100%',
+                    placeholder: 'Selecione uma opção',
+                    allowClear: true
+                });
+            }
+        });
+    }
+</script>
+
+<script>
     $(function () {
 
         const container = $('#agentes-container');
         const addBtn = $('#add-agent');
         const totalForms = $('#id_agentes-TOTAL_FORMS');
-
-        /* ===============================
-        SELECT2 SAFE
-        =============================== */
-        function initSelect2(context) {
-            $(context).find('select.select2').each(function () {
-                if (!$(this).data('select2')) {
-                    $(this).select2({
-                        width: '100%',
-                        placeholder: 'Selecione uma opção',
-                        allowClear: true
-                    });
-                }
-            });
-        }
 
         /* ===============================
         CAMPOS BANCÁRIOS
@@ -388,7 +405,6 @@
         });
 
         initSelect2(document);
-
         atualizarBotoesRemover();
 
         /* ===============================
@@ -563,6 +579,33 @@
 
     });
 </script>
+
+<script>
+$(document).on('click', '.add-carona', function () {
+
+    const card = $(this).closest('.agente-form');
+
+    if (card.find('.carona-wrapper').length) return;
+
+    const caronaHtml = `
+        <div class="carona-wrapper mt-2 p-2 border rounded bg-light">
+            <label class="form-label">Segundo Agente (Mesmo Veículo)</label>
+
+            <select name="carona_agente[]" class="form-control select2">
+                <option value="">Selecione o agente</option>
+                {% for agente in agentes_cadastrados %}
+                    <option value="{{ agente.id }}">{{ agente.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    `;
+
+    card.append(caronaHtml);
+
+    initSelect2(card);
+});
+</script>
+
 
 
 </body>

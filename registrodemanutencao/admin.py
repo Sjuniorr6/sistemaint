@@ -24,7 +24,7 @@ class RegistroDeManutencaoAdmin(admin.ModelAdmin):
     fieldsets = (
         ("Informações Gerais", {
             'fields': ('nome', 'tipo_entrada', 'tipo_produto', 'motivo', 'tipo_customizacao',
-                       'recebimento', 'entregue_por_retirado_por', 'id_equipamentos', 'quantidade')
+                       'recebimento', 'entregue_por_retirado_por', 'id_equipamentos', 'quantidade', 'data_criacao')
         }),
         ("Detalhes da Manutenção", {
             # 'fields': ('faturamento', 'setor', 'customizacaoo', 'numero_equipamento', 'observacoes', 'tratativa', 'status')

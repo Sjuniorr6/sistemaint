@@ -130,7 +130,7 @@ class registrodemanutencao(models.Model):
     imagem2 = models.ImageField(upload_to='imagens/', null=True, blank=True)
     status = models.CharField(default='Pendente', max_length=50, null=True, blank=True)
     status_tratativa = models.CharField(choices=STATUS_TRATATIVA_CHOICES, default='Pendente de Tratativa', max_length=50, null=True, blank=True)
-    data_criacao = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    data_criacao = models.DateTimeField(default=timezone.now, null=True, blank=True)
     data_devolucao = models.DateTimeField(null=True, blank=True)
 
 class ImagemRegistro(models.Model):
