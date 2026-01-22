@@ -478,13 +478,14 @@
                                     <i class="fas fa-file-alt"></i> Protocolo de Entrada
                                 </a>
                             </div>
-                            <!-- {% if user|has_group:"INTENCLIGENCIA" or user|has_group:"MANUTENCAO" %} -->
+                            {% if user|has_group:"INTENCLIGENCIA" or user|has_group:"MANUTENCAO" or user|has_group:"ENTRADA" %}
                             <div class="col-12">
                                 <a class="btn btn-success col-12" href="{% url 'FormulariosUpdateView' registro.id %}">
                                     <i class="fas fa-edit"></i> Realizar Manutenção
                                 </a>
                             </div>
-                            <!-- {% endif %} -->
+                            {% endif %}
+                         
                         </div>
                         <div class="d-flex flex-row flex-wrap gap-2 mb-2">
                             {% if registro.has_retorno_images %}
@@ -493,15 +494,17 @@
                             </a>
                             {% endif %}
                         </div>
-                        {% if registro.status == 'Pendente' %}
-                        <div class="col-12">
-                            <hr>
-                            <a class="btn btn-success col-12" 
-                            href="{% url 'Reprovado_Inteligência' registro.id %}" 
-                            title="Marcar como Realizada">
-                                Marcar como Realizada
-                            </a>
-                        </div>
+                        {% if user|has_group:"INTENCLIGENCIA" or user|has_group:"MANUTENCAO" %}
+                            {% if registro.status == 'Pendente' %}
+                            <div class="col-12">
+                                <hr>
+                                <a class="btn btn-success col-12" 
+                                href="{% url 'Reprovado_Inteligência' registro.id %}" 
+                                title="Marcar como Realizada">
+                                    Marcar como Realizada
+                                </a>
+                            </div>
+                            {% endif %}
                         {% endif %}
                         {% if registro.status == 'Manutenção' %}
                         <div class="col-12 text-center">

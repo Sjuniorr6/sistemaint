@@ -496,7 +496,7 @@
       <div class="card card-prazo h-100">
         <div class="card-body">
           <h5 class="card-title">{{ ticket.titulo }}</h5>
-           <p class="text-secondary">{{ ticket.descricao }}</p>
+           <p class="text-secondary">{{ ticket.descricao|truncatewords:15 }}</p>
           {% if ticket.prioridade == 'avaliar' %}
             
             {% if ticket.is_diretoriamaster %}
