@@ -247,6 +247,9 @@ body {
     line-height: 1.4;
     padding-right: 80px;
     text-transform: uppercase;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: normal;
 }
 
 .kanban-card small {
@@ -469,15 +472,9 @@ body {
     padding-right: 6px;
 }
 
-/* Altura média realista de um card */
 .kanban-card {
-    min-height: 440px;
-}
-
-@media screen and (min-width: 1024px) {
-    .kanban-card {
-    min-height: 240px !important;
-}
+    min-height: auto;  /* Remove altura mínima fixa */
+    height: auto;
 }
 
 /* Scroll vertical das colunas */

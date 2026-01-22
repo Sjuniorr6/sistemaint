@@ -487,11 +487,14 @@ def download_protocolo_entrada(request, pk):
     elements.append(Spacer(1, 6))
 
     observacao_texto = getattr(registro, "observacoes", "") or ""
+    
+    # Converter quebras de linha e aplicar word wrap
+    observacao_texto = observacao_texto.replace('\n', '<br/>')
 
     observacao_table = Table(
-        [[observacao_texto]],
-        colWidths=[550],
-        rowHeights=[80]  # Altura do campo (ajuste se quiser)
+        [[Paragraph(observacao_texto, styles["Body"])]],
+        colWidths=[500],
+        rowHeights=[80]
     )
 
     observacao_table.setStyle(TableStyle([
