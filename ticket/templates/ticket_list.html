@@ -495,7 +495,7 @@
       <!-- CARD: PRAZO -->
       <div class="card card-prazo h-100">
         <div class="card-body">
-          <h5 class="card-title">{{ ticket.titulo }}</h5>
+          <h5 class="card-title">{{ ticket.titulo }} {{ ticket.id }}</h5>
            <p class="text-secondary">{{ ticket.descricao|truncatewords:15 }}</p>
           {% if ticket.prioridade == 'avaliar' %}
             
@@ -509,11 +509,17 @@
               </p>
             {% endif %}
           {% else %}
-            <p class="card-text text-danger">
-             Prazo de entrega:  {{ ticket.data_limite|date:"d/m/Y" }}
-            </p>
+            {% if ticket.status == 'concluido' %}
+              <p class="card-text text-success">
+              Ticket: Concluído em {{ ticket.data_conclusao|date:"d/m/Y" }} 
+              </p>
+            {% else %}
+              <p class="card-text text-danger">
+              Prazo de entrega:  {{ ticket.data_limite|date:"d/m/Y" }}
+              </p>
+            {% endif %}
           {% endif %}
-          
+
         </div>
       </div>
 

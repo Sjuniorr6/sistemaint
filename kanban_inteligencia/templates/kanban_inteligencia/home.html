@@ -38,8 +38,9 @@ body {
     width: 100%;
 }
 
+/* === Botão avaliar === */
 .stat-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #010d0f 0%, #6e01db 100%); 
     border-radius: 15px;
     padding: 20px;
     color: white;
@@ -73,17 +74,17 @@ body {
     opacity: 0.9;
 }
 
-.stat-total { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-.stat-concluidas { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
-.stat-progresso { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-.stat-atrasadas { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
-.stat-taxa { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
+.stat-total { background: linear-gradient(135deg, #010d0f 0%, #2563EB 100%); }
+.stat-concluidas { background: linear-gradient(135deg, #010d0f 0%, #38ef53 100%); }
+.stat-progresso { background: linear-gradient(135deg, #010d0f 0%, #f59e0b 100%); }
+.stat-atrasadas { background: linear-gradient(135deg, #010d0f 0%, #ff3030 100%); }
+.stat-taxa { background: linear-gradient(135deg, #010d0f 0%, #0751ff 50%, #38ef53 100%); }
 
 /* ===== COLUNAS DO KANBAN ===== */
 .kanban-column {
     background: rgba(255, 255, 255, 0.05);
     border-radius: 15px;
-    padding: 15px;
+    /* padding: 15px; */
     min-height: 600px;
     margin-bottom: 20px;
     display: flex;
@@ -118,23 +119,28 @@ body {
     background: rgba(255, 255, 255, 0.2);
 }
 
+.kanban-header.avaliar {
+    background: linear-gradient(135deg, #010d0f 0%, #6e01db 100%) !important;
+    color: white !important;
+}
+
 .kanban-header.a-fazer {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    background: linear-gradient(135deg, #010d0f 0%, #2563EB 100%) !important;
     color: white !important;
 }
 
 .kanban-header.em-progresso {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
+    background: linear-gradient(135deg, #010d0f 0%, #f59e0b 100%) !important;
     color: white !important;
 }
 
 .kanban-header.validacao {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%) !important;
+    background: linear-gradient(135deg, #010d0f 0%, #ff3030 100%) !important;
     color: white !important;
 }
 
 .kanban-header.concluido {
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%) !important;
+    background: linear-gradient(135deg, #010d0f 0%, #38ef53 100%) !important;
     color: white !important;
 }
 
@@ -160,19 +166,19 @@ body {
     user-select: none;
 }
 
-.kanban-card.prioridade-alta {
+/* .kanban-card.prioridade-alta {
     border: 2px solid #ffc107;
     background: linear-gradient(135deg, #1e1e1e 0%, #2a2410 100%);
-}
+} */
 
 .kanban-card:hover {
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
-    border-color: #665b1d;
+    /* border-color: #665b1d; */
 }
-
+/* 
 .kanban-card.prioridade-alta:hover {
     border-color: #ffc107;
-}
+} */
 
 .kanban-card .btn-edit {
     position: absolute;
@@ -290,11 +296,19 @@ body {
     border-radius: 0 0 12px 12px;
 }
 
-.kanban-card.cor-azul::after { background: linear-gradient(90deg, #0d6efd, #0a58ca); }
-.kanban-card.cor-verde::after { background: linear-gradient(90deg, #198754, #146c43); }
-.kanban-card.cor-amarelo::after { background: linear-gradient(90deg, #ffc107, #ffca2c); }
-.kanban-card.cor-laranja::after { background: linear-gradient(90deg, #fd7e14, #ca6510); }
-.kanban-card.cor-vermelho::after { background: linear-gradient(90deg, #dc3545, #bb2d3b); }
+.kanban-card.cor-avaliar::after { background: linear-gradient(90deg, #ffffff, #ffffff);}
+.kanban-card.cor-azul::after { background: linear-gradient(90deg, #0d6efd, #0d6efd); }
+.kanban-card.cor-baixa::after { background: linear-gradient(90deg, #198754, #146c43); }
+.kanban-card.cor-media::after { background: linear-gradient(90deg, #ffc107, #ffca2c); }
+.kanban-card.cor-laranja::after { background: linear-gradient(90deg, #fd7e14, #ca6510);}
+.kanban-card.cor-alta::after { background: linear-gradient(90deg, #dc3545, #bb2d3b);}
+
+.cor-paragraph-avaliar{color: #ffffff !important; }
+.cor-paragraph-azul{color: #0d6efd !important; }
+.cor-paragraph-baixa{color: #146c43 !important; }
+.cor-paragraph-media{color: #ffca2c !important; }
+.cor-paragraph-laranja{color: #ca6510 !important; }
+.cor-paragraph-alta{color: #bb2d3b !important; }
 
 /* ===== BADGES DE RESPONSÁVEL ===== */
 .badge-responsavel {
@@ -347,7 +361,7 @@ body {
     }
 }
 
-.title-inteligencia, .title-desenvolvimento{
+.title-inteligencia, .title-desenvolvimento, .title-kanban{
     color: white;
     text-decoration: none;
 }
@@ -357,7 +371,10 @@ body {
 }
 
 .title-desenvolvimento:hover i{
-    color: #dc3545;
+    color: #95019f;
+}
+.title-kanban:hover i{
+    color: #010e9f;
 }
 
 .kanban-card-image {
@@ -380,124 +397,381 @@ body {
 .kanban-card-image img:hover {
     transform: scale(1.05);
 }
+/* ================================
+   SCROLLBAR KANBAN – POMBO DOURADO
+   ================================ */
+
+.kanban-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 14px;
+    scroll-behavior: smooth;
+}
+
+/* Altura da scrollbar */
+.kanban-scroll::-webkit-scrollbar {
+    height: 10px;
+}
+
+/* Fundo da scrollbar */
+.kanban-scroll::-webkit-scrollbar-track {
+    background: linear-gradient(
+        180deg,
+        #0f1216,
+        #1a1f26
+    );
+    border-radius: 10px;
+}
+
+/* Barra dourada */
+.kanban-scroll::-webkit-scrollbar-thumb {
+    background: linear-gradient(
+        135deg,
+        #c9a227,
+        #f5d76e,
+        #c9a227
+    );
+    border-radius: 10px;
+    border: 2px solid #0f1216; /* cria efeito embutido */
+    box-shadow:
+        inset 0 0 6px rgba(255, 215, 100, 0.4),
+        0 0 6px rgba(201, 162, 39, 0.35);
+}
+
+/* Hover – brilho dourado */
+.kanban-scroll::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(
+        135deg,
+        #f7e27e,
+        #ffd966,
+        #f7e27e
+    );
+    box-shadow:
+        inset 0 0 8px rgba(255, 235, 150, 0.6),
+        0 0 10px rgba(255, 215, 100, 0.6);
+}
+
+/* Cada coluna do Kanban */
+.kanban-col {
+    flex: 0 0 auto;        /* 🔥 impede encolher */
+    min-width: 320px;      /* 🔥 largura fixa */
+    max-width: 320px;
+}
+
+/* ==============================
+   LIMITE DE CARDS POR COLUNA
+   ============================== */
+
+.kanban-cards {
+    max-height: calc(5 * 450px); /* 5 cards visíveis */
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 6px;
+}
+
+/* Altura média realista de um card */
+.kanban-card {
+    min-height: 440px;
+}
+
+@media screen and (min-width: 1024px) {
+    .kanban-card {
+    min-height: 240px !important;
+}
+}
+
+/* Scroll vertical das colunas */
+.kanban-cards::-webkit-scrollbar {
+    width: 8px;
+}
+
+.kanban-cards::-webkit-scrollbar-track {
+    background: #0f1216;
+    border-radius: 10px;
+}
+
+.kanban-cards::-webkit-scrollbar-thumb {
+    background: linear-gradient(
+        135deg,
+        #c9a227,
+        #f5d76e,
+        #c9a227
+    );
+    border-radius: 10px;
+}
+
+
 </style>
 
 <div class="kanban-page">
     <!-- Botão Nova Tarefa -->
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2 class="text-white mb-0" id="kanban-title" style="cursor: pointer;"><i class="bi bi-kanban"></i> Kanban <a class="title-inteligencia" style="cursor: pointer;">Inteligência <i class="bi bi-lightbulb-fill"></i></a> e <a class="title-desenvolvimento" style="cursor: pointer;">Desenvolvimento <i class="bi bi-braces"></i></a></h2>
+    <div class="ps-0 pe-0 pe-lg-4 ps-lg-4 d-flex justify-content-between align-items-center mb-3">
+        <h2 class="text-white mb-0" id="kanban-title" style="cursor: pointer ;"> <a style="text-decoration: none; " class="title-kanban" href="?destinado=all"><i class="bi bi-kanban"></i> Kanban</a> <a class="title-inteligencia" href="?destinado=inteligencia">Inteligência <i class="bi bi-lightbulb-fill"></i></a> e <a class="title-desenvolvimento" href="?destinado=desenvolvimento">Desenvolvimento <i class="bi bi-braces"></i></a></h2>
         <button type="button" class="btn btn-primary" id="btnNovaTarefa">
-            <i class="bi bi-plus-circle"></i> Nova Tarefa
-        </button>
+             <i class="bi bi-plus-circle"></i> Nova Tarefa
+         </button>
     </div>
     
     <!-- Dashboard de Estatísticas -->
-    <div class="stats-dashboard mb-4">
-        <div class="row g-3" style="margin: 0 !important; width: 100% !important;">
-            <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6" style="padding-left: 0.5rem !important; padding-right: 0.5rem !important;">
-                <div class="stat-card stat-total">
-                    <div class="stat-icon">
-                        <i class="bi bi-clipboard-check"></i>
-                    </div>
-                    <div class="stat-content">
-                        <h3 id="stat-total">{{ stats.total_tarefas }}</h3>
-                        <p>Total de Tarefas</p>
-                    </div>
+<div class="stats-dashboard mb-4">
+    <div class="kanban-scroll d-flex gap-3" style="justify-content: center;">
+    <div class="col-12 ps-0 pe-0 pe-lg-4 ps-lg-4">
+      <div class="stat-card stat-taxa">
+        <div class="stat-icon"><i class="bi bi-graph-up-arrow"></i></div>
+        <div class="stat-content">
+          <h3 id="stat-taxa">{{ stats.taxa_conclusao }}%</h3>
+          <p>Taxa de Conclusão</p>
+          <div class="progress mt-2" style="height: 8px">
+            <div
+              class="progress-bar"
+              role="progressbar"
+              style="width: '{{ stats.taxa_conclusao }}%';"
+              aria-valuenow="{{ stats.taxa_conclusao }}"
+              aria-valuemin="0"
+              aria-valuemax="100"
+            ></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>    
+
+    <div class="kanban-scroll d-flex gap-3" style="justify-content: space-around;">
+
+        <!-- AVALIAR (NOVO CARD) -->
+        <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6">
+            <div class="stat-card stat-avaliar">
+                <div class="stat-icon">
+                    <i class="bi bi-eye-fill"></i>
                 </div>
-            </div>
-            <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6">
-                <div class="stat-card stat-progresso">
-                    <div class="stat-icon">
-                        <i class="bi bi-hourglass-split"></i>
-                    </div>
-                    <div class="stat-content">
-                        <h3 id="stat-progresso">{{ stats.em_progresso }}</h3>
-                        <p>Em Progresso</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6">
-                <div class="stat-card stat-atrasadas">
-                    <div class="stat-icon">
-                        <i class="bi bi-exclamation-triangle-fill"></i>
-                    </div>
-                    <div class="stat-content">
-                        <h3 id="stat-atrasadas">{{ stats.atrasadas }}</h3>
-                        <p>Atrasadas</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6">
-                <div class="stat-card stat-concluidas">
-                    <div class="stat-icon">
-                        <i class="bi bi-check-circle-fill"></i>
-                    </div>
-                    <div class="stat-content">
-                        <h3 id="stat-concluidas">{{ stats.concluidas }}</h3>
-                        <p>Concluídas</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-xl-4 col-lg-12 col-md-12">
-                <div class="stat-card stat-taxa">
-                    <div class="stat-icon">
-                        <i class="bi bi-graph-up-arrow"></i>
-                    </div>
-                    <div class="stat-content">
-                        <h3 id="stat-taxa">{{ stats.taxa_conclusao }}%</h3>
-                        <p>Taxa de Conclusão</p>
-                        <div class="progress mt-2" style="height: 8px;">
-                            <div class="progress-bar" role="progressbar" style="width: {{ stats.taxa_conclusao }}%;"
-                                 aria-valuenow="{{ stats.taxa_conclusao }}" aria-valuemin="0" aria-valuemax="100"></div>
-                        </div>
-                    </div>
+                <div class="stat-content">
+                    <h3 id="stat-avaliar">{{ stats.avaliar }}</h3>
+                    <p>Avaliar</p>
                 </div>
             </div>
         </div>
+
+                <!-- TOTAL DE TAREFAS -->
+        <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6">
+            <div class="stat-card stat-total">
+                <div class="stat-icon">
+                    <i class="bi bi-clipboard-check"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 id="stat-total">{{ stats.total_tarefas }}</h3>
+                    <p>Total de Tarefas</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- EM PROGRESSO -->
+        <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6">
+            <div class="stat-card stat-progresso">
+                <div class="stat-icon">
+                    <i class="bi bi-hourglass-split"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 id="stat-progresso">{{ stats.em_progresso }}</h3>
+                    <p>Em Progresso</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ATRASADAS -->
+        <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6">
+            <div class="stat-card stat-atrasadas">
+                <div class="stat-icon">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 id="stat-atrasadas">{{ stats.atrasadas }}</h3>
+                    <p>Atrasadas</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- CONCLUÍDAS -->
+        <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6">
+            <div class="stat-card stat-concluidas">
+                <div class="stat-icon">
+                    <i class="bi bi-check-circle-fill"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 id="stat-concluidas">{{ stats.concluidas }}</h3>
+                    <p>Concluídas</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAXA DE CONCLUSÃO -->
+        
     </div>
 
-    <!-- Kanban Board -->
-    <div class="kanban-board" style="width: 100% !important; margin: 0 !important; padding: 0 !important;">
-        <div style="display: grid; grid-template-columns: repeat(4, minmax(280px, 1fr)); gap: 1.2rem; width: 100%;">
-            <!-- Coluna: A Fazer -->
-            <div>
-                <div class="kanban-column">
-                    <div class="kanban-header a-fazer">
-                        <h4><i class="bi bi-list-task"></i> A Fazer</h4>
-                        <span class="badge bg-secondary">{{ a_fazer.count }}</span>
+</div>
+
+   <!-- Kanban Board -->
+<div class="kanban-board container-fluid p-0">
+    <div class="kanban-scroll d-flex gap-3" style="justify-content: space-around;">
+
+        <!-- ===================== COLUNA: Avaliar ===================== -->
+        <div class="col-lg-2 col-md-6 col-sm-12 h-100">
+            <div class="kanban-column">
+                <div class="kanban-header avaliar">
+                    <h4><i class="bi bi-eye-fill"></i>  </i> Avaliar</h4>
+                    <span class="badge ">{{ avaliar.count }}</span>
+                </div>
+
+                <div class="kanban-cards" data-status="avaliar">
+                    {% for tarefa in avaliar %}
+                    <div draggable="true"
+                         data-prioridade="{{ tarefa.prioridade }}"
+                         class="kanban-card cor-{{ tarefa.prioridade }}"
+                         data-tarefa-id="{{ tarefa.id }}"
+                         data-destinado="{{ tarefa.destinado }}">
+
+                        <button class="btn btn-edit btn-editar-tarefa" data-tarefa-id="{{ tarefa.id }}">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+
+                        <h4>{{ tarefa.titulo }}</h4>
+
+                        {% if tarefa.descricao %}
+                        <p class="text-white-50 small mt-2">
+                            {{ tarefa.descricao|truncatewords:15 }}
+                        </p>
+                        {% endif %}
+
+                        <span class="text-secondary">Destinado: {{ tarefa.destinado }}</span>
+
+                        <small>
+                                <span><i class="bi bi-hash"></i> ID: INT-{{ tarefa.id|stringformat:"03d" }}</span>
+                                <span><i class="bi bi-calendar-plus"></i> Criado: {{ tarefa.data_criacao|date:"d/m/Y" }}</span>
+                                {% if tarefa.data_limite %}
+                                <span><i class="bi bi-calendar3"></i> Prazo: {{ tarefa.data_limite|date:"d/m/Y" }}</span>
+                                <span><i class="bi bi-clock-history"></i> {{ tarefa.data_limite|timeuntil:tarefa.data_criacao }}</span>
+                                {% else %}
+                                <span><i class="bi bi-calendar-x"></i> Sem prazo</span>
+                                {% endif %}
+                                {% if tarefa.esta_atrasada %}
+                                <span class="text-danger"><i class="bi bi-exclamation-circle-fill"></i> Atrasado</span>
+                                {% endif %}
+                            </small>
+                            <p class="fs-6" style="color: rgba(255, 255, 255, 0.7);">
+                                Prioridade:
+                                <span class="cor-paragraph-{{ tarefa.prioridade }}">
+                                    {{ tarefa.get_prioridade_display }}
+                                </span>
+                            </p>
+                                <small>
+                                {% if tarefa.responsavel %}
+                                <span class="badge-responsavel cor-{{ tarefa.responsavel_cor }}"><i class="bi bi-person"></i> {{ tarefa.get_responsavel_display }}</span>
+                                {% endif %}
+                                </small>
                     </div>
-                    <div class="kanban-cards" data-status="a_fazer">
-                        {% for tarefa in a_fazer %}
-                        <div draggable="true" data-prioridade="{{ tarefa.prioridade }}"  class="kanban-card cor-{{ tarefa.cor }} {% if tarefa.prioridade == 'alta' %}prioridade-alta{% endif %}" data-tarefa-id="{{ tarefa.id }}" data-destinado="{{ tarefa.destinado }}">
-                            {% if tarefa.prioridade == 'alta' %}
-                            <span class="priority-flag" title="Prioridade Alta">
-                                <i class="bi bi-exclamation-triangle-fill" style="color: #dc3545;"></i>
-                                <small style="color: #dc3545; font-weight: 600; margin-left: 3px;">Alta</small>
-                            </span>
-                            {% elif tarefa.prioridade == 'media' %}
-                            <span class="priority-flag" title="Prioridade Média">
-                                <i class="bi bi-exclamation-circle-fill" style="color: #ffc107;"></i>
-                                <small style="color: #ffc107; font-weight: 600; margin-left: 3px;">Média</small>
-                            </span>
-                            {% elif tarefa.prioridade == 'baixa' %}
-                            <span class="priority-flag" title="Prioridade Baixa">
-                                <i class="bi bi-info-circle-fill" style="color: #28a745;"></i>
-                                <small style="color: #28a745; font-weight: 600; margin-left: 3px;">Baixa</small>
-                            </span>
-                            {% endif %}
+                    {% empty %}
+                    <div class="empty-column">
+                        <i class="bi bi-inbox"></i>
+                        <p>Nenhuma tarefa</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        <!-- ===================== COLUNA: A FAZER ===================== -->
+        <div class="col-lg-2 col-md-6 col-sm-12 h-100">
+            <div class="kanban-column">
+                <div class="kanban-header a-fazer">
+                    <h4><i class="bi bi-list-task"></i> A Fazer</h4>
+                    <span class="badge ">{{ a_fazer.count }}</span>
+                </div>
+
+                <div class="kanban-cards" data-status="a_fazer">
+                    {% for tarefa in a_fazer %}
+                    <div draggable="true"
+                         data-prioridade="{{ tarefa.prioridade }}"
+                         class="kanban-card cor-{{ tarefa.prioridade }}"
+                         data-tarefa-id="{{ tarefa.id }}"
+                         data-destinado="{{ tarefa.destinado }}">
+
+                        <button class="btn btn-edit btn-editar-tarefa" data-tarefa-id="{{ tarefa.id }}">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+
+                        <h4>{{ tarefa.titulo }}</h4>
+
+                        {% if tarefa.descricao %}
+                        <p class="text-white-50 small mt-2">
+                            {{ tarefa.descricao|truncatewords:15 }}
+                        </p>
+                        {% endif %}
+
+                        <span class="text-secondary">Destinado: {{ tarefa.destinado }}</span>
+
+                        <small>
+                                <span><i class="bi bi-hash"></i> ID: INT-{{ tarefa.id|stringformat:"03d" }}</span>
+                                <span><i class="bi bi-calendar-plus"></i> Criado: {{ tarefa.data_criacao|date:"d/m/Y" }}</span>
+                                {% if tarefa.data_limite %}
+                                <span><i class="bi bi-calendar3"></i> Prazo: {{ tarefa.data_limite|date:"d/m/Y" }}</span>
+                                <span><i class="bi bi-clock-history"></i> {{ tarefa.data_limite|timeuntil:tarefa.data_criacao }}</span>
+                                {% else %}
+                                <span><i class="bi bi-calendar-x"></i> Sem prazo</span>
+                                {% endif %}
+                                {% if tarefa.esta_atrasada %}
+                                <span class="text-danger"><i class="bi bi-exclamation-circle-fill"></i> Atrasado</span>
+                                {% endif %}
+                            </small>
+                            <p class="fs-6" style="color: rgba(255, 255, 255, 0.7);">
+                                Prioridade:
+                                <span class="cor-paragraph-{{ tarefa.prioridade }}">
+                                    {{ tarefa.get_prioridade_display }}
+                                </span>
+                            </p>
+                                <small>
+                                {% if tarefa.responsavel %}
+                                <span class="badge-responsavel cor-{{ tarefa.responsavel_cor }}"><i class="bi bi-person"></i> {{ tarefa.get_responsavel_display }}</span>
+                                {% endif %}
+                                </small>
+                    </div>
+                    {% empty %}
+                    <div class="empty-column">
+                        <i class="bi bi-inbox"></i>
+                        <p>Nenhuma tarefa</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== COLUNA: EM PROGRESSO ===================== -->
+        <div class="col-lg-2 col-md-6 col-sm-12 h-100">
+            <div class="kanban-column">
+                <div class="kanban-header em-progresso">
+                    <h4><i class="bi bi-gear-fill"></i> Em Progresso</h4>
+                    <span class="badge ">{{ em_progresso.count }}</span>
+                </div>
+
+                <div class="kanban-cards" data-status="em_progresso">
+                    {% for tarefa in em_progresso %}
+                        <div draggable="true"
+                            data-prioridade="{{ tarefa.prioridade }}"
+                            class="kanban-card cor-{{ tarefa.prioridade }}"
+                            data-tarefa-id="{{ tarefa.id }}"
+                            data-destinado="{{ tarefa.destinado }}">
+
                             <button class="btn btn-edit btn-editar-tarefa" data-tarefa-id="{{ tarefa.id }}">
                                 <i class="bi bi-pencil"></i>
                             </button>
+
                             <h4>{{ tarefa.titulo }}</h4>
-                            {% if tarefa.imagem %}
-                                <div class="kanban-card-image">
-                                    <img src="{{ tarefa.imagem.url }}" alt="Imagem da tarefa">
-                                </div>
-                            {% endif %}
+
                             {% if tarefa.descricao %}
-                            <p style="color: rgba(255, 255, 255, 0.75); font-size: 0.85rem; margin: 8px 0 12px 0; line-height: 1.4;">{{ tarefa.descricao|truncatewords:15 }}</p>
+                            <p class="text-white-50 small mt-2">
+                                {{ tarefa.descricao|truncatewords:15 }}
+                            </p>
                             {% endif %}
-                            <span class="text-secondary"> Destinado: {{ tarefa.destinado }}</span>
+
+                            <span class="text-secondary">Destinado: {{ tarefa.destinado }}</span>
+
                             <small>
                                 <span><i class="bi bi-hash"></i> ID: INT-{{ tarefa.id|stringformat:"03d" }}</span>
                                 <span><i class="bi bi-calendar-plus"></i> Criado: {{ tarefa.data_criacao|date:"d/m/Y" }}</span>
@@ -507,219 +781,173 @@ body {
                                 {% else %}
                                 <span><i class="bi bi-calendar-x"></i> Sem prazo</span>
                                 {% endif %}
-                                {% if tarefa.responsavel %}
-                                <span class="badge-responsavel cor-{{ tarefa.responsavel_cor }}"><i class="bi bi-person"></i> {{ tarefa.responsavel }}</span>
-                                {% endif %}
                                 {% if tarefa.esta_atrasada %}
                                 <span class="text-danger"><i class="bi bi-exclamation-circle-fill"></i> Atrasado</span>
                                 {% endif %}
                             </small>
-                        </div>
-                        {% empty %}
-                        <div class="empty-column">
-                            <i class="bi bi-inbox"></i>
-                            <p>Nenhuma tarefa</p>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Coluna: Em Progresso -->
-            <div>
-                <div class="kanban-column">
-                    <div class="kanban-header em-progresso">
-                        <h4><i class="bi bi-gear-fill"></i> Em Progresso</h4>
-                        <span class="badge bg-warning">{{ em_progresso.count }}</span>
-                    </div>
-                    <div class="kanban-cards" data-status="em_progresso">
-                        {% for tarefa in em_progresso %}
-                        <div draggable="true" data-prioridade="{{ tarefa.prioridade }}"  class="kanban-card cor-{{ tarefa.cor }} {% if tarefa.prioridade == 'alta' %}prioridade-alta{% endif %}" data-tarefa-id="{{ tarefa.id }}" data-destinado="{{ tarefa.destinado }}">
-                            {% if tarefa.prioridade == 'alta' %}
-                            <span class="priority-flag" title="Prioridade Alta">
-                                <i class="bi bi-exclamation-triangle-fill" style="color: #dc3545;"></i>
-                                <small style="color: #dc3545; font-weight: 600; margin-left: 3px;">Alta</small>
-                            </span>
-                            {% elif tarefa.prioridade == 'media' %}
-                            <span class="priority-flag" title="Prioridade Média">
-                                <i class="bi bi-exclamation-circle-fill" style="color: #ffc107;"></i>
-                                <small style="color: #ffc107; font-weight: 600; margin-left: 3px;">Média</small>
-                            </span>
-                            {% elif tarefa.prioridade == 'baixa' %}
-                            <span class="priority-flag" title="Prioridade Baixa">
-                                <i class="bi bi-info-circle-fill" style="color: #28a745;"></i>
-                                <small style="color: #28a745; font-weight: 600; margin-left: 3px;">Baixa</small>
-                            </span>
-                            {% endif %}
-                            <button class="btn btn-edit btn-editar-tarefa" data-tarefa-id="{{ tarefa.id }}">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <h4>{{ tarefa.titulo }}</h4>
-                            {% if tarefa.imagem %}
-                                <div class="kanban-card-image">
-                                    <img src="{{ tarefa.imagem.url }}" alt="Imagem da tarefa">
-                                </div>
-                            {% endif %}
-                            {% if tarefa.descricao %}
-                            <p style="color: rgba(255, 255, 255, 0.75); font-size: 0.85rem; margin: 8px 0 12px 0; line-height: 1.4;">{{ tarefa.descricao|truncatewords:15 }}</p>
-                            {% endif %}
-                            <span class="text-secondary"> Destinado: {{ tarefa.destinado }}</span>
-                            <small>
-                                <span><i class="bi bi-hash"></i> ID: INT-{{ tarefa.id|stringformat:"03d" }}</span>
-                                <span><i class="bi bi-calendar-plus"></i> Criado: {{ tarefa.data_criacao|date:"d/m/Y" }}</span>
-                                {% if tarefa.data_limite %}
-                                <span><i class="bi bi-calendar3"></i> Prazo: {{ tarefa.data_limite|date:"d/m/Y" }}</span>
-                                <span><i class="bi bi-clock-history"></i> {{ tarefa.data_limite|timeuntil:tarefa.data_criacao }}</span>
-                                {% else %}
-                                <span><i class="bi bi-clock"></i> Em execução - Sem prazo</span>
-                                {% endif %}
+                            <p class="fs-6" style="color: rgba(255, 255, 255, 0.7);">
+                                Prioridade:
+                                <span class="cor-paragraph-{{ tarefa.prioridade }}">
+                                    {{ tarefa.get_prioridade_display }}
+                                </span>
+                            </p>
+                                <small>
                                 {% if tarefa.responsavel %}
-                                <span class="badge-responsavel cor-{{ tarefa.responsavel_cor }}"><i class="bi bi-person"></i> {{ tarefa.responsavel }}</span>
+                                <span class="badge-responsavel cor-{{ tarefa.responsavel_cor }}"><i class="bi bi-person"></i> {{ tarefa.get_responsavel_display }}</span>
                                 {% endif %}
-                                {% if tarefa.esta_atrasada %}
-                                <span class="text-danger"><i class="bi bi-exclamation-circle-fill"></i> Atrasado</span>
-                                {% endif %}
-                            </small>
+                                </small>
                         </div>
-                        {% empty %}
+                    {% empty %}
                         <div class="empty-column">
                             <i class="bi bi-inbox"></i>
                             <p>Nenhuma tarefa</p>
                         </div>
-                        {% endfor %}
-                    </div>
+                    {% endfor %}
                 </div>
             </div>
+        </div>
 
-            <!-- Coluna: Aguardando Validação -->
-            <div>
-                <div class="kanban-column">
-                    <div class="kanban-header validacao">
-                        <h4><i class="bi bi-shield-check"></i> Aguardando Validação</h4>
-                        <span class="badge bg-success">{{ validacao.count }}</span>
-                    </div>
-                    <div class="kanban-cards" data-status="validacao">
-                        {% for tarefa in validacao %}
-                        <div draggable="true" data-prioridade="{{ tarefa.prioridade }}"  class="kanban-card cor-{{ tarefa.cor }} {% if tarefa.prioridade == 'alta' %}prioridade-alta{% endif %}" data-tarefa-id="{{ tarefa.id }}" data-destinado="{{ tarefa.destinado }}">
-                            {% if tarefa.prioridade == 'alta' %}
-                            <span class="priority-flag" title="Prioridade Alta">
-                                <i class="bi bi-exclamation-triangle-fill" style="color: #dc3545;"></i>
-                                <small style="color: #dc3545; font-weight: 600; margin-left: 3px;">Alta</small>
-                            </span>
-                            {% elif tarefa.prioridade == 'media' %}
-                            <span class="priority-flag" title="Prioridade Média">
-                                <i class="bi bi-exclamation-circle-fill" style="color: #ffc107;"></i>
-                                <small style="color: #ffc107; font-weight: 600; margin-left: 3px;">Média</small>
-                            </span>
-                            {% elif tarefa.prioridade == 'baixa' %}
-                            <span class="priority-flag" title="Prioridade Baixa">
-                                <i class="bi bi-info-circle-fill" style="color: #28a745;"></i>
-                                <small style="color: #28a745; font-weight: 600; margin-left: 3px;">Baixa</small>
-                            </span>
-                            {% endif %}
-                            <button class="btn btn-edit btn-editar-tarefa" data-tarefa-id="{{ tarefa.id }}">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button class="btn btn-aprovar btn-aprovar-tarefa" data-tarefa-id="{{ tarefa.id }}">
-                                <i class="bi bi-check-circle-fill"></i> Aprovar
-                            </button>
-                            <h4>{{ tarefa.titulo }}</h4>
-                            {% if tarefa.imagem %}
-                                <div class="kanban-card-image">
-                                    <img src="{{ tarefa.imagem.url }}" alt="Imagem da tarefa">
-                                </div>
-                            {% endif %}
-                            {% if tarefa.descricao %}
-                            <p style="color: rgba(255, 255, 255, 0.75); font-size: 0.85rem; margin: 8px 0 12px 0; line-height: 1.4;">{{ tarefa.descricao|truncatewords:15 }}</p>
-                            {% endif %}
-                            <span class="text-secondary"> Destinado: {{ tarefa.destinado }}</span>
-                            <small>
-                                <span><i class="bi bi-hash"></i> ID: INT-{{ tarefa.id|stringformat:"03d" }}</span>
-                                <span><i class="bi bi-calendar-plus"></i> Criado: {{ tarefa.data_criacao|date:"d/m/Y" }}</span>
-                                {% if tarefa.data_limite %}
-                                <span><i class="bi bi-calendar3"></i> Prazo: {{ tarefa.data_limite|date:"d/m/Y" }}</span>
-                                <span><i class="bi bi-clock-history"></i> {{ tarefa.data_limite|timeuntil:tarefa.data_criacao }}</span>
-                                {% else %}
-                                <span><i class="bi bi-check-circle"></i> Revisão técnica - Sem prazo</span>
-                                {% endif %}
-                                {% if tarefa.responsavel %}
-                                <span class="badge-responsavel cor-{{ tarefa.responsavel_cor }}"><i class="bi bi-person"></i> {{ tarefa.responsavel }}</span>
-                                {% endif %}
-                                {% if tarefa.esta_atrasada %}
-                                <span class="text-danger"><i class="bi bi-exclamation-circle-fill"></i> Atrasado</span>
-                                {% endif %}
-                            </small>
-                        </div>
-                        {% empty %}
-                        <div class="empty-column">
-                            <i class="bi bi-inbox"></i>
-                            <p>Nenhuma tarefa</p>
-                        </div>
-                        {% endfor %}
-                    </div>
+<!-- ===================== COLUNA: VALIDAÇÃO ===================== -->
+<div class="col-lg-2 col-md-6 col-sm-12 h-100">
+    <div class="kanban-column">
+        <div class="kanban-header validacao">
+            <h4><i class="bi bi-shield-check"></i> Validação</h4>
+            <span class="badge ">{{ validacao.count }}</span>
+        </div>
+
+        <div class="kanban-cards" data-status="validacao">
+            {% for tarefa in validacao %}
+                <div draggable="true"
+                    data-prioridade="{{ tarefa.prioridade }}"
+                    class="kanban-card cor-{{ tarefa.prioridade }}"
+                    data-tarefa-id="{{ tarefa.id }}"
+                    data-destinado="{{ tarefa.destinado }}">
+
+                    <!-- Botão Editar -->
+                    <button class="btn btn-edit btn-editar-tarefa" data-tarefa-id="{{ tarefa.id }}">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+
+                    <!-- 🆕 BOTÃO APROVAR (NOVO) -->
+                    <button class="btn btn-aprovar btn-aprovar-tarefa" data-tarefa-id="{{ tarefa.id }}">
+                        <i class="bi bi-check-circle-fill"></i> Aprovar
+                    </button>
+
+                    <h4>{{ tarefa.titulo }}</h4>
+
+                    {% if tarefa.descricao %}
+                    <p class="text-white-50 small mt-2">
+                        {{ tarefa.descricao|truncatewords:15 }}
+                    </p>
+                    {% endif %}
+
+                    <span class="text-secondary">Destinado: {{ tarefa.destinado }}</span>
+
+                    <small>
+                        <span><i class="bi bi-hash"></i> ID: INT-{{ tarefa.id|stringformat:"03d" }}</span>
+                        <span><i class="bi bi-calendar-plus"></i> Criado: {{ tarefa.data_criacao|date:"d/m/Y" }}</span>
+                        {% if tarefa.data_limite %}
+                        <span><i class="bi bi-calendar3"></i> Prazo: {{ tarefa.data_limite|date:"d/m/Y" }}</span>
+                        <span><i class="bi bi-clock-history"></i> {{ tarefa.data_limite|timeuntil:tarefa.data_criacao }}</span>
+                        {% else %}
+                        <span><i class="bi bi-calendar-x"></i> Sem prazo</span>
+                        {% endif %}
+                        {% if tarefa.esta_atrasada %}
+                        <span class="text-danger"><i class="bi bi-exclamation-circle-fill"></i> Atrasado</span>
+                        {% endif %}
+                    </small>
+                    
+                    <p class="fs-6" style="color: rgba(255, 255, 255, 0.7);">
+                        Prioridade:
+                        <span class="cor-paragraph-{{ tarefa.prioridade }}">
+                            {{ tarefa.get_prioridade_display }}
+                        </span>
+                    </p>
+                    
+                    <small>
+                        {% if tarefa.responsavel %}
+                        <span class="badge-responsavel cor-{{ tarefa.responsavel_cor }}">
+                            <i class="bi bi-person"></i> {{ tarefa.get_responsavel_display }}
+                        </span>
+                        {% endif %}
+                    </small>
                 </div>
-            </div>
-
-            <!-- Coluna: Concluído -->
-            <div>
-                <div class="kanban-column">
-                    <div class="kanban-header concluido">
-                        <h4><i class="bi bi-check-circle-fill"></i> Concluído</h4>
-                        <span class="badge bg-info">{{ concluido.count }}</span>
-                    </div>
-                    <div class="kanban-cards" data-status="concluido">
-                        {% for tarefa in concluido %}
-                        <div draggable="true" data-prioridade="{{ tarefa.prioridade }}"  class="kanban-card cor-{{ tarefa.cor }} {% if tarefa.prioridade == 'alta' %}prioridade-alta{% endif %}" data-tarefa-id="{{ tarefa.id }}" data-destinado="{{ tarefa.destinado }}">
-                            {% if tarefa.prioridade == 'alta' %}
-                            <span class="priority-flag" title="Prioridade Alta">
-                                <i class="bi bi-exclamation-triangle-fill" style="color: #dc3545;"></i>
-                                <small style="color: #dc3545; font-weight: 600; margin-left: 3px;">Alta</small>
-                            </span>
-                            {% elif tarefa.prioridade == 'media' %}
-                            <span class="priority-flag" title="Prioridade Média">
-                                <i class="bi bi-exclamation-circle-fill" style="color: #ffc107;"></i>
-                                <small style="color: #ffc107; font-weight: 600; margin-left: 3px;">Média</small>
-                            </span>
-                            {% elif tarefa.prioridade == 'baixa' %}
-                            <span class="priority-flag" title="Prioridade Baixa">
-                                <i class="bi bi-info-circle-fill" style="color: #28a745;"></i>
-                                <small style="color: #28a745; font-weight: 600; margin-left: 3px;">Baixa</small>
-                            </span>
-                            {% endif %}
-                            <button class="btn btn-edit btn-editar-tarefa" data-tarefa-id="{{ tarefa.id }}">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <h4>{{ tarefa.titulo }}</h4>
-                            {% if tarefa.imagem %}
-                                <div class="kanban-card-image">
-                                    <img src="{{ tarefa.imagem.url }}" alt="Imagem da tarefa">
-                                </div>
-                            {% endif %}
-
-                            {% if tarefa.descricao %}
-                            <p style="color: rgba(255, 255, 255, 0.75); font-size: 0.85rem; margin: 8px 0 12px 0; line-height: 1.4;">{{ tarefa.descricao|truncatewords:15 }}</p>
-                            {% endif %}
-                            <span class="text-secondary"> Destinado: {{ tarefa.destinado }}</span>
-                            <small>
-                                <span><i class="bi bi-hash"></i> ID: INT-{{ tarefa.id|stringformat:"03d" }}</span>
-                                <span><i class="bi bi-check2-all"></i> Finalizado</span>
-                                {% if tarefa.data_conclusao %}
-                                <span><i class="bi bi-calendar-check"></i> {{ tarefa.data_conclusao|date:"d/m/Y" }}</span>
-                                {% endif %}
-                                {% if tarefa.responsavel %}
-                                <span class="badge-responsavel cor-{{ tarefa.responsavel_cor }}"><i class="bi bi-person"></i> {{ tarefa.responsavel }}</span>
-                                {% endif %}
-                            </small>
-                        </div>
-                        {% empty %}
-                        <div class="empty-column">
-                            <i class="bi bi-inbox"></i>
-                            <p>Nenhuma tarefa</p>
-                        </div>
-                        {% endfor %}
-                    </div>
+            {% empty %}
+                <div class="empty-column">
+                    <i class="bi bi-inbox"></i>
+                    <p>Nenhuma tarefa</p>
                 </div>
-            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- ===================== COLUNA: CONCLUÍDO ===================== -->
+<div class="col-lg-2 col-md-6 col-sm-12 h-100">
+    <div class="kanban-column">
+        <div class="kanban-header concluido">
+            <h4><i class="bi bi-check-circle-fill"></i> Concluído</h4>
+            <span class="badge ">{{ concluido.count }}</span>
+        </div>
+
+        <div class="kanban-cards" data-status="concluido">
+            {% for tarefa in concluido %}
+                <div draggable="true"
+                    data-prioridade="{{ tarefa.prioridade }}"
+                    class="kanban-card cor-{{ tarefa.prioridade }}"
+                    data-tarefa-id="{{ tarefa.id }}"
+                    data-destinado="{{ tarefa.destinado }}">
+
+                    <button class="btn btn-edit btn-editar-tarefa" data-tarefa-id="{{ tarefa.id }}">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+
+                    <h4>{{ tarefa.titulo }}</h4>
+
+                    {% if tarefa.descricao %}
+                    <p class="text-white-50 small mt-2">
+                        {{ tarefa.descricao|truncatewords:15 }}
+                    </p>
+                    {% endif %}
+
+                    <span class="text-secondary">Destinado: {{ tarefa.destinado }}</span>
+
+                    <small>
+                        <span><i class="bi bi-hash"></i> ID: INT-{{ tarefa.id|stringformat:"03d" }}</span>
+                        <span><i class="bi bi-calendar-plus"></i> Criado: {{ tarefa.data_criacao|date:"d/m/Y" }}</span>
+                        
+                        {# 🔥 NOVO: Mostra data de conclusão se existir #}
+                        {% if tarefa.data_conclusao %}
+                        <span class="text-success">
+                            <i class="bi-trophy"></i> Concluído em: {{ tarefa.data_conclusao|date:"d/m/Y" }}
+                        </span>
+                        {% else %}
+                        <span class="text-success">
+                            <i class="bi bi-check-circle-fill"></i> Finalizado
+                        </span>
+                        {% endif %}
+                    </small>
+                    
+                    <p class="fs-6" style="color: rgba(255, 255, 255, 0.7);">
+                        Prioridade:
+                        <span class="cor-paragraph-{{ tarefa.prioridade }}">
+                            {{ tarefa.get_prioridade_display }}
+                        </span>
+                    </p>
+                    <small>
+                    {% if tarefa.responsavel %}
+                        <span class="badge-responsavel cor-{{ tarefa.responsavel_cor }}">
+                            <i class="bi bi-person"></i> {{ tarefa.get_responsavel_display }}
+                        </span>
+                    {% endif %}
+                    </small>
+                </div>
+            {% empty %}
+                <div class="empty-column">
+                    <i class="bi bi-inbox"></i>
+                    <p>Nenhuma tarefa</p>
+                </div>
+            {% endfor %}
         </div>
     </div>
 </div>
@@ -799,6 +1027,7 @@ body {
                     <div class="mb-3">
                         <label for="editStatus" class="form-label">Status</label>
                         <select class="form-select" id="editStatus" name="status">
+                            <option value="avaliar">Avaliar</option>
                             <option value="a_fazer">A Fazer</option>
                             <option value="em_progresso">Em Progresso</option>
                             <option value="validacao">Aguardando Validação</option>
@@ -817,9 +1046,13 @@ body {
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label for="editResponsavel" class="form-label">Responsável</label>
-                        <input type="text" class="form-control" id="editResponsavel" name="responsavel" 
-                               placeholder="Nome do responsável pela tarefa">
+                        <label for="editResponsavel" class="form-label">Responsável:</label>
+                        <select name="responsavel" id="editResponsavel" class="form-control">
+                            <option value="">Selecione</option>
+                            {% for value, label in responsavel_choices %}
+                              <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                            </select>
                     </div>
                     <div class="mb-3">
                         <label for="editResponsavelCor" class="form-label">Etiqueta Visual</label>
@@ -831,19 +1064,11 @@ body {
                             <option value="roxo">🟣 Roxo</option>
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label for="editCor" class="form-label">Cor do Card</label>
-                        <select class="form-select" id="editCor" name="cor">
-                            <option value="azul">🔵 Azul</option>
-                            <option value="verde">🟢 Verde</option>
-                            <option value="amarelo">🟡 Amarelo</option>
-                            <option value="laranja">🟠 Laranja</option>
-                            <option value="vermelho">🔴 Vermelho</option>
-                        </select>
-                    </div>
+                
                     <div class="mb-3">
                         <label for="editPrioridade" class="form-label">Prioridade</label>
                         <select class="form-select" id="editPrioridade" name="prioridade">
+                            <option value="avaliar">⚪ Avaliar</option>
                             <option value="baixa">🟢 Baixa</option>
                             <option value="media">🟡 Média</option>
                             <option value="alta">🔴 Alta</option>
@@ -904,8 +1129,12 @@ body {
                     </div>
                     <div class="mb-3">
                         <label for="responsavel" class="form-label">Responsável</label>
-                        <input type="text" class="form-control" id="responsavel" name="responsavel" 
-                               placeholder="Nome do responsável pela tarefa">
+                       <select name="responsavel" id="responsavel" class="form-control">
+                            <option value="">Selecione</option>
+                            {% for value, label in responsavel_choices %}
+                              <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                            </select>
                     </div>
                     <div class="mb-3">
                         <label for="responsavelCor" class="form-label">Etiqueta Visual</label>
@@ -917,21 +1146,13 @@ body {
                             <option value="roxo">🟣 Roxo</option>
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label for="cor" class="form-label">Cor do Card</label>
-                        <select class="form-select" id="cor" name="cor">
-                            <option value="azul">🔵 Azul</option>
-                            <option value="verde">🟢 Verde</option>
-                            <option value="amarelo">🟡 Amarelo</option>
-                            <option value="laranja">🟠 Laranja</option>
-                            <option value="vermelho">🔴 Vermelho</option>
-                        </select>
-                    </div>
+
                     <div class="mb-3">
                         <label for="prioridade" class="form-label">Prioridade</label>
                         <select class="form-select" id="prioridade" name="prioridade">
+                            <option value="avaliar"selected>⚪ Avaliar</option>
                             <option value="baixa">🟢 Baixa</option>
-                            <option value="media" selected>🟡 Média</option>
+                            <option value="media">🟡 Média</option>
                             <option value="alta">🔴 Alta</option>
                         </select>
                     </div>
@@ -987,7 +1208,6 @@ body {
             formData.append('destinado', document.getElementById('destinado').value);
             formData.append('responsavel', document.getElementById('responsavel').value);
             formData.append('responsavel_cor', document.getElementById('responsavelCor').value);
-            formData.append('cor', document.getElementById('cor').value);
             formData.append('prioridade', document.getElementById('prioridade').value);
 
             const imagem = document.getElementById('imagem').files[0];
@@ -1048,8 +1268,7 @@ body {
                     document.getElementById('editDestinado').value = data.tarefa.destinado || '';
                     document.getElementById('editResponsavel').value = data.tarefa.responsavel || '';
                     document.getElementById('editResponsavelCor').value = data.tarefa.responsavel_cor || 'azul';
-                    document.getElementById('editCor').value = data.tarefa.cor || 'azul';
-                    document.getElementById('editPrioridade').value = data.tarefa.prioridade || 'media';
+                    document.getElementById('editPrioridade').value = data.tarefa.prioridade || 'avaliar';
 
                     modalEditarTarefa.show();
 
@@ -1080,7 +1299,6 @@ body {
             formData.append('destinado', document.getElementById('editDestinado').value);
             formData.append('responsavel', document.getElementById('editResponsavel').value);
             formData.append('responsavel_cor', document.getElementById('editResponsavelCor').value);
-            formData.append('cor', document.getElementById('editCor').value);
             formData.append('prioridade', document.getElementById('editPrioridade').value);
 
             const imagem = document.getElementById('editImagem').files[0];
@@ -1383,31 +1601,33 @@ document.addEventListener('DOMContentLoaded', function() {
 </script> -->
 
 <script>
-    async function atualizarStatus(tarefaId, status) {
-        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+async function atualizarStatus(tarefaId, status) {
+    const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
-        const formData = new FormData();
-        formData.append('status', status);
+    const formData = new FormData();
+    formData.append('status', status);
 
-        return fetch(
-            `{% url "kanban_inteligencia:atualizar_tarefa" 0 %}`.replace('0', tarefaId),
-            {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': csrftoken
-                },
-                body: formData
-            }
-        );
-    }
+    const url = `{% url 'kanban_inteligencia:atualizar_status' 0 %}`
+                    .replace('0', tarefaId);
+
+    return fetch(url, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrftoken
+        },
+        body: formData
+    });
+}
 </script>
+
 
 <script>
     function ordenarPorPrioridade(coluna) {
         const prioridadePeso = {
-            alta: 3,
-            media: 2,
-            baixa: 1
+            alta: 4,
+            media: 3,
+            baixa: 2,
+            avaliar: 1
         };
 
         const cards = Array.from(coluna.querySelectorAll('.kanban-card'));
@@ -1422,7 +1642,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 </script>
 
-<script>
+<!-- <script>
     document.addEventListener('DOMContentLoaded', function () {
 
         function filterCards(destino) {
@@ -1462,7 +1682,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
     });
-</script>
+</script> -->
+
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -1490,10 +1711,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 const tarefaId = draggedCard.dataset.tarefaId;
                 const novoStatus = destino.dataset.status;
 
-                const emptyDestino = destino.querySelector('.empty-column');
-                if (emptyDestino) emptyDestino.remove();
+                // 🆕 NOVO: Remover a mensagem de coluna vazia antes de adicionar o card
+                const emptyDiv = destino.querySelector('.empty-column');
+                if (emptyDiv) {
+                    emptyDiv.remove();
+                }
 
                 destino.appendChild(draggedCard);
+                draggedCard.dataset.status = novoStatus;
 
                 ordenarPorPrioridade(destino);
                 ordenarPorPrioridade(origem);
@@ -1512,34 +1737,66 @@ document.addEventListener('DOMContentLoaded', function() {
                     const data = await response.json();
 
                     if (data.success) {
-                        location.reload();
+                        location.reload();  // Recarrega para atualizar contagens e evitar cards desaparecendo
                     } else {
+                        // Reverter mudanças no DOM se erro
+                        origem.appendChild(draggedCard);
+                        ordenarPorPrioridade(origem);
+                        ordenarPorPrioridade(destino);
                         alert('Erro ao atualizar status');
-                        location.reload();
                     }
 
                 } catch {
                     alert('Erro de comunicação');
-                    location.reload();
                 }
-
-                // try {
-                //     const response = await atualizarStatus(tarefaId, novoStatus);
-                //     const data = await response.json();
-
-                //     if (!data.success) {
-                //         alert('Erro ao atualizar status');
-                //         location.reload();
-                //     }
-
-                // } catch {
-                //     alert('Erro de comunicação');
-                //     location.reload();
-                // }
             });
-
         });
     });
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    let draggedCard = null;
+
+    document.querySelectorAll('.kanban-card').forEach(card => {
+        card.addEventListener('dragstart', () => {
+            draggedCard = card;
+            card.classList.add('dragging');
+        });
+
+        card.addEventListener('dragend', () => {
+            draggedCard = null;
+            card.classList.remove('dragging');
+        });
+    });
+
+    document.querySelectorAll('.kanban-cards').forEach(column => {
+
+        column.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            if (!draggedCard) return;
+
+            const scrollSpeed = 150;     // velocidade do scroll
+            const edgeOffset = 300;      // distância da borda para ativar
+
+            const rect = column.getBoundingClientRect();
+            const mouseY = e.clientY;
+
+            // 🔼 Scroll para cima
+            if (mouseY < rect.top + edgeOffset) {
+                column.scrollTop -= scrollSpeed;
+            }
+
+            // 🔽 Scroll para baixo
+            if (mouseY > rect.bottom - edgeOffset) {
+                column.scrollTop += scrollSpeed;
+            }
+        });
+
+    });
+
+});
 </script>
 
 <script>
@@ -1649,6 +1906,65 @@ document.addEventListener('DOMContentLoaded', function() {
 
         atualizarEstatisticas();
     });
+</script>
+
+<script>
+// =====================================================
+// 🆕 APROVAR TAREFA (mover para Concluído)
+// =====================================================
+document.addEventListener('DOMContentLoaded', () => {
+    
+    // Seleciona todos os botões "Aprovar"
+    document.querySelectorAll('.btn-aprovar-tarefa').forEach(btn => {
+        
+        btn.addEventListener('click', async (e) => {
+            // Impede que o clique no botão dispare o clique no card
+            e.stopPropagation();
+            
+            // Pega o ID da tarefa do botão
+            const tarefaId = btn.getAttribute('data-tarefa-id');
+            
+            // Pergunta se tem certeza
+            if (!confirm('Aprovar esta tarefa e marcar como concluída?')) {
+                return; // Se cancelar, não faz nada
+            }
+            
+            // Pega o token CSRF (necessário para segurança)
+            const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            
+            try {
+                // Cria os dados para enviar
+                const formData = new FormData();
+                formData.append('status', 'concluido');
+                
+                // Envia requisição para o backend
+                const response = await fetch(
+                    `{% url "kanban_inteligencia:atualizar_status" 0 %}`.replace('0', tarefaId),
+                    {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': csrftoken
+                        },
+                        body: formData
+                    }
+                );
+                
+                // Converte a resposta em JSON
+                const data = await response.json();
+                
+                // Se deu certo, recarrega a página
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Erro ao aprovar tarefa: ' + data.error);
+                }
+                
+            } catch (error) {
+                alert('Erro ao aprovar tarefa: ' + error);
+            }
+        });
+    });
+});
 </script>
 
 {% endblock %}

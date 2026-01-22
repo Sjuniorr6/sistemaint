@@ -29,8 +29,25 @@ class ticketCreateView(LoginRequiredMixin, CreateView):
         else:
             form.instance.prioridade = 'avaliar'
 
+        # 🔐 PRIORIDADE DEFINIDA PELO GRUPO
+        if user.groups.filter(name='diretoriamaster').exists():
+            form.instance.status = 'alta'
+        else:
+            form.instance.status = 'avaliar'
+
         # ⏰ PRAZO AUTOMÁTICO (48 HORAS)
         form.instance.data_limite = timezone.now().date() + timedelta(days=2)
+
+           # 🆕 NOVO: Definir status inicial como "avaliar" (em vez de "tarefas a fazer")
+        form.instance.status = 'avaliar'
+
+        
+        # 🆕 NOVO: Direcionar ao kanban com base na escolha do usuário (assumindo que o formulário tem um campo 'kanban_tipo')
+        # Substitua 'kanban_tipo' pelo nome exato do campo no seu formulário/modelo
+        kanban_escolha = form.cleaned_data.get('kanban_tipo')  # Ex.: 'desenvolvimento' ou 'inteligencia'
+        if kanban_escolha:
+            form.instance.kanban_tipo = kanban_escolha  # Ajuste conforme o campo do modelo
+
 
         return super().form_valid(form)
 
@@ -40,7 +57,7 @@ class ticketListView(LoginRequiredMixin, ListView):
     model = TarefaInteligencia
     template_name = 'ticket_list.html'
     context_object_name = 'tickets'
-    ordering = ['-data_criacao']
+    ordering = ['-data_criacao', '-id']
 
     def get_queryset(self):
         qs = super().get_queryset().filter(usuario=self.request.user)
