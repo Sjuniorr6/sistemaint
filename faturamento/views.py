@@ -15,6 +15,20 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 import json
 from faturamento.models import Faturamento
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from formacompanhamento.models import Formacompanhamento
+from django.http import HttpResponse
+from django.shortcuts import render, redirect, get_object_or_404
+from django.shortcuts import render
+import requests
+from django.shortcuts import render
+import requests
+from django.shortcuts import render
+from django.utils.dateparse import parse_datetime
+# faturamento/views.py
+import requests
+from django.shortcuts import render
+from django.utils.dateparse import parse_datetime
 # Removido import de Clientes pois não é mais necessário   
 
 class FaturamentoListView(PermissionRequiredMixin, LoginRequiredMixin, ListView):
@@ -170,7 +184,6 @@ def update_status_faturamento(request, id):
         return JsonResponse({'status': 'success', 'message': 'Status atualizado com sucesso'})
     return JsonResponse({'status': 'error', 'message': 'Método não permitido'}, status=405)
 
-
 class contratosListView(PermissionRequiredMixin, LoginRequiredMixin, ListView):
     model = Requisicoes
     template_name = "contrato_list.html"
@@ -185,18 +198,11 @@ class formularioCreateView(PermissionRequiredMixin, LoginRequiredMixin, CreateVi
     success_url = reverse_lazy('formulario_create')
     permission_required = 'faturamento.add_formulario'  # Substitua 'faturamento' pelo nome do seu aplicativo
 
-from formacompanhamento.models import Formacompanhamento
 class FinanceirohListViews(ListView):
     model = Formacompanhamento  # Defina o modelo aqui
     template_name = "historicodeacionamento.html"  # Substitua pelo nome do seu template
     context_object_name = 'financeiro_list'
     paginate_by = 10
-
-
-from django.shortcuts import render, redirect, get_object_or_404
-from django.http import HttpResponse
-
-
 
 def atualizar_observacoes(request, id):
     registro = get_object_or_404(Requisicoes, id=id)
@@ -211,20 +217,6 @@ def atualizar_observacoes(request, id):
             return redirect(f"{reverse('faturamento_list')}?{params.urlencode()}")
         return redirect('faturamento_list')
     
-
-from django.shortcuts import render
-
-import requests
-from django.shortcuts import render
-import requests
-from django.shortcuts import render
-from django.utils.dateparse import parse_datetime
-# faturamento/views.py
-
-import requests
-from django.shortcuts import render
-from django.utils.dateparse import parse_datetime
-
 def external_vouchers_list(request):
     url = 'https://gsvouchers.com.br/api/vouchers/'
     try:
@@ -250,11 +242,6 @@ def external_vouchers_list(request):
     return render(request, 'external_vouchers_list.html', {
         'vouchers': vouchers
     })
-
-
-
-
-from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 
 class FaturamentoInterativoView(TemplateView):
     template_name = 'faturamento_interativo.html'
@@ -953,3 +940,8 @@ class FaturamentoGetMultipleIdsView(View):
                 'success': False,
                 'error': str(e)
             }, status=400) 
+
+# ------------------------------------------------------
+#                     Planilha Azul
+# ------------------------------------------------------
+

@@ -5,7 +5,8 @@ from .models import (
     registroacompanhamento,
     servicosacompanhamentos,
     registrodeclienteacompanhamento,
-    registroacompanhamentoagente
+    registroacompanhamentoagente,
+    registroderesposavelagenteacompanhamento
 )
 
 # ===============================
@@ -32,6 +33,20 @@ class RegistroAgente(forms.ModelForm):
             'agencia': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Agência'}),
             'conta': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Conta'}),
             'tipo_conta': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Tipo de Conta'}),
+        }
+
+# ===============================
+# Cadastro de Responsável Agentes
+# ===============================
+class RegistroResponsavelAgente(forms.ModelForm):
+    class Meta:
+        model = registroderesposavelagenteacompanhamento
+        fields = [
+            'nome',
+        ]
+
+        widgets = {
+            'nome': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nome do Responsável do Agente'}),
         }
 
 # ===============================
@@ -120,7 +135,7 @@ class RegistroAcompanhamentoAgenteForm(forms.ModelForm):
         widgets = {
             "tipo_agente": forms.HiddenInput(),
             
-            "responsavel_agente": forms.TextInput(attrs={"class": "form-control", 'placeholder': 'Responsável pelo Agente'}),
+            "responsavel_agente": forms.Select(attrs={"class": "form-control select2"}),
 
             "agente": forms.Select(attrs={"class": "form-control select2"}),
             "franquia": forms.Select(attrs={"class": "form-control"}),

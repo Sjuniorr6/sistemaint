@@ -9,6 +9,11 @@ urlpatterns = [
     path("listAgente/",views.AgenteAcompanhamentoListView.as_view(),name="agenteAcompanhamentoList",),
     path('<int:pk>/editarAgente/',views.RegistroAgenteAcompanhamentoUpdateView.as_view(),name='agenteAcompanhamentoUpdate'),
 
+    # Responsável Agentes Acompanhamento URLs
+    path("ajax/novo-responsavel-agente/",views.criar_responsavel_agente_ajax,name="criar_responsavel_agente_ajax"),
+    path("listResponsavelAgente/",views.ResponsavelAgenteAcompanhamentoListView.as_view(),name="responsavelagenteAcompanhamentoList",),
+    path("ajax/editar-responsavel-agente/<int:pk>/",views.editar_responsavel_agente_ajax,name="editar_responsavel_agente_ajax"),
+
     # Clientes Acompanhamento URLs
     path("novoCliente/",views.ClienteAcompanhamentoCreateView.as_view(),name="clienteAcompanhamentoCreate",),
     path("listCliente/",views.ClienteAcompanhamentoListView.as_view(),name="clienteAcompanhamentoList",),

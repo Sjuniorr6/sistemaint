@@ -263,10 +263,7 @@
                 margin-left: 10px;
             }
 
-            
-
-
-
+        
         /* If you want the burger icon to appear on all themes, add navbar-light (or define the image)
            Example: <nav class="navbar navbar-expand-lg navbar-light navbar-custom"> */
     </style>
@@ -502,6 +499,7 @@
                                             </a>
                                         </li>
                                         {% endif %}
+
                                         {% if perms.acompanhamentos.view_registrodeclienteacompanhamento %}
                                         <li>
                                             <a class="dropdown-item" href="{% url 'clienteAcompanhamentoList' %}">
@@ -513,6 +511,13 @@
                                         <li>
                                             <a class="dropdown-item" href="{% url 'clienteAcompanhamentoCreate' %}">
                                                 Cadastro Cliente
+                                            </a>
+                                        </li>
+                                        {% endif %}
+                                        {% if perms.requisicao.add_registrodeacompanhamento %}
+                                        <li>
+                                            <a class="dropdown-item" href="{% url 'responsavelagenteAcompanhamentoList' %}">
+                                                Responsável Agentes
                                             </a>
                                         </li>
                                         {% endif %}
@@ -631,34 +636,20 @@
                             {% endif %}
                             {% endif %}
                             {% if perms.requisicao.add_registrodeacompanhamento or perms.acompanhamentos.view_registrodeclienteacompanhamento or perms.acompanhamentos.view_registrodeagenteacompanhamento %}
-                                <li class="dropdown-submenu">
-                                    <a class="dropdown-item dropdown-toggle">
-                                        Acompanhamento
-                                    </a>
-                                    <ul class="dropdown-menu">
-                                        {% if perms.acompanhamentos.view_registroacompanhamento %}
-                                        <li>
-                                            <a class="dropdown-item" href="{% url 'acompanhamentosListFaturamento' %}">
-                                                Ver Acompanhamentos
-                                            </a>
-                                        </li>
-                                        {% endif %}
-                                    </ul>
-                                </li>
-                                <li class="dropdown-submenu">
-                                    <a class="dropdown-item dropdown-toggle">
-                                        Franquias
-                                    </a>
-                                    <ul class="dropdown-menu">
-                                        {% if perms.franquia.view_listfranquia %}
-                                        <li>
-                                            <a class="dropdown-item" href="{% url 'franquiaList' %}">
-                                                Ver Franquias
-                                            </a>
-                                        </li>
-                                        {% endif %}
-                                    </ul>
-                                </li>
+                                {% if perms.acompanhamentos.view_registroacompanhamento %}
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'acompanhamentosListFaturamento' %}">
+                                            Ver Acompanhamentos
+                                        </a>
+                                    </li>
+                                {% endif %}
+                                {% if perms.franquia.view_listfranquia %}
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'franquiaList' %}">
+                                            Ver Franquias
+                                        </a>
+                                    </li>
+                                {% endif %}
                             {% endif %}
                         </ul>
                     </li>

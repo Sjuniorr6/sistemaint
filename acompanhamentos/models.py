@@ -92,6 +92,46 @@ class registrodeagenteacompanhamento(models.Model):
         return f"{self.nome}"
 
 # ------------------------------------------------------
+#               Responsável de Agentes
+# ------------------------------------------------------
+class registroderesposavelagenteacompanhamento(models.Model):
+    # =========================
+    # DADOS PRINCIPAIS
+    # =========================
+    nome = models.CharField(
+        max_length=150,
+        verbose_name="Nome do Responsável Agente"
+    )
+
+    # =========================
+    # CONTROLE
+    # =========================
+    nome_user = models.CharField(
+        max_length=150,
+        blank=True,
+        null=True,
+        verbose_name="Criado por Usuário"
+    )
+
+    criado_em = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Criado em"
+    )
+
+    atualizado_em = models.DateTimeField(
+        auto_now=True,
+        verbose_name="Atualizado em"
+    )
+
+    class Meta:
+        ordering = ['-criado_em']
+        verbose_name = "Registro de Responsável Agentes"
+        verbose_name_plural = "Registros de Responsável Agentes"
+
+    def __str__(self):
+        return f"{self.nome}"
+
+# ------------------------------------------------------
 #                 Registro de Clientes
 # ------------------------------------------------------
 class registrodeclienteacompanhamento(models.Model):
@@ -272,7 +312,15 @@ class registroacompanhamentoagente(models.Model):
         default="principal"
     )
 
-    responsavel_agente = models.CharField(max_length=100, blank=True, null=True)
+    responsavel_agente = models.ForeignKey(
+        registroderesposavelagenteacompanhamento,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="agentes_vinculados",
+        verbose_name="Responsável pelo Agente"
+    )
+
 
     agente = models.ForeignKey(
         registrodeagenteacompanhamento,

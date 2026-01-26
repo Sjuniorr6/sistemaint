@@ -31,7 +31,8 @@ from .models import (
     registrodeclienteacompanhamento,
     servicosacompanhamentos,
     registroacompanhamento,
-    registroacompanhamentoagente
+    registroacompanhamentoagente,
+    registroderesposavelagenteacompanhamento
 )
 
 from .forms import (
@@ -41,7 +42,8 @@ from .forms import (
     RegistroAcompanhamentoForm,
     RegistroAcompanhamentoAgenteForm,
     RegistroAcompanhamentoAgenteCreateFormSet,
-    RegistroAcompanhamentoAgenteUpdateFormSet
+    RegistroAcompanhamentoAgenteUpdateFormSet,
+    RegistroResponsavelAgente
 )
 
 from typing import Any
@@ -131,6 +133,77 @@ class RegistroAgenteAcompanhamentoUpdateView(LoginRequiredMixin, PermissionRequi
 
     def form_valid(self, form):
         return super().form_valid(form)
+
+# ------------------------------------------------------
+#             Responsável Agente Acompanhamento
+# ------------------------------------------------------
+class ResponsavelAgenteAcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
+    model = registroderesposavelagenteacompanhamento
+    template_name = "responsavel_list.html"
+    context_object_name = "responsavel_agente_acompanhamentos"
+    permission_required = "acompanhamentos.view_registrodeagenteacompanhamento"
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        nome = self.request.GET.get("nome")
+
+        if nome:
+            queryset = queryset.filter(nome__icontains=nome)
+
+        return queryset.order_by("-criado_em")
+
+@login_required
+@permission_required("acompanhamentos.add_registroderesposavelagenteacompanhamento", raise_exception=True)
+
+@require_POST
+def criar_responsavel_agente_ajax(request):
+    nome = request.POST.get("nome")
+
+    if not nome:
+        return JsonResponse(
+            {"success": False, "error": "Nome é obrigatório."},
+            status=400
+        )
+
+    agente = registroderesposavelagenteacompanhamento.objects.create(
+        nome=nome,
+        nome_user=request.user.get_full_name() or request.user.username
+    )
+
+    return JsonResponse({
+        "success": True,
+        "id": agente.id,
+        "nome": agente.nome
+    })
+
+@login_required
+@permission_required("acompanhamentos.change_registroderesposavelagenteacompanhamento",raise_exception=True)
+
+@require_POST
+def editar_responsavel_agente_ajax(request, pk):
+    nome = request.POST.get("nome")
+
+    if not nome:
+        return JsonResponse(
+            {"success": False, "error": "Nome é obrigatório."},
+            status=400
+        )
+
+    agente = get_object_or_404(
+        registroderesposavelagenteacompanhamento,
+        pk=pk
+    )
+
+    agente.nome = nome
+    agente.nome_user = request.user.get_full_name() or request.user.username
+    agente.save(update_fields=["nome", "nome_user", "atualizado_em"])
+
+    return JsonResponse({
+        "success": True,
+        "id": agente.id,
+        "nome": agente.nome
+    })
 
 # ------------------------------------------------------
 #                 Cliente Acompanhamento
@@ -398,7 +471,7 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
             Q(tipo_servico__isnull=True) |
 
             Q(agentes__responsavel_agente__isnull=True) |
-            Q(agentes__responsavel_agente="") |
+            Q(agentes__responsavel_agente__isnull=True) |
 
             Q(agentes__agente__isnull=True) |
 
@@ -436,6 +509,7 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
         data2 = self.request.GET.get("data2")
         agente = self.request.GET.get("agente")
         cliente = self.request.GET.get("cliente")
+        responsavel = self.request.GET.get("responsavel")
 
         if data and data2:
             if data > data2:
@@ -451,6 +525,11 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
 
         if cliente:
             qs = qs.filter(cliente__nome__icontains=cliente)
+
+        if responsavel:
+            queryset = queryset.filter(
+                agentes__responsavel_agente_id=responsavel
+            )
 
         return qs.distinct().order_by("-criado_em")
 
@@ -530,7 +609,7 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
                 Paragraph(item.destino or "", cell_style),
 
                 Paragraph(
-                    join_values(a.responsavel_agente for a in agentes_validos),
+                    join_values(a.responsavel_agente.nome for a in agentes_validos),
                     cell_style
                 ),
                 Paragraph(join_values(str(a.agente) for a in agentes), cell_style),
@@ -628,7 +707,7 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
                 item.origem,
                 item.destino,
 
-                join_values(a.responsavel_agente for a in agentes_validos),
+                join_values(a.responsavel_agente.nome for a in agentes_validos),
                 join_values(str(a.agente) for a in agentes),
                 join_values(a.placa_agente for a in agentes_validos),
 
@@ -790,7 +869,7 @@ class AcompanhamentoFaturamentoListView(LoginRequiredMixin, PermissionRequiredMi
             Q(tipo_servico__isnull=True) |
 
             Q(agentes__responsavel_agente__isnull=True) |
-            Q(agentes__responsavel_agente="") |
+            Q(agentes__responsavel_agente__isnull=True) |
 
             Q(agentes__agente__isnull=True) |
 
@@ -943,7 +1022,7 @@ class AcompanhamentoFaturamentoListView(LoginRequiredMixin, PermissionRequiredMi
                 Paragraph(item.origem or "", cell_style),
                 Paragraph(item.destino or "", cell_style),
 
-                Paragraph(join_values(a.responsavel_agente for a in agentes_validos), cell_style),
+                Paragraph(join_values(a.responsavel_agente.nome for a in agentes_validos), cell_style),
                 Paragraph(join_values(str(a.agente) for a in agentes), cell_style),
                 Paragraph(join_values(a.placa_agente for a in agentes_validos), cell_style),
 
@@ -1064,7 +1143,7 @@ class AcompanhamentoFaturamentoListView(LoginRequiredMixin, PermissionRequiredMi
                 item.origem,
                 item.destino,
 
-                join_values(a.responsavel_agente for a in agentes_validos),
+                join_values(a.responsavel_agente.nome for a in agentes_validos),
                 join_values(str(a.agente) for a in agentes),
                 join_values(a.placa_agente for a in agentes_validos),
 

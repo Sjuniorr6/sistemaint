@@ -4,7 +4,8 @@ from .models import (
     registrodeclienteacompanhamento,
     servicosacompanhamentos,
     registroacompanhamento,
-    registroacompanhamentoagente
+    registroacompanhamentoagente,
+    registroderesposavelagenteacompanhamento
 )
 
 
@@ -61,6 +62,44 @@ class RegistroDeAgenteAcompanhamentoAdmin(admin.ModelAdmin):
                 'agencia',
                 'conta',
                 'tipo_conta',
+            )
+        }),
+
+        ('Controle', {
+            'fields': (
+                'nome_user',
+                'criado_em',
+                'atualizado_em',
+            )
+        }),
+    )
+
+# ======================================================
+# Responsável Agentes Cadastrados
+# ======================================================
+@admin.register(registroderesposavelagenteacompanhamento)
+class RegistroDeResponsavelAgenteAcompanhamentoAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'nome',
+    )
+
+    list_display_links = ('id', 'nome')
+
+    search_fields = (
+        'nome',
+    )
+
+    ordering = ('-criado_em',)
+
+    readonly_fields = (
+        'criado_em',
+        'atualizado_em',
+    )
+    fieldsets = (
+        ('Dados do Agente', {
+            'fields': (
+                'nome',
             )
         }),
 
