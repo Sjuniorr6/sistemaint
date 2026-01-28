@@ -289,6 +289,7 @@ class Requisicoes(models.Model):
         ('THIAGO','THIAGO'),
         ('GOLDEN','GOLDEN'),
         ('ARMANDO','ARMANDO'),
+        ('JOÃO','JOÃO'),
         ('INFINITY','INFINITY')
 
     ]
