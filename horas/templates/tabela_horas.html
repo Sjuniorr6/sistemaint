@@ -223,17 +223,13 @@
                 <a href="{% url 'consulta_horas_pdf' %}?data_inicial={{ request.GET.data_inicial }}&data_final={{ request.GET.data_final }}" class="btn btn-secondary btn-action" target="_blank">
                   <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
                 </a>
-                                                                <form method="get" action="{% url 'enviar_email_relatorio_horas' %}" class="d-inline">
+                  <form method="get" action="{% url 'enviar_email_relatorio_horas' %}" class="d-inline">
                     <input type="hidden" name="data_inicial" value="{{ request.GET.data_inicial }}" />
                     <input type="hidden" name="data_final" value="{{ request.GET.data_final }}" />
                     <button type="submit" class="btn btn-success btn-action">
                       <i class="bi bi-envelope"></i> Enviar por E‑mail
                     </button>
                   </form>
-
-
-                  
-                
               </div>
             </div>
           </div>
@@ -284,7 +280,11 @@
                       {% else %}<span class="text-muted">—</span>{% endif %}
             </td>
             <td class="text-nowrap">{{ item.motivo }}</td>
-            <td class="text-nowrap"><i class="bi bi-calculator me-1"></i> {{ item.total }}</td>
+            <td class="text-nowrap">
+                <i class="bi bi-calculator me-1"></i>
+                {% if item.total %}{{ item.total }}{% else %}00:00{% endif %}
+            </td>
+
             <td class="text-nowrap">
               <div class="d-flex gap-2 justify-content-center">
                 <button type="button" id="botao-{{ item.pk }}" onclick="validar(event, '{{ item.pk }}')" class="btn btn-warning btn-action">

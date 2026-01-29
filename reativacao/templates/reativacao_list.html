@@ -187,7 +187,10 @@
                             <tr class="status-{{ registro.status|lower }}">
                                 <td>{{ registro.id }}</td>
                                 <td>{{ registro.usuario.username }}</td>
-                                <td>{{ registro.data_hora_criacao|date:"d/m/Y H:i" }}</td>
+                                <td data-order="{{ registro.data_hora_criacao|date:'Y-m-d H:i:s' }}">
+                                    {{ registro.data_hora_criacao|date:"d/m/Y H:i" }}
+                                </td>
+
                                 <td>{{ registro.nome }}</td>
                                 <td>{{ registro.cnpj }}</td>
                                 <td>{{ registro.motivo_reativacao }}</td>
@@ -275,9 +278,6 @@
                     </tbody>
                 </table>
         </div>
-        <div class="p-3">
-            {% include 'components/_pagination.html' %}
-        </div>
     </div>
 </section>
 
@@ -294,9 +294,11 @@
 
             pageLength: 10,
             lengthMenu: [10, 25, 50, 100],
-            order: [[1, 'desc']]
+            
+            order: [[2, 'desc']]
         });
     });
 </script>
+
 
 {% endblock %}

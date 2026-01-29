@@ -1,8 +1,29 @@
 from django.shortcuts import render, redirect
 from .forms import HorasForm
-from .models import horas  # Se o seu modelo for "Horas", ajuste para "from .models import Horas"
+from .models import horas
 import datetime
 from dateutil.parser import parse as parse_dt
+from django.urls import reverse_lazy
+from django.views.generic.edit import UpdateView
+from io import BytesIO
+from django.http import HttpResponse
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import (SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer)
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+import os
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import cm
+from django.views.decorators.http import require_POST
+from django.shortcuts import get_object_or_404
+from django.http import JsonResponse
+from django.core.mail import EmailMessage
+from django.views.decorators.http import require_GET
+from django.conf import settings
+from django.utils import timezone
+from datetime import time
+
+# from .views import consulta_horas_pdf
 
 def parse_datetime_flexible(datetime_str):
     """
@@ -65,79 +86,65 @@ def cadastrar_horas(request):
 
     return render(request, 'horas.html', {'form': form})
 
-import datetime
-from django.shortcuts import render
-from .models import horas  # Se a sua classe for "horas", mantenha; se renomeou para "Horas", ajuste aqui.
-import datetime
-from django.shortcuts import render
-from .models import horas
-
-from django.shortcuts import render
-import datetime
-from .models import horas
-
 def consulta_horas(request):
     data_inicial = request.GET.get('data_inicial')
-    data_final   = request.GET.get('data_final')
+    data_final = request.GET.get('data_final')
+
     # Inicia queryset e exclui registros aprovados
-    qs = horas.objects.all().exclude(status_choice='Aprovado')
-    # Filtra por datas se fornecidas
-    if data_inicial and data_final:
-        qs = qs.filter(
-            hora_inicial__gte=data_inicial,
-            hora_final__lte=data_final
-        )
+    qs = horas.objects.all().exclude(status_choice='Aprovado').select_related('funcionario')
+
+    # ==========================
+    # FILTRO POR DATA (pegando o dia inteiro)
+    # ==========================
+    if data_inicial:
+        di = datetime.datetime.strptime(data_inicial, "%Y-%m-%d").date()
+        dt_ini = timezone.make_aware(datetime.datetime.combine(di, datetime.time.min))
+        qs = qs.filter(hora_inicial__gte=dt_ini)
+
+    if data_final:
+        df = datetime.datetime.strptime(data_final, "%Y-%m-%d").date()
+        dt_fim = timezone.make_aware(datetime.datetime.combine(df, datetime.time.max))
+        qs = qs.filter(hora_final__lte=dt_fim)
 
     employee_data = []
     grand_seconds = 0
 
     # percorre cada funcionário distinto
-    for func_id in qs.values_list('funcionario', flat=True).distinct():
-        records = qs.filter(funcionario=func_id)
+    for func_id in qs.values_list('funcionario_id', flat=True).distinct():
+        records = qs.filter(funcionario_id=func_id).order_by('hora_inicial')
         total_seconds = 0
 
-        # soma os intervalos somente dos não-aprovados
+        # soma intervalos do funcionário
         for item in records:
             hi = item.hora_inicial
             hf = item.hora_final
-
             if hi and hf and hf > hi:
                 total_seconds += int((hf - hi).total_seconds())
 
-
         grand_seconds += total_seconds
 
-        # formata para HH:MM:SS
+        # formata total do funcionário para HH:MM:SS
         h, resto = divmod(total_seconds, 3600)
-        m, s     = divmod(resto, 60)
+        m, s = divmod(resto, 60)
         formatted = f"{h:02d}:{m:02d}:{s:02d}"
-
-        # atualiza total no banco (opcional)
-        records.update(total=formatted)
 
         employee_data.append({
             'funcionario': records.first().funcionario if records.exists() else '',
-            'records':     records,
-            'total':       formatted,
+            'records': records,
+            'total': formatted,  # <-- isso é o que seu template usa no rodapé
         })
 
     # total geral
     h, resto = divmod(grand_seconds, 3600)
-    m, s     = divmod(resto, 60)
+    m, s = divmod(resto, 60)
     grand_total = f"{h:02d}:{m:02d}:{s:02d}"
 
     return render(request, 'tabela_horas.html', {
         'employee_data': employee_data,
-        'grand_total':   grand_total,
-        'data_inicial':  data_inicial,
-        'data_final':    data_final,
+        'grand_total': grand_total,
+        'data_inicial': data_inicial,
+        'data_final': data_final,
     })
-
-
-from django.urls import reverse_lazy
-from django.views.generic.edit import UpdateView
-from .models import horas   # ou se o modelo foi renomeado para "Horas", ajuste aqui
-from .forms import HorasForm
 
 class HorasUpdateView(UpdateView):
     model = horas
@@ -145,33 +152,12 @@ class HorasUpdateView(UpdateView):
     template_name = "update_horas.html"
     success_url = reverse_lazy('consultar_horas')  # Altere para a URL de sucesso desejada
 
-    
-
-
-# views.py
-from django.views.decorators.http import require_POST
-from django.shortcuts import get_object_or_404
-from django.http import JsonResponse
-from .models import horas
-
 @require_POST
 def aprovar_horas(request, pk):
     obj = get_object_or_404(horas, pk=pk)
     obj.status_choice = 'Aprovado'
     obj.save()
     return JsonResponse({'status': obj.status_choice})
-from io import BytesIO
-import datetime
-from dateutil.parser import parse as parse_dt
-from django.http import HttpResponse
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.lib.units import cm
-from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer
-)
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from .models import horas
 
 def safe_parse(dt_str, pk):
     """
@@ -199,22 +185,6 @@ def safe_parse(dt_str, pk):
     except Exception as e:
         print(f"[DEBUG][{pk}] falha dateutil.parse('{s}') → {e}")
         return None
-
-
-
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
-import os
-import datetime
-from io import BytesIO
-from dateutil.parser import parse as parse_dt
-from django.http import HttpResponse
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import cm
-from django.conf import settings
-from .models import horas
 
 def consulta_horas_pdf(request):
     # Captura parâmetros de data (se houver)
@@ -321,20 +291,6 @@ def consulta_horas_pdf(request):
     buffer.seek(0)
     return HttpResponse(buffer, content_type='application/pdf')
 
-
-
-
-
-
-import datetime
-from django.core.mail import EmailMessage
-from django.shortcuts import redirect
-from django.views.decorators.http import require_GET
-from django.conf import settings
-
-# Importe sua função que gera o PDF
-from .views import consulta_horas_pdf
-
 @require_GET
 def enviar_email_relatorio_horas(request):
     """
@@ -405,14 +361,6 @@ Sistema de Gestão de Horas"""
 
     # Retorna para consulta_horas
     return redirect('consultar_horas')
-
-
-
-
-from django.views.decorators.http import require_POST
-from django.http import JsonResponse
-from django.shortcuts import get_object_or_404
-from .models import horas
 
 @require_POST
 def validar_hora(request):
