@@ -352,7 +352,6 @@ class ConfiguracaoListView(PermissionRequiredMixin, LoginRequiredMixin, ListView
                 "GS340",
                 "GS390",
                 "GS8310 (4G)",
-                "PLUG AND PLAY",
             ]
         )
         manutencao_queryset = registrodemanutencao.objects.filter(
@@ -367,7 +366,6 @@ class ConfiguracaoListView(PermissionRequiredMixin, LoginRequiredMixin, ListView
                 "GS340",
                 "GS390",
                 "GS8310 (4G)",
-                "PLUG AND PLAY",
             ]
         )
 
@@ -2294,7 +2292,6 @@ class KanbanGestaoView(PermissionRequiredMixin, LoginRequiredMixin, ListView):
                     "GS340",
                     "GS390",
                     "GS8310 (4G)",
-                    "PLUG AND PLAY",
                 ]
             )
             .select_related("nome", "tipo_produto")
