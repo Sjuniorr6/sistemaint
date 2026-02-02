@@ -111,7 +111,6 @@ class RegistroDeResponsavelAgenteAcompanhamentoAdmin(admin.ModelAdmin):
             )
         }),
     )
-
 # ======================================================
 # Clientes Cadastrados
 # ======================================================
@@ -122,6 +121,7 @@ class RegistroClienteAcompanhamentoAdmin(admin.ModelAdmin):
         'nome',
         'cnpj',
         'email',
+        'valor_acionamento',
         'nome_user',
         'criado_em',
     )
@@ -153,6 +153,18 @@ class RegistroClienteAcompanhamentoAdmin(admin.ModelAdmin):
                 'email',
             )
         }),
+
+        ('Valores Contratuais (Cliente)', {
+            'description': 'Tabela de valores utilizada para cálculo automático do contrato.',
+            'fields': (
+                'valor_acionamento',
+                'franquia_km',
+                'valor_km_excedente',
+                'franquia_horas',
+                'valor_horas_excedente',
+            )
+        }),
+
         ('Controle', {
             'fields': (
                 'nome_user',
@@ -166,7 +178,7 @@ class RegistroClienteAcompanhamentoAdmin(admin.ModelAdmin):
         if not obj.nome_user:
             obj.nome_user = request.user.get_full_name() or request.user.username
         super().save_model(request, obj, form, change)
-    
+ 
 # ======================================================
 # Serviços Cadastrados
 # ======================================================

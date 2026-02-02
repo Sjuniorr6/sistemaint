@@ -183,6 +183,28 @@
                         </div>
 
                         <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="campo_personalizado_titulo" class="form-label">
+                                    Campo Personalizado (Título)
+                                </label>
+                                {{ form.campo_personalizado_titulo }}
+                                <small class="text-muted">
+                                    Ex: Transportadora, Embarcador, Base, Filial
+                                </small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="campo_personalizado_valor" class="form-label">
+                                    Valor do Campo
+                                </label>
+                                {{ form.campo_personalizado_valor }}
+                                <small class="text-muted">
+                                    Ex: FedEx, Nestlé, Matriz SP
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
                             <div class="col-12">
                                 {{ form.ocorrencia }}
                             </div>

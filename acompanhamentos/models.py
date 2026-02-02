@@ -136,21 +136,43 @@ class registroderesposavelagenteacompanhamento(models.Model):
 # ------------------------------------------------------
 class registrodeclienteacompanhamento(models.Model):
     nome = models.CharField(max_length=100, verbose_name="Nome do Cliente")
-    cnpj = models.CharField(max_length=20, blank=True, null=True, verbose_name="CNPJ")
-    email = models.EmailField(blank=True, null=True, verbose_name="Email")
+    cnpj = models.CharField(max_length=20, blank=True, null=True)
+    email = models.EmailField(blank=True, null=True)
 
-    # Nome do usuário que criou/atualizou o Cliente
+    valor_acionamento = models.DecimalField(
+        max_digits=8, decimal_places=2,
+        blank=True, null=True,
+        verbose_name="Valor do Acionamento (R$)"
+    )
+
+    franquia_km = models.PositiveIntegerField(
+        blank=True, null=True,
+        verbose_name="Franquia de KM"
+    )
+
+    franquia_horas = models.PositiveIntegerField(
+        blank=True, null=True,
+        verbose_name="Franquia de Horas"
+    )
+
+    valor_km_excedente = models.DecimalField(
+        max_digits=8, decimal_places=2,
+        blank=True, null=True,
+        verbose_name="Valor do KM Excedente (R$)"
+    )
+
+    valor_horas_excedente = models.DecimalField(
+        max_digits=8, decimal_places=2,
+        blank=True, null=True,
+        verbose_name="Valor Hora Excedente (R$)"
+    )
+
     nome_user = models.CharField(max_length=150, blank=True, null=True)
-
     criado_em = models.DateTimeField(auto_now_add=True)
-    atualizado_em = models.DateTimeField(auto_now=True) 
-
-    class Meta:
-        ordering = ['-criado_em']
-
+    atualizado_em = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f'{self.nome}'
+        return self.nome
 
 # ------------------------------------------------------
 #            Registro de Serviços Acompanhamento
@@ -223,6 +245,20 @@ class registroacompanhamento(models.Model):
         blank=True
     )
 
+    campo_personalizado_titulo = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        verbose_name="Título do Campo Personalizado"
+    )
+
+    campo_personalizado_valor = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name="Valor do Campo Personalizado"
+    )
+
     origem = models.CharField(max_length=100)
     destino = models.CharField(max_length=100)
 
@@ -269,18 +305,52 @@ class registroacompanhamento(models.Model):
     def __str__(self):
         return f"#{self.id} - {self.cliente}"
 
-    def recalcular_lucro_total(self):
-        total_agentes = sum(
-            (agente.valor_agente or Decimal("0.00"))
-            for agente in self.agentes.all()
-        )
+    # def recalcular_lucro_total(self):
+    #     total_agentes = sum(
+    #         (agente.valor_agente or Decimal("0.00"))
+    #         for agente in self.agentes.all()
+    #     )
 
-        if self.valor_contrato is not None:
-            self.lucro_total = self.valor_contrato - total_agentes
-        else:
+    #     if self.valor_contrato is not None:
+    #         self.lucro_total = self.valor_contrato - total_agentes
+    #     else:
+    #         self.lucro_total = None
+
+    #     self.save(update_fields=["lucro_total"])
+
+    # def recalcular_financeiro(self):
+    #     self.valor_contrato = self.calcular_valor_contrato()
+
+    #     total_agentes = self.total_valor_agentes or Decimal("0.00")
+
+    #     if self.valor_contrato is not None:
+    #         self.lucro_total = self.valor_contrato - total_agentes
+    #     else:
+    #         self.lucro_total = None
+
+    #     self.save(update_fields=["valor_contrato", "lucro_total"])
+
+    def recalcular_financeiro(self, commit=True):
+        # 🔒 Só calcula se estiver validado
+        if not self.validar_acompanhamento:
+            self.valor_contrato = None
             self.lucro_total = None
 
-        self.save(update_fields=["lucro_total"])
+            if commit:
+                self.save(update_fields=["valor_contrato", "lucro_total"])
+            return
+
+        self.valor_contrato = self.calcular_valor_contrato()
+        total_agentes = self.total_valor_agentes or Decimal("0.00")
+
+        self.lucro_total = (
+            self.valor_contrato - total_agentes
+            if self.valor_contrato is not None
+            else None
+        )
+
+        if commit:
+            self.save(update_fields=["valor_contrato", "lucro_total"])
 
     @property
     def total_valor_agentes(self):
@@ -293,6 +363,49 @@ class registroacompanhamento(models.Model):
     def total_valor_agentes_formatado(self):
         valor = self.total_valor_agentes
         return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    def calcular_valor_contrato(self):
+        if not self.cliente:
+            return None
+
+        cliente = self.cliente
+        total = Decimal("0.00")
+
+        if cliente.valor_acionamento:
+            total += cliente.valor_acionamento
+
+        agentes_validos = self.agentes.exclude(tipo_agente="carona")
+
+        km_total = sum(a.km_total or 0 for a in agentes_validos)
+
+        if cliente.franquia_km is not None:
+            km_excedente = max(0, km_total - cliente.franquia_km)
+            if km_excedente > 0 and cliente.valor_km_excedente:
+                total += Decimal(km_excedente) * cliente.valor_km_excedente
+
+        segundos_totais = sum(
+            int(a.horario_total.total_seconds())
+            for a in agentes_validos
+            if a.horario_total
+        )
+
+        if cliente.franquia_horas is not None:
+            segundos_franquia = cliente.franquia_horas * 3600
+            excedente = segundos_totais - segundos_franquia
+
+            if excedente > 0 and cliente.valor_horas_excedente:
+                horas = Decimal(excedente) / Decimal("3600")
+                total += horas * cliente.valor_horas_excedente
+
+        total_pedagio = sum(
+            a.pedagio or Decimal("0.00")
+            for a in agentes_validos
+            if a.pedagio
+        )
+
+        total += total_pedagio
+
+        return total.quantize(Decimal("0.01"))
 
 class registroacompanhamentoagente(models.Model):
     TIPO_CHOICES = (

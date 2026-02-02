@@ -898,7 +898,6 @@ class AcompanhamentoFaturamentoListView(LoginRequiredMixin, PermissionRequiredMi
             Q(nf="")
         ).distinct()
 
-
     def get_queryset(self):
         qs = (
             registroacompanhamento.objects
@@ -942,6 +941,9 @@ class AcompanhamentoFaturamentoListView(LoginRequiredMixin, PermissionRequiredMi
 
         if export == "faturamento_excel":
             return self.exportar_excel(queryset)
+        
+        if export == "faturamento_excel_cliente":
+            return self.exportar_excel_cliente(queryset)
 
         if export == "faturamento_pdf":
             return self.exportar_pdf(queryset)
@@ -1230,6 +1232,218 @@ class AcompanhamentoFaturamentoListView(LoginRequiredMixin, PermissionRequiredMi
         response["Content-Disposition"] = 'attachment; filename="faturamento_acompanhamentos.xlsx"'
         workbook.save(response)
         return response
+    
+    def exportar_excel_cliente(self, queryset):
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        sheet.title = "Acompanhamentos"
+
+        titulo_custom = next(
+            (
+                i.campo_personalizado_titulo.strip()
+                for i in queryset
+                if i.campo_personalizado_titulo and i.campo_personalizado_titulo.strip()
+            ),
+            " "
+        )
+
+        headers = [
+            "Protocolo",
+            "Cliente",
+            titulo_custom,
+            "Origem",
+            "Destino",
+
+            "Agente",
+            "Placa Agente",
+            "Motorista",
+            "Placa Motorista",
+
+            "Data Solicitada",
+            "Hora Solicitada",
+            "Data Inicial",
+            "Hora Inicial",
+            "Data Final",
+            "Hora Final",
+
+            "KM Início",
+            "KM Final",
+            "KM Total",
+
+            "Franquia de Horas",
+            "Hora Total",
+            "Hora Excedente",
+            "Valor Hora Excedente",
+            "Valor Hora Excedente Total",
+
+            "Franquia de KM",
+            "KM Excedente",
+            "Valor KM Excedente",
+            "Valor KM Excedente Total",
+
+            "Valor Diária",
+            "Pedágio",
+            "Valor Total",
+
+            "Tipo Serviço"
+        ]
+
+        sheet.append(headers)
+
+        from openpyxl.styles import Font, PatternFill, Alignment
+
+        header_fill = PatternFill(
+            start_color="1F4E78",
+            end_color="1F4E78",
+            fill_type="solid"
+        )
+
+        header_font = Font(
+            color="FFFFFF",
+            bold=True
+        )
+
+        header_alignment = Alignment(
+            horizontal="center",
+            vertical="center",
+            wrap_text=True
+        )
+
+        for col in range(1, len(headers) + 1):
+            cell = sheet.cell(row=1, column=col)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = header_alignment
+
+        sheet.freeze_panes = "A2"
+
+        total_contrato = Decimal("0.00")
+
+        def join_values_excel(values):
+            return "\n\n".join(str(v) for v in values if v)
+
+        for item in queryset:
+            agentes = item.agentes.all()
+
+            agentes_visuais = agentes              # TODOS (inclui carona)
+            agentes_validos = agentes_nao_carona(agentes)  # só principais
+
+            total_contrato += item.valor_contrato or Decimal("0.00")
+
+            sheet.append([
+                item.id,
+                str(item.cliente),
+                item.campo_personalizado_valor or "",
+                item.origem,
+                item.destino,
+
+                # --- AGENTES ---
+                join_values_excel(str(a.agente) for a in agentes_visuais),
+                join_values(a.placa_agente for a in agentes_validos),
+                join_values(a.motorista for a in agentes_validos),
+                join_values(a.placa_motorista for a in agentes_validos),
+
+                join_values(a.data_solicitada.strftime("%d/%m/%Y") for a in agentes_validos if a.data_solicitada),
+                join_values(a.horario_solicitado.strftime("%H:%M") for a in agentes_validos if a.horario_solicitado),
+
+                join_values(a.data_inicio.strftime("%d/%m/%Y") for a in agentes_validos if a.data_inicio),
+                join_values(a.horario_inicio.strftime("%H:%M") for a in agentes_validos if a.horario_inicio),
+
+                join_values(a.data_finalizacao.strftime("%d/%m/%Y") for a in agentes_validos if a.data_finalizacao),
+                join_values(a.horario_finalizacao.strftime("%H:%M") for a in agentes_validos if a.horario_finalizacao),
+
+                join_values(str(a.km_inicio) for a in agentes_validos if a.km_inicio is not None),
+                join_values(str(a.km_final) for a in agentes_validos if a.km_final is not None),
+                join_values(str(a.km_total) for a in agentes_validos if a.km_total is not None),
+
+                str(item.cliente.franquia_horas) if item.cliente and item.cliente.franquia_horas is not None else "",
+                join_values(str(a.horario_total) for a in agentes_validos if a.horario_total),
+                join_values(str(a.horario_excedente) for a in agentes_validos if a.horario_excedente),
+                moeda(item.cliente.valor_horas_excedente) if item.cliente and item.cliente.valor_horas_excedente else "",
+                join_values(
+                    moeda(
+                        (Decimal(a.horario_excedente.total_seconds()) / Decimal(3600))
+                        * item.cliente.valor_horas_excedente
+                    )
+                    for a in agentes_validos
+                    if (
+                        a.horario_excedente
+                        and item.cliente
+                        and item.cliente.valor_horas_excedente
+                    )
+                ),
+
+                str(item.cliente.franquia_km) if item.cliente and item.cliente.franquia_km is not None else "",
+                join_values(str(a.km_excedente) for a in agentes_validos if a.km_excedente),
+                moeda(item.cliente.valor_km_excedente) if item.cliente and item.cliente.valor_km_excedente else "",
+                join_values(
+                    moeda(
+                        Decimal(a.km_excedente or 0) * item.cliente.valor_km_excedente
+                    )
+                    for a in agentes_validos
+                    if item.cliente and item.cliente.valor_km_excedente and a.km_excedente
+                ),
+
+                moeda(item.cliente.valor_acionamento) if item.cliente and item.cliente.valor_acionamento else "",
+                join_values(moeda(a.pedagio) for a in agentes_validos if a.pedagio),
+                moeda(item.valor_contrato),
+
+                str(item.tipo_servico),
+            ])
+
+            row_number = sheet.max_row
+
+            multi_columns = [
+                6,
+                7, 8, 9, 10, 11,
+                12, 13, 14, 15, 16, 17,
+                18, 19,
+                20, 21, 22, 23,
+                24, 25, 26
+            ]
+
+            max_lines = 1
+            for col in multi_columns:
+                cell = sheet.cell(row=row_number, column=col)
+                cell.alignment = Alignment(wrap_text=True, vertical="top")
+                if cell.value:
+                    max_lines = max(max_lines, cell.value.count("\n") + 1)
+
+            sheet.row_dimensions[row_number].height = 15 * max_lines
+
+        sheet.append([])
+
+        total_row = [""] * len(headers)
+        total_row[29] = f"TOTAL GERAL (CONTRATOS): {moeda(total_contrato)}"
+        sheet.append(total_row)
+
+        last_row = sheet.max_row
+        for col in range(1, len(headers) + 1):
+            cell = sheet.cell(row=last_row, column=col)
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(
+                start_color="D3D3D3",
+                end_color="D3D3D3",
+                fill_type="solid"
+            )
+
+        for col in sheet.columns:
+            max_length = 0
+            column_letter = col[0].column_letter
+
+            for cell in col:
+                if cell.value:
+                    max_length = max(max_length, len(str(cell.value)))
+
+            sheet.column_dimensions[column_letter].width = min(max_length + 2, 40)
+
+
+        response = HttpResponse(
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = 'attachment; filename="faturamento_acompanhamentos.xlsx"'
+        workbook.save(response)
+        return response
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1247,11 +1461,16 @@ class AcompanhamentoFaturamentoListView(LoginRequiredMixin, PermissionRequiredMi
         return context
 
 def validar_acompanhamento(request, id):
-    acompanhamentos = get_object_or_404(registroacompanhamento, id=id)
-    acompanhamentos.validar_acompanhamento = 1
-    acompanhamentos.save()
-    
-    return redirect('acompanhamentosListFaturamento')   
+    acompanhamento = get_object_or_404(registroacompanhamento, id=id)
+
+    acompanhamento.validar_acompanhamento = True
+
+    acompanhamento.recalcular_financeiro()
+
+    acompanhamento.nome_user = request.user.get_full_name() or request.user.username
+    acompanhamento.save(update_fields=["validar_acompanhamento", "nome_user"])
+
+    return redirect("acompanhamentosListFaturamento")
 
 def validar_pagamento(request, id):
     acompanhamentos = get_object_or_404(registroacompanhamento, id=id)
@@ -1328,53 +1547,53 @@ def atualizar_nf_acompanhamento(request):
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)})
 
-@login_required
-@require_POST
-def atualizar_valor_contrato_cliente(request):
-    try:
-        data = json.loads(request.body)
+# @login_required
+# @require_POST
+# def atualizar_valor_contrato_cliente(request):
+#     try:
+#         data = json.loads(request.body)
 
-        acompanhamento = get_object_or_404(
-            registroacompanhamento,
-            id=data.get("acompanhamento_id")
-        )
+#         acompanhamento = get_object_or_404(
+#             registroacompanhamento,
+#             id=data.get("acompanhamento_id")
+#         )
 
-        valor_raw = data.get("valor_contrato_cliente")
+#         valor_raw = data.get("valor_contrato_cliente")
 
-        if not valor_raw:
-            acompanhamento.valor_contrato = None
-            acompanhamento.lucro_total = None
-        else:
-            try:
-                valor_contrato = Decimal(
-                    str(valor_raw)
-                    .replace(' ', '')
-                    .replace('.', '')
-                    .replace(',', '.')
-                )
-            except InvalidOperation:
-                return JsonResponse(
-                    {"success": False, "error": "Valor monetário inválido"},
-                    status=400
-                )
+#         if not valor_raw:
+#             acompanhamento.valor_contrato = None
+#             acompanhamento.lucro_total = None
+#         else:
+#             try:
+#                 valor_contrato = Decimal(
+#                     str(valor_raw)
+#                     .replace(' ', '')
+#                     .replace('.', '')
+#                     .replace(',', '.')
+#                 )
+#             except InvalidOperation:
+#                 return JsonResponse(
+#                     {"success": False, "error": "Valor monetário inválido"},
+#                     status=400
+#                 )
 
-            acompanhamento.valor_contrato = valor_contrato
+#             acompanhamento.valor_contrato = valor_contrato
 
-            total_agentes = acompanhamento.total_valor_agentes or Decimal("0.00")
-            acompanhamento.lucro_total = valor_contrato - total_agentes
+#             total_agentes = acompanhamento.total_valor_agentes or Decimal("0.00")
+#             acompanhamento.lucro_total = valor_contrato - total_agentes
 
-        acompanhamento.save(update_fields=["valor_contrato", "lucro_total"])
+#         acompanhamento.save(update_fields=["valor_contrato", "lucro_total"])
 
-        return JsonResponse({
-            "success": True,
-            "lucro_total": f"{acompanhamento.lucro_total:.2f}" if acompanhamento.lucro_total is not None else ""
-        })
+#         return JsonResponse({
+#             "success": True,
+#             "lucro_total": f"{acompanhamento.lucro_total:.2f}" if acompanhamento.lucro_total is not None else ""
+#         })
 
-    except Exception as e:
-        return JsonResponse(
-            {"success": False, "error": str(e)},
-            status=400
-        )
+#     except Exception as e:
+#         return JsonResponse(
+#             {"success": False, "error": str(e)},
+#             status=400
+#         )
 
 @login_required
 @permission_required("acompanhamentos.change_registroacompanhamento", raise_exception=False)
@@ -1409,6 +1628,9 @@ def atualizar_franquia_acompanhamento(request):
                 if agente.valor_agente else "—",
         })
 
+    # Só recalcula financeiro se já estiver validado
+    if acompanhamento.validar_acompanhamento:
+        acompanhamento.recalcular_financeiro()
     acompanhamento.nome_user = request.user.get_full_name() or request.user.username
     acompanhamento.save(update_fields=["nome_user"])
 
@@ -1423,8 +1645,6 @@ def format_decimal(value):
     if value is None:
         return ""
     return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-
 
 # ------------------------------------------------------
 #               ACOMPANHAMENTO DASHBOARD

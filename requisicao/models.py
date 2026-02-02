@@ -73,7 +73,7 @@ class Requisicoes(models.Model):
         ('Antenista', 'Antenista'),
         ('Reversa', 'Reversa'),
         ('Isca FAST', 'Isca FAST'),
-        ('Estoque Antenista', 'Estoque Antenista'),
+        # ('Estoque Antenista', 'Estoque Antenista'),
         ('Renovação', 'Renovação'),
     ]
 

@@ -34,7 +34,7 @@ urlpatterns = [
     path("listFaturamento/",views.AcompanhamentoFaturamentoListView.as_view(),name="acompanhamentosListFaturamento",),
     path('validado/<int:id>/', views.validar_acompanhamento, name='Validar_Acompanhamento'),
     path('Pago/<int:id>/', views.validar_pagamento, name='Validar_Pagamento'),
-    path("atualizar-valor-contrato/", views.atualizar_valor_contrato_cliente, name="atualizar_valor_contrato_cliente"),
+    # path("atualizar-valor-contrato/", views.atualizar_valor_contrato_cliente, name="atualizar_valor_contrato_cliente"),
     path("atualizar-status/", views.atualizar_status_acompanhamento, name="atualizar_status_acompanhamento"),
     path("atualizar-nf/", views.atualizar_nf_acompanhamento, name="atualizar_nf_acompanhamento"),
 

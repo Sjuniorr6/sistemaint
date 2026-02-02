@@ -145,6 +145,11 @@
                                     <th>Nome</th>
                                     <th>CNPJ</th>
                                     <th>Email</th>
+                                    <th>Valor Acionamento</th>
+                                    <th>Franquia KM</th>
+                                    <th>Valor KM Excedente</th>
+                                    <th>Franquia Horas</th>
+                                    <th>Valor Horas Excedentes</th>
                                     <th>Criado/Alterado por:</th>
                                 </tr>
                             </thead>
@@ -159,6 +164,11 @@
                                     <td>{{ item.nome }}</td>
                                     <td>{{ item.cnpj }}</td>
                                     <td>{{ item.email }}</td>
+                                    <td>{{ item.valor_acionamento }}</td>
+                                    <td>{{ item.franquia_km }}</td>
+                                    <td>R$ {{ item.valor_km_excedente }}</td>
+                                    <td>{{ item.franquia_horas}}</td>
+                                    <td>R$ {{ item.valor_horas_excedente}}</td>
                                     <td>{{ item.nome_user }}</td>
                                 </tr> 
                                 {% endfor %}

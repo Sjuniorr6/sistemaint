@@ -59,12 +59,50 @@ class FormulariosForm(forms.ModelForm):
             'nome',
             'cnpj',
             'email',
+            'valor_acionamento',
+            'franquia_km',
+            'franquia_horas',
+            'valor_km_excedente',
+            'valor_horas_excedente',
         ]
 
         widgets = {
             'nome': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nome do Cliente'}),
             'cnpj': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'CNPJ'}),
             'email': forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'Email'}),
+            'franquia_km': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Franquia de KM',
+                'min': 0
+            }),
+
+            'franquia_horas': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Franquia de Horas',
+                'min': 0
+            }),
+
+            # ---------- Valores monetários ----------
+            'valor_acionamento': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Valor do Acionamento (R$)',
+                'step': '0.01',
+                'min': 0
+            }),
+
+            'valor_km_excedente': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Valor por KM Excedente (R$)',
+                'step': '0.01',
+                'min': 0
+            }),
+
+            'valor_horas_excedente': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Valor por Hora Excedente (R$)',
+                'step': '0.01',
+                'min': 0
+            }),
         }
 
 # ===============================
@@ -111,14 +149,34 @@ class RegistroAcompanhamentoForm(forms.ModelForm):
             "tipo_servico",
             "origem",
             "destino",
+
+            # 🔥 NOVOS
+            "campo_personalizado_titulo",
+            "campo_personalizado_valor",
+
             "ocorrencia",
         ]
+
         widgets = {
             "cliente": forms.Select(attrs={"class": "form-control select2"}),
             "tipo_servico": forms.Select(attrs={"class": "form-control select2"}),
-            "origem": forms.TextInput(attrs={"class": "form-control", 'placeholder': 'Origem'}),
-            "destino": forms.TextInput(attrs={"class": "form-control", 'placeholder': 'Destino'}),
-            "ocorrencia": forms.Textarea(attrs={'class': 'form-control', 'placeholder': 'Descreva a Ocorrência', 'rows': 3}),
+            "origem": forms.TextInput(attrs={"class": "form-control"}),
+            "destino": forms.TextInput(attrs={"class": "form-control"}),
+
+            # 🔥 Custom
+            "campo_personalizado_titulo": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Ex: Transportadora, Embarcador, Base..."
+            }),
+            "campo_personalizado_valor": forms.TextInput(attrs={
+                "class": "form-control",
+                "placeholder": "Ex: FedEx, DHL, Matriz SP..."
+            }),
+
+            "ocorrencia": forms.Textarea(attrs={
+                "class": "form-control",
+                "rows": 3
+            }),
         }
 
 class RegistroAcompanhamentoAgenteForm(forms.ModelForm):
