@@ -59,6 +59,7 @@
             letter-spacing: 2px;
             background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
             text-shadow: 0 2px 10px rgba(255,215,0,0.3);
         }
@@ -669,6 +670,22 @@
                         </ul>
                     </li>
                     {% endif %}
+
+                    <!-- TI -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="dropdownTI" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-pc-display"></i> TI
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="dropdownTI">
+                            <li>
+                                <a class="dropdown-item" href="{% url 'kanban_TI:home' %}">
+                                    <i class="bi bi-kanban me-2"></i>
+                                    Kanban TI
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+
 
                     <!-- Logout -->
                     <li class="nav-item">

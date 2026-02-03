@@ -87,6 +87,7 @@ INSTALLED_APPS = [
     'franquia',
     'acompanhamentos',
     'kanban_inteligencia',
+    'kanban_TI',
 ]
 
 MIDDLEWARE = [
