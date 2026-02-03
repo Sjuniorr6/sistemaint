@@ -46,9 +46,6 @@ class Requisicoes(models.Model):
         ('720', '720'),
     ]
     statusfat = [
-        
-        
-        
         ('Pendente', 'Pendente'),
         ('Faturado sem taxa', 'Faturado sem taxa'),
         ('Faturado com taxa', 'Faturado com taxa'),
@@ -73,7 +70,7 @@ class Requisicoes(models.Model):
         ('Antenista', 'Antenista'),
         ('Reversa', 'Reversa'),
         ('Isca FAST', 'Isca FAST'),
-        # ('Estoque Antenista', 'Estoque Antenista'),
+        ('Substituição', 'Substituição'),
         ('Renovação', 'Renovação'),
     ]
 
@@ -320,7 +317,7 @@ class Requisicoes(models.Model):
     valor_unitario = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     valor_total = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     forma_pagamento = models.CharField(max_length=100,null=True, blank=True, default='')
-    observacoes = models.TextField(max_length=250,null=True, blank=True, default='')
+    observacoes = models.TextField(null=True, blank=True, default='')
     aos_cuidados = models.TextField(max_length=250,null=True, blank=True, default='')
     status = models.CharField(choices=STATUS_CHOICES,default='Pendente', null=True, blank=True, max_length=50)
     TP = models.CharField(choices=TP, null=True, blank=True, max_length=50)

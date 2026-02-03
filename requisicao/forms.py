@@ -36,7 +36,7 @@ class RequisicaoForm(forms.ModelForm):
             'valor_total': forms.NumberInput(attrs={'class': 'form-control'}),
             'forma_pagamento': forms.TextInput(attrs={'class': 'form-control'}),
             'aos_cuidados': forms.TextInput(attrs={'class': 'form-control'}),
-            'observacoes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'observacoes': forms.Textarea(attrs={'class': 'form-control', 'rows': 6}),
             'status': forms.Select(attrs={'class': 'form-control'}),
             'TP': forms.Select(attrs={'class': 'form-control'}),
             'status_faturamento': forms.Select(attrs={'class': 'form-control'}),
