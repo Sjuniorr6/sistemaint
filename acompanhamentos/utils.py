@@ -35,4 +35,4 @@ def gerar_link_app_missao(acompanhamento):
         "auto": "1",
     }
 
-    return f"{base_url}/static/missao.html?{urlencode(params)}"
+    return f"{base_url}/missao.html?{urlencode(params)}"

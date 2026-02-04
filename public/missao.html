@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AgentTracker - Missão</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+      background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+      min-height:100vh;display:flex;justify-content:center;align-items:center;padding:20px
+    }
+    .container{
+      background:#fff;border-radius:20px;padding:40px;max-width:520px;width:100%;
+      box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center
+    }
+    .logo{
+      width:100px;height:100px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+      border-radius:20px;margin:0 auto 20px;display:flex;align-items:center;justify-content:center;font-size:48px
+    }
+    h1{color:#333;margin-bottom:10px;font-size:28px}
+    .mission-info{background:#f5f5f5;border-radius:12px;padding:20px;margin:20px 0}
+    .info-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e0e0e0}
+    .info-row:last-child{border-bottom:none}
+    .info-label{color:#666;font-weight:600}
+    .info-value{color:#333;max-width:60%;text-align:right;overflow-wrap:anywhere}
+    .btn{
+      width:100%;padding:18px;border:none;border-radius:12px;font-size:18px;font-weight:700;
+      cursor:pointer;transition:all .3s;margin-top:20px
+    }
+    .btn-primary{background:#667eea;color:#fff}
+    .btn-primary:hover{background:#5568d3;transform:translateY(-2px);box-shadow:0 4px 12px rgba(102,126,234,.4)}
+    .loading{display:none;margin:20px 0}
+    .spinner{border:4px solid #f3f3f3;border-top:4px solid #667eea;border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin:0 auto}
+    @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+    .alert{padding:12px;border-radius:8px;margin-top:20px;font-size:14px;text-align:left}
+    .alert-info{background:#bee3f8;color:#2c5282;border-left:4px solid #3182ce}
+    .alert-warning{background:#fef3c7;color:#92400e;border-left:4px solid #f59e0b}
+    .steps{margin-top:10px;font-size:14px;color:#444}
+    .steps ol{margin-left:20px}
+    .steps li{margin:8px 0}
+    .small{font-size:12px;color:#666;margin-top:8px}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">📱</div>
+    <h1>AgentTracker</h1>
+    <p style="color:#666;margin-bottom:20px;">Nova Missão Disponível</p>
+
+    <div class="mission-info">
+      <div class="info-row">
+        <span class="info-label">ID da Missão:</span>
+        <span class="info-value" id="missionId">-</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Origem:</span>
+        <span class="info-value" id="origem">-</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Agente:</span>
+        <span class="info-value" id="agente">-</span>
+      </div>
+    </div>
+
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <p style="margin-top:10px;color:#666;">Abrindo app...</p>
+    </div>
+
+    <button class="btn btn-primary" id="openAppBtn" onclick="openApp()">
+      📱 Abrir AgentTracker
+    </button>
+
+    <div class="alert alert-info" id="appNotInstalled" style="display:none;">
+      <strong>⚠️ App não abriu?</strong>
+      <div class="steps">
+        <p><strong>Se estiver em desenvolvimento (Expo Go):</strong></p>
+        <ol>
+          <li>Instale o Expo Go na Play Store/App Store</li>
+          <li>Garanta que está na mesma rede do IP informado</li>
+          <li>Volte aqui e clique novamente</li>
+        </ol>
+        <p style="margin-top:12px;"><strong>Se estiver em produção:</strong></p>
+        <ol>
+          <li>Instale o AgentTracker no aparelho</li>
+          <li>Volte aqui e clique novamente</li>
+        </ol>
+      </div>
+      <div class="small">
+        Dica: em alguns celulares, o navegador pode pedir confirmação para abrir o app.
+      </div>
+    </div>
+
+    <div class="alert alert-warning">
+      <strong>💡 Dica:</strong> Se estiver em WhatsApp, abra no navegador padrão caso não funcione de primeira.
+    </div>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+
+    const missionId = urlParams.get('id') || urlParams.get('missao');
+    const origem = urlParams.get('origem') || '';
+    const agente = urlParams.get('agente') || '';
+
+    document.getElementById('missionId').textContent = missionId || 'Não informado';
+    document.getElementById('origem').textContent = origem || '-';
+    document.getElementById('agente').textContent = agente || '-';
+
+    const host = window.location.hostname;
+    const isDevelopment =
+      host === 'localhost' ||
+      host.includes('192.168.') ||
+      host.includes('10.0.') ||
+      host.includes('127.0.0.1');
+
+    function openApp() {
+      if (!missionId) {
+        alert('ID da missão não fornecido.\n\nExemplo:\nmissao.html?id=123&origem=GUARUJA%20-%20SP&agente=Gabriel&auto=1');
+        return;
+      }
+
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('openAppBtn').style.display = 'none';
+      document.getElementById('appNotInstalled').style.display = 'none';
+
+      const origemEnc = encodeURIComponent(origem);
+      const agenteEnc = encodeURIComponent(agente);
+
+      let deepLink = '';
+
+      if (isDevelopment) {
+        const ip = urlParams.get('ip') || '192.168.1.10';
+        deepLink = `exp://${ip}:8081/--/mission/${missionId}?origem=${origemEnc}&agente=${agenteEnc}`;
+      } else {
+        deepLink = `agenttracker://mission/${missionId}?origem=${origemEnc}&agente=${agenteEnc}`;
+      }
+
+      window.location.href = deepLink;
+
+      setTimeout(() => {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('openAppBtn').style.display = 'block';
+        document.getElementById('appNotInstalled').style.display = 'block';
+      }, 2500);
+    }
+
+    if (missionId && urlParams.get('auto') === '1') {
+      setTimeout(openApp, 800);
+    }
+  </script>
+</body>
+</html>

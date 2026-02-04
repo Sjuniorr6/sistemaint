@@ -48,7 +48,8 @@ urlpatterns = [
 
     path("api/", include("acompanhamentos.api.urls")),
 
-    
+    path('missao.html', TemplateView.as_view(template_name='missao.html'), name='missao_app'),
+
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 
