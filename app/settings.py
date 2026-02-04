@@ -91,6 +91,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -98,13 +99,12 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     # Adicione este middleware
 ]
 
+CORS_ALLOW_ALL_ORIGINS = True
+
 ROOT_URLCONF = 'app.urls'
-
-
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -136,16 +136,38 @@ TEMPLATES = [
 
 
 # Permitir o domínio da plataforma T42
-CORS_ALLOWED_ORIGINS = [
-    "http://127.0.0.1:8000",  # ou domínio real da plataforma T42
-    
+CSRF_TRUSTED_ORIGINS = [
+    'https://intgoldensat.com.br',
+    'https://www.intgoldensat.com.br',
+    'http://127.0.0.1:8000',
+    'http://localhost:8000',
 ]
 
 # Se usar autenticação via token (DRF)
 CORS_ALLOW_HEADERS = [
-    "authorization",
-    "content-type",
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
 ]
+
+# Métodos HTTP permitidos
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+# Permitir credenciais (cookies, autenticação)
+CORS_ALLOW_CREDENTIALS = True
 
 WSGI_APPLICATION = 'app.wsgi.application'
 DATABASES = {
