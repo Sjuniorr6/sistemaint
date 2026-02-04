@@ -1,3 +1,4 @@
+{% load user_groups %}
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -671,7 +672,7 @@
                     </li>
                     {% endif %}
 
-                    {% if perms.kanban_ti.kanban_create %}
+                    {% if user|has_group:"TI" %}
                     <!-- TI -->
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="dropdownTI" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -703,7 +704,7 @@
             </div>
         </nav>
     </div>
-    {% load user_groups %}
+
         {% if user|has_group:"COMERCIAL" %}
             <div class="alert-comercial mt-3">
                 <div class="container">
