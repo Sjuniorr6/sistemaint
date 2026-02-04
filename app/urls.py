@@ -45,13 +45,11 @@ urlpatterns = [
     path('franquia/', include('franquia.urls')),
     path('acompanhamentos/', include('acompanhamentos.urls')), 
     path('TI/kanban/', include('kanban_TI.urls')),
+
+    path("api/", include("acompanhamentos.urls_api")),
+
     
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 
-if settings.DEBUG:
-    urlpatterns += static(
-        "/api/",
-        document_root=settings.BASE_DIR / "public" / "api"
-    )
 

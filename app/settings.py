@@ -180,15 +180,9 @@ USE_I18N = True
 USE_TZ = False
 
 STATIC_URL = '/static/'
-# STATICFILES_DIRS = [
-#     os.path.join(BASE_DIR, 'static'),  # Pasta onde seus arquivos estáticos residem durante o desenvolvimento
-#     os.path.join(BASE_DIR, 'app', 'static'),  # Pasta static dentro de app
-# ]
-
 STATICFILES_DIRS = [
-    BASE_DIR / "static",
-    BASE_DIR / "app" / "static",
-    BASE_DIR / "public",   # 👈 AQUI
+    os.path.join(BASE_DIR, 'static'),  # Pasta onde seus arquivos estáticos residem durante o desenvolvimento
+    os.path.join(BASE_DIR, 'app', 'static'),  # Pasta static dentro de app
 ]
 
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
