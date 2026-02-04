@@ -1518,7 +1518,7 @@ class AcompanhamentoPanicoListView(LoginRequiredMixin, PermissionRequiredMixin, 
             qs = qs.filter(cliente__nome__icontains=cliente)
 
         if responsavel:
-            queryset = queryset.filter(
+            qs = qs.filter(
                 agentes__responsavel_agente_id=responsavel
             )
 

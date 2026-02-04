@@ -190,11 +190,6 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 # Configuração de email para envio real
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 
-
-
-
-
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 DATE_INPUT_FORMATS = ['%d/%m/%Y']
 DATE_FORMAT = 'd/m/Y'
