@@ -3,7 +3,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from datetime import datetime
 
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, permission_required
 from django.db.models import Case, When, IntegerField
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
@@ -55,22 +55,19 @@ def json_success(**kwargs):
 # ===== VIEWS =====
 
 @login_required
+@permission_required('kanban_ti.kanban_create', raise_exception=True)
 def home(request):
-    """Kanban de Tarefas TI"""
     tarefas = TarefaTI.objects.all()
 
-    # Filtrar por 'destinado' se parâmetro GET for passado
     destinado_filter = request.GET.get('destinado')
     if destinado_filter and destinado_filter != 'all':
         tarefas = tarefas.filter(destinado=destinado_filter)
 
-    # Separar por status e ordenar por prioridade
     a_fazer = order_by_prioridade(tarefas.filter(status='a_fazer'))
     em_progresso = order_by_prioridade(tarefas.filter(status='em_progresso'))
     validacao = order_by_prioridade(tarefas.filter(status='validacao'))
     concluido = order_by_prioridade(tarefas.filter(status='concluido'))
 
-    # Estatísticas
     total_tarefas = tarefas.count()
     total_concluidas = concluido.count()
     taxa_conclusao = round((total_concluidas / total_tarefas * 100) if total_tarefas > 0 else 0)
@@ -97,7 +94,6 @@ def home(request):
 @login_required
 @require_POST
 def adicionar_tarefa(request):
-    """Cria uma nova tarefa"""
     try:
         TarefaTI.objects.create(
             titulo=request.POST.get('titulo'),
@@ -117,7 +113,6 @@ def adicionar_tarefa(request):
 
 @login_required
 def obter_tarefa(request, tarefa_id):
-    """Retorna dados de uma tarefa específica"""
     try:
         tarefa = TarefaTI.objects.get(id=tarefa_id)
 
@@ -145,11 +140,9 @@ def obter_tarefa(request, tarefa_id):
 @login_required
 @require_POST
 def atualizar_tarefa(request, tarefa_id):
-    """Atualiza uma tarefa existente"""
     try:
         tarefa = TarefaTI.objects.get(id=tarefa_id)
 
-        # Atualiza campos básicos
         tarefa.titulo = request.POST.get('titulo', tarefa.titulo)
         tarefa.descricao = request.POST.get('descricao', tarefa.descricao)
         tarefa.status = request.POST.get('status', tarefa.status)
@@ -158,15 +151,12 @@ def atualizar_tarefa(request, tarefa_id):
         tarefa.responsavel_cor = request.POST.get('responsavel_cor', tarefa.responsavel_cor)
         tarefa.cor = request.POST.get('cor', tarefa.cor)
 
-        # Atualiza prazo (se não for conclusão)
         data_limite = request.POST.get('data_limite')
         if tarefa.status != 'concluido' and data_limite:
             tarefa.data_limite = data_limite
 
-        # Aplica lógica de conclusão
         aplicar_conclusao(tarefa, tarefa.status)
 
-        # Atualiza imagem se enviada
         if request.FILES.get('imagem'):
             tarefa.imagem = request.FILES.get('imagem')
 
@@ -183,7 +173,6 @@ def atualizar_tarefa(request, tarefa_id):
 @login_required
 @require_POST
 def atualizar_status(request, tarefa_id):
-    """Atualiza apenas o status de uma tarefa (usado no drag and drop)"""
     try:
         tarefa = TarefaTI.objects.get(id=tarefa_id)
         novo_status = request.POST.get('status')
@@ -192,10 +181,8 @@ def atualizar_status(request, tarefa_id):
         aplicar_conclusao(tarefa, novo_status)
         tarefa.save()
 
-        # Calcula SLA em dias (se concluído)
         sla_dias = None
         if tarefa.data_conclusao:
-            # ✅ CORRIGIDO: removido o .date() porque data_criacao já é um date
             sla_dias = (tarefa.data_conclusao - tarefa.data_criacao).days
 
         return json_success(
@@ -214,7 +201,6 @@ def atualizar_status(request, tarefa_id):
 @login_required
 @require_POST
 def deletar_tarefa(request, tarefa_id):
-    """Deleta uma tarefa"""
     try:
         tarefa = TarefaTI.objects.get(id=tarefa_id)
         tarefa.delete()
@@ -228,11 +214,9 @@ def deletar_tarefa(request, tarefa_id):
     
 @login_required
 def exportar_tarefas(request):
-    """Gera e retorna um arquivo Excel com todos os chamados do Kanban"""
 
     tarefas = TarefaTI.objects.all().order_by('-data_criacao')
 
-    # ─── Mapeamentos para mostrar valores legíveis na planilha ───
     STATUS_ROTULOS = {
         'a_fazer': 'A Fazer',
         'em_progresso': 'Em Progresso',
@@ -246,7 +230,6 @@ def exportar_tarefas(request):
         'alta': 'Alta',
     }
 
-    # ─── Estilos ───
     estilo_cabecalho_fonte = Font(name='Arial', bold=True, color='FFFFFF', size=11)
     estilo_cabecalho_fundo = PatternFill('solid', fgColor='1B1F2E')
     estilo_cabecalho_alinhamento = Alignment(horizontal='center', vertical='center', wrap_text=True)
@@ -261,7 +244,6 @@ def exportar_tarefas(request):
         bottom=Side(style='thin', color='DDDDDD'),
     )
 
-    # Cores por status (fundo da célula na coluna Status)
     cores_status = {
         'a_fazer':      PatternFill('solid', fgColor='D6EAF8'),
         'em_progresso': PatternFill('solid', fgColor='FEF5E7'),
@@ -269,20 +251,17 @@ def exportar_tarefas(request):
         'concluido':    PatternFill('solid', fgColor='D5F5E3'),
     }
 
-    # Cores por prioridade (fundo da célula na coluna Prioridade)
     cores_prioridade = {
         'baixa': PatternFill('solid', fgColor='D5F5E3'),
         'media': PatternFill('solid', fgColor='FEF5E7'),
         'alta':  PatternFill('solid', fgColor='FADBD8'),
     }
 
-    # ─── Criar workbook e sheet ───
     wb = Workbook()
     ws = wb.active
     ws.title = 'Chamados TI'
     ws.sheet_view.showGridLines = False
 
-    # ─── Cabeçalho ───
     colunas = [
         'Nº Chamado', 'Título', 'Descrição', 'Status',
         'Responsável', 'Prioridade', 'Data de Abertura',
@@ -298,10 +277,8 @@ def exportar_tarefas(request):
         celula.alignment = estilo_cabecalho_alinhamento
         celula.border = estilo_borda
 
-    # ─── Linhas de dados ───
     for linha, tarefa in enumerate(tarefas, start=2):
 
-        # SLA: só existe se a tarefa foi concluída
         if tarefa.data_conclusao:
             sla = (tarefa.data_conclusao - tarefa.data_criacao).days
         else:
@@ -325,30 +302,23 @@ def exportar_tarefas(request):
             celula.alignment = estilo_dado_alinhamento
             celula.border = estilo_borda
 
-        # Aplica cor de fundo na célula de Status (coluna 4)
         ws.cell(row=linha, column=4).fill = cores_status.get(tarefa.status)
 
-        # Aplica cor de fundo na célula de Prioridade (coluna 6)
         ws.cell(row=linha, column=6).fill = cores_prioridade.get(tarefa.prioridade)
 
-        # Linha alternada com fundo cinza claro para facilitar leitura
         if linha % 2 == 0:
             fundo_linha = PatternFill('solid', fgColor='F4F6F7')
             for col_idx in range(1, len(colunas) + 1):
                 celula = ws.cell(row=linha, column=col_idx)
-                # Não sobrescreve as cores de Status e Prioridade
                 if col_idx not in (4, 6):
                     celula.fill = fundo_linha
 
-    # ─── Largura das colunas ───
     larguras = {'A': 14, 'B': 38, 'C': 48, 'D': 24, 'E': 18, 'F': 15, 'G': 20, 'H': 20, 'I': 14}
     for letra, largura in larguras.items():
         ws.column_dimensions[letra].width = largura
 
-    # ─── Congela a linha do cabeçalho (fica fixa ao rolar) ───
     ws.freeze_panes = 'A2'
 
-    # ─── Aba de Resumo ───
     resumo = wb.create_sheet('Resumo')
 
     resumo['A1'] = 'Resumo dos Chamados'
@@ -375,7 +345,6 @@ def exportar_tarefas(request):
     resumo.column_dimensions['A'].width = 28
     resumo.column_dimensions['B'].width = 14
 
-    # ─── Salva em memória e retorna como download ───
     buffer = io.BytesIO()
     wb.save(buffer)
     buffer.seek(0)

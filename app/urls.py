@@ -48,3 +48,8 @@ urlpatterns = [
     path('TI/kanban/', include('kanban_TI.urls')),
     
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+if settings.DEBUG:
+    urlpatterns += static(
+        "/", document_root=settings.BASE_DIR / "public"
+    )

@@ -32,7 +32,8 @@ from .models import (
     servicosacompanhamentos,
     registroacompanhamento,
     registroacompanhamentoagente,
-    registroderesposavelagenteacompanhamento
+    registroderesposavelagenteacompanhamento,
+    AcompanhamentoLocalizacao
 )
 
 from .forms import (
@@ -56,14 +57,13 @@ from django.views.generic import (
 )
 
 from io import BytesIO
-
 import openpyxl
 from openpyxl.styles import Font, PatternFill
-
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import landscape
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from .utils import gerar_link_app_missao
 
 # ------------------------------------------------------
 #                 Agente Acompanhamento
@@ -1459,6 +1459,196 @@ class AcompanhamentoFaturamentoListView(LoginRequiredMixin, PermissionRequiredMi
         context["cliente"] = self.request.GET.get("cliente", "")
 
         return context
+
+# ACOMPANHAMENTO PANICO
+
+class AcompanhamentoPanicoListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
+    model = registroacompanhamento
+    template_name = "acompanhamento_panico.html"
+    context_object_name = "itens"
+    permission_required = "acompanhamentos.view_registroacompanhamento"
+
+    def get_pendentes_queryset(self):
+        return registroacompanhamento.objects.filter(
+            Q(tipo_servico__isnull=True) |
+
+            Q(agentes__responsavel_agente__isnull=True) |
+            Q(agentes__responsavel_agente__isnull=True) |
+
+            Q(agentes__agente__isnull=True) |
+
+            Q(agentes__data_solicitada__isnull=True) |
+            Q(agentes__horario_solicitado__isnull=True)
+        ).distinct()
+
+    def get_queryset(self):
+        qs = (
+            registroacompanhamento.objects
+            .prefetch_related(
+                "agentes",
+                "agentes__agente",
+                "agentes__franquia"
+            )
+            .select_related("cliente")
+        )
+
+        pendente = self.request.GET.get("pendente")
+        if pendente == "true":
+            return self.get_pendentes_queryset().order_by("-criado_em")
+
+        data = self.request.GET.get("data")
+        data2 = self.request.GET.get("data2")
+        agente = self.request.GET.get("agente")
+        cliente = self.request.GET.get("cliente")
+        responsavel = self.request.GET.get("responsavel")
+
+        if data and data2:
+            if data > data2:
+                data, data2 = data2, data
+            qs = qs.filter(agentes__data_solicitada__range=[data, data2])
+        elif data:
+            qs = qs.filter(agentes__data_solicitada=data)
+        elif data2:
+            qs = qs.filter(agentes__data_solicitada=data2)
+
+        if agente:
+            qs = qs.filter(agentes__agente__nome__icontains=agente)
+
+        if cliente:
+            qs = qs.filter(cliente__nome__icontains=cliente)
+
+        if responsavel:
+            queryset = queryset.filter(
+                agentes__responsavel_agente_id=responsavel
+            )
+
+        return qs.distinct().order_by("-criado_em")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        itens = context["itens"]
+
+        for item in itens:
+            item.link_app = gerar_link_app_missao(item)
+
+        return context
+
+@login_required
+@require_POST
+def aceitar_missao(request, pk):
+    acompanhamento = get_object_or_404(registroacompanhamento, pk=pk)
+
+    if acompanhamento.status_acompanhamento == "pendente":
+        acompanhamento.status_acompanhamento = "missao_aceita"
+        acompanhamento.save(update_fields=["status_acompanhamento"])
+
+    return JsonResponse({"success": True})
+
+@login_required
+@require_POST
+def acionar_panico(request, pk):
+    acompanhamento = get_object_or_404(registroacompanhamento, pk=pk)
+
+    acompanhamento.botao_panico = True
+    acompanhamento.status_acompanhamento = "em_andamento"
+    acompanhamento.save(update_fields=["botao_panico", "status_acompanhamento"])
+
+    return JsonResponse({"success": True})
+
+@login_required
+@require_POST
+def finalizar_operacao(request, pk):
+    acompanhamento = get_object_or_404(registroacompanhamento, pk=pk)
+
+    acompanhamento.status_acompanhamento = "concluido"
+    acompanhamento.save(update_fields=["status_acompanhamento"])
+
+    return JsonResponse({"success": True})
+
+@login_required
+def acompanhamento_missao(request, pk):
+    acompanhamento = get_object_or_404(registroacompanhamento, pk=pk)
+
+    return render(
+        request,
+        "acompanhamento_missao.html",
+        {
+            "acompanhamento": acompanhamento
+        }
+    )
+
+@login_required
+@require_POST
+def salvar_localizacao(request, pk):
+    acompanhamento = get_object_or_404(registroacompanhamento, pk=pk)
+
+    try:
+        data = json.loads(request.body)
+
+        agente_principal = acompanhamento.agentes.filter(tipo_agente="principal").first()
+
+        AcompanhamentoLocalizacao.objects.create(
+            acompanhamento=acompanhamento,
+            agente=agente_principal.agente if agente_principal else None,
+            usuario=request.user,
+            latitude=data["latitude"],
+            longitude=data["longitude"],
+            accuracy=data.get("accuracy"),
+            origem="web"
+        )
+
+
+        # Atualiza status se ainda não iniciou
+        if acompanhamento.status_acompanhamento == "pendente":
+            acompanhamento.status_acompanhamento = "em_andamento"
+            acompanhamento.save(update_fields=["status_acompanhamento"])
+
+        return JsonResponse({"success": True})
+
+    except Exception as e:
+        return JsonResponse(
+            {"success": False, "error": str(e)},
+            status=400
+        )
+
+# views.py
+
+# views.py
+import json
+from django.core.serializers.json import DjangoJSONEncoder
+
+@login_required
+def acompanhamento_mapa(request, pk):
+    acompanhamento = get_object_or_404(registroacompanhamento, pk=pk)
+
+    localizacoes_qs = (
+        AcompanhamentoLocalizacao.objects
+        .filter(acompanhamento=acompanhamento)
+        .order_by("criado_em")
+        .values("latitude", "longitude", "criado_em")
+    )
+
+    # Garante número de verdade (JS entende)
+    localizacoes = [
+        {
+            "latitude": float(i["latitude"]) if i["latitude"] is not None else None,
+            "longitude": float(i["longitude"]) if i["longitude"] is not None else None,
+            "criado_em": i["criado_em"],
+        }
+        for i in localizacoes_qs
+        if i["latitude"] is not None and i["longitude"] is not None
+    ]
+
+    return render(
+        request,
+        "acompanhamento_mapa.html",
+        {
+            "acompanhamento": acompanhamento,
+            # manda JSON pronto e seguro
+            "localizacoes_json": json.dumps(localizacoes, cls=DjangoJSONEncoder),
+        }
+    )
 
 def validar_acompanhamento(request, id):
     acompanhamento = get_object_or_404(registroacompanhamento, id=id)

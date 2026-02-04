@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Missão #{{ acompanhamento.id }}</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+
+<body class="bg-dark text-white">
+
+<div class="container mt-4 text-center">
+
+    <h2>Missão #{{ acompanhamento.id }}</h2>
+    <p class="text-muted">{{ acompanhamento.cliente }}</p>
+
+    {% if acompanhamento.status_acompanhamento == "pendente" %}
+        <div class="alert alert-warning mt-3">
+            ⚠️ Esta missão irá iniciar o compartilhamento da sua localização.
+        </div>
+    {% endif %}
+
+    {% if acompanhamento.status_acompanhamento == "missao_aceita" %}
+        <button class="btn btn-danger btn-lg" onclick="acionarPanico()">
+            🚨 BOTÃO DE PÂNICO
+        </button>
+    {% endif %}
+
+    {% if acompanhamento.status_acompanhamento == "em_andamento" %}
+        <button class="btn btn-danger btn-lg mb-3" disabled>
+            🚨 PÂNICO ATIVADO
+        </button>
+
+        <br>
+
+        <button class="btn btn-success btn-lg" onclick="finalizarOperacao()">
+            ✅ Finalizar Operação
+        </button>
+    {% endif %}
+
+    {% if acompanhamento.status_acompanhamento == "concluido" %}
+        <div class="alert alert-success mt-4">
+            ✔️ Operação finalizada com sucesso
+        </div>
+    {% endif %}
+
+</div>
+
+<!-- MODAL DE ACEITE -->
+{% if acompanhamento.status_acompanhamento == "pendente" %}
+<div class="modal fade" id="modalMissao" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content text-dark">
+            <div class="modal-header">
+                <h5 class="modal-title">Iniciar Missão</h5>
+            </div>
+            <div class="modal-body">
+                Você autoriza o início da missão e o envio da sua localização?
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">
+                    Cancelar
+                </button>
+                <button class="btn btn-success" onclick="iniciarMissao()">
+                    Aceitar Missão
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+    const acompanhamentoId = {{ acompanhamento.id }};
+    let intervaloLocalizacao = null;
+
+    document.addEventListener("DOMContentLoaded", () => {
+
+        {% if acompanhamento.status_acompanhamento == "pendente" %}
+            new bootstrap.Modal(
+                document.getElementById("modalMissao"),
+                { backdrop: "static", keyboard: false }
+            ).show();
+        {% endif %}
+
+        {% if acompanhamento.status_acompanhamento == "missao_aceita" or acompanhamento.status_acompanhamento == "em_andamento" %}
+            iniciarLocalizacao();
+        {% endif %}
+    });
+
+    function iniciarMissao() {
+        fetch(`/acompanhamentos/missao/${acompanhamentoId}/aceitar/`, {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": "{{ csrf_token }}"
+            }
+        }).then(() => {
+            location.reload(); // 🔥 FUNDAMENTAL
+        });
+    }
+
+    function iniciarLocalizacao() {
+        if (!navigator.geolocation) {
+            alert("Geolocalização não suportada.");
+            return;
+        }
+
+        capturarEEnviarLocalizacao();
+
+        intervaloLocalizacao = setInterval(() => {
+            capturarEEnviarLocalizacao();
+        }, 30000); // ⏱️ 30 segundos
+    }
+
+    function capturarEEnviarLocalizacao() {
+        navigator.geolocation.getCurrentPosition(
+            enviarLocalizacao,
+            (error) => console.error("Erro ao obter localização:", error),
+            {
+                enableHighAccuracy: true,
+                maximumAge: 0,
+                timeout: 10000
+            }
+        );
+    }
+
+    function enviarLocalizacao(position) {
+        fetch(`/acompanhamentos/missao/${acompanhamentoId}/localizacao/`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": "{{ csrf_token }}"
+            },
+            body: JSON.stringify({
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                accuracy: position.coords.accuracy
+            })
+        });
+    }
+
+    function acionarPanico() {
+        fetch(`/acompanhamentos/missao/${acompanhamentoId}/panico/`, {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": "{{ csrf_token }}"
+            }
+        }).then(() => location.reload());
+    }
+
+    function finalizarOperacao() {
+        if (intervaloLocalizacao) {
+            clearInterval(intervaloLocalizacao);
+        }
+
+        fetch(`/acompanhamentos/missao/${acompanhamentoId}/finalizar/`, {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": "{{ csrf_token }}"
+            }
+        }).then(() => location.reload());
+    }
+</script>
+
+
+</body>
+</html>

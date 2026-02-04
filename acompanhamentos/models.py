@@ -231,6 +231,21 @@ class registroacompanhamento(models.Model):
         ("aguardando", "Aguardando Autorização"),
         ("faturado", "Faturado"),
     )
+
+    STATUS_ACOMPANHAMENTO_CHOICES = (
+        ("pendente", "Pendente"),
+        ("no_local", "No Local"),
+        ("sem_sinal", "Sem Sinal"),
+        ("em_andamento", "Em Andamento"),
+        ("missao_aceita", "Missão Aceita"),
+        ("concluido", "Concluído"),
+    )
+
+    botao_panico = models.BooleanField(
+        default=False,
+        verbose_name="Acionamento via Botão de Pânico"
+    )
+
     
     cliente = models.ForeignKey(
         registrodeclienteacompanhamento,
@@ -260,7 +275,7 @@ class registroacompanhamento(models.Model):
     )
 
     origem = models.CharField(max_length=100)
-    destino = models.CharField(max_length=100)
+    destino = models.CharField(max_length=100, blank=True, null=True,)
 
     valor_contrato = models.DecimalField(
         max_digits=12,
@@ -279,6 +294,12 @@ class registroacompanhamento(models.Model):
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
+        default="pendente"
+    )
+
+    status_acompanhamento = models.CharField(
+        max_length=20,
+        choices=STATUS_ACOMPANHAMENTO_CHOICES,
         default="pendente"
     )
 
@@ -513,19 +534,19 @@ class registroacompanhamentoagente(models.Model):
     )
 
 
-    km_inicio = models.IntegerField()
-    km_final = models.IntegerField()
+    km_inicio = models.IntegerField(blank=True, null=True)
+    km_final = models.IntegerField(blank=True, null=True)
     km_total = models.IntegerField(blank=True, null=True)
 
     km_excedente = models.IntegerField(blank=True, null=True)
 
-    horario_solicitado = models.TimeField()
-    horario_inicio = models.TimeField()
-    horario_finalizacao = models.TimeField()
+    horario_solicitado = models.TimeField(blank=True, null=True)
+    horario_inicio = models.TimeField(blank=True, null=True)
+    horario_finalizacao = models.TimeField(blank=True, null=True)
 
-    data_solicitada = models.DateField()
-    data_inicio = models.DateField()
-    data_finalizacao = models.DateField()
+    data_solicitada = models.DateField(blank=True, null=True)
+    data_inicio = models.DateField(blank=True, null=True)
+    data_finalizacao = models.DateField(blank=True, null=True)
 
     horario_total = models.DurationField(blank=True, null=True)
     horario_excedente = models.DurationField(blank=True, null=True)
@@ -666,5 +687,65 @@ class registroacompanhamentoagente(models.Model):
 
         super().save(*args, **kwargs)
 
+# ------------------------------------------------------
+#             Acompanhamentos Panico
+# ------------------------------------------------------
+class AcompanhamentoLocalizacao(models.Model):
+    acompanhamento = models.ForeignKey(
+        "registroacompanhamento",
+        on_delete=models.CASCADE,
+        related_name="localizacoes"
+    )
 
+    agente = models.ForeignKey(
+        registrodeagenteacompanhamento,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+
+    usuario = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+
+    latitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6
+    )
+
+    longitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6
+    )
+
+    accuracy = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True
+    )
+
+    origem = models.CharField(
+        max_length=20,
+        choices=(
+            ("web", "Web"),
+            ("pwa", "PWA"),
+            ("app", "App"),
+        ),
+        default="web"
+    )
+
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-criado_em"]
+        indexes = [
+            models.Index(fields=["acompanhamento", "criado_em"]),
+        ]
+
+    def __str__(self):
+        return f"{self.acompanhamento_id} - {self.latitude}, {self.longitude}"
 

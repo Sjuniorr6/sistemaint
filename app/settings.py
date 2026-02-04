@@ -180,10 +180,17 @@ USE_I18N = True
 USE_TZ = False
 
 STATIC_URL = '/static/'
+# STATICFILES_DIRS = [
+#     os.path.join(BASE_DIR, 'static'),  # Pasta onde seus arquivos estáticos residem durante o desenvolvimento
+#     os.path.join(BASE_DIR, 'app', 'static'),  # Pasta static dentro de app
+# ]
+
 STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'static'),  # Pasta onde seus arquivos estáticos residem durante o desenvolvimento
-    os.path.join(BASE_DIR, 'app', 'static'),  # Pasta static dentro de app
+    BASE_DIR / "static",
+    BASE_DIR / "app" / "static",
+    BASE_DIR / "public",   # 👈 AQUI
 ]
+
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # Configuração de email para envio real

@@ -183,8 +183,8 @@ class RegistroAcompanhamentoAgenteForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        for field_name in ["data_solicitada", "data_inicio", "data_finalizacao"]:
-            self.fields[field_name].input_formats = ["%Y-%m-%d"]
+        for field in self.fields.values():
+            field.required = False
 
     class Meta:
         model = registroacompanhamentoagente

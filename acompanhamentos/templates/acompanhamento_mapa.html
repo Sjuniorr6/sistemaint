@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Mapa da Missão #{{ acompanhamento.id }}</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Leaflet -->
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        body {
+            background: #2f3338;
+            color: white;
+        }
+        #map {
+            height: 80vh;
+            border-radius: 12px;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container mt-4">
+    <h3>
+        🗺️ Rota da Missão #{{ acompanhamento.id }}  
+        <small class="text-muted">({{ acompanhamento.cliente }})</small>
+    </h3>
+
+    <div id="map" class="mt-3"></div>
+</div>
+
+<script>
+    const pontos = JSON.parse('{{ localizacoes_json|escapejs }}');
+
+    const map = L.map("map");
+
+    // Mapa base
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19
+    }).addTo(map);
+
+    if (pontos.length > 0) {
+
+        const latlngs = pontos.map(p => [Number(p.latitude), Number(p.longitude)]);
+
+        // Linha azul (rota)
+        const rota = L.polyline(latlngs, {
+            color: "#007bff",
+            weight: 5
+        }).addTo(map);
+
+        // Ajusta o zoom automaticamente
+        map.fitBounds(rota.getBounds(), { padding: [30, 30] });
+
+        // Início
+        L.marker(latlngs[0])
+            .addTo(map)
+            .bindPopup("📍 Início da missão");
+
+        // Última posição
+        L.marker(latlngs[latlngs.length - 1])
+            .addTo(map)
+            .bindPopup("🚗 Última localização");
+    } else {
+        map.setView([-15, -55], 4); // Brasil
+    }
+</script>
+
+</body>
+</html>

@@ -140,7 +140,7 @@
     </div>
 
     <!-- Form Novo Acompanhamento -->
-    <div class="container-fluid">
+    <div class="container-fluid mb-5">
         <div class="row">
             <div class="col-12">
                 <div class="content-form">
@@ -263,9 +263,6 @@
                                             <label for="placa_motorista" class="form-label">Placa Motorista</label>
                                             {{ agente_form.placa_motorista }}
                                         </div>
-                                    </div>
-
-                                    <div class="row mb-2">
                                         <div class="col-md-2">
                                             <label for="data_solicitada" class="form-label">Data Solicitada</label>
                                             {{ agente_form.data_solicitada }}
@@ -274,83 +271,90 @@
                                             <label for="horario_solicitado" class="form-label">Horário Solicitado</label>
                                             {{ agente_form.horario_solicitado }}
                                         </div>
-                                        <div class="col-md-2">
-                                            <label for="data_inicio" class="form-label">Data Início</label>
-                                            {{ agente_form.data_inicio }}
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label for="horario_inicio" class="form-label">Horário Início</label>
-                                            {{ agente_form.horario_inicio }}
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label for="data_finalizacao" class="form-label">Data Final</label>
-                                            {{ agente_form.data_finalizacao }}
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label for="horario_finalizacao" class="form-label">Horário Finalizado</label>
-                                            {{ agente_form.horario_finalizacao }}
-                                        </div>
                                     </div>
 
-                                    <div class="row mb-2">
-                                        <div class="col-md-2">
-                                            <label for="horario_total" class="form-label">Horário Total</label>
-                                            {{ agente_form.horario_total }}
+                                    <hr class="hr-inicio-datas">
+                                    {% if object and object.botao_panico == 1 %}
+                                        {% if request.user|has_group:"FATURAMENTO" or request.user|has_group:"Gestao" %}
+                                        <div class="row mb-2">
+                                            <div class="col-md-2">
+                                                <label for="data_inicio" class="form-label">Data Início</label>
+                                                {{ agente_form.data_inicio }}
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label for="horario_inicio" class="form-label">Horário Início</label>
+                                                {{ agente_form.horario_inicio }}
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label for="data_finalizacao" class="form-label">Data Final</label>
+                                                {{ agente_form.data_finalizacao }}
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label for="horario_finalizacao" class="form-label">Horário Finalizado</label>
+                                                {{ agente_form.horario_finalizacao }}
+                                            </div>
                                         </div>
-                                        <div class="col-md-2">
-                                            <label for="km_inicio" class="form-label">KM Início</label>
-                                            {{ agente_form.km_inicio }}
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label for="km_final" class="form-label">KM Final</label>
-                                            {{ agente_form.km_final }}
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label for="km_total" class="form-label">KM Total</label>
-                                            {{ agente_form.km_total }}
-                                        </div>
-                                        <div class="col-md-4">
-                                            <label for="pedagio" class="form-label">Pedágio</label>
-                                            {{ agente_form.pedagio }}
-                                        </div>
-                                    </div>
 
-                                    <div class="form-check mb-2">
-                                        {{ agente_form.bancario }}
-                                        <label class="form-check-label">Pagamento em Outra Conta?</label>
-                                    </div>
+                                        <div class="row mb-2">
+                                            <div class="col-md-2">
+                                                <label for="horario_total" class="form-label">Horário Total</label>
+                                                {{ agente_form.horario_total }}
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label for="km_inicio" class="form-label">KM Início</label>
+                                                {{ agente_form.km_inicio }}
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label for="km_final" class="form-label">KM Final</label>
+                                                {{ agente_form.km_final }}
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label for="km_total" class="form-label">KM Total</label>
+                                                {{ agente_form.km_total }}
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label for="pedagio" class="form-label">Pedágio</label>
+                                                {{ agente_form.pedagio }}
+                                            </div>
+                                        </div>
 
-                                    <div class="row bank-fields">
-                                        <div class="col-md-4">
-                                            <label for="pix" class="form-label">Pix</label>
-                                            {{ agente_form.pix }}
+                                        <div class="form-check mb-2">
+                                            {{ agente_form.bancario }}
+                                            <label class="form-check-label">Pagamento em Outra Conta?</label>
                                         </div>
-                                        <div class="col-md-4">
-                                            <label for="banco" class="form-label">Banco</label>
-                                            {{ agente_form.banco }}
-                                        </div>
-                                        <div class="col-md-4">
-                                            <label for="agencia" class="form-label">Agência</label>
-                                            {{ agente_form.agencia }}
-                                        </div>
-                                        <div class="col-md-4 mt-2">
-                                            <label for="conta" class="form-label">Conta</label>
-                                            {{ agente_form.conta }}
-                                        </div>
-                                        <div class="col-md-4 mt-2 mb-2">
-                                            <label for="tipo_conta" class="form-label">Tipo da Conta</label>
-                                            {{ agente_form.tipo_conta }}
-                                        </div>
-                                        <div class="col-md-4 mt-2 mb-2">
-                                            <label for="tipo_conta" class="form-label">Nome Completo</label>
-                                            {{ agente_form.nome_completo_conta }}
-                                        </div>
-                                        <div class="col-md-4 mt-2 mb-2">
-                                            <label for="tipo_conta" class="form-label">CPF da Conta</label>
-                                            {{ agente_form.cpf_conta }}
-                                        </div>
-                                    </div>
 
+                                        <div class="row bank-fields">
+                                            <div class="col-md-4">
+                                                <label for="pix" class="form-label">Pix</label>
+                                                {{ agente_form.pix }}
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label for="banco" class="form-label">Banco</label>
+                                                {{ agente_form.banco }}
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label for="agencia" class="form-label">Agência</label>
+                                                {{ agente_form.agencia }}
+                                            </div>
+                                            <div class="col-md-4 mt-2">
+                                                <label for="conta" class="form-label">Conta</label>
+                                                {{ agente_form.conta }}
+                                            </div>
+                                            <div class="col-md-4 mt-2 mb-2">
+                                                <label for="tipo_conta" class="form-label">Tipo da Conta</label>
+                                                {{ agente_form.tipo_conta }}
+                                            </div>
+                                            <div class="col-md-4 mt-2 mb-2">
+                                                <label for="tipo_conta" class="form-label">Nome Completo</label>
+                                                {{ agente_form.nome_completo_conta }}
+                                            </div>
+                                            <div class="col-md-4 mt-2 mb-2">
+                                                <label for="tipo_conta" class="form-label">CPF da Conta</label>
+                                                {{ agente_form.cpf_conta }}
+                                            </div>
+                                        </div>
+                                       {% endif %}
+                                    {% endif %}
                                     {{ agente_form.DELETE }}
                                 </div>
                             {% endfor %}
@@ -603,32 +607,32 @@
 </script>
 
 <script>
-$(document).on('click', '.add-carona', function () {
+    $(document).on('click', '.add-carona', function () {
 
-    const card = $(this).closest('.agente-form');
+        const card = $(this).closest('.agente-form');
 
-    if (card.find('.carona-wrapper').length) return;
+        if (card.find('.carona-wrapper').length) return;
 
-    const caronaHtml = `
-        <div class="carona-wrapper mt-2 p-2 border rounded bg-light">
-            <label class="form-label">Segundo Agente (Mesmo Veículo)</label>
+        const caronaHtml = `
+            <div class="carona-wrapper mt-2 p-2 border rounded bg-light">
+                <label class="form-label fw-bold">
+                    Segundo Agente (Mesmo Veículo)
+                </label>
 
-            <select name="carona_agente[]" class="form-control select2">
-                <option value="">Selecione o agente</option>
-                {% for agente in agentes_cadastrados %}
-                    <option value="{{ agente.id }}">{{ agente.nome }}</option>
-                {% endfor %}
-            </select>
-        </div>
-    `;
+                <select name="carona_agente[]" class="form-control select2">
+                    <option value="">Selecione o agente</option>
+                    {% for agente in agentes_cadastrados %}
+                        <option value="{{ agente.id }}">{{ agente.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        `;
 
-    card.append(caronaHtml);
+        card.find('.hr-inicio-datas').before(caronaHtml);
 
-    initSelect2(card);
-});
+        initSelect2(card);
+    });
 </script>
-
-
 
 </body>
 

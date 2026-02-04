@@ -5,7 +5,8 @@ from .models import (
     servicosacompanhamentos,
     registroacompanhamento,
     registroacompanhamentoagente,
-    registroderesposavelagenteacompanhamento
+    registroderesposavelagenteacompanhamento,
+    AcompanhamentoLocalizacao
 )
 
 
@@ -262,6 +263,7 @@ class RegistroAcompanhamentoAdmin(admin.ModelAdmin):
 
     readonly_fields = (
         "lucro_total",
+        "botao_panico",
         "criado_em",
     )
 
@@ -291,6 +293,7 @@ class RegistroAcompanhamentoAdmin(admin.ModelAdmin):
 
         ("Validações", {
             "fields": (
+                "botao_panico",
                 "validar_acompanhamento",
                 "validar_pagamento",
             )
@@ -315,6 +318,12 @@ class RegistroAcompanhamentoAdmin(admin.ModelAdmin):
             readonly.append("nf")
 
         return readonly
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            original = registroacompanhamento.objects.get(pk=self.pk)
+            self.botao_panico = original.botao_panico
+        super().save(*args, **kwargs)
 
 # ======================================================
 # AGENTES DO ACOMPANHAMENTO
@@ -423,3 +432,83 @@ class RegistroAcompanhamentoAgenteAdmin(admin.ModelAdmin):
             )
         }),
     )
+
+# ======================================================
+# ACOMPANHAMENTO PANICO
+# ======================================================
+@admin.register(AcompanhamentoLocalizacao)
+class AcompanhamentoLocalizacaoAdmin(admin.ModelAdmin):
+
+    list_display = (
+        "id",
+        "acompanhamento",
+        "agente",
+        "usuario",
+        "latitude",
+        "longitude",
+        "accuracy",
+        "origem",
+        "criado_em",
+    )
+
+    list_filter = (
+        "origem",
+        "criado_em",
+    )
+
+    search_fields = (
+        "acompanhamento__id",
+        "agente__nome",
+        "usuario__username",
+    )
+
+    ordering = ("-criado_em",)
+
+    readonly_fields = (
+        "acompanhamento",
+        "agente",
+        "usuario",
+        "latitude",
+        "longitude",
+        "accuracy",
+        "origem",
+        "criado_em",
+    )
+
+    fieldsets = (
+        ("Vínculo", {
+            "fields": (
+                "acompanhamento",
+                "agente",
+                "usuario",
+            )
+        }),
+
+        ("Localização", {
+            "fields": (
+                "latitude",
+                "longitude",
+                "accuracy",
+                "origem",
+            )
+        }),
+
+        ("Auditoria", {
+            "fields": (
+                "criado_em",
+            )
+        }),
+    )
+
+
+    def has_add_permission(self, request):
+        """Não permite criar localização manualmente"""
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        """Não permite editar localização"""
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        """Não permite deletar localização"""
+        return False
