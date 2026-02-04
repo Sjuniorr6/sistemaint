@@ -1,5 +1,5 @@
 def gerar_link_app_missao(acompanhamento, origem="web"):
-    base_url = "http://127.0.0.1:8000/api"
+    base_url = "https://www.intgoldensat.com.br/api"
 
     agente_nome = ""
     agente_principal = acompanhamento.agentes.filter(tipo_agente="principal").first()
