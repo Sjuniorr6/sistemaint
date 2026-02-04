@@ -8,8 +8,8 @@ def gerar_link_app_missao(acompanhamento):
     Esse link (missao.html) redireciona para o deep link do app.
     """
 
-    # base_url = getattr(settings, "AGENTTRACKER_WEB_BASE_URL", "https://intgoldensat.com.br")
-    base_url = getattr(settings, "AGENTTRACKER_WEB_BASE_URL", "http://127.0.0.1:8000")
+    base_url = getattr(settings, "AGENTTRACKER_WEB_BASE_URL", "https://intgoldensat.com.br")
+    # base_url = getattr(settings, "AGENTTRACKER_WEB_BASE_URL", "http://127.0.0.1:8000")
 
     # Origem (local/cidade) -> use seu campo real (item.origem)
     origem = getattr(acompanhamento, "origem", "") or ""
