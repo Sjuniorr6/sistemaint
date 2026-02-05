@@ -1,12 +1,13 @@
-# acompanhamentos/api/views.py
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
-from acompanhamentos.models import registroacompanhamento, AcompanhamentoLocalizacao
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_POST, require_GET
 from django.utils import timezone
+
+from acompanhamentos.models import registroacompanhamento, AcompanhamentoLocalizacao
+
 import json
+import time
 
 
 def api_missao_detail(request, id):
@@ -19,10 +20,10 @@ def api_missao_detail(request, id):
     )
 
     agente_nome = ""
-    
+
     if hasattr(missao, "agentes"):
         agente_principal = missao.agentes.filter(tipo_agente="principal").first()
-        
+
         if agente_principal and agente_principal.agente:
             agente_nome = getattr(agente_principal.agente, "nome", "") or str(agente_principal.agente)
         else:
@@ -38,46 +39,6 @@ def api_missao_detail(request, id):
 
     return JsonResponse(data, status=200)
 
-# @csrf_exempt
-# @require_POST
-# def api_missao_location(request, id):
-#     try:
-#         missao = get_object_or_404(registroacompanhamento, pk=id)
-        
-#         data = json.loads(request.body)
-        
-#         agente_principal = missao.agentes.filter(tipo_agente="principal").first()
-        
-#         AcompanhamentoLocalizacao.objects.create(
-#             acompanhamento=missao,
-#             agente=agente_principal.agente if agente_principal else None,
-#             usuario=None,
-#             latitude=data.get("latitude"),
-#             longitude=data.get("longitude"),
-#             accuracy=data.get("accuracy"),
-#             origem=missao.origem
-#         )
-        
-#         if missao.status_acompanhamento == "pendente":
-#             missao.status_acompanhamento = "em_andamento"
-#             missao.save(update_fields=["status_acompanhamento"])
-        
-#         return JsonResponse({
-#             "success": True,
-#             "message": "Localização registrada"
-#         }, status=200)
-        
-#     except json.JSONDecodeError:
-#         return JsonResponse({
-#             "success": False,
-#             "error": "JSON inválido"
-#         }, status=400)
-        
-#     except Exception as e:
-#         return JsonResponse({
-#             "success": False,
-#             "error": str(e)
-#         }, status=500)
 
 @csrf_exempt
 @require_POST
@@ -165,9 +126,6 @@ def api_missao_panic(request, id):
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
-
-# acompanhamentos/api/views.py
-
 @require_GET
 def api_missao_localizacoes(request, id):
     try:
@@ -179,11 +137,33 @@ def api_missao_localizacoes(request, id):
             .order_by("criado_em")
         )
 
+        localizacoes = [
+            {
+                "id": loc.id,
+                "latitude": float(loc.latitude) if loc.latitude is not None else None,
+                "longitude": float(loc.longitude) if loc.longitude is not None else None,
+                "is_panic": bool(loc.is_panic),
+                "panic_resolved": bool(loc.panic_resolved),
+                "criado_em": loc.criado_em.strftime("%d/%m/%Y %H:%M:%S") if loc.criado_em else None,
+                "origem": loc.origem or "",
+                "resolved_at": loc.resolved_at.strftime("%d/%m/%Y %H:%M:%S") if loc.resolved_at else None,
+                "resolved_by": loc.resolved_by.get_full_name() if loc.resolved_by else None
+            }
+            for loc in qs
+        ]
+
         panic_active = AcompanhamentoLocalizacao.objects.filter(
             acompanhamento=missao,
             is_panic=True,
             panic_resolved=False
         ).exists()
+
+        last_open_panic = (
+            AcompanhamentoLocalizacao.objects
+            .filter(acompanhamento=missao, is_panic=True, panic_resolved=False)
+            .order_by("-criado_em")
+            .first()
+        )
 
         last_panic = (
             AcompanhamentoLocalizacao.objects
@@ -192,21 +172,6 @@ def api_missao_localizacoes(request, id):
             .first()
         )
 
-        localizacoes = [
-            {
-                "id": loc.id,
-                "latitude": float(loc.latitude),
-                "longitude": float(loc.longitude),
-                "is_panic": loc.is_panic,
-                "panic_resolved": loc.panic_resolved,
-                "criado_em": loc.criado_em.strftime("%d/%m/%Y %H:%M:%S"),
-                "origem": loc.origem,
-                "resolved_at": loc.resolved_at.strftime("%d/%m/%Y %H:%M:%S") if loc.resolved_at else None,
-                "resolved_by": loc.resolved_by.get_full_name() if loc.resolved_by else None
-            }
-            for loc in qs
-        ]
-
         return JsonResponse({
             "success": True,
             "localizacoes": localizacoes,
@@ -214,12 +179,17 @@ def api_missao_localizacoes(request, id):
             "origem_acompanhamento": missao.origem,
 
             "panic_active": panic_active,
+
+            "open_panic_id": last_open_panic.id if last_open_panic else None,
+            "open_panic_at": last_open_panic.criado_em.strftime("%d/%m/%Y %H:%M:%S") if last_open_panic else None,
+
             "last_panic_id": last_panic.id if last_panic else None,
             "last_panic_at": last_panic.criado_em.strftime("%d/%m/%Y %H:%M:%S") if last_panic else None,
         }, status=200)
 
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=500)
+
 
 @csrf_exempt
 @require_POST
@@ -263,31 +233,21 @@ def api_resolver_panico(request, localizacao_id):
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
+
 @require_GET
 def api_missao_wait_panic(request, id):
-    """
-    Long polling:
-    - O front manda ?after_id=123 (último pânico que ele conhece)
-    - O servidor espera até surgir um pânico novo (is_panic=True) com id > after_id
-    - Se surgir, responde imediatamente
-    - Se não surgir até timeout, responde timeout=True (front chama de novo)
-    """
     missao = get_object_or_404(registroacompanhamento, pk=id)
 
-    # último pânico que o front já conhece
     try:
         after_id = int(request.GET.get("after_id") or 0)
     except ValueError:
         after_id = 0
 
-    # tempo máximo segurando a requisição (evite muito alto)
     timeout_seconds = 25
     interval_seconds = 0.8
-
     end_time = time.time() + timeout_seconds
 
     while time.time() < end_time:
-        # procura um pânico novo (id maior que after_id)
         panic = (
             AcompanhamentoLocalizacao.objects
             .filter(acompanhamento=missao, is_panic=True, id__gt=after_id)
@@ -306,25 +266,12 @@ def api_missao_wait_panic(request, id):
 
         time.sleep(interval_seconds)
 
-    return JsonResponse({
-        "success": True,
-        "timeout": True
-    }, status=200)
+    return JsonResponse({"success": True, "timeout": True}, status=200)
+
 
 @require_GET
 def api_missao_panic_status(request, id):
-    """
-    Endpoint LEVE (não bloqueia):
-    Retorna se existe pânico ativo e qual foi o último pânico registrado.
-    """
     missao = get_object_or_404(registroacompanhamento, pk=id)
-
-    last_panic = (
-        AcompanhamentoLocalizacao.objects
-        .filter(acompanhamento=missao, is_panic=True)
-        .order_by("-id")
-        .first()
-    )
 
     panic_active = AcompanhamentoLocalizacao.objects.filter(
         acompanhamento=missao,
@@ -332,9 +279,16 @@ def api_missao_panic_status(request, id):
         panic_resolved=False
     ).exists()
 
+    last_open_panic = (
+        AcompanhamentoLocalizacao.objects
+        .filter(acompanhamento=missao, is_panic=True, panic_resolved=False)
+        .order_by("-id")
+        .first()
+    )
+
     return JsonResponse({
         "success": True,
         "panic_active": panic_active,
-        "last_panic_id": last_panic.id if last_panic else None,
-        "last_panic_at": last_panic.criado_em.strftime("%d/%m/%Y %H:%M:%S") if last_panic else None,
+        "open_panic_id": last_open_panic.id if last_open_panic else None,
+        "open_panic_at": last_open_panic.criado_em.strftime("%d/%m/%Y %H:%M:%S") if last_open_panic else None,
     }, status=200)

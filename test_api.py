@@ -4,8 +4,8 @@ import threading
 import math
 from datetime import datetime
 
-url_location = "http://localhost:8000/api/missao/4/location/"
-url_panic = "http://localhost:8000/api/missao/4/panic/"
+url_location = "http://localhost:8000/api/missao/6/location/"
+url_panic = "http://localhost:8000/api/missao/6/panic/"
 
 # Posição inicial
 latitude = -23.6561866
