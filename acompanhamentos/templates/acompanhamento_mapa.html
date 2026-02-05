@@ -8,71 +8,520 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
     <!-- Leaflet -->
-    <link
-        rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        body {
-            background: #2f3338;
-            color: white;
+        body { background: #2f3338; color: white; }
+        #map { height: 80vh; border-radius: 12px; }
+
+        .status-bar {
+            display: flex; gap: 12px; align-items: center;
+            font-size: 0.9rem; color: #cbd5e1;
         }
-        #map {
-            height: 80vh;
+
+        .dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            display: inline-block; background: #22c55e;
+        }
+
+        .dot.off { background: #ef4444; }
+
+        /* ===========================
+           POPUP FORA DO MAPA (PÂNICO)
+           =========================== */
+        .panic-overlay{
+            position: sticky;
+            top: 12px;
+            z-index: 2000;
+            margin-top: 12px;
+        }
+
+        .panic-card{
             border-radius: 12px;
+            padding: 14px;
+            background: rgba(239, 68, 68, 0.15);
+            border: 2px solid rgba(239, 68, 68, 0.9);
+            box-shadow: 0 0 18px rgba(239, 68, 68, 0.35);
+            animation: panicPulse 1s infinite;
+            backdrop-filter: blur(6px);
+        }
+
+        @keyframes panicPulse {
+            0%   { box-shadow: 0 0 12px rgba(239,68,68,.25); transform: scale(1); }
+            50%  { box-shadow: 0 0 26px rgba(239,68,68,.65); transform: scale(1.01); }
+            100% { box-shadow: 0 0 12px rgba(239,68,68,.25); transform: scale(1); }
+        }
+
+        .panic-header{
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .panic-title{
+            font-weight: 800;
+            letter-spacing: .3px;
+            font-size: 1.05rem;
+            display:flex;
+            align-items:center;
+            gap: 10px;
+        }
+
+        .panic-blink-dot{
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #fff;
+            display:inline-block;
+            animation: blinkDot .6s infinite;
+        }
+
+        @keyframes blinkDot {
+            0%, 100% { opacity: .2; }
+            50% { opacity: 1; }
+        }
+
+        .panic-body{
+            display:grid;
+            gap: 6px;
+            font-size: .95rem;
+        }
+
+        .panic-actions{
+            margin-top: 12px;
         }
     </style>
 </head>
 
 <body>
-
 <div class="container mt-4">
+
     <h3>
-        🗺️ Rota da Missão #{{ acompanhamento.id }}  
+        🗺️ Rota da Missão #{{ acompanhamento.id }}
         <small class="text-muted">({{ acompanhamento.cliente }})</small>
     </h3>
+
+    <div class="d-flex align-items-center gap-3 mt-2" style="font-size: 0.95rem; color:#cbd5e1;">
+        <span id="dot" style="width:10px;height:10px;border-radius:50%;background:#f59e0b;display:inline-block;"></span>
+        <span id="status">Aguardando atualização...</span>
+        <span class="ms-auto">Última atualização: <strong id="lastUpdate">-</strong></span>
+    </div>
+
+    <!-- ✅ POPUP FORA DO MAPA (aparece só quando existir pânico ativo) -->
+    <div id="panicOverlay" class="panic-overlay d-none" role="alert" aria-live="assertive">
+        <div class="panic-card">
+            <div class="panic-header">
+                <div class="panic-title">
+                    🚨 PÂNICO ATIVO
+                    <span class="panic-blink-dot"></span>
+                </div>
+            </div>
+
+            <div class="panic-body">
+                <div><strong>ID:</strong> <span id="panicId">-</span></div>
+                <div><strong>Data:</strong> <span id="panicAt">-</span></div>
+                <div><strong>Origem:</strong> <span id="panicOrigem">-</span></div>
+                <div><strong>Lat/Lng:</strong> <span id="panicLatLng">-</span></div>
+            </div>
+
+            <div class="panic-actions">
+                <button type="button" class="btn btn-danger w-100" id="panicResolveBtn">
+                    Resolver pânico
+                </button>
+                <small class="text-light opacity-75 d-block mt-2">
+                    Ao resolver, o alerta será marcado como resolvido e o painel irá sumir.
+                </small>
+            </div>
+        </div>
+    </div>
 
     <div id="map" class="mt-3"></div>
 </div>
 
 <script>
-    const pontos = JSON.parse('{{ localizacoes_json|escapejs }}');
+    const MISSION_ID = "{{ acompanhamento.id }}";
 
+    // ✅ Intervalos
+    const REFRESH_MS = 30000;   // refresh "pesado" (rota + pontos)
+    const PANIC_POLL_MS = 1000; // checagem rápida do pânico (1s)
+
+    // ✅ Endpoints
+    const API_URL = `/api/missao/${MISSION_ID}/localizacoes/`;
+    const RESOLVE_API_URL = (localizacaoId) => `/api/localizacao/${localizacaoId}/resolver-panico/`;
+    const PANIC_STATUS_URL = `/api/missao/${MISSION_ID}/panic-status/`;
+
+    const pontosIniciais = JSON.parse('{{ localizacoes_json|escapejs }}') || [];
+
+    // ===== MAPA =====
     const map = L.map("map");
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
 
-    // Mapa base
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19
-    }).addTo(map);
+    let rota = null;
+    let markerInicio = null;
+    let markerUltimo = null;
+    let lastCount = 0;
 
-    if (pontos.length > 0) {
+    // Layer pra markers de pânico
+    const panicLayer = L.layerGroup().addTo(map);
 
-        const latlngs = pontos.map(p => [Number(p.latitude), Number(p.longitude)]);
-
-        // Linha azul (rota)
-        const rota = L.polyline(latlngs, {
-            color: "#007bff",
-            weight: 5
-        }).addTo(map);
-
-        // Ajusta o zoom automaticamente
-        map.fitBounds(rota.getBounds(), { padding: [30, 30] });
-
-        // Início
-        L.marker(latlngs[0])
-            .addTo(map)
-            .bindPopup("📍 Início da missão");
-
-        // Última posição
-        L.marker(latlngs[latlngs.length - 1])
-            .addTo(map)
-            .bindPopup("🚗 Última localização");
-    } else {
-        map.setView([-15, -55], 4); // Brasil
+    // ===== UI HEADER =====
+    function setStatus(ok, text) {
+        const dot = document.getElementById("dot");
+        const status = document.getElementById("status");
+        dot.style.background = ok ? "#22c55e" : "#ef4444";
+        status.textContent = text;
     }
+
+    function setLastUpdate() {
+        const el = document.getElementById("lastUpdate");
+        const now = new Date();
+        el.textContent = now.toLocaleString("pt-BR");
+    }
+
+    // ===== ÍCONE DE PÂNICO =====
+    const panicIcon = L.divIcon({
+        className: "",
+        html: `
+            <div style="
+                width:14px;height:14px;border-radius:50%;
+                background:#ef4444;
+                border:2px solid #ffffff;
+                box-shadow:0 0 8px rgba(239,68,68,.8);
+            "></div>
+        `,
+        iconSize: [14, 14],
+        iconAnchor: [7, 7]
+    });
+
+    function normalizePoints(pontos) {
+        return (pontos || [])
+            .map(p => ({
+                id: p.id,
+                latitude: Number(p.latitude),
+                longitude: Number(p.longitude),
+                is_panic: !!p.is_panic,
+                panic_resolved: !!p.panic_resolved,
+                criado_em: p.criado_em || null,
+                origem: p.origem || ""
+            }))
+            .filter(p => Number.isFinite(p.latitude) && Number.isFinite(p.longitude));
+    }
+
+    function renderPanics(cleanPoints) {
+        panicLayer.clearLayers();
+
+        const panics = cleanPoints.filter(p => p.is_panic);
+
+        panics.forEach(p => {
+            const isResolved = !!p.panic_resolved;
+
+            const statusTxt = isResolved ? "✅ Pânico resolvido" : "🚨 PÂNICO ATIVO";
+            const color = isResolved ? "#22c55e" : "#ef4444";
+
+            const btnHtml = isResolved ? "" : `
+                <div class="mt-2">
+                    <button
+                        type="button"
+                        class="btn btn-sm btn-danger w-100 btn-resolve-panico"
+                        data-panico-id="${p.id}"
+                    >
+                        Resolver pânico
+                    </button>
+                    <small class="text-muted d-block mt-1">
+                        Clique para marcar como resolvido
+                    </small>
+                </div>
+            `;
+
+            const popupHtml = `
+                <div style="min-width:240px">
+                    <div style="font-weight:700;color:${color};margin-bottom:6px">${statusTxt}</div>
+                    <div><strong>ID:</strong> ${p.id}</div>
+                    <div><strong>Data:</strong> ${p.criado_em || "-"}</div>
+                    <div><strong>Origem:</strong> ${p.origem || "-"}</div>
+                    <div><strong>Lat/Lng:</strong> ${p.latitude.toFixed(6)}, ${p.longitude.toFixed(6)}</div>
+                    ${btnHtml}
+                </div>
+            `;
+
+            const m = L.marker([p.latitude, p.longitude], { icon: panicIcon })
+                .bindPopup(popupHtml);
+
+            panicLayer.addLayer(m);
+        });
+    }
+
+    function renderOrUpdateMap(pontos) {
+        const clean = normalizePoints(pontos);
+
+        if (clean.length === 0) {
+            map.setView([-15, -55], 4);
+            setStatus(true, "Sem localizações ainda.");
+            return;
+        }
+
+        const latlngs = clean.map(p => [p.latitude, p.longitude]);
+
+        if (!rota) {
+            rota = L.polyline(latlngs, { color: "#007bff", weight: 5 }).addTo(map);
+            map.fitBounds(rota.getBounds(), { padding: [30, 30] });
+
+            markerInicio = L.marker(latlngs[0]).addTo(map).bindPopup("📍 Início da missão");
+            markerUltimo = L.marker(latlngs[latlngs.length - 1]).addTo(map).bindPopup("🚗 Última localização");
+
+            lastCount = latlngs.length;
+            renderPanics(clean);
+            setStatus(true, `Carregado: ${lastCount} pontos.`);
+            return;
+        }
+
+        if (latlngs.length > lastCount) {
+            rota.setLatLngs(latlngs);
+            markerUltimo.setLatLng(latlngs[latlngs.length - 1]);
+            lastCount = latlngs.length;
+            renderPanics(clean);
+            setStatus(true, `Atualizado: ${lastCount} pontos.`);
+        } else {
+            // mesmo sem ponto novo, pode ter mudado panic_resolved
+            renderPanics(clean);
+            setStatus(true, `Sem novos pontos. Total: ${lastCount}.`);
+        }
+    }
+
+    // ===== POPUP FORA DO MAPA =====
+    let currentPanicId = null;
+
+    function showPanicOverlay(panicData) {
+        const overlay = document.getElementById("panicOverlay");
+        currentPanicId = panicData.id;
+
+        document.getElementById("panicId").textContent = panicData.id ?? "-";
+        document.getElementById("panicAt").textContent = panicData.criado_em ?? "-";
+        document.getElementById("panicOrigem").textContent = panicData.origem ?? "-";
+        document.getElementById("panicLatLng").textContent =
+            (panicData.latitude != null && panicData.longitude != null)
+                ? `${Number(panicData.latitude).toFixed(6)}, ${Number(panicData.longitude).toFixed(6)}`
+                : "-";
+
+        overlay.classList.remove("d-none");
+    }
+
+    function hidePanicOverlay() {
+        const overlay = document.getElementById("panicOverlay");
+        overlay.classList.add("d-none");
+        currentPanicId = null;
+    }
+
+    // ==========================
+    // ✅ REFRESH IMEDIATO (sem duplicar requests)
+    // ==========================
+    let __refreshInFlight = false;
+
+    async function forceImmediateRefresh(reason = "auto") {
+        if (__refreshInFlight) return;
+        __refreshInFlight = true;
+
+        try {
+            setStatus(true, `Atualizando agora... (${reason})`);
+            await fetchAndUpdate();
+        } finally {
+            __refreshInFlight = false;
+        }
+    }
+
+    // ==========================
+    // ✅ FAST POLLING (1s) - DETECTA PÂNICO NOVO NO BANCO
+    // ==========================
+    // Esse ID é o que o browser já "conhece"
+    let lastSeenPanicId = 0;
+
+    // evita chamar forceImmediateRefresh em loop sem necessidade
+    let __panicCheckInFlight = false;
+
+    async function checkPanicFast() {
+        try {
+            // opcional: reduz tráfego quando aba estiver escondida
+            if (document.hidden) return;
+
+            if (__panicCheckInFlight) return;
+            __panicCheckInFlight = true;
+
+            const resp = await fetch(PANIC_STATUS_URL, { cache: "no-store" });
+            if (!resp.ok) return;
+
+            const data = await resp.json();
+            if (!data.success) return;
+
+            const newId = Number(data.last_panic_id || 0);
+
+            // se entrou um pânico NOVO -> atualiza imediatamente
+            if (newId > lastSeenPanicId) {
+                lastSeenPanicId = newId;
+                await forceImmediateRefresh("panic-fast-poll");
+            }
+
+        } catch (e) {
+            // silencioso
+        } finally {
+            __panicCheckInFlight = false;
+        }
+    }
+
+    // ===== FETCH PRINCIPAL =====
+    async function fetchAndUpdate() {
+        try {
+            const resp = await fetch(API_URL, { cache: "no-store" });
+
+            if (!resp.ok) {
+                setStatus(false, `Erro ao buscar: HTTP ${resp.status}`);
+                return;
+            }
+
+            const data = await resp.json();
+
+            if (!data.success) {
+                setStatus(false, data.error || "Erro desconhecido na API");
+                return;
+            }
+
+            // mantém o lastSeenPanicId alinhado com o backend
+            lastSeenPanicId = Math.max(lastSeenPanicId, Number(data.last_panic_id || 0));
+
+            // status geral
+            if (data.panic_active) {
+                setStatus(false, `🚨 PÂNICO ATIVO (desde ${data.last_panic_at || "-"})`);
+            } else {
+                setStatus(true, `Monitorando... Total: ${data.total}`);
+            }
+
+            const pontos = data.localizacoes || [];
+
+            // overlay fora do mapa
+            if (data.panic_active && data.last_panic_id) {
+                const lastPanicObj = pontos.find(p => String(p.id) === String(data.last_panic_id));
+
+                if (lastPanicObj && !lastPanicObj.panic_resolved) {
+                    showPanicOverlay(lastPanicObj);
+                } else {
+                    showPanicOverlay({
+                        id: data.last_panic_id,
+                        criado_em: data.last_panic_at,
+                        origem: data.origem_acompanhamento || "",
+                        latitude: null,
+                        longitude: null
+                    });
+                }
+            } else {
+                hidePanicOverlay();
+            }
+
+            renderOrUpdateMap(pontos);
+            setLastUpdate();
+
+        } catch (err) {
+            setStatus(false, `Falha: ${err?.message || err}`);
+        }
+    }
+
+    // ==========================
+    // START
+    // ==========================
+    renderOrUpdateMap(pontosIniciais);
+    setStatus(true, "Mapa carregado. Aguardando próximo ciclo...");
+    setLastUpdate();
+
+    // ✅ primeira carga (e aqui já captura lastSeenPanicId se existir)
+    fetchAndUpdate();
+
+    // ✅ refresh padrão (rota/pontos)
+    setInterval(fetchAndUpdate, REFRESH_MS);
+
+    // ✅ checagem rápida (pânico novo) - isso é o que faz aparecer “na hora”
+    setInterval(checkPanicFast, PANIC_POLL_MS);
+
+    // ==========================
+    // Resolver pânico - botão dentro do popup do marker (Leaflet)
+    // ==========================
+    document.addEventListener("click", async (e) => {
+        const btn = e.target.closest(".btn-resolve-panico");
+        if (!btn) return;
+
+        e.preventDefault();
+
+        const panicoId = btn.getAttribute("data-panico-id");
+        if (!panicoId) return;
+
+        btn.disabled = true;
+        const originalText = btn.textContent;
+        btn.textContent = "Resolvendo...";
+
+        try {
+            const resp = await fetch(RESOLVE_API_URL(panicoId), {
+                method: "POST",
+                cache: "no-store",
+                headers: { "Content-Type": "application/json" }
+            });
+
+            const data = await resp.json();
+
+            if (!resp.ok || !data.success) {
+                alert(data.error || `Erro ao resolver pânico (HTTP ${resp.status})`);
+                btn.disabled = false;
+                btn.textContent = originalText;
+                return;
+            }
+
+            // ajuda a refletir na tela rapidamente
+            await forceImmediateRefresh("panic-resolved-marker");
+
+        } catch (err) {
+            alert(`Falha ao resolver pânico: ${err?.message || err}`);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    });
+
+    // ==========================
+    // Resolver pânico - botão no overlay (fora do mapa)
+    // ==========================
+    document.getElementById("panicResolveBtn").addEventListener("click", async () => {
+        if (!currentPanicId) return;
+
+        const btn = document.getElementById("panicResolveBtn");
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "Resolvendo...";
+
+        try {
+            const resp = await fetch(RESOLVE_API_URL(currentPanicId), {
+                method: "POST",
+                cache: "no-store",
+                headers: { "Content-Type": "application/json" }
+            });
+
+            const data = await resp.json();
+
+            if (!resp.ok || !data.success) {
+                alert(data.error || `Erro ao resolver pânico (HTTP ${resp.status})`);
+                return;
+            }
+
+            await forceImmediateRefresh("panic-resolved-overlay");
+
+        } catch (err) {
+            alert(`Falha ao resolver pânico: ${err?.message || err}`);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    });
 </script>
+
+
 
 </body>
 </html>

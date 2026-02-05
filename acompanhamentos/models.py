@@ -727,15 +727,37 @@ class AcompanhamentoLocalizacao(models.Model):
         null=True,
         blank=True
     )
+    
+    is_panic = models.BooleanField(
+        default=False,
+        verbose_name="Alerta de Pânico"
+    )
+
+    panic_resolved = models.BooleanField(
+        default=False,
+        verbose_name="Pânico Resolvido"
+    )
+
+    resolved_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="panicos_resolvidos",
+        verbose_name="Resolvido por"
+    )
+
+    resolved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Resolvido em"
+    )
 
     origem = models.CharField(
-        max_length=20,
-        choices=(
-            ("web", "Web"),
-            ("pwa", "PWA"),
-            ("app", "App"),
-        ),
-        default="web"
+        max_length=200,
+        blank=True,
+        null=True,
+        verbose_name="Origem do Acompanhamento"
     )
 
     criado_em = models.DateTimeField(auto_now_add=True)
@@ -747,5 +769,7 @@ class AcompanhamentoLocalizacao(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.acompanhamento_id} - {self.latitude}, {self.longitude}"
+        panic_flag = "🚨" if self.is_panic and not self.panic_resolved else ""
+        resolved_flag = "✅" if self.panic_resolved else ""
+        return f"{panic_flag}{resolved_flag} {self.origem or 'Sem origem'} - {self.latitude}, {self.longitude}"
 

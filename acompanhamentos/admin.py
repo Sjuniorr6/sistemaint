@@ -436,22 +436,32 @@ class RegistroAcompanhamentoAgenteAdmin(admin.ModelAdmin):
 # ======================================================
 # ACOMPANHAMENTO PANICO
 # ======================================================
+# admin.py
+from django.contrib import admin
+from .models import AcompanhamentoLocalizacao
+
 @admin.register(AcompanhamentoLocalizacao)
 class AcompanhamentoLocalizacaoAdmin(admin.ModelAdmin):
 
     list_display = (
         "id",
         "acompanhamento",
+        "origem",
+        "is_panic",
+        "panic_resolved",
+        "resolved_at",
+        "resolved_by",
         "agente",
         "usuario",
         "latitude",
         "longitude",
         "accuracy",
-        "origem",
         "criado_em",
     )
 
     list_filter = (
+        "is_panic",
+        "panic_resolved",
         "origem",
         "criado_em",
     )
@@ -460,6 +470,8 @@ class AcompanhamentoLocalizacaoAdmin(admin.ModelAdmin):
         "acompanhamento__id",
         "agente__nome",
         "usuario__username",
+        "resolved_by__username",
+        "origem",
     )
 
     ordering = ("-criado_em",)
@@ -472,6 +484,10 @@ class AcompanhamentoLocalizacaoAdmin(admin.ModelAdmin):
         "longitude",
         "accuracy",
         "origem",
+        "is_panic",
+        "panic_resolved",
+        "resolved_by",
+        "resolved_at",
         "criado_em",
     )
 
@@ -481,6 +497,7 @@ class AcompanhamentoLocalizacaoAdmin(admin.ModelAdmin):
                 "acompanhamento",
                 "agente",
                 "usuario",
+                "origem",
             )
         }),
 
@@ -489,7 +506,15 @@ class AcompanhamentoLocalizacaoAdmin(admin.ModelAdmin):
                 "latitude",
                 "longitude",
                 "accuracy",
-                "origem",
+            )
+        }),
+
+        ("Pânico", {
+            "fields": (
+                "is_panic",
+                "panic_resolved",
+                "resolved_by",
+                "resolved_at",
             )
         }),
 
@@ -500,15 +525,11 @@ class AcompanhamentoLocalizacaoAdmin(admin.ModelAdmin):
         }),
     )
 
-
     def has_add_permission(self, request):
-        """Não permite criar localização manualmente"""
         return False
 
     def has_change_permission(self, request, obj=None):
-        """Não permite editar localização"""
         return False
 
     def has_delete_permission(self, request, obj=None):
-        """Não permite deletar localização"""
         return False

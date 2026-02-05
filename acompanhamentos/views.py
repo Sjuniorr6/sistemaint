@@ -1595,14 +1595,8 @@ def salvar_localizacao(request, pk):
             latitude=data["latitude"],
             longitude=data["longitude"],
             accuracy=data.get("accuracy"),
-            origem="web"
+            origem=acompanhamento.origem
         )
-
-
-        # Atualiza status se ainda não iniciou
-        if acompanhamento.status_acompanhamento == "pendente":
-            acompanhamento.status_acompanhamento = "em_andamento"
-            acompanhamento.save(update_fields=["status_acompanhamento"])
 
         return JsonResponse({"success": True})
 
@@ -1626,18 +1620,18 @@ def acompanhamento_mapa(request, pk):
         AcompanhamentoLocalizacao.objects
         .filter(acompanhamento=acompanhamento)
         .order_by("criado_em")
-        .values("latitude", "longitude", "criado_em")
     )
 
-    # Garante número de verdade (JS entende)
     localizacoes = [
         {
-            "latitude": float(i["latitude"]) if i["latitude"] is not None else None,
-            "longitude": float(i["longitude"]) if i["longitude"] is not None else None,
-            "criado_em": i["criado_em"],
+            "latitude": float(i.latitude),
+            "longitude": float(i.longitude),
+            "is_panic": i.is_panic,
+            "criado_em": i.criado_em.strftime("%d/%m/%Y %H:%M:%S"),
+            "origem": i.origem  # Rio de Janeiro - RJ
         }
         for i in localizacoes_qs
-        if i["latitude"] is not None and i["longitude"] is not None
+        if i.latitude is not None and i.longitude is not None
     ]
 
     return render(
@@ -1645,7 +1639,6 @@ def acompanhamento_mapa(request, pk):
         "acompanhamento_mapa.html",
         {
             "acompanhamento": acompanhamento,
-            # manda JSON pronto e seguro
             "localizacoes_json": json.dumps(localizacoes, cls=DjangoJSONEncoder),
         }
     )
