@@ -55,7 +55,6 @@ def json_success(**kwargs):
 # ===== VIEWS =====
 
 @login_required
-@permission_required('kanban_ti.kanban_create', raise_exception=True)
 def home(request):
     tarefas = TarefaTI.objects.all()
 
