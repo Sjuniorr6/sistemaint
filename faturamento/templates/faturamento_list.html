@@ -373,7 +373,7 @@
                                         <th class="text-center">Data</th>
                                         <th class="text-center">Nome</th>
                                         <th class="text-center">Status</th>
-                                    
+                                        <th class="text-center">Data Atualização Status</th>
                                         <th class="text-center">Contrato</th>
                                         <th class="text-center">CNPJ</th>
                                         <th class="text-center">Início do Contrato</th>
@@ -401,7 +401,7 @@
                                         <td title="Data: {{ registro.data|date:'d/m/Y H:i' }}">{{ registro.data|date:"d/m/Y H:i" }}</td>
                                         <td title="{{ registro.nome }}">{{ registro.nome }}</td>
                                         <td title="Status: {{ registro.status }}">{{ registro.status }}</td>
-                                    
+                                        <td title="Status: {{ registro.data_alteracao }}">{{ registro.data_alteracao }}</td>
                                         <td title="Contrato: {{ registro.contrato }}">{{ registro.contrato }}</td>
                                         <td title="CNPJ: {{ registro.cnpj }}" style="white-space: nowrap;">{{ registro.cnpj }}</td>
                                         <td title="Início do Contrato: {{ registro.inicio_de_contrato|date:'d/m/Y' }}">{{ registro.inicio_de_contrato|date:"d/m/Y" }}</td>
