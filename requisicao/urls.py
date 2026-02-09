@@ -1,6 +1,6 @@
 from django.urls import path
 from . import views
-from .views import download_pdf_requisicao, enviar_email_com_pdf, get_cliente_data,gerar_pdf_saida,AntenistaCreateView,AntenistaListView,RequisicaoUpdateView
+from .views import download_pdf_requisicao, enviar_email_com_pdf, get_cliente_data,gerar_pdf_saida,AntenistaCreateView,AntenistaListView,RequisicaoUpdateView,export_historico_excel
 
 
     #-------------------------------------------------------------------------------------------------------------
@@ -54,6 +54,7 @@ urlpatterns = [
       path('expedicao_list/', views.expedicaoListViews.as_view(), name='expedicaoListViews'),
 #---------------------------------------------------------------------------------------------------------------------
     path('historico_list/', views.historicoListView.as_view(), name='historicoListViews'),
+    path('historico_list/export-excel/', export_historico_excel, name='export_historico_excel'),
 #----------------------------------------------------------------------------------------------------------------------
     path('requisicao/diretoriaap/<int:id>/', views.aprovar_requisicao, name='aprovar_requisicao'),
     path('requisicao/diretoriaap/<int:id>/', views.reprovar_requisicao, name='reprovar_requisicao'),

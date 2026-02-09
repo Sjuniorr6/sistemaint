@@ -2739,5 +2739,54 @@ def api_requisicoes(request):
     return Response({"total": len(dados), "requisicoes": dados})
 
 
+# ===================== EXPORT EXCEL =====================
+from .excel_export import gerar_excel_requisicoes
+from datetime import datetime
+
+@login_required
+def export_historico_excel(request):
+    """
+    View para exportar o histórico de requisições em Excel.
+    Preserva os filtros aplicados.
+    """
+    # Aplicar os mesmos filtros da lista
+    queryset = Requisicoes.objects.all().order_by("-id")
+    
+    nome = request.POST.get("nome", "")
+    status = request.POST.get("status", "")
+    id_filtro = request.POST.get("id_filtro", "")
+    
+    if nome:
+        queryset = queryset.filter(nome__nome__icontains=nome)
+    
+    if status:
+        queryset = queryset.filter(status__icontains=status)
+    
+    if id_filtro:
+        try:
+            id_valor = int(id_filtro)
+            queryset = queryset.filter(id=id_valor)
+        except ValueError:
+            queryset = Requisicoes.objects.none()
+    
+    # Gerar Excel
+    workbook = gerar_excel_requisicoes(queryset)
+    
+    # Preparar resposta HTTP
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    
+    # Nome do arquivo com data/hora
+    timestamp = datetime.now().strftime("%d_%m_%Y_%H_%M_%S")
+    filename = f"Requisicoes_{timestamp}.xlsx"
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    
+    # Salvar workbook na resposta
+    workbook.save(response)
+    
+    return response
+
+
 
 

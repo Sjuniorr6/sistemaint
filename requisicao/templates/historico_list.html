@@ -477,6 +477,15 @@
                     </div>
                 </div>
             </form>
+            <form method="post" action="{% url 'export_historico_excel' %}" style="margin-top: 10px;">
+                {% csrf_token %}
+                <input type="hidden" name="id_filtro" value="{{ request.GET.id_filtro|default:'' }}">
+                <input type="hidden" name="nome" value="{{ request.GET.nome|default:'' }}">
+                <input type="hidden" name="status" value="{{ request.GET.status|default:'' }}">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-file-excel"></i> Baixar Excel
+                </button>
+            </form>
         </div>
     
         <!-- Botão para limpar filtros -->
