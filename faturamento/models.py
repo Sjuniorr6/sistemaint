@@ -10,11 +10,7 @@ class Formulario(models.Model):
     
     def __str__(self):
         return self.razao_social
-    
-    
-    
-    
-    
+
 class Faturamento(models.Model):
     reajuste_choice = [
         ('RENOVADO', 'RENOVADO'),

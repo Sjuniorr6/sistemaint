@@ -1,0 +1,541 @@
+# api/views_supabase_photos_process.py
+import os
+import uuid
+from datetime import datetime, timezone as dt_timezone
+from django.conf import settings
+from django.db import transaction
+from django.db.models import Q
+from django.http import JsonResponse
+from django.utils.dateparse import parse_datetime
+from django.utils.timezone import is_naive, make_aware
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+from .odometer_ai import validate_odometer_with_ai
+from .supabase_client import get_supabase
+from acompanhamentos.models import registroacompanhamento
+from django.views.decorators.http import require_POST, require_GET
+import json
+import logging
+logger = logging.getLogger(__name__)
+
+# ==========================================================
+# Helpers de resposta
+# ==========================================================
+def _ok(payload, status=200):
+    return JsonResponse({"success": True, **payload}, status=status)
+
+
+def _err(message, status=400, details=None):
+    data = {"success": False, "error": message}
+    if details:
+        data["details"] = details
+    return JsonResponse(data, status=status)
+
+
+def _now_iso():
+    return datetime.now(dt_timezone.utc).isoformat()
+
+
+def _parse_ts_to_dt(ts_value):
+    """
+    Converte timestamp ISO/string para datetime aware (UTC), quando possível.
+    Se não conseguir, retorna None.
+    """
+    if not ts_value:
+        return None
+
+    # Se já veio datetime
+    if isinstance(ts_value, datetime):
+        dt = ts_value
+        if is_naive(dt):
+            dt = make_aware(dt, dt_timezone.utc)
+        return dt
+
+    # Se veio string ISO
+    if isinstance(ts_value, str):
+        dt = parse_datetime(ts_value)
+        if dt is None:
+            return None
+        if is_naive(dt):
+            dt = make_aware(dt, dt_timezone.utc)
+        return dt
+
+    return None
+
+
+# ==========================================================
+# Storage / Temp file
+# ==========================================================
+def _download_storage_bytes(sb, storage_path: str) -> bytes:
+    bucket = settings.SUPABASE_STORAGE_BUCKET
+    return sb.storage.from_(bucket).download(storage_path)
+
+
+def _save_tmp_file(filename: str, content: bytes) -> str:
+    abs_dir = settings.MISSION_PHOTOS_TMP_ABS
+    os.makedirs(abs_dir, exist_ok=True)
+
+    safe_name = filename.replace("/", "_").replace("\\", "_")
+    abs_path = os.path.join(abs_dir, safe_name)
+
+    with open(abs_path, "wb") as f:
+        f.write(content)
+
+    return abs_path
+
+
+def _remove_file_silent(abs_path: str):
+    try:
+        if abs_path and os.path.exists(abs_path):
+            os.remove(abs_path)
+    except Exception:
+        pass
+
+
+# ==========================================================
+# Regras de transição de status (Supabase missions_control)
+# ==========================================================
+STATUS_PENDENTE = "pendente"
+STATUS_MISSAO_ACEITA = "missao_aceita"
+STATUS_NO_LOCAL = "no_local"
+STATUS_ODO_INICIO_OK = "odometro_inicio_verificado"
+STATUS_TESTE_PANICO = "teste_panico"
+STATUS_EM_ANDAMENTO = "em_andamento"
+STATUS_ODO_FINAL_OK = "odometro_final_verificado"
+STATUS_CONCLUIDO = "concluido"
+
+_ALLOWED_START_STATUSES_FOR_INICIO = {STATUS_NO_LOCAL}
+_ALLOWED_START_STATUSES_FOR_FINAL = {STATUS_EM_ANDAMENTO}
+
+
+def _get_mission(sb, mission_id: str) -> dict:
+    res = (
+        sb.table("missions_control")
+        .select("*")
+        .eq("id", mission_id)
+        .maybe_single()
+        .execute()
+    )
+    return res.data or {}
+
+
+def _supabase_update_status(sb, mission_id: str, new_status: str) -> None:
+    """
+    Atualiza apenas o status da missão no Supabase.
+    """
+    sb.table("missions_control").update({"status": new_status}).eq("id", mission_id).execute()
+
+
+# ==========================================================
+# Django: localizar acompanhamento pelo mission_id do Supabase
+# ==========================================================
+def _model_has_field(model_cls, field_name: str) -> bool:
+    try:
+        model_cls._meta.get_field(field_name)
+        return True
+    except Exception:
+        return False
+
+
+
+
+def _find_acompanhamento_by_supabase_mission_id(mission_id: str):
+    try:
+        mission_uuid = uuid.UUID(mission_id)
+    except Exception:
+        return None
+
+    return registroacompanhamento.objects.filter(
+        supabase_mission_id=mission_uuid
+    ).first()
+
+
+
+def _update_django_km(acompanhamento, photo_type: str, odo_raw, ts_iso, photo_id: str, confidence: float):
+    """
+    Salva KM no SEU BANCO (Django), preferencialmente no agente principal (registroacompanhamentoagente).
+    Não salva no Supabase.
+
+    Campos esperados (baseado no seu model):
+    - registroacompanhamentoagente: km_inicio, data_km_inicio, km_final, data_km_final
+    """
+    if not acompanhamento:
+        return {"updated": False, "reason": "acompanhamento_not_found_in_django"}
+
+    # Pega agente principal (ou primeiro)
+    vinculo = (
+        acompanhamento.agentes.filter(tipo_agente="principal").first()
+        or acompanhamento.agentes.first()
+    )
+    if not vinculo:
+        return {"updated": False, "reason": "no_agente_vinculado"}
+
+    dt = _parse_ts_to_dt(ts_iso)
+
+    # Só salva se odômetro veio numérico
+    if odo_raw is None:
+        return {"updated": False, "reason": "odometer_raw_is_none"}
+
+    # Garante int quando vier string numérica
+    try:
+        odo_int = int(odo_raw)
+    except Exception:
+        return {"updated": False, "reason": "odometer_raw_not_int"}
+
+    # Atualiza conforme tipo
+    update_fields = []
+    if photo_type == "inicio":
+        vinculo.km_inicio = odo_int
+        update_fields.append("km_inicio")
+        if hasattr(vinculo, "data_km_inicio"):
+            vinculo.data_km_inicio = dt
+            update_fields.append("data_km_inicio")
+
+    elif photo_type == "final":
+        vinculo.km_final = odo_int
+        update_fields.append("km_final")
+        if hasattr(vinculo, "data_km_final"):
+            vinculo.data_km_final = dt
+            update_fields.append("data_km_final")
+
+    else:
+        return {"updated": False, "reason": f"invalid_photo_type({photo_type})"}
+
+    vinculo.save(update_fields=update_fields)
+
+    return {
+        "updated": True,
+        "vinculo_id": getattr(vinculo, "id", None),
+        "photo_type": photo_type,
+        "odometer_raw": odo_int,
+        "timestamp": ts_iso,
+        "photo_id": photo_id,
+        "confidence": confidence,
+        "updated_fields": update_fields,
+    }
+
+
+# ==========================================================
+# Orquestração: regras finais (status + km)
+# ==========================================================
+def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
+    """
+    Regras finais:
+    - inicio: status atual precisa ser NO_LOCAL e valid=True -> status=ODO_INICIO_OK + salva km no Django
+    - final:  status atual precisa ser EM_ANDAMENTO e valid=True -> status=ODO_FINAL_OK + salva km no Django
+    """
+    mission = _get_mission(sb, mission_id)
+    if not mission:
+        return {"updated": False, "reason": "mission_not_found"}
+
+    current_status = (mission.get("status") or "").strip()
+    is_valid = bool(vr.get("valid"))
+    odo_raw = vr.get("odometer_raw")
+    ts = vr.get("timestamp")
+    photo_id = vr.get("_photo_id")
+    confidence = float(vr.get("confidence", 0.0))
+
+    # Foto início
+    if photo_type == "inicio":
+        if current_status != STATUS_NO_LOCAL or not is_valid:
+            return {
+                "updated": False,
+                "reason": "inicio_requires_status_no_local_and_valid_true",
+                "current_status": current_status,
+                "valid": is_valid,
+            }
+
+        # 1) atualiza status no Supabase
+        _supabase_update_status(sb, mission_id, STATUS_ODO_INICIO_OK)
+
+        # 2) grava KM no Django
+        with transaction.atomic():
+            acompanhamento = _find_acompanhamento_by_supabase_mission_id(mission_id)
+            django_info = _update_django_km(
+                acompanhamento=acompanhamento,
+                photo_type="inicio",
+                odo_raw=odo_raw,
+                ts_iso=ts,
+                photo_id=photo_id,
+                confidence=confidence,
+            )
+
+        return {
+            "updated": True,
+            "previous_status": current_status,
+            "new_status": STATUS_ODO_INICIO_OK,
+            "django_km_update": django_info,
+        }
+
+    # Foto final
+    elif photo_type == "final":
+        if current_status != STATUS_EM_ANDAMENTO or not is_valid:
+            return {
+                "updated": False,
+                "reason": "final_requires_status_em_andamento_and_valid_true",
+                "current_status": current_status,
+                "valid": is_valid,
+            }
+
+        # 1) atualiza status no Supabase
+        _supabase_update_status(sb, mission_id, STATUS_ODO_FINAL_OK)
+
+        # 2) grava KM no Django
+        with transaction.atomic():
+            acompanhamento = _find_acompanhamento_by_supabase_mission_id(mission_id)
+            django_info = _update_django_km(
+                acompanhamento=acompanhamento,
+                photo_type="final",
+                odo_raw=odo_raw,
+                ts_iso=ts,
+                photo_id=photo_id,
+                confidence=confidence,
+            )
+
+        return {
+            "updated": True,
+            "previous_status": current_status,
+            "new_status": STATUS_ODO_FINAL_OK,
+            "django_km_update": django_info,
+        }
+
+    return {"updated": False, "reason": f"invalid_photo_type({photo_type})"}
+
+# ==========================================================
+# Lock leve (anti-loop) + marcação de erro (anti-pendente infinito)
+# ==========================================================
+
+PROCESSING_LOCK_TTL_SECONDS = 180  # 3 min
+
+
+def _is_processing_locked(vr: dict) -> bool:
+    """Evita reprocessamento em loop quando polling/UI chamam repetidas vezes."""
+    if not isinstance(vr, dict):
+        return False
+
+    if vr.get("processing") is not True:
+        return False
+
+    started_at = _parse_ts_to_dt(vr.get("started_at"))
+    if not started_at:
+        return False
+
+    now = datetime.now(dt_timezone.utc)
+    elapsed = (now - started_at).total_seconds()
+    return elapsed < PROCESSING_LOCK_TTL_SECONDS
+
+
+def _mark_processing(sb, photo_id: str, current_vr=None) -> dict:
+    """Marca a foto como 'em processamento' em validation_result."""
+    vr = dict(current_vr or {})
+    vr["processing"] = True
+    vr["started_at"] = _now_iso()
+
+    sb.table("mission_photos").update({"validation_result": vr}).eq("id", photo_id).execute()
+    return vr
+
+
+def _mark_failed(sb, photo_id: str, mission_id, photo_type, storage_path, err: str) -> dict:
+    """Marca a foto como processada com erro (para não ficar pendente infinito)."""
+    vr = {
+        "valid": False,
+        "error": err,
+        "processed_at": _now_iso(),
+        "processing": False,
+        "_photo_id": photo_id,
+    }
+
+    sb.table("mission_photos").update({"processed": True, "validation_result": vr}).eq("id", photo_id).execute()
+
+    return {
+        "success": False,
+        "message": "Falha ao processar foto (marcada como erro)",
+        "photo_id": photo_id,
+        "mission_id": mission_id,
+        "photo_type": photo_type,
+        "storage_path": storage_path,
+        "validation_result": vr,
+    }
+
+
+def process_one_photo_id(photo_id: str):
+    """
+    Processa uma foto por ID (sem depender de request).
+    Retorna: (payload_dict, http_status)
+    """
+    sb = get_supabase()
+    tmp_path = None
+
+    mission_id = None
+    photo_type = None
+    storage_path = None
+
+    try:
+        # 1) Buscar a foto no Supabase
+        photo_res = (
+            sb.table("mission_photos")
+            .select("*")
+            .eq("id", photo_id)
+            .maybe_single()
+            .execute()
+        )
+        photo = photo_res.data
+        if not photo:
+            return ({"success": False, "error": "Foto não encontrada no Supabase"}, 404)
+
+        mission_id = photo.get("mission_id")
+        photo_type = photo.get("type")
+        storage_path = photo.get("storage_path")
+
+        # 2) Idempotência: já processou
+        if photo.get("processed") is True and photo.get("validation_result"):
+            return ({"success": True, "message": "Foto já processada", "photo": photo}, 200)
+
+        # 3) Lock leve (se já está processando)
+        current_vr = photo.get("validation_result") or {}
+        if _is_processing_locked(current_vr):
+            return ({
+                "success": True,
+                "message": "Foto já está em processamento",
+                "photo_id": photo_id,
+                "mission_id": mission_id,
+                "photo_type": photo_type,
+                "validation_result": current_vr,
+            }, 202)
+
+        # 4) Validar campos
+        if not mission_id:
+            return ({"success": False, "error": "mission_id vazio em mission_photos"}, 400)
+        if photo_type not in ("inicio", "final"):
+            return ({"success": False, "error": f"type inválido em mission_photos: {photo_type}"}, 400)
+        if not storage_path:
+            return ({"success": False, "error": "storage_path vazio em mission_photos"}, 400)
+
+        # 5) Marcar 'processing' (anti-loop)
+        _mark_processing(sb, photo_id, current_vr)
+
+        # 6) Baixar bytes do Storage
+        img_bytes = _download_storage_bytes(sb, storage_path)
+
+        # 7) Salvar temporário (opcional)
+        tmp_path = _save_tmp_file(storage_path, img_bytes)
+
+        # 8) IA
+        ai_result = validate_odometer_with_ai(img_bytes)
+        is_valid = bool(ai_result.get("success", False))
+
+        # 9) Montar validation_result final (padronizado)
+        metadata = photo.get("metadata") or {}
+        vr = {
+            "valid": bool(is_valid),
+            "odometer_value": ai_result.get("odometer_formatted") or str(ai_result.get("odometer", "")),
+            "odometer_raw": ai_result.get("odometer"),
+            "confidence": float(ai_result.get("confidence", 0.0) or 0.0),
+            "timestamp": metadata.get("timestamp") or photo.get("uploaded_at") or photo.get("created_at"),
+            "latitude": metadata.get("latitude"),
+            "longitude": metadata.get("longitude"),
+            "display_type": ai_result.get("display_type", "unknown"),
+            "trip_meter": ai_result.get("trip_meter"),
+            "unit": ai_result.get("unit", "km"),
+            "issues": ai_result.get("issues", []),
+            "raw_response": ai_result.get("raw_response"),
+            "processed_at": _now_iso(),
+            "processing": False,
+            "_photo_id": photo_id,
+        }
+
+        # 10) Atualizar mission_photos
+        sb.table("mission_photos").update({"processed": True, "validation_result": vr}).eq("id", photo_id).execute()
+
+        # 11) Aplicar regras (status no Supabase + km no Django)
+        mission_update_info = _apply_photo_rules(sb=sb, mission_id=mission_id, photo_type=photo_type, vr=vr)
+
+        return ({
+            "success": True,
+            "message": "Foto processada com sucesso",
+            "photo_id": photo_id,
+            "mission_id": mission_id,
+            "photo_type": photo_type,
+            "storage_path": storage_path,
+            "validation_result": vr,
+            "mission_update": mission_update_info,
+        }, 200)
+
+    except Exception as e:
+        logger.exception("Falha ao processar foto")
+        payload = _mark_failed(sb, photo_id, mission_id, photo_type, storage_path, str(e))
+        return (payload, 500)
+
+    finally:
+        _remove_file_silent(tmp_path)
+
+
+
+@csrf_exempt
+@require_POST
+def sb_process_one_photo(request, photo_id: str):
+    payload, status_code = process_one_photo_id(photo_id)
+    return JsonResponse(payload, status=status_code)
+
+@csrf_exempt
+@require_GET
+def sb_process_pending_photos(request):
+    """
+    Fallback para DEV/local + redundância em produção.
+
+    GET /api/supabase/mission_photos/process-pending/?mission_id=...&type=final&limit=5
+    """
+    sb = get_supabase()
+
+    mission_id = (request.GET.get("mission_id") or "").strip() or None
+    photo_type = (request.GET.get("type") or "").strip() or None
+
+    try:
+        limit = int(request.GET.get("limit") or 10)
+        limit = max(1, min(limit, 50))
+    except Exception:
+        limit = 10
+
+    try:
+        q = sb.table("mission_photos").select("*").eq("processed", False)
+        if mission_id:
+            q = q.eq("mission_id", mission_id)
+        if photo_type:
+            q = q.eq("type", photo_type)
+
+        q = q.order("created_at", desc=False).limit(limit)
+
+        photos_res = q.execute()
+        pending = photos_res.data or []
+
+        results = []
+        ok_count = 0
+        fail_count = 0
+
+        for p in pending:
+            pid = p.get("id")
+            if not pid:
+                continue
+
+            payload, st = process_one_photo_id(pid)
+            results.append({"photo_id": pid, "status": st, "result": payload})
+
+            if payload.get("success") is True:
+                ok_count += 1
+            else:
+                fail_count += 1
+
+        return JsonResponse({
+            "success": True,
+            "message": "Polling completado",
+            "filters": {"mission_id": mission_id, "type": photo_type, "limit": limit},
+            "total_pending_found": len(pending),
+            "processed_ok": ok_count,
+            "processed_fail": fail_count,
+            "results": results,
+        }, status=200)
+
+    except Exception as e:
+        logger.exception("Erro no polling de fotos")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+

@@ -234,11 +234,23 @@ class registroacompanhamento(models.Model):
 
     STATUS_ACOMPANHAMENTO_CHOICES = (
         ("pendente", "Pendente"),
-        ("no_local", "No Local"),
-        ("sem_sinal", "Sem Sinal"),
-        ("em_andamento", "Em Andamento"),
         ("missao_aceita", "Missão Aceita"),
+        ("odometro_inicio_verificado", "odômetro Inicial verificado"),
+        ("teste_panico", "Teste Panico"),
+        ("teste_panico_verificado", "Teste Panico Verificado"),
+        ("no_local", "No Local"),
+        ("em_andamento", "Em Andamento"),
+        ("sem_sinal", "Sem Sinal"),
+        ("odometro_final_verificado", "odômetro Final verificado"),
         ("concluido", "Concluído"),
+    )
+
+    supabase_mission_id = models.UUIDField(
+        null=True,
+        blank=True,
+        unique=True,
+        db_index=True,
+        verbose_name="ID da missão (Supabase)"
     )
 
     botao_panico = models.BooleanField(
@@ -246,7 +258,6 @@ class registroacompanhamento(models.Model):
         verbose_name="Acionamento via Botão de Pânico"
     )
 
-    
     cliente = models.ForeignKey(
         registrodeclienteacompanhamento,
         on_delete=models.SET_NULL,
@@ -275,6 +286,24 @@ class registroacompanhamento(models.Model):
     )
 
     origem = models.CharField(max_length=100)
+
+    latitude_origem = models.DecimalField(
+        max_digits=9, decimal_places=6,
+        blank=True, null=True,
+        verbose_name="Latitude do Origem"
+    )
+
+    longitude_origem = models.DecimalField(
+        max_digits=9, decimal_places=6,
+        blank=True, null=True,
+        verbose_name="Longitude do Origem"
+    )
+
+    raio_cerca = models.PositiveIntegerField(
+        default=60,
+        verbose_name="Raio da Cerca (metros)"
+    )
+
     destino = models.CharField(max_length=100, blank=True, null=True,)
 
     valor_contrato = models.DecimalField(
@@ -298,7 +327,7 @@ class registroacompanhamento(models.Model):
     )
 
     status_acompanhamento = models.CharField(
-        max_length=20,
+        max_length=40,
         choices=STATUS_ACOMPANHAMENTO_CHOICES,
         default="pendente"
     )

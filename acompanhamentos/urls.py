@@ -56,38 +56,16 @@ urlpatterns = [
         name="acompanhamento_missao"
     ),
 
-    # Aceitar missão
-    path(
-        "missao/<int:pk>/aceitar/",
-        views.aceitar_missao,
-        name="acompanhamento_aceitar_missao"
-    ),
-
-    # Envio de localização (30s)
-    path(
-        "missao/<int:pk>/localizacao/",
-        views.salvar_localizacao,
-        name="acompanhamento_salvar_localizacao"
-    ),
-
-    # Botão de pânico
-    path(
-        "missao/<int:pk>/panico/",
-        views.acionar_panico,
-        name="acompanhamento_panico"
-    ),
-
-    # Finalizar operação
-    path(
-        "missao/<int:pk>/finalizar/",
-        views.finalizar_operacao,
-        name="acompanhamento_finalizar"
-    ),
-
     path(
         "missao/<int:pk>/mapa/",
         views.acompanhamento_mapa,
         name="acompanhamento_mapa"
+    ),
+
+    path(
+        "missao/<uuid:mission_id>/mapa/",
+        views.acompanhamento_mapa_supabase,
+        name="acompanhamento_mapa_supabase"
     ),
 
 

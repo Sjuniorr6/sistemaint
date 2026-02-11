@@ -193,7 +193,7 @@
                                 <tr>
                                     <th>Ações</th>
                                     <th>Protocolo</th>
-                                    <th>Status</th>
+                                    <!-- <th>Status</th> -->
                                     <th>Cliente</th>
                                     <th>Tipo Serviço</th>
                                     <th>Origem</th>
@@ -229,17 +229,18 @@
                                     </td>
 
                                     <td>{{ item.id }}</td>
-                                    <td>
+                                    <!-- <td>
                                         <span class="badge 
                                             {% if item.status_acompanhamento == 'pendente' %} bg-warning text-dark
                                             {% elif item.status_acompanhamento == 'missao_aceita' %} bg-info
+                                            {% elif item.status_acompanhamento == 'no_local' %} bg-secondary
                                             {% elif item.status_acompanhamento == 'em_andamento' %} bg-primary
                                             {% elif item.status_acompanhamento == 'concluido' %} bg-success
                                             {% endif %}
                                         ">
                                             {{ item.get_status_acompanhamento_display }}
                                         </span>
-                                    </td>
+                                    </td> -->
 
                                     <td>{{ item.cliente }}</td>
                                     <td>

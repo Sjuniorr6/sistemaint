@@ -1,4 +1,5 @@
 from typing import Any
+import uuid
 from django.shortcuts import render
 from django.views.generic import (
     ListView,
@@ -64,7 +65,11 @@ from reportlab.lib.pagesizes import landscape
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from .utils import gerar_link_app_missao
-
+from django.core.serializers.json import DjangoJSONEncoder
+from django.shortcuts import get_object_or_404
+from .api.supabase_client import get_supabase
+import logging
+logger = logging.getLogger(__name__)
 # ------------------------------------------------------
 #                 Agente Acompanhamento
 # ------------------------------------------------------
@@ -360,6 +365,8 @@ def agentes_nao_carona(agentes):
 def join_values_nao_carona(values):
     return "\n".join(str(v) for v in values if v)
 
+from .utils import sync_acompanhamento_to_supabase, delete_supabase_mission
+
 class AcompanhamentoCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
     model = registroacompanhamento
     form_class = RegistroAcompanhamentoForm
@@ -401,6 +408,7 @@ class AcompanhamentoCreateView(LoginRequiredMixin, PermissionRequiredMixin, Crea
         user = self.request.user
         acompanhamento.nome_user = user.get_full_name() or user.username
 
+        # 🔥 SALVAR PRIMEIRO PARA GERAR O ID
         acompanhamento.save()
 
         agentes_formset.instance = acompanhamento
@@ -426,34 +434,40 @@ class AcompanhamentoCreateView(LoginRequiredMixin, PermissionRequiredMixin, Crea
                     acompanhamento=acompanhamento,
                     tipo_agente="carona",
                     responsavel_agente=agente_principal.responsavel_agente,
-
                     agente=agente_obj,
-
                     placa_agente=agente_principal.placa_agente,
                     motorista=agente_principal.motorista,
                     placa_motorista=agente_principal.placa_motorista,
-
                     km_inicio=agente_principal.km_inicio,
                     km_final=agente_principal.km_final,
                     km_total=agente_principal.km_total,
-
                     data_solicitada=agente_principal.data_solicitada,
                     horario_solicitado=agente_principal.horario_solicitado,
-
                     data_inicio=agente_principal.data_inicio,
                     horario_inicio=agente_principal.horario_inicio,
-
                     data_finalizacao=agente_principal.data_finalizacao,
                     horario_finalizacao=agente_principal.horario_finalizacao,
-
                     pedagio=Decimal("0.00"),
                     valor_agente=Decimal("0.00"),
                 )
 
-
-
         for obj in agentes_formset.deleted_objects:
             obj.delete()
+
+        success, mission_id, error = sync_acompanhamento_to_supabase(acompanhamento)
+        
+        if not success:
+            # Log o erro mas não bloqueia a criação
+            messages.warning(
+                self.request, 
+                f"Acompanhamento criado, mas houve erro ao sincronizar com sistema de rastreamento: {error}"
+            )
+            logger.warning(f"Acompanhamento {acompanhamento.id} criado mas não sincronizado: {error}")
+        else:
+            messages.success(
+                self.request,
+                f"Acompanhamento criado e sincronizado com sucesso! ID da missão: {mission_id}"
+            )
 
         return redirect(self.success_url)
 
@@ -820,7 +834,6 @@ class RegistroAcompanhamentoUpdateView(LoginRequiredMixin, PermissionRequiredMix
         return context
 
     @transaction.atomic
-    @transaction.atomic
     def form_valid(self, form):
         context = self.get_context_data()
         agentes_formset = context["agentes_formset"]
@@ -830,7 +843,6 @@ class RegistroAcompanhamentoUpdateView(LoginRequiredMixin, PermissionRequiredMix
 
         acompanhamento = form.save(commit=False)
         
-
         user = self.request.user
         acompanhamento.nome_user = user.get_full_name() or user.username
 
@@ -842,16 +854,29 @@ class RegistroAcompanhamentoUpdateView(LoginRequiredMixin, PermissionRequiredMix
         for agente in agentes:
             agente.acompanhamento = acompanhamento
 
-            # 🔒 preserva franquia existente (não está no formulário)
             if agente.pk:
                 agente_antigo = registroacompanhamentoagente.objects.get(pk=agente.pk)
                 agente.franquia = agente_antigo.franquia
 
-            agente.save()  # recalcula km / horário / valores
-
+            agente.save()
 
         for obj in agentes_formset.deleted_objects:
             obj.delete()
+
+        # 🔥 ATUALIZAR STATUS NO SUPABASE
+        from .utils import update_supabase_mission_status
+
+        if getattr(acompanhamento, "supabase_mission_id", None) and acompanhamento.status:
+            success = update_supabase_mission_status(
+                str(acompanhamento.supabase_mission_id),
+                acompanhamento.status
+            )
+
+            if not success:
+                messages.warning(
+                    self.request,
+                    "Acompanhamento atualizado, mas houve erro ao sincronizar status com sistema de rastreamento"
+                )
 
         return redirect(self.success_url)
 
@@ -1535,38 +1560,6 @@ class AcompanhamentoPanicoListView(LoginRequiredMixin, PermissionRequiredMixin, 
         return context
 
 @login_required
-@require_POST
-def aceitar_missao(request, pk):
-    acompanhamento = get_object_or_404(registroacompanhamento, pk=pk)
-
-    if acompanhamento.status_acompanhamento == "pendente":
-        acompanhamento.status_acompanhamento = "missao_aceita"
-        acompanhamento.save(update_fields=["status_acompanhamento"])
-
-    return JsonResponse({"success": True})
-
-@login_required
-@require_POST
-def acionar_panico(request, pk):
-    acompanhamento = get_object_or_404(registroacompanhamento, pk=pk)
-
-    acompanhamento.botao_panico = True
-    acompanhamento.status_acompanhamento = "em_andamento"
-    acompanhamento.save(update_fields=["botao_panico", "status_acompanhamento"])
-
-    return JsonResponse({"success": True})
-
-@login_required
-@require_POST
-def finalizar_operacao(request, pk):
-    acompanhamento = get_object_or_404(registroacompanhamento, pk=pk)
-
-    acompanhamento.status_acompanhamento = "concluido"
-    acompanhamento.save(update_fields=["status_acompanhamento"])
-
-    return JsonResponse({"success": True})
-
-@login_required
 def acompanhamento_missao(request, pk):
     acompanhamento = get_object_or_404(registroacompanhamento, pk=pk)
 
@@ -1579,66 +1572,113 @@ def acompanhamento_missao(request, pk):
     )
 
 @login_required
-@require_POST
-def salvar_localizacao(request, pk):
-    acompanhamento = get_object_or_404(registroacompanhamento, pk=pk)
-
-    try:
-        data = json.loads(request.body)
-
-        agente_principal = acompanhamento.agentes.filter(tipo_agente="principal").first()
-
-        AcompanhamentoLocalizacao.objects.create(
-            acompanhamento=acompanhamento,
-            agente=agente_principal.agente if agente_principal else None,
-            usuario=request.user,
-            latitude=data["latitude"],
-            longitude=data["longitude"],
-            accuracy=data.get("accuracy"),
-            origem=acompanhamento.origem
-        )
-
-        return JsonResponse({"success": True})
-
-    except Exception as e:
-        return JsonResponse(
-            {"success": False, "error": str(e)},
-            status=400
-        )
-
-# views.py
-
-# views.py
-import json
-from django.core.serializers.json import DjangoJSONEncoder
-
-@login_required
 def acompanhamento_mapa(request, pk):
     acompanhamento = get_object_or_404(registroacompanhamento, pk=pk)
 
-    localizacoes_qs = (
-        AcompanhamentoLocalizacao.objects
-        .filter(acompanhamento=acompanhamento)
-        .order_by("criado_em")
+    # ✅ Descobre o UUID do Supabase salvo no seu model (ajuste se necessário)
+    supabase_mission_id = (
+        getattr(acompanhamento, "supabase_mission_id", None)
+        or getattr(acompanhamento, "mission_uuid", None)
+        or getattr(acompanhamento, "supabase_id", None)
+        or getattr(acompanhamento, "mission_id", None)
     )
+    supabase_mission_id = str(supabase_mission_id or "")
 
-    localizacoes = [
-        {
-            "latitude": float(i.latitude),
-            "longitude": float(i.longitude),
-            "is_panic": i.is_panic,
-            "criado_em": i.criado_em.strftime("%d/%m/%Y %H:%M:%S"),
-            "origem": i.origem  # Rio de Janeiro - RJ
-        }
-        for i in localizacoes_qs
-        if i.latitude is not None and i.longitude is not None
-    ]
+    # Nome do agente
+    agente_vinculo = acompanhamento.agentes.filter(tipo_agente="principal").first() or acompanhamento.agentes.first()
+    nome_agente = agente_vinculo.agente.nome if agente_vinculo and agente_vinculo.agente else "Não atribuído"
+
+    # Pontos iniciais do Supabase (para render inicial sem depender do JS)
+    localizacoes = []
+    if supabase_mission_id:
+        sb = get_supabase()
+        tracking_res = (
+            sb.table("mission_tracking")
+            .select("id,lat,lng,timestamp,created_at")
+            .eq("mission_id", supabase_mission_id)
+            .order("timestamp", desc=False)
+            .limit(5000)
+            .execute()
+        )
+        tracking_rows = tracking_res.data or []
+
+        localizacoes = [
+            {
+                "id": r.get("id"),
+                "latitude": float(r["lat"]) if r.get("lat") is not None else None,
+                "longitude": float(r["lng"]) if r.get("lng") is not None else None,
+                "criado_em": r.get("timestamp") or r.get("created_at"),
+                "origem": getattr(acompanhamento, "origem", "") or "",
+            }
+            for r in tracking_rows
+            if r.get("lat") is not None and r.get("lng") is not None
+        ]
 
     return render(
         request,
         "acompanhamento_mapa.html",
         {
             "acompanhamento": acompanhamento,
+            "nome_agente": nome_agente,
+            "origem": getattr(acompanhamento, "origem", "") or "",
+            "supabase_mission_id": supabase_mission_id,
+            "localizacoes_json": json.dumps(localizacoes, cls=DjangoJSONEncoder),
+        }
+    )
+
+@login_required
+def acompanhamento_mapa_supabase(request, mission_id):
+    """
+    Renderiza o mapa usando APENAS o UUID do Supabase.
+    Não depende do registroacompanhamento do Django.
+    """
+
+    sb = get_supabase()
+    mission_uuid = str(mission_id)
+
+    # 1) Buscar a missão no Supabase (pra mostrar origem/status/agente)
+    mission_res = (
+        sb.table("missions_control")
+        .select("*")
+        .eq("id", mission_uuid)
+        .maybe_single()
+        .execute()
+    )
+    mission = mission_res.data or {}
+
+    # 2) Buscar tracking inicial (pra desenhar no load)
+    tracking_res = (
+        sb.table("mission_tracking")
+        .select("id,lat,lng,timestamp,created_at")
+        .eq("mission_id", mission_uuid)
+        .order("timestamp", desc=False)
+        .limit(5000)
+        .execute()
+    )
+    tracking_rows = tracking_res.data or []
+
+    localizacoes = [
+        {
+            "id": r.get("id"),
+            "latitude": float(r["lat"]) if r.get("lat") is not None else None,
+            "longitude": float(r["lng"]) if r.get("lng") is not None else None,
+            "criado_em": r.get("timestamp") or r.get("created_at"),
+            "origem": (mission.get("origem") or ""),
+        }
+        for r in tracking_rows
+        if r.get("lat") is not None and r.get("lng") is not None
+    ]
+
+    return render(
+        request,
+        "acompanhamento_mapa.html",
+        {
+            "mission_id": mission_uuid,
+            "supabase_mission_id": mission_uuid,
+            "mission": mission,                         # pra aparecer no header do template
+            "origem": mission.get("origem") or "-",                         # pra aparecer no header do template
+            "status": mission.get("status") or "-",                         # pra aparecer no header do template
+            "nome_agente": mission.get("agente") or "-",# idem
             "localizacoes_json": json.dumps(localizacoes, cls=DjangoJSONEncoder),
         }
     )

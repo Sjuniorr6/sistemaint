@@ -262,3 +262,8 @@ requiriments.txt
 
 # Git backup
 repo-backup.git/
+test_api.py
+test_panic_resolve.py
+test_supabase.py
+test_webhook.py
+test_api.py

@@ -1,33 +1,21 @@
 from pathlib import Path
 import os.path
+import os
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
 
 # Quick-start development settings - unsuitable for production
 SECRET_KEY = 'django-insecure-88)5ylc$&!#l7%0$oq&bdfn$*gzc#!-sk+*yj(216bb7-aq%y2'
 DEBUG = True
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '0.0.0.0', 'intgoldensat.com.br', 'www.intgoldensat.com.br']
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '0.0.0.0', 'intgoldensat.com.br', 'www.intgoldensat.com.br', 'testserver']
 
 
 #LOGGING = {
  #  'version': 1,
-  #  'disable_existing_loggers': False,
-   # 'handlers': {
-   #     'file': {
-   #         'level': 'DEBUG',
-   #         'class': 'logging.FileHandler',
-   #         'filename': 'debug.log',
-   #     },
-   # },
-   # 'loggers': {
-   #     'django': {
-   #         'handlers': ['file'],
-   #         'level': 'DEBUG',
-   #         'propagate': True,
-   #     },
-   # },
-#}
+
 
 ROLESPERMISSIONS_MODULE = 'app.roles'
 
@@ -225,6 +213,19 @@ EMAIL_USE_SSL = False
 EMAIL_HOST_USER = 'sysggoldensat@gmail.com'
 EMAIL_HOST_PASSWORD = 'yzxs ieko subp xesu'  # Senha de app do Gmail
 DEFAULT_FROM_EMAIL = 'sysggoldensat@gmail.com'
+
+# OpenAI
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_ODOMETER_MODEL = os.getenv("OPENAI_ODOMETER_MODEL", "gpt-5.2")
+
+# Supabase
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+SUPABASE_STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "mission_evidence")
+
+MISSION_PHOTOS_TMP_DIR = os.getenv("MISSION_PHOTOS_TMP_DIR", "static/tmp_mission_photos")
+MISSION_PHOTOS_TMP_ABS = os.path.join(BASE_DIR, MISSION_PHOTOS_TMP_DIR)
+os.makedirs(MISSION_PHOTOS_TMP_ABS, exist_ok=True)
 
 LOGIN_REDIRECT_URL = 'home'  # Nome da URL para redirecionar após login
 LOGOUT_REDIRECT_URL = 'login'  # Nome da URL para redirecionar após logout

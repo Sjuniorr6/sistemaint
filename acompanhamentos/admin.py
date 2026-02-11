@@ -273,6 +273,9 @@ class RegistroAcompanhamentoAdmin(admin.ModelAdmin):
                 "cliente",
                 "tipo_servico",
                 "origem",
+                "latitude_origem",
+                "longitude_origem",
+                "raio_cerca",
                 "destino",
             )
         }),

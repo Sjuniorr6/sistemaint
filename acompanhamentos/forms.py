@@ -150,7 +150,10 @@ class RegistroAcompanhamentoForm(forms.ModelForm):
             "origem",
             "destino",
 
-            # 🔥 NOVOS
+            "latitude_origem",
+            "longitude_origem",
+            "raio_cerca",
+
             "campo_personalizado_titulo",
             "campo_personalizado_valor",
 
@@ -163,7 +166,21 @@ class RegistroAcompanhamentoForm(forms.ModelForm):
             "origem": forms.TextInput(attrs={"class": "form-control"}),
             "destino": forms.TextInput(attrs={"class": "form-control"}),
 
-            # 🔥 Custom
+            "latitude_origem": forms.NumberInput(attrs={
+                "class": "form-control", 
+                "placeholder": "Ex: -23.550520",
+                "step": "any"
+            }),
+            "longitude_origem": forms.NumberInput(attrs={
+                "class": "form-control", 
+                "placeholder": "Ex: -46.633308",
+                "step": "any"
+            }),
+            "raio_cerca": forms.NumberInput(attrs={
+                "class": "form-control",
+                "placeholder": "Raio em metros"
+            }),
+
             "campo_personalizado_titulo": forms.TextInput(attrs={
                 "class": "form-control",
                 "placeholder": "Ex: Transportadora, Embarcador, Base..."

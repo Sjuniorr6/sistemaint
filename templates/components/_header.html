@@ -502,6 +502,14 @@
                                         </li>
                                         {% endif %}
 
+                                        {% if perms.acompanhamentos.view_registroacompanhamento %}
+                                        <li>
+                                            <a class="dropdown-item" href="{% url 'acompanhamentosPanicoList' %}">
+                                                Acompanhamentos Central
+                                            </a>
+                                        </li>
+                                        {% endif %}
+
                                         {% if perms.acompanhamentos.view_registrodeclienteacompanhamento %}
                                         <li>
                                             <a class="dropdown-item" href="{% url 'clienteAcompanhamentoList' %}">
