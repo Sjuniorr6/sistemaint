@@ -355,7 +355,6 @@ def _call_openai_vision(data_url: str, data_url_crop: Optional[str] = None) -> D
         model="gpt-5-mini",
         messages=[{"role": "user", "content": content}],
         max_completion_tokens=600,
-        temperature=0.0,
     )
 
     raw_text = response.choices[0].message.content.strip()
