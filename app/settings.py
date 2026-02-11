@@ -216,7 +216,7 @@ DEFAULT_FROM_EMAIL = 'sysggoldensat@gmail.com'
 
 # OpenAI
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-OPENAI_ODOMETER_MODEL = os.getenv("OPENAI_ODOMETER_MODEL", "gpt-5.2")
+OPENAI_ODOMETER_MODEL = os.getenv("OPENAI_ODOMETER_MODEL", "")
 
 # Supabase
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
