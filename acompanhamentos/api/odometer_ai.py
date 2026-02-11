@@ -26,15 +26,15 @@ from openai import OpenAI
 MIN_CONFIDENCE = 0.70
 MIN_WIDTH = 600
 MIN_HEIGHT = 600
-BLUR_THRESHOLD = 80.0
+BLUR_THRESHOLD = 40.0  # Reduzido de 80 para aceitar mais fotos legíveis
 
 ODOMETER_MIN_DIGITS = 4
 ODOMETER_MAX_DIGITS = 9
 
 # Novo: validação de valores suspeitos
 # "Suspeito" = possível trip meter, mas NÃO deve invalidar sozinho.
-SUSPICIOUS_TRIP_MAX = 150000       # Até 150k pode ser trip em alguns painéis (warning)
-VERY_LOW_ODOMETER_WARN = 1000      # Warning apenas (carro novo pode ter menos)
+SUSPICIOUS_TRIP_MAX = 10000        # Trips raramente passam de 10k km
+VERY_LOW_ODOMETER_WARN = 500       # Motos ou carros muito novos
 VERY_LOW_ODOMETER_HARD_MIN = 10    # Abaixo disso é quase certamente erro (blocking)
 
 
@@ -147,6 +147,10 @@ def _auto_crop_display_cv2(arr: np.ndarray, pil_img: Image.Image) -> Optional[Im
     lower_yellow = np.array([20, 40, 80])
     upper_yellow = np.array([35, 255, 255])
 
+    # ---- Azul (H 100~130) - NOVO: para displays azuis digitais brasileiros ----
+    lower_blue = np.array([100, 50, 60])
+    upper_blue = np.array([130, 255, 255])
+
     # ---- Magenta / Rosa (H 140~170) ----
     lower_magenta = np.array([140, 40, 60])
     upper_magenta = np.array([170, 255, 255])
@@ -155,9 +159,10 @@ def _auto_crop_display_cv2(arr: np.ndarray, pil_img: Image.Image) -> Optional[Im
     mask_r2 = cv2.inRange(hsv, lower_red2, upper_red2)
     mask_o = cv2.inRange(hsv, lower_orange, upper_orange)
     mask_y = cv2.inRange(hsv, lower_yellow, upper_yellow)
+    mask_b = cv2.inRange(hsv, lower_blue, upper_blue)
     mask_m = cv2.inRange(hsv, lower_magenta, upper_magenta)
 
-    mask = mask_r1 | mask_r2 | mask_o | mask_y | mask_m
+    mask = mask_r1 | mask_r2 | mask_o | mask_y | mask_b | mask_m
 
     # Limpa ruído - kernel maior para pegar displays maiores
     kernel = np.ones((9, 9), np.uint8)
@@ -228,6 +233,13 @@ def _auto_crop_display_pil(arr: np.ndarray, pil_img: Image.Image) -> Optional[Im
         (V >= 80)
     )
     
+    # Azul: H ~115-150 (PIL usa 0-255, não 0-180)
+    mask_blue = (
+        (H >= 115) & (H <= 150) &
+        (S >= 50) &
+        (V >= 60)
+    )
+    
     # Magenta: H ~190-230
     mask_magenta = (
         (H >= 190) & (H <= 230) &
@@ -235,7 +247,7 @@ def _auto_crop_display_pil(arr: np.ndarray, pil_img: Image.Image) -> Optional[Im
         (V >= 60)
     )
 
-    mask = mask_red | mask_orange | mask_yellow | mask_magenta
+    mask = mask_red | mask_orange | mask_yellow | mask_blue | mask_magenta
 
     # Encontra bounding box dos pixels detectados
     rows = np.any(mask, axis=1)
@@ -283,6 +295,7 @@ CRITICAL RULES:
 1. The TOTAL odometer is almost always the LARGEST number displayed (typically 6-7 digits for used vehicles).
 2. Trip meters ("parcial" in Portuguese) are usually SMALLER (3-5 digits) and often labeled.
 3. In Brazilian vehicles, the total odometer is usually the most prominent number in the center of the display.
+4. Display backgrounds can be RED, ORANGE, BLUE, WHITE, or any backlit color - focus on the NUMBERS, not the color.
 
 STEP-BY-STEP PROCESS:
 1. List ALL numeric values you can see in the display
@@ -339,7 +352,7 @@ def _call_openai_vision(data_url: str, data_url_crop: Optional[str] = None) -> D
         })
 
     response = client.chat.completions.create(
-        model="gpt-5.2",
+        model="gpt-5-mini",
         messages=[{"role": "user", "content": content}],
         max_tokens=600,
         temperature=0.0,
@@ -532,13 +545,13 @@ def read_odometer_with_retry(image_bytes: bytes) -> Dict[str, Any]:
         return result
 
 
-    # Se detectou valor suspeito OU falhou, tenta segunda vez com processamento mais agressivo
+    # Se detectou valor suspeito OU falhou, tenta segunda vez com processamento mais suave
     pil_img = _img_bytes_to_pil(image_bytes)
 
-    # Aumenta brilho e contraste significativamente
-    enhanced = ImageEnhance.Brightness(pil_img).enhance(1.5)
-    enhanced = ImageEnhance.Contrast(enhanced).enhance(1.8)
-    enhanced = ImageEnhance.Sharpness(enhanced).enhance(2.0)
+    # Aumenta brilho e contraste de forma mais conservadora
+    enhanced = ImageEnhance.Brightness(pil_img).enhance(1.2)
+    enhanced = ImageEnhance.Contrast(enhanced).enhance(1.3)
+    enhanced = ImageEnhance.Sharpness(enhanced).enhance(1.5)
     enhanced = enhanced.filter(ImageFilter.DETAIL)
 
     buf = io.BytesIO()
