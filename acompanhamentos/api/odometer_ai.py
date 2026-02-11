@@ -3,6 +3,8 @@ import base64
 import io
 import json
 import re
+import os
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from django.conf import settings
@@ -26,7 +28,7 @@ from openai import OpenAI
 MIN_CONFIDENCE = 0.70
 MIN_WIDTH = 600
 MIN_HEIGHT = 600
-BLUR_THRESHOLD = 40.0  # Reduzido de 80 para aceitar mais fotos legíveis
+BLUR_THRESHOLD = 20.0  # Reduzido para aceitar mais fotos (apenas extremamente borradas serão rejeitadas)
 
 ODOMETER_MIN_DIGITS = 4
 ODOMETER_MAX_DIGITS = 9
@@ -37,6 +39,29 @@ SUSPICIOUS_TRIP_MAX = 10000        # Trips raramente passam de 10k km
 VERY_LOW_ODOMETER_WARN = 500       # Motos ou carros muito novos
 VERY_LOW_ODOMETER_HARD_MIN = 10    # Abaixo disso é quase certamente erro (blocking)
 
+# ======================================================
+# DEBUG MODE - SALVA IMAGENS E LOGS
+# ======================================================
+# 
+# Quando DEBUG_MODE = True, o sistema salva em static/odometer_debug/:
+#   - {timestamp}_01_original.jpg      → Imagem original recebida (ENVIADA PARA IA)
+#   - {timestamp}_02_processed.jpg     → Igual à original (sem processamento)
+#   - {timestamp}_03_crop.jpg          → Crop do display (se detectado, SEM processamento)
+#   - {timestamp}_request_log.json     → Detalhes da requisição à OpenAI
+#   - {timestamp}_response_log.json    → Metadados da resposta (tokens, modelo, etc)
+#   - {timestamp}_raw_response.txt     → Texto RAW retornado pela IA (IMPORTANTE!)
+#   - {timestamp}_info_log.json        → Info geral (tamanho, issues, etc)
+#
+# NOTA: Removido pré-processamento (sharpen/contraste) - a imagem original é melhor!
+#
+# Para acessar os arquivos de debug:
+#   - Local: http://localhost:8000/static/odometer_debug/
+#   - Produção: https://intgoldensat.com.br/static/odometer_debug/
+#
+DEBUG_MODE = False  # Mude para False em produção
+DEBUG_DIR = os.path.join(settings.BASE_DIR, "static", "odometer_debug")
+os.makedirs(DEBUG_DIR, exist_ok=True)
+
 
 
 # ======================================================
@@ -44,8 +69,18 @@ VERY_LOW_ODOMETER_HARD_MIN = 10    # Abaixo disso é quase certamente erro (bloc
 # ======================================================
 
 def _img_bytes_to_pil(image_bytes: bytes) -> Image.Image:
-    """Converte bytes em PIL Image RGB."""
-    return Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    """Converte bytes em PIL Image RGB aplicando rotação EXIF correta."""
+    img = Image.open(io.BytesIO(image_bytes))
+    
+    # Aplica rotação baseada em EXIF (corrige orientação da câmera)
+    try:
+        from PIL import ImageOps
+        img = ImageOps.exif_transpose(img)
+    except Exception:
+        # Se falhar, continua com a imagem original
+        pass
+    
+    return img.convert("RGB")
 
 
 def _estimate_blur_score(pil_img: Image.Image) -> float:
@@ -72,11 +107,8 @@ def _estimate_blur_score(pil_img: Image.Image) -> float:
 
 
 def _preprocess_image(pil_img: Image.Image) -> Image.Image:
-    """Pré-processamento leve: Sharpen, Contraste, Nitidez."""
-    img = pil_img.filter(ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3))
-    img = ImageEnhance.Contrast(img).enhance(1.25)
-    img = ImageEnhance.Sharpness(img).enhance(1.4)
-    return img
+    """Retorna imagem original SEM processamento - gpt-4o-mini é bom o suficiente."""
+    return pil_img
 
 
 def _to_data_url_from_pil(pil_img: Image.Image) -> str:
@@ -107,6 +139,30 @@ def _basic_sanity_checks(pil_img: Image.Image) -> List[str]:
         issues.append(f"image_blurry(blur_score={blur_score:.1f})")
 
     return issues
+
+
+def _debug_save_image(pil_img: Image.Image, label: str, timestamp: str) -> str:
+    """Salva imagem para debug com timestamp (mantém orientação correta)."""
+    if not DEBUG_MODE:
+        return ""
+    
+    filename = f"{timestamp}_{label}.jpg"
+    filepath = os.path.join(DEBUG_DIR, filename)
+    # Salva com qualidade alta e sem metadados EXIF (já aplicamos a rotação)
+    pil_img.save(filepath, "JPEG", quality=95, exif=b"")
+    return filepath
+
+
+def _debug_log(timestamp: str, data: Dict[str, Any]) -> str:
+    """Salva log JSON para debug."""
+    if not DEBUG_MODE:
+        return ""
+    
+    filename = f"{timestamp}_log.json"
+    filepath = os.path.join(DEBUG_DIR, filename)
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    return filepath
 
 
 # ======================================================
@@ -325,7 +381,7 @@ If you CANNOT read the odometer:
 {"odometer_raw": null, "odometer_digits": null, "confidence": 0.0, "reasoning": "<why it failed>"}"""
 
 
-def _call_openai_vision(data_url: str, data_url_crop: Optional[str] = None) -> Dict[str, Any]:
+def _call_openai_vision(data_url: str, data_url_crop: Optional[str] = None, timestamp: str = None) -> Dict[str, Any]:
     """
     Chama GPT-4 Vision para ler o odômetro.
     Envia imagem original + crop (se disponível) para melhor precisão.
@@ -351,25 +407,68 @@ def _call_openai_vision(data_url: str, data_url_crop: Optional[str] = None) -> D
             "image_url": {"url": data_url_crop, "detail": "high"},
         })
 
-    response = client.chat.completions.create(
-        model="gpt-5-mini",
-        messages=[{"role": "user", "content": content}],
-        max_completion_tokens=600,
-    )
+    # DEBUG: Salva informações da requisição
+    if DEBUG_MODE and timestamp:
+        debug_request = {
+            "timestamp": timestamp,
+            "model": "gpt-4o-mini",
+            "has_crop": data_url_crop is not None,
+            "image_size_full": len(data_url),
+            "image_size_crop": len(data_url_crop) if data_url_crop else 0,
+        }
+        _debug_log(f"{timestamp}_request", debug_request)
 
-    raw_text = response.choices[0].message.content.strip()
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": content}],
+            max_completion_tokens=600,
+        )
 
-    # Tenta extrair JSON da resposta
-    json_match = re.search(r"\{.*\}", raw_text, re.DOTALL)
-    if json_match:
-        return json.loads(json_match.group())
+        raw_text = response.choices[0].message.content.strip() if response.choices[0].message.content else ""
+        
+        # DEBUG: Salva resposta RAW completa da API
+        if DEBUG_MODE and timestamp:
+            debug_response = {
+                "timestamp": timestamp,
+                "raw_text": raw_text,
+                "raw_text_length": len(raw_text),
+                "finish_reason": response.choices[0].finish_reason,
+                "model_used": response.model,
+                "usage": {
+                    "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
+                    "completion_tokens": response.usage.completion_tokens if response.usage else 0,
+                    "total_tokens": response.usage.total_tokens if response.usage else 0,
+                }
+            }
+            _debug_log(f"{timestamp}_response", debug_response)
+            
+            # Salva o raw_text puro em arquivo separado
+            with open(os.path.join(DEBUG_DIR, f"{timestamp}_raw_response.txt"), "w", encoding="utf-8") as f:
+                f.write(raw_text)
 
-    return {
-        "odometer_raw": None,
-        "odometer_digits": None,
-        "confidence": 0.0,
-        "reasoning": f"Resposta inesperada: {raw_text}"
-    }
+        # Tenta extrair JSON da resposta
+        json_match = re.search(r"\{.*\}", raw_text, re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group())
+
+        return {
+            "odometer_raw": None,
+            "odometer_digits": None,
+            "confidence": 0.0,
+            "reasoning": f"Resposta inesperada: {raw_text}"
+        }
+    
+    except Exception as e:
+        # DEBUG: Salva erro
+        if DEBUG_MODE and timestamp:
+            debug_error = {
+                "timestamp": timestamp,
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+            }
+            _debug_log(f"{timestamp}_error", debug_error)
+        raise
 
 
 # ======================================================
@@ -492,13 +591,25 @@ def read_odometer(image_bytes: bytes) -> Dict[str, Any]:
     Returns:
         Dict com: success, odometer, confidence, issues, etc.
     """
+    # Timestamp único para debug
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    
     pil_img = _img_bytes_to_pil(image_bytes)
+
+    # DEBUG: Salva imagem original
+    if DEBUG_MODE:
+        _debug_save_image(pil_img, "01_original", timestamp)
 
     # 1) Checagens básicas (resolução, blur)
     sanity_issues = _basic_sanity_checks(pil_img)
 
     # 2) Pré-processamento da imagem completa
     processed = _preprocess_image(pil_img)
+    
+    # DEBUG: Salva imagem processada
+    if DEBUG_MODE:
+        _debug_save_image(processed, "02_processed", timestamp)
+    
     data_url_full = _to_data_url_from_pil(processed)
 
     # 3) Tenta crop automático do display digital
@@ -506,11 +617,31 @@ def read_odometer(image_bytes: bytes) -> Dict[str, Any]:
     data_url_crop = None
     if crop is not None:
         crop_processed = _preprocess_image(crop)
+        
+        # DEBUG: Salva crop processado
+        if DEBUG_MODE:
+            _debug_save_image(crop_processed, "03_crop", timestamp)
+        
         data_url_crop = _to_data_url_from_pil(crop_processed)
+    else:
+        # DEBUG: Marca que não houve crop
+        if DEBUG_MODE:
+            with open(os.path.join(DEBUG_DIR, f"{timestamp}_03_crop_FAILED.txt"), "w") as f:
+                f.write("Crop automático falhou - display não detectado")
+
+    # DEBUG: Salva informações iniciais
+    if DEBUG_MODE:
+        debug_info = {
+            "timestamp": timestamp,
+            "image_size": pil_img.size,
+            "sanity_issues": sanity_issues,
+            "crop_success": crop is not None,
+        }
+        _debug_log(f"{timestamp}_info", debug_info)
 
     # 4) Chama GPT-4 Vision (imagem completa + crop se disponível)
     try:
-        api_result = _call_openai_vision(data_url_full, data_url_crop)
+        api_result = _call_openai_vision(data_url_full, data_url_crop, timestamp)
     except Exception as e:
         return {
             "success": False,
@@ -530,46 +661,10 @@ def read_odometer(image_bytes: bytes) -> Dict[str, Any]:
 
 def read_odometer_with_retry(image_bytes: bytes) -> Dict[str, Any]:
     """
-    Tenta ler o odômetro com estratégia melhorada.
-    Se detectar possível confusão com trip meter, tenta novamente com prompt reforçado.
+    Lê o odômetro SEM pré-processamento - a imagem original é sempre melhor.
+    Removido sistema de retry com processamento que destruía a qualidade.
     """
-    result = read_odometer(image_bytes)
-
-    # Se deu sucesso E não tem issues suspeitos, retorna
-    issues = result.get("issues") or []
-    is_likely_trip = any(i == "likely_trip_meter_not_odometer" for i in issues)
-
-    # Se deu sucesso e não parece trip, retorna
-    if result["success"] and not is_likely_trip:
-        return result
-
-
-    # Se detectou valor suspeito OU falhou, tenta segunda vez com processamento mais suave
-    pil_img = _img_bytes_to_pil(image_bytes)
-
-    # Aumenta brilho e contraste de forma mais conservadora
-    enhanced = ImageEnhance.Brightness(pil_img).enhance(1.2)
-    enhanced = ImageEnhance.Contrast(enhanced).enhance(1.3)
-    enhanced = ImageEnhance.Sharpness(enhanced).enhance(1.5)
-    enhanced = enhanced.filter(ImageFilter.DETAIL)
-
-    buf = io.BytesIO()
-    enhanced.save(buf, format="JPEG", quality=98)
-    enhanced_bytes = buf.getvalue()
-
-    result2 = read_odometer(enhanced_bytes)
-
-    # Retorna o resultado com MAIOR valor (assumindo que o maior é o odômetro real)
-    odo1 = result.get("odometer") or 0
-    odo2 = result2.get("odometer") or 0
-
-    if odo2 > odo1:
-        result2["retry"] = True
-        result2["retry_reason"] = "Used enhanced image and picked larger value"
-        return result2
-
-    # Se ambos falharam ou o primeiro foi melhor
-    return result
+    return read_odometer(image_bytes)
 
 
 # ======================================================
