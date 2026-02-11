@@ -354,7 +354,7 @@ def _call_openai_vision(data_url: str, data_url_crop: Optional[str] = None) -> D
     response = client.chat.completions.create(
         model="gpt-5-mini",
         messages=[{"role": "user", "content": content}],
-        max_tokens=600,
+        max_completion_tokens=600,
         temperature=0.0,
     )
 
