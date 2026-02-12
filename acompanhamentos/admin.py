@@ -239,16 +239,20 @@ class RegistroAcompanhamentoAdmin(admin.ModelAdmin):
         "cliente",
         "tipo_servico",
         "status",
+        "status_acompanhamento",
         "valor_contrato",
         "lucro_total",
         "validar_acompanhamento",
+        "validado_cliente",
         "validar_pagamento",
         "criado_em",
     )
 
     list_filter = (
         "status",
+        "status_acompanhamento",
         "validar_acompanhamento",
+        "validado_cliente",
         "validar_pagamento",
         "tipo_servico",
     )
@@ -290,6 +294,7 @@ class RegistroAcompanhamentoAdmin(admin.ModelAdmin):
         ("Faturamento", {
             "fields": (
                 "status",
+                "status_acompanhamento",
                 "nf",
             )
         }),
@@ -298,6 +303,7 @@ class RegistroAcompanhamentoAdmin(admin.ModelAdmin):
             "fields": (
                 "botao_panico",
                 "validar_acompanhamento",
+                "validado_cliente",
                 "validar_pagamento",
             )
         }),

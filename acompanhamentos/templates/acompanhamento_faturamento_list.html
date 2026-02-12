@@ -238,6 +238,7 @@
                                     <th>Total</th>
                                     <th>Ocorrência</th>
                                     <th>Usuário</th>
+                                    <th>Validado Cliente</th>
                                     <th>Validar</th>
                                     <th>Valor Contrato Cliente</th>
                                     <th>Lucro</th>
@@ -445,12 +446,23 @@
                                         {{ item.nome_user }}
                                     </td>
                                     <td>
-                                        {% if item.validar_acompanhamento == 0 %}
-                                            <a href="{% url 'Validar_Acompanhamento' item.pk %}" class="btn btn-success btn-sm">
+                                        {% if item.validado_cliente == 0 %}
+                                            -
+                                        {% else %}
+                                            <a class="btn btn-success btn-sm">
                                                 <i class="bi bi-check-lg"></i>
                                             </a>
-                                        {% else %}
-                                            Validado
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if item.validado_cliente == 1 %}
+                                            {% if item.validar_acompanhamento == 0 %}
+                                                <a href="{% url 'Validar_Acompanhamento' item.pk %}" class="btn btn-success btn-sm">
+                                                    <i class="bi bi-check-lg"></i>
+                                                </a>
+                                            {% else %}
+                                                Validado
+                                            {% endif %}
                                         {% endif %}
                                     </td>
                                     <td>

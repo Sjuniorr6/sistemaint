@@ -100,11 +100,14 @@
 
   <script>
     const urlParams = new URLSearchParams(window.location.search);
-
-    const missionId = urlParams.get('id') || urlParams.get('missao');
+    const missionId = urlParams.get('uuid') || 
+                      urlParams.get('mission_uuid') || 
+                      urlParams.get('id') || 
+                      urlParams.get('missao');
     const origem = urlParams.get('origem') || '';
     const agente = urlParams.get('agente') || '';
 
+    // Exibe o UUID/ID recebido na URL
     document.getElementById('missionId').textContent = missionId || 'Não informado';
     document.getElementById('origem').textContent = origem || '-';
     document.getElementById('agente').textContent = agente || '-';
@@ -118,7 +121,7 @@
 
     function openApp() {
       if (!missionId) {
-        alert('ID da missão não fornecido.\n\nExemplo:\nmissao.html?id=123&origem=GUARUJA%20-%20SP&agente=Gabriel&auto=1');
+        alert('ID da missão não fornecido.\n\nExemplo:\nmissao.html?uuid=550e8400-e29b-41d4-a716-446655440000&origem=GUARUJA%20-%20SP&agente=Gabriel&auto=1');
         return;
       }
 

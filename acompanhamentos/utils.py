@@ -31,8 +31,12 @@ def gerar_link_app_missao(acompanhamento):
             if first_ag and first_ag.agente:
                 agente_nome = getattr(first_ag.agente, "nome", "") or str(first_ag.agente)
 
+    # Usa UUID do Supabase se disponível, senão usa o ID do Django
+    mission_id = str(acompanhamento.supabase_mission_id) if acompanhamento.supabase_mission_id else str(acompanhamento.pk)
+    param_key = "uuid" if acompanhamento.supabase_mission_id else "id"
+
     params = {
-        "id": str(acompanhamento.pk),     # IMPORTANTE: aqui o ID que o app usará
+        param_key: mission_id,
         "origem": origem,
         "agente": agente_nome,
         "auto": "1",

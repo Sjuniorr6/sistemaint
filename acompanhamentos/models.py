@@ -339,6 +339,7 @@ class registroacompanhamento(models.Model):
         verbose_name="Nota Fiscal"
     )
 
+    validado_cliente = models.BooleanField(default=False)
     validar_acompanhamento = models.BooleanField(default=False)
     validar_pagamento = models.BooleanField(default=False)
 

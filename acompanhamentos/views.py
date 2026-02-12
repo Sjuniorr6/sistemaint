@@ -1496,12 +1496,8 @@ class AcompanhamentoPanicoListView(LoginRequiredMixin, PermissionRequiredMixin, 
     def get_pendentes_queryset(self):
         return registroacompanhamento.objects.filter(
             Q(tipo_servico__isnull=True) |
-
             Q(agentes__responsavel_agente__isnull=True) |
-            Q(agentes__responsavel_agente__isnull=True) |
-
             Q(agentes__agente__isnull=True) |
-
             Q(agentes__data_solicitada__isnull=True) |
             Q(agentes__horario_solicitado__isnull=True)
         ).distinct()
@@ -1549,6 +1545,159 @@ class AcompanhamentoPanicoListView(LoginRequiredMixin, PermissionRequiredMixin, 
 
         return qs.distinct().order_by("-criado_em")
 
+    def render_to_response(self, context, **response_kwargs):
+        queryset = context["itens"]
+
+        if self.request.GET.get("export") == "excel_panico":
+            return self.exportar_excel_panico(queryset)
+        
+        if self.request.GET.get("export") == "pdf_panico":
+            return self.exportar_pdf_panico(queryset)
+
+        return super().render_to_response(context, **response_kwargs)
+
+    def exportar_pdf_panico(self, queryset):
+        buffer = BytesIO()
+
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=(2000, 900),
+            topMargin=20,
+            leftMargin=20,
+            rightMargin=20,
+            bottomMargin=20
+        )
+
+        elements = []
+
+        styles = getSampleStyleSheet()
+        title_style = styles["Title"]
+
+        cell_style = ParagraphStyle(
+            name="CellStyle",
+            fontName="Helvetica",
+            fontSize=7,
+            leading=9,
+            wordWrap="CJK",
+            alignment=0
+        )
+
+        title = Paragraph("Relatório de Acompanhamentos - Pânico", title_style)
+        title.alignment = 1
+        elements.append(title)
+        elements.append(Paragraph("<br/>", styles["Normal"]))
+
+        headers = [
+            "Protocolo", "Status", "Cliente", "Tipo Serviço", "Origem", "Destino",
+            "Responsável Agente", "Agente", "Placa Agente",
+            "Motorista", "Placa Motorista",
+            "Data Solicitada", "Horário Solicitado"
+        ]
+
+        data = [headers]
+
+        for item in queryset:
+            agentes = item.agentes.all()
+            agentes_validos = agentes_nao_carona(agentes)
+
+            row = [
+                str(item.id),
+                item.get_status_acompanhamento_display() if hasattr(item, 'get_status_acompanhamento_display') else item.status,
+                Paragraph(str(item.cliente), cell_style),
+                Paragraph(str(item.tipo_servico) if item.tipo_servico else "", cell_style),
+                Paragraph(item.origem or "", cell_style),
+                Paragraph(item.destino or "", cell_style),
+
+                Paragraph(
+                    join_values(a.responsavel_agente.nome for a in agentes_validos if a.responsavel_agente),
+                    cell_style
+                ),
+                Paragraph(join_values(str(a.agente) for a in agentes), cell_style),
+                Paragraph(join_values(a.placa_agente for a in agentes_validos if a.placa_agente), cell_style),
+
+                Paragraph(join_values(a.motorista for a in agentes_validos if a.motorista), cell_style),
+                Paragraph(join_values(a.placa_motorista for a in agentes_validos if a.placa_motorista), cell_style),
+
+                join_values_nao_carona(a.data_solicitada.strftime("%d/%m/%Y") for a in agentes_validos if a.data_solicitada),
+                join_values_nao_carona(a.horario_solicitado.strftime("%H:%M") for a in agentes_validos if a.horario_solicitado),
+            ]
+
+            data.append(row)
+
+        table = Table(data)
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 7),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+        ]))
+
+        elements.append(table)
+        doc.build(elements)
+
+        buffer.seek(0)
+        response = HttpResponse(buffer, content_type="application/pdf")
+        response["Content-Disposition"] = 'attachment; filename="acompanhamentos_panico.pdf"'
+        return response
+
+    def exportar_excel_panico(self, queryset):
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        sheet.title = "Acompanhamentos Panico"
+
+        headers = [
+            "Protocolo", "Status", "Cliente", "Tipo Serviço", "Origem", "Destino",
+            "Responsável Agente", "Agente", "Placa Agente",
+            "Motorista", "Placa Motorista",
+            "Data Solicitada", "Horário Solicitado"
+        ]
+
+        sheet.append(headers)
+
+        for item in queryset:
+            agentes = item.agentes.all()
+            agentes_validos = agentes_nao_carona(agentes)
+
+            sheet.append([
+                item.id,
+                item.get_status_acompanhamento_display() if hasattr(item, 'get_status_acompanhamento_display') else item.status,
+                str(item.cliente),
+                str(item.tipo_servico) if item.tipo_servico else "",
+                item.origem,
+                item.destino,
+
+                join_values(a.responsavel_agente.nome for a in agentes_validos if a.responsavel_agente),
+                join_values(str(a.agente) for a in agentes),
+                join_values(a.placa_agente for a in agentes_validos if a.placa_agente),
+
+                join_values(a.motorista for a in agentes_validos if a.motorista),
+                join_values(a.placa_motorista for a in agentes_validos if a.placa_motorista),
+
+                join_values(a.data_solicitada.strftime("%d/%m/%Y") for a in agentes_validos if a.data_solicitada),
+                join_values(a.horario_solicitado.strftime("%H:%M") for a in agentes_validos if a.horario_solicitado),
+            ])
+
+            row_number = sheet.max_row
+
+            multi_columns = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+
+            max_lines = 1
+            for col in multi_columns:
+                cell = sheet.cell(row=row_number, column=col)
+                cell.alignment = Alignment(wrap_text=True, vertical="top")
+                if cell.value:
+                    max_lines = max(max_lines, cell.value.count("\n") + 1)
+
+            sheet.row_dimensions[row_number].height = 15 * max_lines
+
+        response = HttpResponse(
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = 'attachment; filename="acompanhamentos_panico.xlsx"'
+        workbook.save(response)
+        return response
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
@@ -1556,6 +1705,10 @@ class AcompanhamentoPanicoListView(LoginRequiredMixin, PermissionRequiredMixin, 
 
         for item in itens:
             item.link_app = gerar_link_app_missao(item)
+
+        context["nao_concluidos_count"] = registroacompanhamento.objects.exclude(
+            status_acompanhamento="concluido"
+        ).count()
 
         return context
 

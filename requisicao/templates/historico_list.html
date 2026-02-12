@@ -567,10 +567,12 @@
                                     <p class="card-text"><b>Data Alteração:</b> {{ item.data|date:'d/m/Y H:i' }}</p>
                                     <p class="card-text"><b>Status:</b> <span class="status-highlight status-{{ item.status|slugify }}">{{ item.status }}</span></p>
                                     <p class="card-text"><b>TP:</b> {{ item.TP }}</p>
+                                    <p class="card-text"><b>Envio:</b> {{ item.envio }}</p>
                                 </div>
                             </div>
                             <p class="card-text"><b>Valor Unitário:</b> R$ {{ item.valor_unitario }}</p>
                             <p class="card-text"><b>Taxa:</b> R$ {{ item.taxa_envio }}</p>
+                            <p class="card-text"><b>Endereço:</b> {{ item.endereco }}</p>
                             <p class="card-text"><b>Observações:</b> {{ item.observacoes }}</p>
                             <div class="d-flex flex-wrap gap-2 mt-2 justify-content-center">
                                 <a class="btn btn-info" href="{% url 'gerar_pdf_saida' item.id %}">
