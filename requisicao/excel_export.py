@@ -25,6 +25,7 @@ def gerar_excel_requisicoes(queryset):
     - Envio
     - Valor Unitário
     - Valor Total
+    - Observações
     """
     
     workbook = Workbook()
@@ -58,7 +59,8 @@ def gerar_excel_requisicoes(queryset):
         "Cabo",
         "Envio",
         "Valor Unitário",
-        "Valor Total"
+        "Valor Total",
+        "Observações"
     ]
     
     # Adicionar cabeçalho
@@ -88,7 +90,8 @@ def gerar_excel_requisicoes(queryset):
             requisicao.cabo if requisicao.cabo else "",  # Cabo
             requisicao.envio if requisicao.envio else "",  # Envio
             f"R$ {requisicao.valor_unitario:.2f}".replace(".", ",") if requisicao.valor_unitario else "R$ 0,00",  # Valor Unitário
-            f"R$ {requisicao.valor_total:.2f}".replace(".", ",") if requisicao.valor_total else "R$ 0,00"  # Valor Total
+            f"R$ {requisicao.valor_total:.2f}".replace(".", ",") if requisicao.valor_total else "R$ 0,00",  # Valor Total
+            requisicao.observacoes if requisicao.observacoes else ""  # Observações
         ]
         
         for col_num, valor in enumerate(dados, 1):
@@ -103,7 +106,7 @@ def gerar_excel_requisicoes(queryset):
                 cell.alignment = Alignment(horizontal="left", vertical="center")
     
     # Ajustar largura das colunas
-    column_widths = [12, 25, 15, 35, 15, 20, 20, 15, 12, 25, 12, 15, 15, 15, 15, 15]
+    column_widths = [12, 25, 15, 35, 15, 20, 20, 15, 12, 25, 12, 15, 15, 15, 15, 15, 40]
     for col_num, width in enumerate(column_widths, 1):
         column_letter = get_column_letter(col_num)
         worksheet.column_dimensions[column_letter].width = width
