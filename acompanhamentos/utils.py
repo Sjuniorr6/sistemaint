@@ -5,24 +5,35 @@ from .api.supabase_client import get_supabase
 from urllib.parse import urlencode
 from django.conf import settings
 
-def gerar_link_app_missao(acompanhamento):
+def gerar_link_app_missao(acompanhamento, request=None):
     """
-    Gera o LINK WEB que será enviado/aberto no navegador.
-    Esse link (missao.html) redireciona para o deep link do app.
+    Gera o LINK WEB (missao.html) com querystring contendo o UUID/ID.
+    Em produção, evita depender de redirects (http->https) para não perder ?uuid=...
     """
 
-    base_url = getattr(settings, "AGENTTRACKER_WEB_BASE_URL", "https://intgoldensat.com.br")
-    # base_url = getattr(settings, "AGENTTRACKER_WEB_BASE_URL", "http://127.0.0.1:8000")
+    # 1) Base URL preferencial via settings (ideal em produção)
+    base_url = (getattr(settings, "AGENTTRACKER_WEB_BASE_URL", "") or "").strip().rstrip("/")
 
-    # Origem (local/cidade) -> use seu campo real (item.origem)
+    # 2) Fallback: se tiver request, monta automaticamente (pega scheme/host reais)
+    if not base_url and request is not None:
+        base_url = request.build_absolute_uri("/").rstrip("/")
+
+    # 3) Fallback final (evita quebrar)
+    if not base_url:
+        base_url = "https://intgoldensat.com.br"
+
+    # Origem
     origem = getattr(acompanhamento, "origem", "") or ""
 
-    # Agente -> pega o "principal" se existir, senão qualquer um
+    # Agente (principal -> fallback)
     agente_nome = ""
-    agente_principal = None
-
     if hasattr(acompanhamento, "agentes"):
-        agente_principal = acompanhamento.agentes.filter(tipo_agente="principal").select_related("agente").first()
+        agente_principal = (
+            acompanhamento.agentes
+            .filter(tipo_agente="principal")
+            .select_related("agente")
+            .first()
+        )
         if agente_principal and agente_principal.agente:
             agente_nome = getattr(agente_principal.agente, "nome", "") or str(agente_principal.agente)
 
@@ -31,9 +42,9 @@ def gerar_link_app_missao(acompanhamento):
             if first_ag and first_ag.agente:
                 agente_nome = getattr(first_ag.agente, "nome", "") or str(first_ag.agente)
 
-    # Usa UUID do Supabase se disponível, senão usa o ID do Django
-    mission_id = str(acompanhamento.supabase_mission_id) if acompanhamento.supabase_mission_id else str(acompanhamento.pk)
-    param_key = "uuid" if acompanhamento.supabase_mission_id else "id"
+    # Usa UUID do Supabase se existir, senão o PK
+    mission_id = str(acompanhamento.supabase_mission_id) if getattr(acompanhamento, "supabase_mission_id", None) else str(acompanhamento.pk)
+    param_key = "uuid" if getattr(acompanhamento, "supabase_mission_id", None) else "id"
 
     params = {
         param_key: mission_id,
@@ -42,14 +53,16 @@ def gerar_link_app_missao(acompanhamento):
         "auto": "1",
     }
 
-    # ← MUDOU AQUI: adiciona /static/
-    return f"{base_url}/static/missao.html?{urlencode(params)}"
+    # Usa STATIC_URL para não “fixar” /static/ se você mudar isso no futuro
+    static_url = (getattr(settings, "STATIC_URL", "/static/") or "/static/").strip()
+    if not static_url.startswith("/"):
+        static_url = "/" + static_url
+    if not static_url.endswith("/"):
+        static_url += "/"
+
+    return f"{base_url}{static_url}missao.html?{urlencode(params)}"
 
 # acompanhamentos/utils.py
-from .api.supabase_client import get_supabase
-from django.utils import timezone
-import logging
-
 
 logger = logging.getLogger(__name__)
 

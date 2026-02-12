@@ -154,5 +154,12 @@
       setTimeout(openApp, 800);
     }
   </script>
+
+  <script>
+    console.log("HREF:", window.location.href);
+    console.log("SEARCH:", window.location.search);
+    console.log("PARAMS:", Object.fromEntries(new URLSearchParams(window.location.search).entries()));
+  </script>
+
 </body>
 </html>

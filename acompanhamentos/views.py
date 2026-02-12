@@ -1702,9 +1702,9 @@ class AcompanhamentoPanicoListView(LoginRequiredMixin, PermissionRequiredMixin, 
         context = super().get_context_data(**kwargs)
 
         itens = context["itens"]
-
         for item in itens:
-            item.link_app = gerar_link_app_missao(item)
+            # ✅ agora pega domínio e https corretos automaticamente se settings não estiverem setadas
+            item.link_app = gerar_link_app_missao(item, request=self.request)
 
         context["nao_concluidos_count"] = registroacompanhamento.objects.exclude(
             status_acompanhamento="concluido"
