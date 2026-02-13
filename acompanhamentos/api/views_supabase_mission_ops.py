@@ -201,6 +201,19 @@ def _get_django_acompanhamento(mission_id):
         supabase_mission_id=mission_uuid
     ).first()
 
+def _update_django_botao_panico(mission_id, value: bool) -> bool:
+    try:
+        mission_uuid = uuid.UUID(mission_id)
+    except ValueError:
+        logger.warning(f"UUID inválido para botao_panico: {mission_id}")
+        return False
+
+    updated = registroacompanhamento.objects.filter(
+        supabase_mission_id=mission_uuid
+    ).update(botao_panico=value)
+    
+    return updated > 0
+
 
 def _transition(mission_id, expected_current, new_status):
     """
@@ -575,9 +588,18 @@ def sb_mission_panic_resolve(request, mission_id):
             logger.error(f"[CRITICAL] Erro ao atualizar missions_control: {e}")
             raise
 
-        # 5) Tenta sincronizar no Django
+        # 5) Tenta sincronizar no Django (status + botao_panico)
+        django_botao_panico_updated = False
         try:
             _sync_django_status(mission_id, new_status)
+            
+            # ✅ NOVO: Atualiza botao_panico = True no Django
+            django_botao_panico_updated = _update_django_botao_panico(mission_id, True)
+            if django_botao_panico_updated:
+                logger.info(f"[SUCCESS] botao_panico=True para mission_id={mission_id}")
+            else:
+                logger.warning(f"[WARN] Não foi possível atualizar botao_panico para mission_id={mission_id}")
+                
         except Exception as e:
             logger.warning(f"Django sync falhou: {e}")
             pass
@@ -588,6 +610,7 @@ def sb_mission_panic_resolve(request, mission_id):
             "new_status": new_status,
             "test_panic_id": test_panic_id,
             "was_already_acknowledged": already_acknowledged,
+            "botao_panico_updated": django_botao_panico_updated,
             **ack_info,
         })
 
