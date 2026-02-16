@@ -414,6 +414,19 @@ from reportlab.platypus import Paragraph, Table, SimpleDocTemplate, Spacer, Imag
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 import os
 from django.conf import settings
+import os
+import re
+from io import BytesIO
+from xml.sax.saxutils import escape  # <- importante para não quebrar HTML do Paragraph
+
+from django.conf import settings
+from django.http import HttpResponse
+
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
+
 
 def download_protocolo_entrada(request, pk):
     try:
@@ -421,14 +434,10 @@ def download_protocolo_entrada(request, pk):
     except registrodemanutencao.DoesNotExist:
         return HttpResponse("Registro não encontrado.", status=404)
 
-    # Resposta do PDF
     response = HttpResponse(content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="registro-manutencao-{pk}.pdf"'
 
-    # Buffer em memória
     buffer = BytesIO()
-
-    # Documento PDF (mantido letter)
     doc = SimpleDocTemplate(
         buffer,
         pagesize=letter,
@@ -438,18 +447,44 @@ def download_protocolo_entrada(request, pk):
         bottomMargin=30,
     )
 
-    # Largura útil do documento (onde as tabelas precisam caber)
-    available_width = doc.pagesize[0] - doc.leftMargin - doc.rightMargin  # igual a doc.width
-
-    # Estilos de texto
     styles = getSampleStyleSheet()
-    styles.add(ParagraphStyle(name="Header", fontSize=14, alignment=1, spaceAfter=10, fontName="Helvetica-Bold"))
-    styles.add(ParagraphStyle(name="Body", fontSize=9, alignment=0, spaceAfter=6))
-    styles.add(ParagraphStyle(name="Footer", fontSize=8, alignment=1, spaceBefore=20))
+    styles.add(ParagraphStyle(
+        name="Header",
+        fontSize=14,
+        alignment=1,
+        spaceAfter=10,
+        fontName="Helvetica-Bold"
+    ))
+
+    styles.add(ParagraphStyle(
+        name="Body",
+        fontSize=9,
+        alignment=0,
+        spaceAfter=6,
+    ))
+
+    cell_style = ParagraphStyle(
+        name="Cell",
+        parent=styles["Body"],
+        fontName="Helvetica",
+        fontSize=8,
+        leading=10,
+        spaceAfter=0,
+    )
+
+    label_style = ParagraphStyle(
+        name="Label",
+        parent=cell_style,
+        fontName="Helvetica-Bold",
+    )
+
+    def P(value, is_label=False):
+        txt = "" if value is None else str(value)
+        txt = escape(txt).replace("\n", "<br/>")
+        return Paragraph(txt, label_style if is_label else cell_style)
 
     elements = []
 
-    # Cabeçalho com Logotipo e QR Code
     try:
         logo_path = os.path.join(settings.MEDIA_ROOT, "imagens_registros/SIDNEISIDNEISIDNEI.png")
         qr_code_path = os.path.join(settings.MEDIA_ROOT, "imagens_registros/qrcode.png")
@@ -459,55 +494,54 @@ def download_protocolo_entrada(request, pk):
 
         header_table = Table(
             [[logo, Paragraph("<b>PROTOCOLO DE ENTRADA</b>", styles["Header"]), qr_code]],
-            colWidths=[80, available_width - 80 - 60, 60],  # garante que cabe na página
+            colWidths=[80, 380, 60],
         )
         header_table.setStyle(TableStyle([
-            ("SPAN", (1, 0), (1, 0)),
             ("ALIGN", (0, 0), (-1, -1), "CENTER"),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ]))
         elements.append(header_table)
-    except Exception:
+    except FileNotFoundError:
         elements.append(Paragraph("<b>PROTOCOLO DE ENTRADA</b>", styles["Header"]))
 
     elements.append(Spacer(1, 12))
 
-    # Informações de registro
     fields = [
-        ["Nº REGISTRO:", str(registro.id), "DATA:", registro.data_criacao.strftime("%d/%m/%Y")],
-        ["NOME:", str(registro.nome), "TIPO ENTRADA:", registro.tipo_entrada],
-        ["MOTIVO:", registro.motivo, "TIPO PRODUTO:", registro.tipo_produto],
-        ["CUSTOMIZAÇÃO:", registro.customizacaoo, "ENTREGUE POR:", registro.entregue_por_retirado_por],
-        ["QUANTIDADE", str(registro.quantidade), "TIPO DE CONTRATO:", registro.tipo_contrato],
+        [P("Nº REGISTRO:", True), P(registro.id), P("DATA:", True), P(registro.data_criacao.strftime("%d/%m/%Y"))],
+        [P("NOME:", True), P(registro.nome), P("TIPO ENTRADA:", True), P(registro.tipo_entrada)],
+        [P("MOTIVO:", True), P(registro.motivo), P("TIPO PRODUTO:", True), P(registro.tipo_produto)],
+        [P("CUSTOMIZAÇÃO:", True), P(registro.customizacaoo), P("ENTREGUE POR:", True), P(registro.entregue_por_retirado_por)],
+        [P("QUANTIDADE:", True), P(registro.quantidade), P("TIPO DE CONTRATO:", True), P(registro.tipo_contrato)],
     ]
 
-    # Tabela principal (mantida)
-    table = Table(fields, colWidths=[100, 250, 100, available_width - (100 + 250 + 100)])
+    table = Table(fields, colWidths=[100, 250, 100, 100])
+
     table.setStyle(TableStyle([
         ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+
         ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#FFFACD")),
         ("BACKGROUND", (2, 0), (2, -1), colors.HexColor("#FFFACD")),
-        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
-        ("FONTSIZE", (0, 0), (-1, -1), 8),
-    ]))
-    elements.append(table)
 
+        # Alinhamentos
+        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+
+    elements.append(table)
     elements.append(Spacer(1, 12))
 
-    # ===== CAMPO DE OBSERVAÇÕES =====
     elements.append(Paragraph("<b>OBSERVAÇÕES:</b>", styles["Body"]))
     elements.append(Spacer(1, 6))
 
     observacao_texto = getattr(registro, "observacoes", "") or ""
     observacao_texto = observacao_texto.replace("\n", "<br/>")
+    observacao_table = Table([[Paragraph(observacao_texto, styles["Body"])]], colWidths=[500], rowHeights=[80])
 
-    observacao_table = Table(
-        [[Paragraph(observacao_texto, styles["Body"])]],
-        colWidths=[available_width],
-        rowHeights=[80]
-    )
     observacao_table.setStyle(TableStyle([
         ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -518,10 +552,10 @@ def download_protocolo_entrada(request, pk):
         ("TOPPADDING", (0, 0), (-1, -1), 6),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
     ]))
+
     elements.append(observacao_table)
     elements.append(Spacer(1, 15))
 
-    # Título para ID Equipamentos
     title_style = ParagraphStyle(
         name="CenteredTitle",
         parent=styles["Body"],
@@ -532,72 +566,56 @@ def download_protocolo_entrada(request, pk):
     )
     elements.append(Paragraph("<b>ID - EQUIPAMENTOS:</b>", title_style))
 
-    # -----------------------------------------------------------------------
-    #  TABELA DE IDS (AJUSTADA PARA NUNCA CORTAR NAS LATERAIS)
-    # -----------------------------------------------------------------------
     raw_ids = (getattr(registro, "numero_equipamento", "") or "").strip()
+    tokens = re.split(r"[\s,;]+", raw_ids)
 
-    # Extrai só números, mesmo se tiver vírgulas, quebras de linha etc.
-    equipamentos = [int(x) for x in re.findall(r"\d+", raw_ids)]
+    equipamentos = []
+    for t in tokens:
+        if not t:
+            continue
+        try:
+            equipamentos.append(int(t))
+        except ValueError:
+            pass
+
     equipamentos.sort()
 
-    if not equipamentos:
-        elements.append(Paragraph("Nenhum ID informado.", styles["Body"]))
-    else:
-        # Configuração visual da tabela de IDs
-        ids_font_name = "Helvetica"
-        ids_font_size = 8
-        cell_padding_lr = 3  # padding lateral menor ajuda a caber mais colunas
+    max_cols = 8
+    equipment_table_data = []
+    for i in range(0, len(equipamentos), max_cols):
+        grupo = equipamentos[i:i + max_cols]
+        row = [str(num) for num in grupo]
+        if len(row) < max_cols:
+            row += [""] * (max_cols - len(row))
+        equipment_table_data.append(row)
 
-        # Descobre o maior ID em largura real (pontos)
-        max_id_str = str(max(equipamentos, key=lambda n: len(str(n))))
-        max_text_width = stringWidth(max_id_str, ids_font_name, ids_font_size)
+    if not equipment_table_data:
+        equipment_table_data = [["(sem IDs informados)"] + [""] * (max_cols - 1)]
 
-        # Largura mínima de uma célula (texto + padding + “folga”)
-        min_cell_width = max_text_width + (cell_padding_lr * 2) + 8  # +8 é segurança
+    col_width = doc.width / max_cols
+    equipment_table = Table(equipment_table_data, colWidths=[col_width] * max_cols, hAlign="CENTER")
 
-        # Quantas colunas cabem de verdade na largura útil do PDF
-        cols_per_row = int(available_width // min_cell_width)
-        cols_per_row = max(1, min(cols_per_row, 12))  # trava entre 1 e 12 (evita exageros)
+    equipment_table.setStyle(TableStyle([
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("LEFTPADDING", (0, 0), (-1, -1), 2),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]))
 
-        # Monta a grade (com padding de colunas vazias na última linha)
-        equipment_table_data = []
-        for i in range(0, len(equipamentos), cols_per_row):
-            row_nums = equipamentos[i:i + cols_per_row]
-            row = [str(n) for n in row_nums]
-            if len(row) < cols_per_row:
-                row += [""] * (cols_per_row - len(row))
-            equipment_table_data.append(row)
+    elements.append(equipment_table)
 
-        # Força a tabela a ter EXATAMENTE a largura disponível (não corta)
-        col_widths = [available_width / cols_per_row] * cols_per_row
-
-        # LongTable ajuda quando ficar alta e precisar quebrar página
-        equipment_table = LongTable(equipment_table_data, colWidths=col_widths)
-
-        equipment_table.setStyle(TableStyle([
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
-            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("FONTNAME", (0, 0), (-1, -1), ids_font_name),
-            ("FONTSIZE", (0, 0), (-1, -1), ids_font_size),
-
-            # padding menor = mais chance de caber sem cortar
-            ("LEFTPADDING", (0, 0), (-1, -1), cell_padding_lr),
-            ("RIGHTPADDING", (0, 0), (-1, -1), cell_padding_lr),
-            ("TOPPADDING", (0, 0), (-1, -1), 2),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-        ]))
-
-        elements.append(equipment_table)
-
-    # Geração do PDF
     doc.build(elements)
 
     buffer.seek(0)
     response.write(buffer.read())
     buffer.close()
     return response
+
 
 # protocolo de manutenção
 from reportlab.lib.pagesizes import letter
