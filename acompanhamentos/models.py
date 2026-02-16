@@ -235,6 +235,8 @@ class registroacompanhamento(models.Model):
     STATUS_ACOMPANHAMENTO_CHOICES = (
         ("pendente", "Pendente"),
         ("missao_aceita", "Missão Aceita"),
+        ("agendada", "Missão Agendada"),
+        ("em_deslocamento", "Em Deslocamento"),
         ("odometro_inicio_verificado", "odômetro Inicial verificado"),
         ("teste_panico", "Teste Panico"),
         ("teste_panico_verificado", "Teste Panico Verificado"),

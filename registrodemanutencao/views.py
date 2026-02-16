@@ -422,14 +422,26 @@ def download_protocolo_entrada(request, pk):
         return HttpResponse("Registro não encontrado.", status=404)
 
     # Resposta do PDF
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="registro-manutencao-{pk}.pdf"'
+    response = HttpResponse(content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="registro-manutencao-{pk}.pdf"'
 
-    # Criar o documento PDF
-    buffer = BytesIO()  # Corrigido aqui
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
+    # Buffer em memória
+    buffer = BytesIO()
 
-    # Estilos de texto (do primeiro código)
+    # Documento PDF (mantido letter)
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=30,
+        leftMargin=30,
+        topMargin=30,
+        bottomMargin=30,
+    )
+
+    # Largura útil do documento (onde as tabelas precisam caber)
+    available_width = doc.pagesize[0] - doc.leftMargin - doc.rightMargin  # igual a doc.width
+
+    # Estilos de texto
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle(name="Header", fontSize=14, alignment=1, spaceAfter=10, fontName="Helvetica-Bold"))
     styles.add(ParagraphStyle(name="Body", fontSize=9, alignment=0, spaceAfter=6))
@@ -439,21 +451,23 @@ def download_protocolo_entrada(request, pk):
 
     # Cabeçalho com Logotipo e QR Code
     try:
-        logo_path = os.path.join(settings.MEDIA_ROOT, 'imagens_registros/SIDNEISIDNEISIDNEI.png')
-        qr_code_path = os.path.join(settings.MEDIA_ROOT, 'imagens_registros/qrcode.png')
+        logo_path = os.path.join(settings.MEDIA_ROOT, "imagens_registros/SIDNEISIDNEISIDNEI.png")
+        qr_code_path = os.path.join(settings.MEDIA_ROOT, "imagens_registros/qrcode.png")
 
         logo = Image(logo_path, width=60, height=60)
         qr_code = Image(qr_code_path, width=60, height=60)
 
-        header_table = Table([[logo, Paragraph("<b>PROTOCOLO DE ENTRADA</b>", styles["Header"]), qr_code]],
-                             colWidths=[80, 380, 60])
+        header_table = Table(
+            [[logo, Paragraph("<b>PROTOCOLO DE ENTRADA</b>", styles["Header"]), qr_code]],
+            colWidths=[80, available_width - 80 - 60, 60],  # garante que cabe na página
+        )
         header_table.setStyle(TableStyle([
             ("SPAN", (1, 0), (1, 0)),
             ("ALIGN", (0, 0), (-1, -1), "CENTER"),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ]))
         elements.append(header_table)
-    except FileNotFoundError:
+    except Exception:
         elements.append(Paragraph("<b>PROTOCOLO DE ENTRADA</b>", styles["Header"]))
 
     elements.append(Spacer(1, 12))
@@ -464,15 +478,15 @@ def download_protocolo_entrada(request, pk):
         ["NOME:", str(registro.nome), "TIPO ENTRADA:", registro.tipo_entrada],
         ["MOTIVO:", registro.motivo, "TIPO PRODUTO:", registro.tipo_produto],
         ["CUSTOMIZAÇÃO:", registro.customizacaoo, "ENTREGUE POR:", registro.entregue_por_retirado_por],
-        ["QUANTIDADE", registro.quantidade, "TIPO DE CONTRATO:", registro.tipo_contrato],
+        ["QUANTIDADE", str(registro.quantidade), "TIPO DE CONTRATO:", registro.tipo_contrato],
     ]
 
-    # Aplique o fundo amarelo nos títulos
-    table = Table(fields, colWidths=[100, 250, 100, 100])
-    table.setStyle(TableStyle([ 
+    # Tabela principal (mantida)
+    table = Table(fields, colWidths=[100, 250, 100, available_width - (100 + 250 + 100)])
+    table.setStyle(TableStyle([
         ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
-        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#FFFACD")),  # Fundo amarelo suave para a primeira coluna (títulos)
-        ("BACKGROUND", (2, 0), (2, -1), colors.HexColor("#FFFACD")),  # Fundo amarelo suave para a terceira coluna (títulos)
+        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#FFFACD")),
+        ("BACKGROUND", (2, 0), (2, -1), colors.HexColor("#FFFACD")),
         ("ALIGN", (0, 0), (-1, -1), "LEFT"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
@@ -487,16 +501,13 @@ def download_protocolo_entrada(request, pk):
     elements.append(Spacer(1, 6))
 
     observacao_texto = getattr(registro, "observacoes", "") or ""
-    
-    # Converter quebras de linha e aplicar word wrap
-    observacao_texto = observacao_texto.replace('\n', '<br/>')
+    observacao_texto = observacao_texto.replace("\n", "<br/>")
 
     observacao_table = Table(
         [[Paragraph(observacao_texto, styles["Body"])]],
-        colWidths=[500],
+        colWidths=[available_width],
         rowHeights=[80]
     )
-
     observacao_table.setStyle(TableStyle([
         ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -507,47 +518,85 @@ def download_protocolo_entrada(request, pk):
         ("TOPPADDING", (0, 0), (-1, -1), 6),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
     ]))
-
     elements.append(observacao_table)
     elements.append(Spacer(1, 15))
-
 
     # Título para ID Equipamentos
     title_style = ParagraphStyle(
         name="CenteredTitle",
         parent=styles["Body"],
-        alignment=1,  # Centraliza horizontalmente
+        alignment=1,
         fontName="Helvetica-Bold",
         fontSize=9,
-        spaceAfter=10
+        spaceAfter=10,
     )
     elements.append(Paragraph("<b>ID - EQUIPAMENTOS:</b>", title_style))
 
-    # Tabela de equipamentos
-    equipamentos = sorted(map(int, (num.strip() for num in registro.numero_equipamento.split() if num.strip())))
-    equipment_grid = [equipamentos[i:i+8] for i in range(0, len(equipamentos), 8)]
-    equipment_table_data = []
-    for group in equipment_grid:
-        row = [str(num) for num in group]
-        equipment_table_data.append(row)
+    # -----------------------------------------------------------------------
+    #  TABELA DE IDS (AJUSTADA PARA NUNCA CORTAR NAS LATERAIS)
+    # -----------------------------------------------------------------------
+    raw_ids = (getattr(registro, "numero_equipamento", "") or "").strip()
 
-    equipment_table = Table(equipment_table_data)
-    equipment_table.setStyle(TableStyle([
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
-        ("FONTSIZE", (0, 0), (-1, -1), 8),
-    ]))
-    elements.append(equipment_table)
+    # Extrai só números, mesmo se tiver vírgulas, quebras de linha etc.
+    equipamentos = [int(x) for x in re.findall(r"\d+", raw_ids)]
+    equipamentos.sort()
 
-    # Geração do PDF sem rodapé
+    if not equipamentos:
+        elements.append(Paragraph("Nenhum ID informado.", styles["Body"]))
+    else:
+        # Configuração visual da tabela de IDs
+        ids_font_name = "Helvetica"
+        ids_font_size = 8
+        cell_padding_lr = 3  # padding lateral menor ajuda a caber mais colunas
+
+        # Descobre o maior ID em largura real (pontos)
+        max_id_str = str(max(equipamentos, key=lambda n: len(str(n))))
+        max_text_width = stringWidth(max_id_str, ids_font_name, ids_font_size)
+
+        # Largura mínima de uma célula (texto + padding + “folga”)
+        min_cell_width = max_text_width + (cell_padding_lr * 2) + 8  # +8 é segurança
+
+        # Quantas colunas cabem de verdade na largura útil do PDF
+        cols_per_row = int(available_width // min_cell_width)
+        cols_per_row = max(1, min(cols_per_row, 12))  # trava entre 1 e 12 (evita exageros)
+
+        # Monta a grade (com padding de colunas vazias na última linha)
+        equipment_table_data = []
+        for i in range(0, len(equipamentos), cols_per_row):
+            row_nums = equipamentos[i:i + cols_per_row]
+            row = [str(n) for n in row_nums]
+            if len(row) < cols_per_row:
+                row += [""] * (cols_per_row - len(row))
+            equipment_table_data.append(row)
+
+        # Força a tabela a ter EXATAMENTE a largura disponível (não corta)
+        col_widths = [available_width / cols_per_row] * cols_per_row
+
+        # LongTable ajuda quando ficar alta e precisar quebrar página
+        equipment_table = LongTable(equipment_table_data, colWidths=col_widths)
+
+        equipment_table.setStyle(TableStyle([
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("FONTNAME", (0, 0), (-1, -1), ids_font_name),
+            ("FONTSIZE", (0, 0), (-1, -1), ids_font_size),
+
+            # padding menor = mais chance de caber sem cortar
+            ("LEFTPADDING", (0, 0), (-1, -1), cell_padding_lr),
+            ("RIGHTPADDING", (0, 0), (-1, -1), cell_padding_lr),
+            ("TOPPADDING", (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ]))
+
+        elements.append(equipment_table)
+
+    # Geração do PDF
     doc.build(elements)
 
     buffer.seek(0)
     response.write(buffer.read())
     buffer.close()
-
     return response
 
 # protocolo de manutenção
