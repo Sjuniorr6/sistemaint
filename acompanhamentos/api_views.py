@@ -1,14 +1,13 @@
+# acompanhamentos/api_views.py
+
 from rest_framework import status
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from django.utils import timezone
 
-from .serializers import (
-    ClienteSerializer, 
-    TipoServicoSerializer, 
-    RequisicaoSolicitacaoSerializer
-)
+from .models import Cliente, TipoServico, RequisicaoSolicitacao
 
 
 @api_view(['POST'])
@@ -16,19 +15,32 @@ from .serializers import (
 @permission_classes([IsAuthenticated])
 def sync_cliente(request):
     """Recebe e sincroniza um Cliente do GSAcionamento"""
-    serializer = ClienteSerializer(data=request.data)
-    if serializer.is_valid():
-        cliente = serializer.save()
+    data = request.data
+    
+    try:
+        cliente, created = Cliente.objects.update_or_create(
+            id_externo=data.get('id_externo'),
+            defaults={
+                'nome': data.get('nome'),
+                'cnpj': data.get('cnpj'),
+                'email': data.get('email', ''),
+                'ativo': data.get('ativo', True),
+            }
+        )
+        
         return Response({
             'success': True,
             'message': 'Cliente sincronizado com sucesso',
             'id': cliente.id,
-            'id_externo': cliente.id_externo
+            'id_externo': cliente.id_externo,
+            'created': created
         }, status=status.HTTP_200_OK)
-    return Response({
-        'success': False,
-        'errors': serializer.errors
-    }, status=status.HTTP_400_BAD_REQUEST)
+        
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['POST'])
@@ -36,19 +48,44 @@ def sync_cliente(request):
 @permission_classes([IsAuthenticated])
 def sync_tipo_servico(request):
     """Recebe e sincroniza um TipoServico do GSAcionamento"""
-    serializer = TipoServicoSerializer(data=request.data)
-    if serializer.is_valid():
-        tipo_servico = serializer.save()
+    data = request.data
+    
+    try:
+        # Busca o cliente pelo id_externo
+        cliente = Cliente.objects.get(id_externo=data.get('cliente_id_externo'))
+        
+        tipo_servico, created = TipoServico.objects.update_or_create(
+            id_externo=data.get('id_externo'),
+            defaults={
+                'cliente': cliente,
+                'codigo': data.get('codigo'),
+                'ativo': data.get('ativo', True),
+                'valor_acionamento': data.get('valor_acionamento', 0),
+                'franquia_km': data.get('franquia_km', 0),
+                'franquia_horas': data.get('franquia_horas', 0),
+                'valor_hora': data.get('valor_hora'),
+                'valor_km': data.get('valor_km'),
+            }
+        )
+        
         return Response({
             'success': True,
             'message': 'Tipo de Serviço sincronizado com sucesso',
             'id': tipo_servico.id,
-            'id_externo': tipo_servico.id_externo
+            'id_externo': tipo_servico.id_externo,
+            'created': created
         }, status=status.HTTP_200_OK)
-    return Response({
-        'success': False,
-        'errors': serializer.errors
-    }, status=status.HTTP_400_BAD_REQUEST)
+        
+    except Cliente.DoesNotExist:
+        return Response({
+            'success': False,
+            'error': f"Cliente com id_externo={data.get('cliente_id_externo')} não encontrado"
+        }, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['POST'])
@@ -56,16 +93,52 @@ def sync_tipo_servico(request):
 @permission_classes([IsAuthenticated])
 def sync_requisicao(request):
     """Recebe e sincroniza uma Requisição do GSAcionamento"""
-    serializer = RequisicaoSolicitacaoSerializer(data=request.data)
-    if serializer.is_valid():
-        requisicao = serializer.save()
+    data = request.data
+    
+    try:
+        cliente = Cliente.objects.get(id_externo=data.get('cliente_id_externo'))
+        tipo_servico = TipoServico.objects.get(id_externo=data.get('tipo_servico_id_externo'))
+        
+        requisicao, created = RequisicaoSolicitacao.objects.update_or_create(
+            id_externo=data.get('id_externo'),
+            defaults={
+                'cliente': cliente,
+                'tipo_servico': tipo_servico,
+                'campo_personalizado_titulo': data.get('campo_personalizado_titulo', ''),
+                'campo_personalizado_valor': data.get('campo_personalizado_valor', ''),
+                'origem': data.get('origem'),
+                'latitude_origem': data.get('latitude_origem'),
+                'longitude_origem': data.get('longitude_origem'),
+                'destino': data.get('destino', ''),
+                'motorista': data.get('motorista'),
+                'placa': data.get('placa'),
+                'data_agendamento': data.get('data_agendamento'),
+                'horario_agendamento': data.get('horario_agendamento'),
+                'nome_user': data.get('nome_user', ''),
+                'sincronizado_em': timezone.now(),
+            }
+        )
+        
         return Response({
             'success': True,
             'message': 'Requisição sincronizada com sucesso',
             'id': requisicao.id,
-            'id_externo': requisicao.id_externo
+            'id_externo': requisicao.id_externo,
+            'created': created
         }, status=status.HTTP_200_OK)
-    return Response({
-        'success': False,
-        'errors': serializer.errors
-    }, status=status.HTTP_400_BAD_REQUEST)
+        
+    except Cliente.DoesNotExist:
+        return Response({
+            'success': False,
+            'error': f"Cliente com id_externo={data.get('cliente_id_externo')} não encontrado"
+        }, status=status.HTTP_400_BAD_REQUEST)
+    except TipoServico.DoesNotExist:
+        return Response({
+            'success': False,
+            'error': f"TipoServico com id_externo={data.get('tipo_servico_id_externo')} não encontrado"
+        }, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_400_BAD_REQUEST)

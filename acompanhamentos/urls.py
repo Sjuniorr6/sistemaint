@@ -84,7 +84,7 @@ urlpatterns = [
     ),
 
     path('api/token/', obtain_auth_token, name='api_token'),
-    path('api/sync/cliente/', api_views.sync_cliente, name='sync_cliente'),
-    path('api/sync/tipo-servico/', api_views.sync_tipo_servico, name='sync_tipo_servico'),
-    path('api/sync/requisicao/', api_views.sync_requisicao, name='sync_requisicao'),
+    path('api/sync/cliente/', api_views.sync_cliente, name='api_sync_cliente'),
+    path('api/sync/tipo-servico/', api_views.sync_tipo_servico, name='api_sync_tipo_servico'),
+    path('api/sync/requisicao/', api_views.sync_requisicao, name='api_sync_requisicao'),
 ]
