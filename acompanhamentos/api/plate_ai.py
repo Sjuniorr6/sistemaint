@@ -125,6 +125,92 @@ def _normalize_plate(raw: str) -> str:
     return normalized
 
 
+def _attempt_plate_correction(plate: str) -> str:
+    """
+    Tenta corrigir erros comuns de OCR em placas Mercosul.
+    
+    Formato Mercosul: ABC1D23
+    - Posições 0,1,2: LETRAS
+    - Posição 3: NÚMERO (nunca letra!)
+    - Posição 4: LETRA
+    - Posições 5,6: NÚMEROS (nunca letras!)
+    
+    Erros comuns:
+    - O (letra) vs 0 (zero)
+    - I (letra) vs 1 (um)
+    - S (letra) vs 5 (cinco)
+    - Z (letra) vs 2 (dois)
+    """
+    if not plate or len(plate) != 7:
+        return plate
+    
+    plate_list = list(plate)
+    
+    # Detecta se é Mercosul (primeiros 3 caracteres são letras)
+    is_mercosul = all(c.isalpha() for c in plate_list[0:3])
+    
+    if is_mercosul:
+        # MERCOSUL: ABC1D23
+        # Posição 3 DEVE ser número
+        if plate_list[3].isalpha():
+            if plate_list[3] == 'O':
+                plate_list[3] = '0'
+            elif plate_list[3] == 'I':
+                plate_list[3] = '1'
+            elif plate_list[3] == 'S':
+                plate_list[3] = '5'
+            elif plate_list[3] == 'Z':
+                plate_list[3] = '2'
+            elif plate_list[3] == 'B':
+                plate_list[3] = '8'
+            elif plate_list[3] == 'G':
+                plate_list[3] = '6'
+        
+        # Posição 4 DEVE ser letra (não precisa corrigir)
+        
+        # Posições 5,6 DEVEM ser números
+        for pos in [5, 6]:
+            if plate_list[pos].isalpha():
+                if plate_list[pos] == 'O':
+                    plate_list[pos] = '0'
+                elif plate_list[pos] == 'I':
+                    plate_list[pos] = '1'
+                elif plate_list[pos] == 'S':
+                    plate_list[pos] = '5'
+                elif plate_list[pos] == 'Z':
+                    plate_list[pos] = '2'
+                elif plate_list[pos] == 'B':
+                    plate_list[pos] = '8'
+                elif plate_list[pos] == 'G':
+                    plate_list[pos] = '6'
+    else:
+        # Formato antigo: ABC1234
+        # Posições 0,1,2 devem ser letras
+        # Posições 3,4,5,6 devem ser números
+        for pos in [3, 4, 5, 6]:
+            if plate_list[pos].isalpha():
+                if plate_list[pos] == 'O':
+                    plate_list[pos] = '0'
+                elif plate_list[pos] == 'I':
+                    plate_list[pos] = '1'
+                elif plate_list[pos] == 'S':
+                    plate_list[pos] = '5'
+                elif plate_list[pos] == 'Z':
+                    plate_list[pos] = '2'
+                elif plate_list[pos] == 'B':
+                    plate_list[pos] = '8'
+                elif plate_list[pos] == 'G':
+                    plate_list[pos] = '6'
+    
+    corrected = ''.join(plate_list)
+    
+    # Log de correção para debug
+    if corrected != plate and settings.DEBUG:
+        print(f"[PLATE_AI] Correção aplicada: {plate} -> {corrected}")
+    
+    return corrected
+
+
 def _validate_plate_format(plate: str) -> tuple[bool, str]:
     """
     Valida se a placa está no formato brasileiro correto.
@@ -144,6 +230,17 @@ def _validate_plate_format(plate: str) -> tuple[bool, str]:
     # Verifica padrão antigo (ABC1234)
     if re.match(PLATE_PATTERN_OLD, plate_clean):
         return True, "old"
+    
+    # Tenta corrigir erros de OCR antes de rejeitar
+    plate_corrected = _attempt_plate_correction(plate_clean)
+    
+    if plate_corrected != plate_clean:
+        # Verifica novamente com placa corrigida
+        if re.match(PLATE_PATTERN_MERCOSUL, plate_corrected):
+            return True, "mercosul_corrected"
+        
+        if re.match(PLATE_PATTERN_OLD, plate_corrected):
+            return True, "old_corrected"
     
     return False, "invalid"
 
@@ -274,46 +371,54 @@ def _auto_crop_plate_cv2(arr: np.ndarray, pil_img: Image.Image) -> Optional[Imag
 # ======================================================
 
 def _build_prompt() -> str:
-    """Prompt otimizado para leitura de placas brasileiras."""
+    """Prompt otimizado para leitura de placas brasileiras com ênfase em Mercosul."""
     return """You are analyzing a Brazilian vehicle photo to read the LICENSE PLATE.
 
 CRITICAL RULES:
 1. Brazilian license plates have TWO formats:
    - OLD FORMAT: ABC1234 (3 letters + 4 numbers) - Example: ABC1234
-   - MERCOSUL FORMAT: ABC1D23 (3 letters + 1 number + 1 letter + 2 numbers) - Example: ABC1D23
+   - MERCOSUL FORMAT: ABC1D23 (3 letters + 1 NUMBER + 1 letter + 2 numbers)
 
-2. License plates are usually:
-   - GRAY/WHITE background with BLACK text (most common)
-   - Rectangular shape with aspect ratio ~2:1 to 4:1
-   - Located at the FRONT or REAR of the vehicle
+2. **VERY IMPORTANT FOR MERCOSUL FORMAT (ABC1D23):**
+   - Position 0,1,2: MUST BE LETTERS (A-Z)
+   - Position 3: MUST BE A NUMBER (0-9) ⚠️ NEVER A LETTER!
+   - Position 4: MUST BE A LETTER (A-Z)
+   - Position 5,6: MUST BE NUMBERS (0-9) ⚠️ NEVER LETTERS!
 
-3. Common errors to avoid:
-   - Confusing letter O with number 0
-   - Confusing letter I with number 1
-   - Confusing letter Z with number 2
-   - Confusing letter S with number 5
-   - Reading partial plates or stickers
+3. **CRITICAL: Common OCR mistakes to AVOID:**
+   - Position 3 (4th character): If you see 'O', it's probably '0' (ZERO)
+   - Position 3: If you see 'I', it's probably '1' (ONE)
+   - Position 3: If you see 'S', it's probably '5' (FIVE)
+   - Position 5,6: If you see 'O', it's probably '0' (ZERO)
+   - Position 5,6: If you see 'I', it's probably '1' (ONE)
 
-STEP-BY-STEP PROCESS:
-1. Locate the license plate in the image (front or rear of vehicle)
-2. Read the characters carefully from LEFT to RIGHT
-3. Verify the format matches Brazilian standards (ABC1234 or ABC1D23)
-4. Double-check for common OCR errors (O/0, I/1, Z/2, S/5)
+4. **STEP-BY-STEP VALIDATION:**
+   - Read all 7 characters
+   - Check if first 3 are LETTERS
+   - If YES, assume MERCOSUL format
+   - Position 3 MUST be a number (0-9), NOT a letter
+   - Position 4 MUST be a letter (A-Z)
+   - Positions 5,6 MUST be numbers (0-9), NOT letters
 
-EXAMPLES OF VALID PLATES:
-- ABC1234 (old format)
-- XYZ9876 (old format)
-- ABC1D23 (Mercosul format)
-- XYZ9A87 (Mercosul format)
+EXAMPLES OF CORRECT MERCOSUL PLATES:
+- FXG0J05 (F-X-G-ZERO-J-ZERO-5) ✅ Correct!
+- ABC1D23 (A-B-C-ONE-D-TWO-THREE) ✅ Correct!
+- XYZ9A87 (X-Y-Z-NINE-A-EIGHT-SEVEN) ✅ Correct!
+
+EXAMPLES OF COMMON MISTAKES:
+- FXGOJ05 ❌ WRONG! Position 3 is 'O' (letter), should be '0' (zero)
+- ABC1D2I ❌ WRONG! Position 6 is 'I' (letter), should be '1' (one)
+- XYZ9ASS ❌ WRONG! Positions 5,6 are letters, should be numbers
 
 Return ONLY valid JSON:
 {
-    "plate_number": "<exact plate text>",
+    "plate_number": "<exact plate text with correct characters>",
     "plate_format": "old or mercosul",
     "confidence": <float 0.0 to 1.0>,
     "plate_color": "gray, white, or other",
     "plate_location": "front or rear",
-    "reasoning": "<explain what you see and why you're confident>"
+    "reasoning": "<explain what you see and why you're confident>",
+    "character_analysis": "<for each position, explain if it's a letter or number>"
 }
 
 If you CANNOT read the plate clearly:
@@ -416,6 +521,7 @@ def _call_openai_vision(data_url: str, data_url_crop: Optional[str] = None, time
 def _validate_result(result: Dict[str, Any], sanity_issues: List[str]) -> Dict[str, Any]:
     """
     Valida e enriquece o resultado da API.
+    Inclui correção automática de erros comuns de OCR.
     """
     plate_number = result.get("plate_number") or ""
     confidence = float(result.get("confidence", 0.0))
@@ -450,26 +556,52 @@ def _validate_result(result: Dict[str, Any], sanity_issues: List[str]) -> Dict[s
             "raw_response": result,
         }
 
-    # Valida formato da placa
-    is_valid_format, format_type = _validate_plate_format(plate_clean)
+    # ----------------------------
+    # Validação de comprimento ANTES de validar formato
+    # ----------------------------
+    if len(plate_clean) != 7:
+        msg = f"invalid_plate_length({len(plate_clean)})"
+        issues.append(msg)
+        blocking_issues.append(msg)
 
+        return {
+            "success": False,
+            "plate_number": None,
+            "confidence": confidence,
+            "issues": issues,
+            "blocking_issues": blocking_issues,
+            "raw_response": result,
+        }
+
+    # ----------------------------
+    # Valida formato da placa (COM tentativa de correção)
+    # ----------------------------
+    is_valid_format, format_type = _validate_plate_format(plate_clean)
+    
+    # Se formato foi corrigido automaticamente, usa a versão corrigida
+    plate_final = plate_clean
+    if format_type in ("mercosul_corrected", "old_corrected"):
+        plate_corrected = _attempt_plate_correction(plate_clean)
+        plate_final = plate_corrected
+        issues.append(f"plate_auto_corrected({plate_clean}->{plate_final})")
+        
+        if settings.DEBUG:
+            print(f"[PLATE_AI] Correção automática: {plate_clean} -> {plate_final}")
+    
     if not is_valid_format:
         msg = f"invalid_plate_format({plate_clean})"
         issues.append(msg)
         blocking_issues.append(msg)
 
+    # ----------------------------
+    # Validação de confiança (WARNING, não blocking se > 80%)
+    # ----------------------------
     if confidence < MIN_CONFIDENCE:
         msg = f"low_confidence({confidence:.2f})"
         issues.append(msg)
-        blocking_issues.append(msg)
-
-    # ----------------------------
-    # Validação de comprimento (só se formato for válido)
-    # ----------------------------
-    if is_valid_format and len(plate_clean) != 7:
-        msg = f"invalid_plate_length({len(plate_clean)})"
-        issues.append(msg)
-        blocking_issues.append(msg)
+        # Só bloqueia se confiança for MUITO baixa (< 50%)
+        if confidence < 0.50:
+            blocking_issues.append(msg)
 
     # ----------------------------
     # Resultado final
@@ -478,8 +610,8 @@ def _validate_result(result: Dict[str, Any], sanity_issues: List[str]) -> Dict[s
 
     return {
         "success": success,
-        "plate_number": plate_clean if success else None,
-        "plate_format": format_type if success else "invalid",
+        "plate_number": plate_final if success else None,
+        "plate_format": format_type.replace("_corrected", "") if success else "invalid",
         "confidence": confidence,
         "plate_color": result.get("plate_color", "unknown"),
         "plate_location": result.get("plate_location", "unknown"),
@@ -487,6 +619,7 @@ def _validate_result(result: Dict[str, Any], sanity_issues: List[str]) -> Dict[s
         "issues": issues if issues else None,
         "blocking_issues": blocking_issues if blocking_issues else None,
         "raw_response": result,
+        "plate_original": plate_clean if plate_final != plate_clean else None,
     }
 
 
