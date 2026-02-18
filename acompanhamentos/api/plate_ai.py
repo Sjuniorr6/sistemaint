@@ -430,6 +430,10 @@ def _validate_result(result: Dict[str, Any], sanity_issues: List[str]) -> Dict[s
     # Lista separada só com o que realmente deve invalidar
     blocking_issues: List[str] = []
 
+    # Debug: log do valor normalizado da placa
+    if settings.DEBUG:
+        print(f"[PLATE_AI] plate_number bruto: {plate_number} | normalizado: {plate_clean}")
+
     # ----------------------------
     # Falhas que realmente bloqueiam
     # ----------------------------
@@ -448,7 +452,7 @@ def _validate_result(result: Dict[str, Any], sanity_issues: List[str]) -> Dict[s
 
     # Valida formato da placa
     is_valid_format, format_type = _validate_plate_format(plate_clean)
-    
+
     if not is_valid_format:
         msg = f"invalid_plate_format({plate_clean})"
         issues.append(msg)
@@ -460,9 +464,9 @@ def _validate_result(result: Dict[str, Any], sanity_issues: List[str]) -> Dict[s
         blocking_issues.append(msg)
 
     # ----------------------------
-    # Validação de comprimento
+    # Validação de comprimento (só se formato for válido)
     # ----------------------------
-    if len(plate_clean) != 7:
+    if is_valid_format and len(plate_clean) != 7:
         msg = f"invalid_plate_length({len(plate_clean)})"
         issues.append(msg)
         blocking_issues.append(msg)

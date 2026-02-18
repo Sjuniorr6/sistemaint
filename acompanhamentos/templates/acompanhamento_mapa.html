@@ -464,13 +464,44 @@
         photos.forEach(p => {
             const type = p.type === "inicio" ? "Início" : "Final";
             const vr = p.validation_result || {};
+            // Placa: tentar pegar info de validação da placa
+            const plate = p.plate_validation_result || p.plate_result || vr.plate_result || null;
+
             if (!p.processed) {
                 html += ` <span class="photo-badge pending">⏳ ${type}: Aguardando</span>`;
-            } else if (vr.valid) {
-                const odo = vr.odometer_value || vr.odometer_raw || "?";
-                html += ` <span class="photo-badge valid">✅ ${type}: ${odo}</span>`;
             } else {
-                html += ` <span class="photo-badge invalid">❌ ${type}: Rejeitada</span>`;
+                // Odômetro
+                let odoHtml = "";
+                if (typeof vr.valid !== "undefined") {
+                    if (vr.valid) {
+                        const odo = vr.odometer_value || vr.odometer_raw || "?";
+                        odoHtml = ` <span class="photo-badge valid">✅ ${type} KM: ${odo}</span>`;
+                    } else {
+                        odoHtml = ` <span class="photo-badge invalid">❌ ${type} KM: Rejeitada</span>`;
+                    }
+                }
+
+                // Placa
+                let plateHtml = "";
+                if (plate) {
+                    if (plate.valid) {
+                        const plateNum = plate.plate_number || plate.plate || "?";
+                        plateHtml = ` <span class="photo-badge valid">✅ ${type} Placa: ${plateNum}</span>`;
+                    } else {
+                        let reason = "Rejeitada";
+                        if (plate.issues && plate.issues.length) {
+                            reason = plate.issues.join(", ");
+                        }
+                        plateHtml = ` <span class="photo-badge invalid">❌ ${type} Placa: ${reason}</span>`;
+                    }
+                }
+
+                // Se não houver info de placa, só mostra odômetro (como antes)
+                if (odoHtml || plateHtml) {
+                    html += odoHtml + plateHtml;
+                } else {
+                    html += ` <span class="photo-badge invalid">❌ ${type}: Rejeitada</span>`;
+                }
             }
         });
         content.innerHTML = html;
