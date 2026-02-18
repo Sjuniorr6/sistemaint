@@ -6,7 +6,10 @@ from .models import (
     registroacompanhamento,
     registroacompanhamentoagente,
     registroderesposavelagenteacompanhamento,
-    AcompanhamentoLocalizacao
+    AcompanhamentoLocalizacao,
+    Cliente,
+    TipoServico,
+    RequisicaoSolicitacao,
 )
 
 
@@ -112,6 +115,7 @@ class RegistroDeResponsavelAgenteAcompanhamentoAdmin(admin.ModelAdmin):
             )
         }),
     )
+
 # ======================================================
 # Clientes Cadastrados
 # ======================================================
@@ -540,5 +544,84 @@ class AcompanhamentoLocalizacaoAdmin(admin.ModelAdmin):
     def has_change_permission(self, request, obj=None):
         return False
 
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+# ------------------------------------------------------
+#             Novo Acompanhamento
+# ------------------------------------------------------
+@admin.register(Cliente)
+class ClienteAdmin(admin.ModelAdmin):
+    list_display = ['id', 'id_externo', 'nome', 'cnpj', 'ativo', 'sincronizado_em']
+    search_fields = ['nome', 'cnpj']
+    list_filter = ['ativo']
+    readonly_fields = ['id_externo', 'nome', 'cnpj', 'email', 'ativo', 'sincronizado_em', 'criado_em']
+    
+    def has_add_permission(self, request):
+        return False  # Não pode adicionar pelo admin
+    
+    def has_delete_permission(self, request, obj=None):
+        return False  # Não pode deletar pelo admin
+    
+    def has_change_permission(self, request, obj=None):
+        return True  # Pode visualizar
+
+
+@admin.register(TipoServico)
+class TipoServicoAdmin(admin.ModelAdmin):
+    list_display = ['id', 'id_externo', 'cliente', 'codigo', 'ativo', 'valor_acionamento']
+    list_filter = ['cliente', 'codigo', 'ativo']
+    search_fields = ['cliente__nome', 'codigo']
+    readonly_fields = [
+        'id_externo', 'cliente', 'codigo', 'ativo',
+        'valor_acionamento', 'franquia_km', 'franquia_horas',
+        'valor_hora', 'valor_km', 'sincronizado_em'
+    ]
+    
+    def has_add_permission(self, request):
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(RequisicaoSolicitacao)
+class RequisicaoSolicitacaoAdmin(admin.ModelAdmin):
+    list_display = ['id', 'id_externo', 'cliente', 'motorista', 'placa', 'data_agendamento', 'criado_em']
+    list_filter = ['cliente', 'data_agendamento']
+    search_fields = ['motorista', 'placa', 'cliente__nome']
+    
+    # Campos do GSAcionamento são readonly, campos internos são editáveis
+    readonly_fields = [
+        'id_externo', 'cliente', 'tipo_servico',
+        'campo_personalizado_titulo', 'campo_personalizado_valor',
+        'origem', 'latitude_origem', 'longitude_origem', 'destino',
+        'motorista', 'placa', 'data_agendamento', 'horario_agendamento',
+        'nome_user', 'sincronizado_em', 'criado_em'
+    ]
+    
+    # ocorrencia e atualizado_em podem ser editados
+    fieldsets = (
+        ('Dados do GSAcionamento (Somente Leitura)', {
+            'fields': (
+                'id_externo', 'cliente', 'tipo_servico', 'nome_user',
+                'origem', 'latitude_origem', 'longitude_origem', 'destino',
+                'motorista', 'placa', 'data_agendamento', 'horario_agendamento',
+                'campo_personalizado_titulo', 'campo_personalizado_valor',
+            )
+        }),
+        ('Campos Editáveis', {
+            'fields': ('ocorrencia',)
+        }),
+        ('Metadados', {
+            'fields': ('sincronizado_em', 'criado_em'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def has_add_permission(self, request):
+        return False  # Só cria via API
+    
     def has_delete_permission(self, request, obj=None):
         return False

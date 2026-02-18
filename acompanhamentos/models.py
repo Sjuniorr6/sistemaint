@@ -8,6 +8,7 @@ from django.contrib.contenttypes.models import ContentType
 from franquia.models import registrodefranquia
 from datetime import datetime, timedelta, date
 from decimal import Decimal
+from django.core.validators import MinValueValidator
 
 # ------------------------------------------------------
 #                 Registro de Agentes
@@ -831,3 +832,120 @@ class AcompanhamentoLocalizacao(models.Model):
         resolved_flag = "✅" if self.panic_resolved else ""
         return f"{panic_flag}{resolved_flag} {self.origem or 'Sem origem'} - {self.latitude}, {self.longitude}"
 
+
+# ------------------------------------------------------
+#             Novo Acompanhamento
+# ------------------------------------------------------
+
+class Cliente(models.Model):
+    id_externo = models.IntegerField(unique=True, help_text="ID do cliente no GSAcionamento")
+    
+    nome = models.CharField(max_length=255)
+    cnpj = models.CharField(max_length=18, unique=True)
+    email = models.EmailField(blank=True, null=True)
+    ativo = models.BooleanField(default=True)
+    
+    sincronizado_em = models.DateTimeField(auto_now=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Cliente"
+        verbose_name_plural = "Clientes"
+
+    def __str__(self):
+        return self.nome
+    
+    def get_tipos_servico_disponiveis(self):
+        return self.tipos_servico.filter(ativo=True)
+
+
+class TipoServico(models.Model):
+    TIPOS_CHOICES = [
+        ('MOTO_1', 'Moto | 1 Agente(s) - MOTO MONITORAMENTO ATIVO'),
+        ('CARRO_1', 'Carro | 1 Agente(s) - CARRO MONITORAMENTO ATIVO'),
+        ('CARRO_2', 'Carro | 2 Agente(s) - CARRO MONITORAMENTO ATIVO'),
+        ('CARRO_1_1G', 'Carro | 1 Agente(s) - CARRO MONITORAMENTO ATIVO - 1G'),
+        ('CARRO_2_1S1G', 'Carro | 2 Agente(s) - CARRO MONITORAMENTO ATIVO - 1S/1G'),
+        ('CARRO_2_2G', 'Carro | 2 Agente(s) - CARRO MONITORAMENTO ATIVO - 2G'),
+    ]
+
+    id_externo = models.IntegerField(unique=True, help_text="ID do tipo de serviço no GSAcionamento")
+    
+    cliente = models.ForeignKey(
+        Cliente,
+        on_delete=models.CASCADE,
+        related_name='tipos_servico'
+    )
+    codigo = models.CharField(max_length=20, choices=TIPOS_CHOICES)
+    ativo = models.BooleanField(default=True)
+
+    valor_acionamento = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        validators=[MinValueValidator(0)],
+        help_text="Valor fixo de acionamento do serviço."
+    )
+    franquia_km = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        validators=[MinValueValidator(0)]
+    )
+    franquia_horas = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        validators=[MinValueValidator(0)]
+    )
+    valor_hora = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    valor_km = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
+    sincronizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['cliente', 'codigo']
+        verbose_name = 'Tipo de Serviço'
+        verbose_name_plural = 'Tipos de Serviço'
+
+    def __str__(self):
+        return f"{self.get_codigo_display()} - {self.cliente.nome}"
+    
+    def get_codigo_display(self):
+        return dict(self.TIPOS_CHOICES).get(self.codigo, self.codigo)
+
+class RequisicaoSolicitacao(models.Model):
+    id_externo = models.IntegerField(unique=True, null=True, blank=True, help_text="ID da requisição no GSAcionamento")
+    
+    cliente = models.ForeignKey(
+        Cliente,
+        on_delete=models.SET_NULL,
+        null=True
+    )
+    tipo_servico = models.ForeignKey(
+        TipoServico,
+        on_delete=models.PROTECT,
+        related_name='requisicoes'
+    )
+
+    campo_personalizado_titulo = models.CharField(max_length=100, blank=True, null=True)
+    campo_personalizado_valor = models.CharField(max_length=255, blank=True, null=True)
+
+    origem = models.CharField(max_length=500)
+    latitude_origem = models.DecimalField(max_digits=10, decimal_places=7, blank=True, null=True)
+    longitude_origem = models.DecimalField(max_digits=10, decimal_places=7, blank=True, null=True)
+    destino = models.CharField(max_length=500, blank=True, null=True)
+
+    motorista = models.CharField(max_length=255)
+    placa = models.CharField(max_length=10)
+    data_agendamento = models.DateField()
+    horario_agendamento = models.TimeField()
+
+    ocorrencia = models.TextField(blank=True, null=True)
+    nome_user = models.CharField(max_length=150, blank=True, null=True)
+
+    sincronizado_em = models.DateTimeField(null=True, blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ["-criado_em"]
+        verbose_name = "Requisição de Solicitação"
+        verbose_name_plural = "Requisições de Solicitações"
+    
+    def __str__(self):
+        return f"#{self.id} - {self.cliente}"

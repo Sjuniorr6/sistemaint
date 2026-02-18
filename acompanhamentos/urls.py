@@ -1,5 +1,7 @@
 from django.urls import path
+from rest_framework.authtoken.views import obtain_auth_token
 from . import views
+from . import api_views
 
 urlpatterns = [
     # ============== Acompanhamentos ==============
@@ -80,4 +82,9 @@ urlpatterns = [
         views.acompanhamento_dashboard_data,
         name="acompanhamento_dashboard_data"
     ),
+
+    path('api/token/', obtain_auth_token, name='api_token'),
+    path('api/sync/cliente/', api_views.sync_cliente, name='sync_cliente'),
+    path('api/sync/tipo-servico/', api_views.sync_tipo_servico, name='sync_tipo_servico'),
+    path('api/sync/requisicao/', api_views.sync_requisicao, name='sync_requisicao'),
 ]
