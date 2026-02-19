@@ -45,7 +45,8 @@ from .forms import (
     RegistroAcompanhamentoAgenteForm,
     RegistroAcompanhamentoAgenteCreateFormSet,
     RegistroAcompanhamentoAgenteUpdateFormSet,
-    RegistroResponsavelAgente
+    RegistroResponsavelAgente,
+    RegistroAcompanhamentoFromRequisicaoForm
 )
 
 from typing import Any
@@ -70,6 +71,7 @@ from django.shortcuts import get_object_or_404
 from .api.supabase_client import get_supabase
 import logging
 logger = logging.getLogger(__name__)
+
 # ------------------------------------------------------
 #                 Agente Acompanhamento
 # ------------------------------------------------------
@@ -371,7 +373,7 @@ class AcompanhamentoCreateView(LoginRequiredMixin, PermissionRequiredMixin, Crea
     model = registroacompanhamento
     form_class = RegistroAcompanhamentoForm
     template_name = "acompanhamento_create.html"
-    success_url = reverse_lazy("AcompanhamentosCreate")
+    success_url = reverse_lazy("requisicao_solicitacao_list")
     permission_required = "acompanhamentos.add_registroacompanhamento"
 
     def get_context_data(self, **kwargs):
@@ -2057,3 +2059,276 @@ def acompanhamento_dashboard_data(request):
         'labels': [d['cliente'] for d in dados],
         'valores': [d['total'] for d in dados],
     })
+
+
+
+
+# ------------------------------------------------------
+#               NOVO ACOMPANHAMENTO
+# ------------------------------------------------------
+
+from django.views.generic import ListView
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Q
+from .models import RequisicaoSolicitacao
+
+
+class RequisicaoSolicitacaoListView(LoginRequiredMixin, ListView):
+    model = RequisicaoSolicitacao
+    template_name = "requisicoes_solicitacao_list.html"
+    context_object_name = "requisicoes"
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = (
+            RequisicaoSolicitacao.objects
+            .select_related("cliente", "tipo_servico")
+            .filter(solicitado=False)
+        )
+
+        cliente = self.request.GET.get("cliente")
+        placa = self.request.GET.get("placa")
+        motorista = self.request.GET.get("motorista")
+        data_inicio = self.request.GET.get("data_inicio")
+        data_fim = self.request.GET.get("data_fim")
+        busca = self.request.GET.get("busca")
+
+        if cliente:
+            queryset = queryset.filter(cliente__nome__icontains=cliente)
+
+        if placa:
+            queryset = queryset.filter(placa__icontains=placa)
+
+        if motorista:
+            queryset = queryset.filter(motorista__icontains=motorista)
+
+        if data_inicio and data_fim:
+            queryset = queryset.filter(
+                data_agendamento__range=[data_inicio, data_fim]
+            )
+        elif data_inicio:
+            queryset = queryset.filter(data_agendamento=data_inicio)
+
+        if busca:
+            queryset = queryset.filter(
+                Q(origem__icontains=busca) |
+                Q(destino__icontains=busca) |
+                Q(nome_user__icontains=busca)
+            )
+
+        return queryset.order_by("-criado_em")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["filtros"] = self.request.GET
+        return context
+
+
+from django.views.generic import CreateView
+from django.urls import reverse_lazy, reverse
+from django.shortcuts import get_object_or_404, redirect
+from django.contrib import messages
+
+from .models import registroacompanhamento, registroacompanhamentoagente, RequisicaoSolicitacao
+from .forms import RegistroAcompanhamentoFromRequisicaoForm, RegistroAcompanhamentoAgenteCreateFormSet
+
+class AcompanhamentoFromRequisicaoCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
+    """
+    Cria um Acompanhamento a partir de uma RequisicaoSolicitacao e,
+    ao final, sincroniza com Supabase (mesma lógica da view antiga).
+    """
+    model = registroacompanhamento
+    form_class = RegistroAcompanhamentoFromRequisicaoForm
+    template_name = "acompanhamento2_create.html"
+    success_url = reverse_lazy("requisicao_solicitacao_list")
+    permission_required = "acompanhamentos.add_registroacompanhamento"
+
+    def get_requisicao(self):
+        """Busca a requisição usada como base para preencher o acompanhamento."""
+        pk = self.kwargs.get("pk")
+        return get_object_or_404(RequisicaoSolicitacao, pk=pk)
+
+    def get_form_kwargs(self):
+        """Envia a requisição para dentro do form (caso o form use essa info para validação)."""
+        kwargs = super().get_form_kwargs()
+        kwargs["requisicao"] = self.get_requisicao()
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        """Monta o contexto do template + formset dos agentes."""
+        context = super().get_context_data(**kwargs)
+        requisicao = self.get_requisicao()
+
+        # Requisição no template
+        context["requisicao"] = requisicao
+
+        # Lista de agentes cadastrados (para selects/autocomplete no template)
+        context["agentes_cadastrados"] = (
+            registrodeagenteacompanhamento.objects.all().order_by("nome")
+        )
+
+        # Formset: se POST, mantém dados enviados; se GET, cria vazio e injeta initial no 1º form
+        if self.request.POST:
+            context["agentes_formset"] = RegistroAcompanhamentoAgenteCreateFormSet(self.request.POST)
+        else:
+            formset = RegistroAcompanhamentoAgenteCreateFormSet()
+
+            # Pré-preenche o primeiro form do formset usando dados da requisição
+            if formset.forms:
+                formset.forms[0].initial = {
+                    "motorista": requisicao.motorista,
+                    "placa_motorista": requisicao.placa,
+                    "data_solicitada": requisicao.data_agendamento,
+                    "horario_solicitado": requisicao.horario_agendamento,
+                }
+
+            context["agentes_formset"] = formset
+
+        return context
+
+    def get_initial(self):
+        """Pré-preenche o form principal com os dados da requisição."""
+        initial = super().get_initial()
+        requisicao = self.get_requisicao()
+
+        initial["cliente"] = requisicao.cliente
+        initial["tipo_servico"] = requisicao.tipo_servico
+        initial["origem"] = requisicao.origem
+        initial["destino"] = requisicao.destino or ""
+        initial["latitude_origem"] = requisicao.latitude_origem
+        initial["longitude_origem"] = requisicao.longitude_origem
+        initial["campo_personalizado_titulo"] = requisicao.campo_personalizado_titulo or ""
+        initial["campo_personalizado_valor"] = requisicao.campo_personalizado_valor or ""
+        initial["ocorrencia"] = requisicao.ocorrencia or ""
+
+        return initial
+
+    @transaction.atomic
+    def form_valid(self, form):
+        """
+        Fluxo:
+        1) valida formset
+        2) salva acompanhamento (para gerar ID)
+        3) salva agentes do formset
+        4) cria caronas (se vierem do POST)
+        5) marca requisição como solicitada
+        6) sincroniza no Supabase (mesma regra da view antiga)
+        """
+        context = self.get_context_data()
+        agentes_formset = context["agentes_formset"]
+        requisicao = self.get_requisicao()
+
+        # Se o formset não for válido, renderiza novamente a página com os erros
+        if not agentes_formset.is_valid():
+            return self.render_to_response(context)
+
+        # Cria o objeto, mas ainda não salva no banco (pra setar campos obrigatórios)
+        self.object = form.save(commit=False)
+
+        # Garante status padrão (igual a antiga)
+        if not getattr(self.object, "status", None):
+            self.object.status = "pendente"
+
+        # Sempre força cliente/tipo_servico vindos da requisição (pra não ter divergência)
+        self.object.cliente = requisicao.cliente
+        self.object.tipo_servico = requisicao.tipo_servico
+
+        # Guarda nome do usuário logado
+        user = self.request.user
+        self.object.nome_user = user.get_full_name() or user.username
+
+        # 🔥 Salva primeiro para gerar ID (necessário para sincronizar e para relacionamentos)
+        self.object.save()
+
+        # ----------------------------
+        # SALVAR AGENTES DO FORMSET
+        # ----------------------------
+        agentes_formset.instance = self.object
+
+        # commit=False para setar relacionamento e salvar com controle
+        agentes = agentes_formset.save(commit=False)
+
+        # Salva/atualiza agentes enviados
+        for agente in agentes:
+            agente.acompanhamento = self.object
+            agente.save()
+
+        # Remove agentes marcados para exclusão no formset
+        for obj in agentes_formset.deleted_objects:
+            obj.delete()
+
+        # ----------------------------
+        # CARONAS (mesma lógica da antiga)
+        # ----------------------------
+        caronas = self.request.POST.getlist("carona_agente[]")
+
+        # Pega o agente principal (de onde copia dados)
+        agente_principal = (
+            self.object.agentes.filter(tipo_agente="principal").first()
+        )
+
+        # Se tiver caronas e tiver agente principal, cria os registros "carona"
+        for agente_id in caronas:
+            if not agente_id or not agente_principal:
+                continue
+
+            agente_obj = registrodeagenteacompanhamento.objects.filter(id=agente_id).first()
+            if not agente_obj:
+                continue
+
+            registroacompanhamentoagente.objects.create(
+                acompanhamento=self.object,
+                tipo_agente="carona",
+                responsavel_agente=agente_principal.responsavel_agente,
+                agente=agente_obj,
+                placa_agente=agente_principal.placa_agente,
+                motorista=agente_principal.motorista,
+                placa_motorista=agente_principal.placa_motorista,
+                km_inicio=agente_principal.km_inicio,
+                km_final=agente_principal.km_final,
+                km_total=agente_principal.km_total,
+                data_solicitada=agente_principal.data_solicitada,
+                horario_solicitado=agente_principal.horario_solicitado,
+                data_inicio=agente_principal.data_inicio,
+                horario_inicio=agente_principal.horario_inicio,
+                data_finalizacao=agente_principal.data_finalizacao,
+                horario_finalizacao=agente_principal.horario_finalizacao,
+                pedagio=Decimal("0.00"),
+                valor_agente=Decimal("0.00"),
+            )
+
+        # ----------------------------
+        # MARCAR REQUISIÇÃO COMO SOLICITADA
+        # ----------------------------
+        requisicao.solicitado = True
+        requisicao.save(update_fields=["solicitado"])
+
+        # ----------------------------
+        # ✅ SINCRONIZAR NO SUPABASE (a única parte que faltava)
+        # ----------------------------
+        try:
+            success, mission_id, error = sync_acompanhamento_to_supabase(self.object)
+        except Exception as e:
+            success, mission_id, error = False, None, str(e)
+            logger.exception("Erro inesperado ao sincronizar com Supabase")
+
+        # Não bloqueia a criação (mesma regra da antiga)
+        if not success:
+            messages.warning(
+                self.request,
+                f"Acompanhamento criado, mas houve erro ao sincronizar com sistema de rastreamento: {error}"
+            )
+            logger.warning(f"Acompanhamento {self.object.id} criado mas não sincronizado: {error}")
+        else:
+            messages.success(
+                self.request,
+                f"Acompanhamento criado e sincronizado com sucesso! ID da missão: {mission_id}"
+            )
+
+        # Redireciona para a lista (igual a antiga)
+        return redirect(self.success_url)
+
+    def form_invalid(self, form):
+        """Renderiza a tela novamente exibindo os erros do form."""
+        return self.render_to_response(self.get_context_data(form=form))
+

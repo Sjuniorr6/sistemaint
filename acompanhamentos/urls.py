@@ -87,4 +87,9 @@ urlpatterns = [
     path('api/sync/cliente/', api_views.sync_cliente, name='api_sync_cliente'),
     path('api/sync/tipo-servico/', api_views.sync_tipo_servico, name='api_sync_tipo_servico'),
     path('api/sync/requisicao/', api_views.sync_requisicao, name='api_sync_requisicao'),
+
+
+    path("requisicoes-solicitacao/", views.RequisicaoSolicitacaoListView.as_view(), name="requisicao_solicitacao_list"),
+    path("requisicao/nova/<int:pk>/", views.AcompanhamentoFromRequisicaoCreateView.as_view(), name="RequisicaoCreate"),
+    # path('requisicao/<int:pk>/editar/',views.RegistroAcompanhamentoUpdateView.as_view(),name='acompanhamentosUpdate'),
 ]

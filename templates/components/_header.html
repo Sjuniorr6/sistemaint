@@ -488,19 +488,26 @@
                                         {% endif %} -->
                                         {% if perms.acompanhamentos.view_registroacompanhamento %}
                                         <li>
+                                            <a class="dropdown-item" href="{% url 'requisicao_solicitacao_list' %}">
+                                                Ver Solicitações
+                                            </a>
+                                        </li>
+                                        {% endif %}
+                                        {% if perms.acompanhamentos.view_registroacompanhamento %}
+                                        <li>
                                             <a class="dropdown-item" href="{% url 'acompanhamentosList' %}">
                                                 Ver Acompanhamentos
                                             </a>
                                         </li>
                                         {% endif %}
 
-                                        {% if perms.requisicao.add_registrodeacompanhamento %}
+                                        <!-- {% if perms.requisicao.add_registrodeacompanhamento %}
                                         <li>
                                             <a class="dropdown-item" href="{% url 'AcompanhamentosCreate' %}">
                                                 Criar Acompanhamento
                                             </a>
                                         </li>
-                                        {% endif %}
+                                        {% endif %} -->
 
                                         {% if perms.acompanhamentos.view_registroacompanhamento %}
                                         <li>
@@ -517,13 +524,13 @@
                                             </a>
                                         </li>
                                         {% endif %}
-                                        {% if perms.acompanhamentos.add_registrodeclienteacompanhamento %}
+                                        <!-- {% if perms.acompanhamentos.add_registrodeclienteacompanhamento %}
                                         <li>
                                             <a class="dropdown-item" href="{% url 'clienteAcompanhamentoCreate' %}">
                                                 Cadastro Cliente
                                             </a>
                                         </li>
-                                        {% endif %}
+                                        {% endif %} -->
                                         {% if perms.requisicao.add_registrodeacompanhamento %}
                                         <li>
                                             <a class="dropdown-item" href="{% url 'responsavelagenteAcompanhamentoList' %}">

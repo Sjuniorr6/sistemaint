@@ -180,8 +180,8 @@
             <div class="col-12">
                 <div class="content-main">
                      <div class="table-responsive table-excel">
-                        <div class="header-tablee mb-2" style="display: flex; justify-content: space-between; align-items: center;">
-                            <a href="{% url 'AcompanhamentosCreate' %}" class="btn btn-primary"> + Acompanhamento</a>
+                        <div class="header-tablee mb-2" style="display: flex; justify-content: end; align-items: center;">
+                            <!-- <a href="{% url 'AcompanhamentosCreate' %}" class="btn btn-primary"> + Acompanhamento</a> -->
                             <a href="?{% for key, value in request.GET.items %}{% if key != 'pendente' %}{{ key }}={{ value }}&{% endif %}{% endfor %}pendente=true" class="badge bg-warning text-dark fs-6 mt-1 mt-md-0" style="text-decoration: none;">
                                 Pendentes: {{ nao_concluidos_count }}
                             </a>

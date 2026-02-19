@@ -284,3 +284,74 @@ RegistroAcompanhamentoAgenteUpdateFormSet = inlineformset_factory(
     can_delete=True
 )
 
+
+class RegistroAcompanhamentoFromRequisicaoForm(forms.ModelForm):
+    class Meta:
+        model = registroacompanhamento
+        fields = [
+            "cliente",
+            "tipo_servico",
+            "origem",
+            "destino",
+            "latitude_origem",
+            "longitude_origem",
+            "raio_cerca",
+            "campo_personalizado_titulo",
+            "campo_personalizado_valor",
+            "ocorrencia",
+        ]
+
+        widgets = {
+            "cliente": forms.HiddenInput(),  # HIDDEN ao invés de disabled
+            "tipo_servico": forms.HiddenInput(),  # HIDDEN ao invés de disabled
+            "origem": forms.TextInput(attrs={"class": "form-control"}),
+            "destino": forms.TextInput(attrs={"class": "form-control"}),
+            "latitude_origem": forms.NumberInput(attrs={
+                "class": "form-control",
+                "step": "any",
+                "readonly": "readonly"
+            }),
+            "longitude_origem": forms.NumberInput(attrs={
+                "class": "form-control",
+                "step": "any",
+                "readonly": "readonly"
+            }),
+            "raio_cerca": forms.NumberInput(attrs={
+                "class": "form-control"
+            }),
+            "campo_personalizado_titulo": forms.TextInput(attrs={
+                "class": "form-control"
+            }),
+            "campo_personalizado_valor": forms.TextInput(attrs={
+                "class": "form-control"
+            }),
+            "ocorrencia": forms.Textarea(attrs={
+                "class": "form-control",
+                "rows": 3
+            }),
+        }
+
+    def __init__(self, *args, requisicao=None, **kwargs):
+        self.requisicao = requisicao
+        super().__init__(*args, **kwargs)
+
+        if requisicao:
+            self.fields["cliente"].initial = requisicao.cliente.pk
+            self.fields["tipo_servico"].initial = requisicao.tipo_servico.pk
+
+            self.fields["tipo_servico"].queryset = (
+                requisicao.cliente.get_tipos_servico_disponiveis()
+            )
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        if self.initial.get("cliente"):
+            cleaned_data["cliente"] = self.initial["cliente"]
+
+        if self.initial.get("tipo_servico"):
+            cleaned_data["tipo_servico"] = self.initial["tipo_servico"]
+
+        return cleaned_data
+
+

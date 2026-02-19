@@ -612,7 +612,7 @@ class RequisicaoSolicitacaoAdmin(admin.ModelAdmin):
             )
         }),
         ('Campos Editáveis', {
-            'fields': ('ocorrencia',)
+            'fields': ('ocorrencia', 'solicitado')
         }),
         ('Metadados', {
             'fields': ('sincronizado_em', 'criado_em'),
