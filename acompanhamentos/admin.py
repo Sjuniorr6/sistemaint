@@ -596,7 +596,7 @@ class RequisicaoSolicitacaoAdmin(admin.ModelAdmin):
     readonly_fields = [
         'id_externo', 'cliente', 'tipo_servico',
         'campo_personalizado_titulo', 'campo_personalizado_valor',
-        'origem', 'latitude_origem', 'longitude_origem', 'destino',
+        'origem', 'destino',
         'motorista', 'placa', 'data_agendamento', 'horario_agendamento',
         'nome_user', 'sincronizado_em', 'criado_em'
     ]
@@ -606,13 +606,13 @@ class RequisicaoSolicitacaoAdmin(admin.ModelAdmin):
         ('Dados do GSAcionamento (Somente Leitura)', {
             'fields': (
                 'id_externo', 'cliente', 'tipo_servico', 'nome_user',
-                'origem', 'latitude_origem', 'longitude_origem', 'destino',
+                'origem', 'destino',
                 'motorista', 'placa', 'data_agendamento', 'horario_agendamento',
                 'campo_personalizado_titulo', 'campo_personalizado_valor',
             )
         }),
         ('Campos Editáveis', {
-            'fields': ('ocorrencia', 'solicitado')
+            'fields': ('ocorrencia', 'solicitado', 'latitude_origem', 'longitude_origem',)
         }),
         ('Metadados', {
             'fields': ('sincronizado_em', 'criado_em'),

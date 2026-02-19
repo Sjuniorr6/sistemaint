@@ -44,7 +44,7 @@ def gerar_link_app_missao(acompanhamento, request=None):
 
     # Usa UUID do Supabase se existir, senão o PK
     mission_id = str(acompanhamento.supabase_mission_id) if getattr(acompanhamento, "supabase_mission_id", None) else str(acompanhamento.pk)
-    param_key = "uuid" if getattr(acompanhamento, "supabase_mission_id", None) else "id"
+    param_key = "id" if getattr(acompanhamento, "supabase_mission_id", None) else "id"
 
     params = {
         param_key: mission_id,

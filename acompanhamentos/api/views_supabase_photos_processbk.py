@@ -284,44 +284,6 @@ def _update_django_plate(acompanhamento, photo_type: str, plate_number: str, ts_
     }
 
 
-def _update_django_datetime_inicio_fim(acompanhamento, tipo: str):
-    """
-    Grava data/horário de início ou finalização no agente principal.
-    
-    tipo: "inicio" → data_inicio + horario_inicio
-          "finalizacao" → data_finalizacao + horario_finalizacao
-    
-    Usa o horário atual (timezone SP / UTC) como referência.
-    """
-    if not acompanhamento:
-        return
-
-    vinculo = (
-        acompanhamento.agentes.filter(tipo_agente="principal").first()
-        or acompanhamento.agentes.first()
-    )
-    if not vinculo:
-        return
-
-    from django.utils import timezone as dj_tz
-    agora = dj_tz.localtime(dj_tz.now())  # converte para timezone local (settings.TIME_ZONE)
-
-    update_fields = []
-
-    if tipo == "inicio":
-        vinculo.data_inicio = agora.date()
-        vinculo.horario_inicio = agora.time()
-        update_fields = ["data_inicio", "horario_inicio"]
-    elif tipo == "finalizacao":
-        vinculo.data_finalizacao = agora.date()
-        vinculo.horario_finalizacao = agora.time()
-        update_fields = ["data_finalizacao", "horario_finalizacao"]
-    else:
-        return
-
-    vinculo.save(update_fields=update_fields)
-
-
 # ==========================================================
 # Orquestração: regras finais (status + km/placa)
 # ==========================================================
@@ -357,40 +319,12 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
                 "valid": is_valid,
             }
 
-        # ── Comparar placa da IA com placa_motorista cadastrada no Django ──
-        acompanhamento = _find_acompanhamento_by_supabase_mission_id(mission_id)
-        if acompanhamento and plate_number:
-            vinculo = (
-                acompanhamento.agentes.filter(tipo_agente="principal").first()
-                or acompanhamento.agentes.first()
-            )
-            placa_cadastrada = (getattr(vinculo, "placa_motorista", None) or "").strip().upper() if vinculo else ""
-            placa_detectada = (plate_number or "").strip().upper()
-
-            if placa_cadastrada and placa_detectada and placa_detectada != placa_cadastrada:
-                vr["valid"] = False
-                vr["issues"] = vr.get("issues", []) + [
-                    f"placa_divergente(detectada={placa_detectada}, cadastrada={placa_cadastrada})"
-                ]
-                sb.table("mission_photos").update({
-                    "validation_result": vr
-                }).eq("id", photo_id).execute()
-
-                return {
-                    "updated": False,
-                    "reason": "placa_divergente",
-                    "placa_detectada": placa_detectada,
-                    "placa_cadastrada": placa_cadastrada,
-                    "current_status": current_status,
-                }
-
         # 1) atualiza status no Supabase
         _supabase_update_status(sb, mission_id, STATUS_PLACA_INICIO_OK)
 
-        # 2) grava PLACA + data_inicio/horario_inicio no Django
+        # 2) grava PLACA no Django
         with transaction.atomic():
-            if not acompanhamento:
-                acompanhamento = _find_acompanhamento_by_supabase_mission_id(mission_id)
+            acompanhamento = _find_acompanhamento_by_supabase_mission_id(mission_id)
             django_info = _update_django_plate(
                 acompanhamento=acompanhamento,
                 photo_type="placa_inicio",
@@ -399,8 +333,6 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
                 photo_id=photo_id,
                 confidence=confidence,
             )
-            # Gravar data_inicio e horario_inicio no agente principal
-            _update_django_datetime_inicio_fim(acompanhamento, "inicio")
 
         return {
             "updated": True,
@@ -495,40 +427,12 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
                 "valid": is_valid,
             }
 
-        # ── Comparar placa da IA com placa_motorista cadastrada no Django ──
-        acompanhamento = _find_acompanhamento_by_supabase_mission_id(mission_id)
-        if acompanhamento and plate_number:
-            vinculo = (
-                acompanhamento.agentes.filter(tipo_agente="principal").first()
-                or acompanhamento.agentes.first()
-            )
-            placa_cadastrada = (getattr(vinculo, "placa_motorista", None) or "").strip().upper() if vinculo else ""
-            placa_detectada = (plate_number or "").strip().upper()
-
-            if placa_cadastrada and placa_detectada and placa_detectada != placa_cadastrada:
-                vr["valid"] = False
-                vr["issues"] = vr.get("issues", []) + [
-                    f"placa_divergente(detectada={placa_detectada}, cadastrada={placa_cadastrada})"
-                ]
-                sb.table("mission_photos").update({
-                    "validation_result": vr
-                }).eq("id", photo_id).execute()
-
-                return {
-                    "updated": False,
-                    "reason": "placa_divergente",
-                    "placa_detectada": placa_detectada,
-                    "placa_cadastrada": placa_cadastrada,
-                    "current_status": current_status,
-                }
-
         # 1) atualiza status no Supabase
         _supabase_update_status(sb, mission_id, STATUS_PLACA_FINAL_OK)
 
-        # 2) grava PLACA + data_finalizacao/horario_finalizacao no Django
+        # 2) grava PLACA no Django
         with transaction.atomic():
-            if not acompanhamento:
-                acompanhamento = _find_acompanhamento_by_supabase_mission_id(mission_id)
+            acompanhamento = _find_acompanhamento_by_supabase_mission_id(mission_id)
             django_info = _update_django_plate(
                 acompanhamento=acompanhamento,
                 photo_type="placa_final",
@@ -537,8 +441,6 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
                 photo_id=photo_id,
                 confidence=confidence,
             )
-            # Gravar data_finalizacao e horario_finalizacao no agente principal
-            _update_django_datetime_inicio_fim(acompanhamento, "finalizacao")
 
         return {
             "updated": True,
@@ -811,3 +713,4 @@ def sb_process_pending_photos(request):
     except Exception as e:
         logger.exception("Erro no polling de fotos")
         return JsonResponse({"success": False, "error": str(e)}, status=500)
+

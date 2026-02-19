@@ -388,26 +388,30 @@
     // STATUS STEPPER
     // ═══════════════════════════════════════════════════
     const STEPS = [
-        { key: "pendente",                     label: "Pendente",      icon: "⏳" },
-        { key: "missao_aceita",                label: "Aceita",        icon: "✅" },
-        { key: "no_local",                     label: "No Local",      icon: "📍" },
-        { key: "odometro_inicio_verificado",   label: "KM Início",     icon: "📷" },
-        { key: "teste_panico",                 label: "Teste Pânico",  icon: "🚨" },
-        { key: "teste_panico_verificado",      label: "Pânico OK",     icon: "✔️" },
-        { key: "em_andamento",                 label: "Em Andamento",  icon: "🚗" },
-        { key: "odometro_final_verificado",    label: "KM Final",      icon: "📷" },
-        { key: "concluido",                    label: "Concluído",     icon: "🏁" },
+        { key: "pendente",                     label: "Pendente",        icon: "⏳" },
+        { key: "missao_aceita",                label: "Aceita",          icon: "✅" },
+        { key: "no_local",                     label: "No Local",        icon: "📍" },
+        { key: "placa_inicio_verificada",      label: "Placa Início",    icon: "🔍" },
+        { key: "odometro_inicio_verificado",   label: "KM Início",       icon: "📷" },
+        { key: "teste_panico",                 label: "Teste Pânico",    icon: "🚨" },
+        { key: "teste_panico_verificado",      label: "Pânico OK",       icon: "✔️" },
+        { key: "em_andamento",                 label: "Em Andamento",    icon: "🚗" },
+        { key: "odometro_final_verificado",    label: "KM Final",        icon: "📷" },
+        { key: "placa_final_verificada",       label: "Placa Final",     icon: "🔍" },
+        { key: "concluido",                    label: "Concluído",       icon: "🏁" },
     ];
 
     const STATUS_COLORS = {
         pendente:                     { bg: "#6b7280", text: "white" },
         missao_aceita:                { bg: "#3b82f6", text: "white" },
         no_local:                     { bg: "#10b981", text: "white" },
+        placa_inicio_verificada:      { bg: "#a855f7", text: "white" },
         odometro_inicio_verificado:   { bg: "#8b5cf6", text: "white" },
         teste_panico:                 { bg: "#ef4444", text: "white" },
         teste_panico_verificado:      { bg: "#f59e0b", text: "black" },
         em_andamento:                 { bg: "#06b6d4", text: "white" },
         odometro_final_verificado:    { bg: "#8b5cf6", text: "white" },
+        placa_final_verificada:       { bg: "#a855f7", text: "white" },
         concluido:                    { bg: "#22c55e", text: "white" },
     };
 
@@ -460,48 +464,40 @@
         if (!photos || photos.length === 0) { el.classList.add("d-none"); return; }
 
         el.classList.remove("d-none");
+
+        const TYPE_LABELS = {
+            "placa_inicio":     "Início Placa",
+            "odometro_inicio":  "Início KM",
+            "odometro_final":   "Final KM",
+            "placa_final":      "Final Placa",
+        };
+
         let html = "";
         photos.forEach(p => {
-            const type = p.type === "inicio" ? "Início" : "Final";
+            const photoType = p.type || "";
+            const label = TYPE_LABELS[photoType] || photoType;
             const vr = p.validation_result || {};
-            // Placa: tentar pegar info de validação da placa
-            const plate = p.plate_validation_result || p.plate_result || vr.plate_result || null;
+            const isPlaca = photoType.startsWith("placa_");
+            const isOdometro = photoType.startsWith("odometro_");
 
             if (!p.processed) {
-                html += ` <span class="photo-badge pending">⏳ ${type}: Aguardando</span>`;
-            } else {
-                // Odômetro
-                let odoHtml = "";
-                if (typeof vr.valid !== "undefined") {
-                    if (vr.valid) {
-                        const odo = vr.odometer_value || vr.odometer_raw || "?";
-                        odoHtml = ` <span class="photo-badge valid">✅ ${type} KM: ${odo}</span>`;
-                    } else {
-                        odoHtml = ` <span class="photo-badge invalid">❌ ${type} KM: Rejeitada</span>`;
-                    }
-                }
-
-                // Placa
-                let plateHtml = "";
-                if (plate) {
-                    if (plate.valid) {
-                        const plateNum = plate.plate_number || plate.plate || "?";
-                        plateHtml = ` <span class="photo-badge valid">✅ ${type} Placa: ${plateNum}</span>`;
-                    } else {
-                        let reason = "Rejeitada";
-                        if (plate.issues && plate.issues.length) {
-                            reason = plate.issues.join(", ");
-                        }
-                        plateHtml = ` <span class="photo-badge invalid">❌ ${type} Placa: ${reason}</span>`;
-                    }
-                }
-
-                // Se não houver info de placa, só mostra odômetro (como antes)
-                if (odoHtml || plateHtml) {
-                    html += odoHtml + plateHtml;
+                html += ` <span class="photo-badge pending">⏳ ${label}: Aguardando</span>`;
+            } else if (isPlaca) {
+                if (vr.valid) {
+                    const plateNum = vr.plate_number || "?";
+                    html += ` <span class="photo-badge valid">✅ ${label}: ${plateNum}</span>`;
                 } else {
-                    html += ` <span class="photo-badge invalid">❌ ${type}: Rejeitada</span>`;
+                    html += ` <span class="photo-badge invalid">❌ ${label}: Rejeitada</span>`;
                 }
+            } else if (isOdometro) {
+                if (vr.valid) {
+                    const odo = vr.odometer_value || vr.odometer_raw || "?";
+                    html += ` <span class="photo-badge valid">✅ ${label}: ${odo}</span>`;
+                } else {
+                    html += ` <span class="photo-badge invalid">❌ ${label}: Rejeitada</span>`;
+                }
+            } else {
+                html += ` <span class="photo-badge invalid">❌ ${label}: Rejeitada</span>`;
             }
         });
         content.innerHTML = html;

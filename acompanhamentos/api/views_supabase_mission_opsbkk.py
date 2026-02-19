@@ -41,13 +41,13 @@ logger = logging.getLogger(__name__)
 STATUS_PENDENTE = "pendente"
 STATUS_MISSAO_ACEITA = "missao_aceita"
 STATUS_NO_LOCAL = "no_local"
-STATUS_PLACA_INICIO_OK = "placa_inicio_verificada"       # NOVO v2.6.0
+STATUS_PLACA_INICIO_OK = "placa_inicio_verificada"
 STATUS_ODO_INICIO_OK = "odometro_inicio_verificado"
 STATUS_TESTE_PANICO = "teste_panico"
 STATUS_TESTE_PANICO_VERIFICADO = "teste_panico_verificado"
 STATUS_EM_ANDAMENTO = "em_andamento"
 STATUS_ODO_FINAL_OK = "odometro_final_verificado"
-STATUS_PLACA_FINAL_OK = "placa_final_verificada"         # NOVO v2.6.0
+STATUS_PLACA_FINAL_OK = "placa_final_verificada"
 STATUS_CONCLUIDO = "concluido"
 
 
@@ -346,12 +346,16 @@ def sb_mission_location(request, mission_id):
             # ✅ regra principal: entrou na cerca_origem com missão aceita -> no_local
             if current_status == STATUS_MISSAO_ACEITA and distancia <= raio:
                 _update_supabase_status(sb, mission_id, STATUS_NO_LOCAL)
-                _sync_django_status(mission_id, STATUS_NO_LOCAL)
+                _sync_django_status(mission_id, STATUS_NO_LOCAL)  # opcional: manter telas Django consistentes
                 new_status = STATUS_NO_LOCAL
                 status_changed = True
 
-            # v2.6.0: NÃO transiciona automaticamente ao sair da cerca.
-            # O status só avança via fotos validadas (placa + odômetro).
+            # (Opcional – igual seu código antigo): se saiu da cerca e estava no_local -> em_andamento
+            elif current_status == STATUS_NO_LOCAL and distancia > raio:
+                _update_supabase_status(sb, mission_id, STATUS_EM_ANDAMENTO)
+                _sync_django_status(mission_id, STATUS_EM_ANDAMENTO)
+                new_status = STATUS_EM_ANDAMENTO
+                status_changed = True
 
         return _ok({
             "mission_id": mission_id,
