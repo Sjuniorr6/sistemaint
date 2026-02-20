@@ -372,86 +372,57 @@ def _auto_crop_plate_cv2(arr: np.ndarray, pil_img: Image.Image) -> Optional[Imag
 
 def _build_prompt() -> str:
     """Prompt otimizado para leitura de placas brasileiras com ênfase em Mercosul."""
-    return """You are a Brazilian license plate OCR specialist.
+    return """You are analyzing a Brazilian vehicle photo to read the LICENSE PLATE.
 
-TASK: Read the license plate in this vehicle photo and return structured JSON.
+CRITICAL RULES:
+1. Brazilian license plates have TWO formats:
+   - OLD FORMAT: ABC1234 (3 letters + 4 numbers) - Example: ABC1234
+   - MERCOSUL FORMAT: ABC1D23 (3 letters + 1 NUMBER + 1 letter + 2 numbers)
 
----
+2. **VERY IMPORTANT FOR MERCOSUL FORMAT (ABC1D23):**
+   - Position 0,1,2: MUST BE LETTERS (A-Z)
+   - Position 3: MUST BE A NUMBER (0-9) ⚠️ NEVER A LETTER!
+   - Position 4: MUST BE A LETTER (A-Z)
+   - Position 5,6: MUST BE NUMBERS (0-9) ⚠️ NEVER LETTERS!
 
-PLATE FORMATS (exactly 7 characters):
+3. **CRITICAL: Common OCR mistakes to AVOID:**
+   - Position 3 (4th character): If you see 'O', it's probably '0' (ZERO)
+   - Position 3: If you see 'I', it's probably '1' (ONE)
+   - Position 3: If you see 'S', it's probably '5' (FIVE)
+   - Position 5,6: If you see 'O', it's probably '0' (ZERO)
+   - Position 5,6: If you see 'I', it's probably '1' (ONE)
 
-  OLD:      LLL NNNN        (3 letters + 4 numbers)        → e.g. ABC1234
-  MERCOSUL: LLL N L NN      (3 letters, 1 number, 1 letter, 2 numbers) → e.g. FXG0J05
+4. **STEP-BY-STEP VALIDATION:**
+   - Read all 7 characters
+   - Check if first 3 are LETTERS
+   - If YES, assume MERCOSUL format
+   - Position 3 MUST be a number (0-9), NOT a letter
+   - Position 4 MUST be a letter (A-Z)
+   - Positions 5,6 MUST be numbers (0-9), NOT letters
 
-  L = letter (A-Z)  |  N = number (0-9)
+EXAMPLES OF CORRECT MERCOSUL PLATES:
+- FXG0J05 (F-X-G-ZERO-J-ZERO-5) ✅ Correct!
+- ABC1D23 (A-B-C-ONE-D-TWO-THREE) ✅ Correct!
+- XYZ9A87 (X-Y-Z-NINE-A-EIGHT-SEVEN) ✅ Correct!
 
----
+EXAMPLES OF COMMON MISTAKES:
+- FXGOJ05 ❌ WRONG! Position 3 is 'O' (letter), should be '0' (zero)
+- ABC1D2I ❌ WRONG! Position 6 is 'I' (letter), should be '1' (one)
+- XYZ9ASS ❌ WRONG! Positions 5,6 are letters, should be numbers
 
-POSITION MAP FOR MERCOSUL (use this as your checklist):
-
-  Pos:  0   1   2   3   4   5   6
-  Type: L   L   L   N   L   N   N
-                     ↑        ↑   ↑
-                  MUST be   MUST be
-                  a digit   digits
-
----
-
-OCR CORRECTION TABLE — Apply BEFORE returning your answer:
-
-  If you read...  | At position 3, 5, or 6 (must be digit) | Correct to
-  ────────────────┼────────────────────────────────────────┼───────────
-  O (letter O)    | YES                                     | 0 (zero)
-  I (letter I)    | YES                                     | 1 (one)
-  l (lowercase L) | YES                                     | 1 (one)
-  S               | YES                                     | 5 (five)
-  Z               | YES                                     | 2 (two)
-  B               | YES                                     | 8 (eight)
-  G               | YES                                     | 6 (six)
-  T               | YES                                     | 7 (seven)
-  ────────────────┼────────────────────────────────────────┼───────────
-  0 (zero)        | At position 0, 1, 2, or 4 (must be L)  | O (letter)
-  1 (one)         | At position 0, 1, 2, or 4 (must be L)  | I (letter)
-  8 (eight)       | At position 0, 1, 2, or 4 (must be L)  | B (letter)
-
----
-
-PROCEDURE (follow strictly):
-
-1. Locate the plate in the image.
-2. Read all 7 characters RAW (exactly as you see them).
-3. Determine format:
-   - If char at position 4 looks like a letter → MERCOSUL
-   - If char at position 4 looks like a number → OLD
-4. For MERCOSUL: walk positions 0–6 and enforce the type constraint (L or N).
-   Apply the OCR correction table for any mismatch.
-5. For OLD: ensure positions 0-2 are letters and 3-6 are numbers. Apply corrections.
-6. Return the corrected plate.
-
----
-
-OUTPUT — Return ONLY this JSON, nothing else:
-
+Return ONLY valid JSON:
 {
-    "raw_read": "<exactly what you see before corrections>",
-    "plate_number": "<final corrected plate>",
-    "plate_format": "old | mercosul",
-    "confidence": <0.0 to 1.0>,
-    "plate_color": "gray | white | other",
-    "plate_location": "front | rear",
-    "position_check": [
-        {"pos": 0, "raw": "<char>", "expected": "L", "final": "<char>", "corrected": false},
-        {"pos": 1, "raw": "<char>", "expected": "L", "final": "<char>", "corrected": false},
-        {"pos": 2, "raw": "<char>", "expected": "L", "final": "<char>", "corrected": false},
-        {"pos": 3, "raw": "<char>", "expected": "N", "final": "<char>", "corrected": false},
-        {"pos": 4, "raw": "<char>", "expected": "L|N", "final": "<char>", "corrected": false},
-        {"pos": 5, "raw": "<char>", "expected": "N", "final": "<char>", "corrected": false},
-        {"pos": 6, "raw": "<char>", "expected": "N", "final": "<char>", "corrected": false}
-    ]
+    "plate_number": "<exact plate text with correct characters>",
+    "plate_format": "old or mercosul",
+    "confidence": <float 0.0 to 1.0>,
+    "plate_color": "gray, white, or other",
+    "plate_location": "front or rear",
+    "reasoning": "<explain what you see and why you're confident>",
+    "character_analysis": "<for each position, explain if it's a letter or number>"
 }
 
-If the plate is NOT readable:
-{"plate_number": null, "confidence": 0.0, "raw_read": null, "reason": "<why>"}"""
+If you CANNOT read the plate clearly:
+{"plate_number": null, "confidence": 0.0, "reasoning": "<why it failed>"}"""
 
 
 def _call_openai_vision(data_url: str, data_url_crop: Optional[str] = None, timestamp: str = None) -> Dict[str, Any]:

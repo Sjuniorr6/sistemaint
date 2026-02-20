@@ -266,18 +266,34 @@ def api_missao_localizacoes(request, id):
     try:
         mission_uuid = str(id)
         sb = get_supabase()
-        
-        # Buscar tracking
-        tracking_res = (
-            sb.table("mission_tracking")
-            .select("*")
-            .eq("mission_id", mission_uuid)
-            .order("timestamp", desc=False)
-            .limit(5000)
-            .execute()
-        )
-        tracking_rows = tracking_res.data or []
-        
+
+        # -----------------------------
+        # Buscar tracking (SEM LIMITE) via paginação de 1000
+        # -----------------------------
+        page_size = 1000
+        offset = 0
+        tracking_rows = []
+
+        while True:
+            batch_res = (
+                sb.table("mission_tracking")
+                .select("*")
+                .eq("mission_id", mission_uuid)
+                .order("timestamp", desc=False)
+                # range é INCLUSIVO: 0-999, 1000-1999, etc.
+                .range(offset, offset + page_size - 1)
+                .execute()
+            )
+
+            batch = batch_res.data or []
+            tracking_rows.extend(batch)
+
+            # Se veio menos que page_size, acabou
+            if len(batch) < page_size:
+                break
+
+            offset += page_size
+
         localizacoes = [
             {
                 "id": loc.get("id"),
@@ -336,6 +352,7 @@ def api_missao_localizacoes(request, id):
         
         return JsonResponse({
             "success": True,
+            "count": len(localizacoes),
             "localizacoes": localizacoes,
             "total": len(localizacoes),
             "origem_acompanhamento": mission.get("origem") or "",

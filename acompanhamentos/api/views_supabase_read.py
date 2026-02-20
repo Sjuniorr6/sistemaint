@@ -80,11 +80,23 @@ def _err(message, status=500, details=None):
 
 
 def _to_int(value, default=200, min_value=1, max_value=5000):
+    """
+    Converte para int com clamp.
+    ✅ Agora aceita max_value=None para NÃO limitar por cima.
+    """
     try:
         v = int(value)
     except Exception:
         v = default
-    v = max(min_value, min(v, max_value))
+
+    # aplica mínimo
+    if min_value is not None:
+        v = max(min_value, v)
+
+    # aplica máximo (se existir)
+    if max_value is not None:
+        v = min(v, max_value)
+
     return v
 
 
@@ -133,37 +145,95 @@ def sb_missions_control_list(request):
 # GET /api/supabase/mission_tracking/
 # Retorna todas as localizações (tracking)
 # ==========================================================
+
+
+
 @require_GET
 def sb_mission_tracking_list(request):
+    """
+    GET /api/supabase/mission_tracking/?mission_id=<uuid>&desc=false&limit=0
+
+    ✅ Resolve o "teto 1000" do Supabase paginando de 1000 em 1000 via .range().
+    - limit:
+        - ausente ou 0 => SEM LIMITE (busca tudo)
+        - > 0 => busca até N registros (mas sempre paginando internamente)
+    """
     def _do(sb):
-        limit = _to_int(request.GET.get("limit"), default=2000)
+        # ------------------------------
+        # Parâmetros
+        # ------------------------------
+        raw_limit = (request.GET.get("limit") or "").strip().lower()
+
+        # Sem limite: se não veio limit OU veio "0"/"none"/"null"
+        if raw_limit in ("", "0", "none", "null"):
+            limit = None
+        else:
+            # sem teto superior (max_value=None) — você pediu "sem limite"
+            limit = _to_int(raw_limit, default=2000, min_value=1, max_value=None)
+
         order_by = request.GET.get("order_by") or "timestamp"
         desc = (request.GET.get("desc") or "false").lower() == "true"
 
-        q = (
-            sb.table("mission_tracking")
-            .select("*")
-            .order(order_by, desc=desc)
-            .limit(limit)
-        )
-
         mission_id = request.GET.get("mission_id")
-        if mission_id:
-            q = q.eq("mission_id", mission_id)
-
         after = request.GET.get("after")
         before = request.GET.get("before")
-        if after:
-            q = q.gte("timestamp", after)
-        if before:
-            q = q.lte("timestamp", before)
 
-        res = q.execute()
-        rows = res.data or []
+        if not mission_id:
+            return _err("Parâmetro mission_id é obrigatório", status=400)
+
+        # ------------------------------
+        # Paginação (Supabase costuma cortar em 1000 por request)
+        # ------------------------------
+        PAGE_SIZE = 1000
+        rows = []
+        offset = 0
+
+        while True:
+            # Se tiver limite, calcula quanto falta
+            if limit is not None:
+                remaining = limit - len(rows)
+                if remaining <= 0:
+                    break
+                batch_size = min(PAGE_SIZE, remaining)
+            else:
+                batch_size = PAGE_SIZE
+
+            # range é INCLUSIVO: (start, end)
+            start = offset
+            end = offset + batch_size - 1
+
+            q = (
+                sb.table("mission_tracking")
+                .select("*")
+                .eq("mission_id", mission_id)
+                .order(order_by, desc=desc)
+                .range(start, end)
+            )
+
+            if after:
+                q = q.gte("timestamp", after)
+            if before:
+                q = q.lte("timestamp", before)
+
+            res = q.execute()
+            batch = res.data or []
+
+            rows.extend(batch)
+
+            # Se veio menos que o batch, acabou
+            if len(batch) < batch_size:
+                break
+
+            offset += batch_size
 
         return _ok({
             "table": "mission_tracking",
             "count": len(rows),
+            "mission_id": mission_id,
+            "order_by": order_by,
+            "desc": desc,
+            "limit": limit,           # None = sem limite
+            "page_size": PAGE_SIZE,   # transparência
             "rows": rows,
         })
 

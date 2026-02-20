@@ -678,6 +678,15 @@ def sb_mission_status(request, mission_id):
         if not mission:
             return _err("Missão não encontrada", status=404)
 
+        # ✅ Count real no servidor (não depende do número de linhas retornadas)
+        tracking_count_res = (
+            sb.table("mission_tracking")
+            .select("id", count="exact")
+            .eq("mission_id", mission_id)
+            .execute()
+        )
+        tracking_count = tracking_count_res.count or 0
+
         # Tracking count
         tracking_res = (
             sb.table("mission_tracking")

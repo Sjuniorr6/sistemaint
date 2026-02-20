@@ -245,7 +245,7 @@
     const STATUS_POLL_MS = 5000;
 
     // APIs
-    const TRACKING_URL = `/api/supabase/mission_tracking/?mission_id=${encodeURIComponent(MISSION_ID)}&limit=5000&desc=false`;
+    const TRACKING_URL = `/api/supabase/mission_tracking/?mission_id=${encodeURIComponent(MISSION_ID)}&limit=0&desc=false`;
     const PANIC_URL    = `/api/supabase/panic_alerts/?mission_id=${encodeURIComponent(MISSION_ID)}&limit=500`;
     const STATUS_URL   = `/api/supabase/mission/${encodeURIComponent(MISSION_ID)}/status/`;
     const ACK_PANIC    = (id) => `/api/supabase/panic_alerts/${encodeURIComponent(id)}/ack/`;
