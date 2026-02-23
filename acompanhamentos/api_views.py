@@ -7,7 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.utils import timezone
 
-from .models import Cliente, TipoServico, RequisicaoSolicitacao
+from .models import Cliente, TipoServico, RequisicaoSolicitacao, FranquiaAgente
 
 
 @api_view(['POST'])
