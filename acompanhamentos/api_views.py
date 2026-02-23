@@ -142,3 +142,59 @@ def sync_requisicao(request):
             'success': False,
             'error': str(e)
         }, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def sync_franquia(request):
+    """Recebe e sincroniza uma FranquiaAgente do GSAcionamento"""
+    data = request.data
+
+    try:
+        id_externo = data.get('id_externo')
+
+        if not id_externo:
+            return Response({
+                'success': False,
+                'error': 'id_externo é obrigatório'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Se veio flag de exclusão
+        if data.get('deleted'):
+            deleted_count, _ = FranquiaAgente.objects.filter(
+                id_externo=id_externo
+            ).delete()
+
+            return Response({
+                'success': True,
+                'message': f'Franquia {id_externo} excluída' if deleted_count else 'Franquia não encontrada (já excluída)',
+                'deleted': deleted_count > 0,
+            }, status=status.HTTP_200_OK)
+
+        # Cria ou atualiza
+        franquia, created = FranquiaAgente.objects.update_or_create(
+            id_externo=id_externo,
+            defaults={
+                'nome': data.get('nome', ''),
+                'valor_acionamento': data.get('valor_acionamento'),
+                'franquia_km': data.get('franquia_km'),
+                'franquia_horas': data.get('franquia_horas'),
+                'valor_km_excedente': data.get('valor_km_excedente'),
+                'valor_horas_excedente': data.get('valor_horas_excedente'),
+                'nome_user': data.get('nome_user', ''),
+            }
+        )
+
+        return Response({
+            'success': True,
+            'message': 'Franquia sincronizada com sucesso',
+            'id': franquia.id,
+            'id_externo': franquia.id_externo,
+            'created': created,
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_400_BAD_REQUEST)

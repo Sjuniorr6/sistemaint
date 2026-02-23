@@ -10,6 +10,7 @@ from .models import (
     Cliente,
     TipoServico,
     RequisicaoSolicitacao,
+    FranquiaAgente
 )
 
 
@@ -551,6 +552,28 @@ class AcompanhamentoLocalizacaoAdmin(admin.ModelAdmin):
 # ------------------------------------------------------
 #             Novo Acompanhamento
 # ------------------------------------------------------
+
+@admin.register(FranquiaAgente)
+class FranquiaAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'id_externo',
+        'nome',
+        'franquia_km',
+        'franquia_horas',
+        'valor_km_excedente',
+        'valor_horas_excedente',
+    )
+    list_filter = ('criado_em',)
+    search_fields = ('id', 'id_externo', 'nome', 'franquia_km', 'franquia_horas', 'valor_km_excedente', 'valor_horas_excedente')
+    readonly_fields = ('id', 'id_externo', 'nome', 'franquia_km', 'franquia_horas', 'valor_km_excedente', 'valor_horas_excedente',)
+
+    def has_add_permission(self, request):
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        return False
+
 @admin.register(Cliente)
 class ClienteAdmin(admin.ModelAdmin):
     list_display = ['id', 'id_externo', 'nome', 'cnpj', 'ativo', 'sincronizado_em']

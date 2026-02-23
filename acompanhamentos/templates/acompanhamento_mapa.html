@@ -157,6 +157,30 @@
             0%   { transform: scale(1);   opacity: 0.55; }
             100% { transform: scale(2.4); opacity: 0; }
         }
+
+        /* ── Route snapping indicator ── */
+        .route-info {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: rgba(26, 29, 33, 0.85);
+            backdrop-filter: blur(6px);
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 0.75rem;
+            color: #94a3b8;
+            pointer-events: none;
+        }
+        .route-info .dot {
+            display: inline-block;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+        .route-info .dot.snapped { background: #22c55e; }
+        .route-info .dot.raw     { background: #f59e0b; }
     </style>
 </head>
 
@@ -226,7 +250,11 @@
     </div>
 
     <!-- ══════ MAPA ══════ -->
-    <div id="map" class="mt-2"></div>
+    <div id="map" class="mt-2" style="position: relative;">
+        <div class="route-info" id="routeInfo" style="display:none;">
+            <span class="dot snapped"></span> Rota nas ruas (OSRM)
+        </div>
+    </div>
 
     <div class="photos-info d-none mt-2" id="photosInfo">
         <strong>📷 Fotos:</strong>
@@ -259,18 +287,18 @@
     let __lastPhotoKickAt = 0;
 
     async function kickPhotoProcessingIfNeeded(photos) {
-    const pending = (photos || []).filter(p => p && p.processed === false);
-    if (!pending.length) return;
+        const pending = (photos || []).filter(p => p && p.processed === false);
+        if (!pending.length) return;
 
-    const now = Date.now();
-    if (now - __lastPhotoKickAt < PHOTO_KICK_THROTTLE_MS) return;
-    __lastPhotoKickAt = now;
+        const now = Date.now();
+        if (now - __lastPhotoKickAt < PHOTO_KICK_THROTTLE_MS) return;
+        __lastPhotoKickAt = now;
 
-    try {
-        await fetchJsonOrThrow(PHOTOS_PROCESS_PENDING_URL, {}, "process_pending_photos");
-    } catch (e) {
-        console.warn("process-pending falhou:", e?.message || e);
-    }
+        try {
+            await fetchJsonOrThrow(PHOTOS_PROCESS_PENDING_URL, {}, "process_pending_photos");
+        } catch (e) {
+            console.warn("process-pending falhou:", e?.message || e);
+        }
     }
 
 
@@ -291,60 +319,39 @@
         document.getElementById("statusText").textContent = text;
     }
 
-    /**
-     * Converte uma data (ISO, timestamp, etc.) para o padrão pt-BR
-     * garantindo o fuso horário de São Paulo.
-     */
     function formatDateSP(value) {
         if (!value) return "-";
-
-        // Se já estiver no formato BR (ex: 10/02/2026 15:30:10), retorna como está
         if (typeof value === "string" && /^\d{2}\/\d{2}\/\d{4}/.test(value.trim())) {
             return value;
         }
 
         let d = null;
-
         if (value instanceof Date) {
             d = value;
         } else if (typeof value === "number") {
             d = new Date(value);
         } else {
             let s = String(value).trim();
-
-            // Normaliza "YYYY-MM-DD HH:MM:SS" para "YYYY-MM-DDTHH:MM:SS"
-            // (sem inventar timezone; o toLocaleString vai renderizar em SP)
             if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(s) && !/Z|[+-]\d{2}:\d{2}$/.test(s)) {
                 s = s.replace(" ", "T");
             }
-
             d = new Date(s);
         }
 
-        // Se não conseguiu converter, devolve o original
         if (!d || Number.isNaN(d.getTime())) return String(value);
 
-        // Padrão BR completo com segundos, forçando fuso de SP
         return d.toLocaleString("pt-BR", {
             timeZone: "America/Sao_Paulo",
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
+            year: "numeric", month: "2-digit", day: "2-digit",
+            hour: "2-digit", minute: "2-digit", second: "2-digit",
         });
     }
 
     function setLastUpdate() {
         document.getElementById("lastUpdate").textContent = new Date().toLocaleString("pt-BR", {
             timeZone: "America/Sao_Paulo",
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
+            year: "numeric", month: "2-digit", day: "2-digit",
+            hour: "2-digit", minute: "2-digit", second: "2-digit",
         });
     }
 
@@ -356,14 +363,11 @@
         return true;
     }
 
-
     async function fetchJsonOrThrow(url, options = {}, label = "") {
         const resp = await fetch(url, { cache: "no-store", ...options });
-
-        // tenta ler body SEMPRE (ajuda a debugar 500)
         const raw = await resp.text();
         let data = null;
-        try { data = raw ? JSON.parse(raw) : null; } catch (e) { /* pode vir HTML */ }
+        try { data = raw ? JSON.parse(raw) : null; } catch (e) { }
 
         if (!resp.ok) {
             console.error(`[${label}] HTTP ${resp.status} em ${url}`, { raw, data });
@@ -375,7 +379,6 @@
             throw err;
         }
 
-        // se veio 200 mas não é JSON, ainda é problema
         if (!data) {
             console.error(`[${label}] Resposta não-JSON em ${url}`, { raw });
             throw new Error("Resposta inválida (não é JSON). Veja console.");
@@ -504,17 +507,218 @@
     }
 
     // ═══════════════════════════════════════════════════
+    // OSRM ROUTE SNAPPING (CORE DA MELHORIA)
+    // ═══════════════════════════════════════════════════
+
+    /**
+     * Usa a OSRM Match API para "encaixar" pontos GPS nas ruas reais.
+     * Fallback: se OSRM falhar, usa OSRM Route API.
+     * Fallback 2: se tudo falhar, retorna polyline reta (comportamento antigo).
+     *
+     * A API do OSRM aceita no máximo ~100 coordenadas por request,
+     * então fazemos chunking para missões longas.
+     */
+    const OSRM_BASE = "https://router.project-osrm.org";
+    const OSRM_MAX_COORDS = 100;    // limite seguro por request
+    const OSRM_CACHE = new Map();    // cache simples: hash dos pontos → geometria
+
+    function hashPoints(points) {
+        // Hash rápido baseado em quantidade + primeiro + último ponto
+        if (!points.length) return "empty";
+        const f = points[0], l = points[points.length - 1];
+        return `${points.length}_${f[0].toFixed(5)}_${f[1].toFixed(5)}_${l[0].toFixed(5)}_${l[1].toFixed(5)}`;
+    }
+
+    /**
+     * Divide array de coordenadas em chunks com overlap de 1 ponto
+     * para garantir continuidade entre segmentos.
+     */
+    function chunkCoords(coords, maxSize) {
+        if (coords.length <= maxSize) return [coords];
+        const chunks = [];
+        for (let i = 0; i < coords.length; i += maxSize - 1) {
+            chunks.push(coords.slice(i, i + maxSize));
+        }
+        return chunks;
+    }
+
+    /**
+     * OSRM Match API — map matching (ideal para GPS tracking)
+     * Encaixa pontos GPS nas ruas mais prováveis.
+     */
+    async function osrmMatch(lngLatPairs) {
+        const coordStr = lngLatPairs.map(c => `${c[0]},${c[1]}`).join(";");
+        // radiuses: tolerância em metros para cada ponto (GPS tem ~10-20m de erro)
+        const radiuses = lngLatPairs.map(() => "25").join(";");
+
+        const url = `${OSRM_BASE}/match/v1/driving/${coordStr}?overview=full&geometries=geojson&radiuses=${radiuses}`;
+
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`OSRM Match HTTP ${resp.status}`);
+
+        const data = await resp.json();
+        if (data.code !== "Ok" || !data.matchings || data.matchings.length === 0) {
+            throw new Error(`OSRM Match failed: ${data.code}`);
+        }
+
+        // Combinar todas as matchings em uma única lista de coordenadas
+        let allCoords = [];
+        for (const matching of data.matchings) {
+            const coords = matching.geometry.coordinates; // [lng, lat]
+            // Evitar duplicação no ponto de junção
+            if (allCoords.length > 0) {
+                const last = allCoords[allCoords.length - 1];
+                const first = coords[0];
+                if (last[0] === first[0] && last[1] === first[1]) {
+                    allCoords = allCoords.concat(coords.slice(1));
+                } else {
+                    allCoords = allCoords.concat(coords);
+                }
+            } else {
+                allCoords = coords;
+            }
+        }
+
+        // Converter [lng, lat] → [lat, lng] para Leaflet
+        return allCoords.map(c => [c[1], c[0]]);
+    }
+
+    /**
+     * OSRM Route API — fallback se Match falhar
+     * Calcula rota entre waypoints.
+     */
+    async function osrmRoute(lngLatPairs) {
+        const coordStr = lngLatPairs.map(c => `${c[0]},${c[1]}`).join(";");
+        const url = `${OSRM_BASE}/route/v1/driving/${coordStr}?overview=full&geometries=geojson`;
+
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`OSRM Route HTTP ${resp.status}`);
+
+        const data = await resp.json();
+        if (data.code !== "Ok" || !data.routes || data.routes.length === 0) {
+            throw new Error(`OSRM Route failed: ${data.code}`);
+        }
+
+        const coords = data.routes[0].geometry.coordinates;
+        return coords.map(c => [c[1], c[0]]);
+    }
+
+    /**
+     * Função principal: tenta Match, fallback para Route, fallback para linha reta.
+     * Retorna { latlngs: [[lat,lng],...], snapped: boolean }
+     */
+    async function getSnappedRoute(trackingPoints) {
+        if (trackingPoints.length < 2) {
+            return { latlngs: trackingPoints.map(p => [p[0], p[1]]), snapped: false };
+        }
+
+        // Converter [lat, lng] → [lng, lat] para OSRM
+        const lngLat = trackingPoints.map(p => [p[1], p[0]]);
+
+        const cacheKey = hashPoints(lngLat);
+        if (OSRM_CACHE.has(cacheKey)) {
+            return OSRM_CACHE.get(cacheKey);
+        }
+
+        // Dividir em chunks se necessário
+        const chunks = chunkCoords(lngLat, OSRM_MAX_COORDS);
+
+        try {
+            // Tentar Match API (melhor para GPS tracking)
+            let allLatLngs = [];
+            for (const chunk of chunks) {
+                if (chunk.length < 2) continue;
+                const chunkResult = await osrmMatch(chunk);
+                // Merge sem duplicar ponto de junção
+                if (allLatLngs.length > 0 && chunkResult.length > 0) {
+                    const last = allLatLngs[allLatLngs.length - 1];
+                    const first = chunkResult[0];
+                    const dist = Math.abs(last[0] - first[0]) + Math.abs(last[1] - first[1]);
+                    if (dist < 0.0001) {
+                        allLatLngs = allLatLngs.concat(chunkResult.slice(1));
+                    } else {
+                        allLatLngs = allLatLngs.concat(chunkResult);
+                    }
+                } else {
+                    allLatLngs = allLatLngs.concat(chunkResult);
+                }
+            }
+
+            if (allLatLngs.length >= 2) {
+                const result = { latlngs: allLatLngs, snapped: true, method: "match" };
+                OSRM_CACHE.set(cacheKey, result);
+                return result;
+            }
+            throw new Error("Match retornou poucos pontos");
+        } catch (matchErr) {
+            console.warn("[OSRM Match] falhou, tentando Route API...", matchErr.message);
+
+            try {
+                // Fallback: Route API (precisa de menos pontos, ~100 waypoints)
+                // Para Route, usamos um subconjunto de pontos (a cada N pontos)
+                const maxWaypoints = 50;
+                let waypointLngLat;
+                if (lngLat.length > maxWaypoints) {
+                    const step = Math.ceil(lngLat.length / maxWaypoints);
+                    waypointLngLat = lngLat.filter((_, i) => i === 0 || i === lngLat.length - 1 || i % step === 0);
+                } else {
+                    waypointLngLat = lngLat;
+                }
+
+                // Route também precisa de chunking
+                const routeChunks = chunkCoords(waypointLngLat, OSRM_MAX_COORDS);
+                let allLatLngs = [];
+
+                for (const chunk of routeChunks) {
+                    if (chunk.length < 2) continue;
+                    const chunkResult = await osrmRoute(chunk);
+                    if (allLatLngs.length > 0 && chunkResult.length > 0) {
+                        const last = allLatLngs[allLatLngs.length - 1];
+                        const first = chunkResult[0];
+                        const dist = Math.abs(last[0] - first[0]) + Math.abs(last[1] - first[1]);
+                        if (dist < 0.0001) {
+                            allLatLngs = allLatLngs.concat(chunkResult.slice(1));
+                        } else {
+                            allLatLngs = allLatLngs.concat(chunkResult);
+                        }
+                    } else {
+                        allLatLngs = allLatLngs.concat(chunkResult);
+                    }
+                }
+
+                if (allLatLngs.length >= 2) {
+                    const result = { latlngs: allLatLngs, snapped: true, method: "route" };
+                    OSRM_CACHE.set(cacheKey, result);
+                    return result;
+                }
+                throw new Error("Route retornou poucos pontos");
+            } catch (routeErr) {
+                console.warn("[OSRM Route] também falhou, usando linha reta.", routeErr.message);
+                const result = {
+                    latlngs: trackingPoints.map(p => [p[0], p[1]]),
+                    snapped: false,
+                    method: "raw"
+                };
+                OSRM_CACHE.set(cacheKey, result);
+                return result;
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
     // MAPA
     // ═══════════════════════════════════════════════════
     const map = L.map("map", { preferCanvas: true });
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
 
-    let rota = null;
+    let rotaSnapped = null;       // polyline da rota encaixada nas ruas
+    let rotaRawGhost = null;      // polyline fantasma (pontos GPS reais, para debug)
     let markerInicio = null;
     let markerUltimo = null;
     let lastCount = 0;
     let didFitBounds = false;
     let geofenceCircle = null;
+    let __snapInFlight = false;   // evitar requests concorrentes ao OSRM
     const panicLayer = L.layerGroup().addTo(map);
 
     const panicIcon = L.divIcon({
@@ -525,6 +729,28 @@
             box-shadow:0 0 8px rgba(239,68,68,.8);
         "></div>`,
         iconSize: [14, 14], iconAnchor: [7, 7]
+    });
+
+    // Ícone customizado para última posição (pulso animado)
+    const currentPosIcon = L.divIcon({
+        className: "",
+        html: `<div style="position:relative;width:20px;height:20px;">
+            <div style="
+                position:absolute;top:0;left:0;
+                width:20px;height:20px;border-radius:50%;
+                background:#3b82f6;border:3px solid #fff;
+                box-shadow:0 0 10px rgba(59,130,246,.6);
+                z-index:2;
+            "></div>
+            <div style="
+                position:absolute;top:0;left:0;
+                width:20px;height:20px;border-radius:50%;
+                background:#3b82f6;
+                animation: currentPulse 1.5s infinite;
+                z-index:1;
+            "></div>
+        </div>`,
+        iconSize: [20, 20], iconAnchor: [10, 10]
     });
 
     function normalizeTrackingPoints(pontos) {
@@ -538,25 +764,98 @@
             .filter(p => Number.isFinite(p.latitude) && Number.isFinite(p.longitude));
     }
 
-    function renderOrUpdateMap(pontos) {
+    function showRouteInfo(snapped, method) {
+        const el = document.getElementById("routeInfo");
+        if (snapped) {
+            const dotEl = el.querySelector(".dot");
+            dotEl.className = "dot snapped";
+            el.innerHTML = `<span class="dot snapped"></span> Rota nas ruas (OSRM ${method || "match"})`;
+        } else {
+            el.innerHTML = `<span class="dot raw"></span> Rota aproximada (GPS direto)`;
+        }
+        el.style.display = "block";
+    }
+
+    async function renderOrUpdateMap(pontos) {
         const clean = normalizeTrackingPoints(pontos);
         if (clean.length === 0) { map.setView([-15, -55], 4); return; }
 
-        const latlngs = clean.map(p => [p.latitude, p.longitude]);
+        const rawLatLngs = clean.map(p => [p.latitude, p.longitude]);
 
-        if (!rota) {
-            rota = L.polyline(latlngs, { color: "#3b82f6", weight: 4, opacity: 0.8 }).addTo(map);
-            if (!didFitBounds) { map.fitBounds(rota.getBounds(), { padding: [30, 30] }); didFitBounds = true; }
-            markerInicio = L.marker(latlngs[0]).addTo(map).bindPopup("📍 Início");
-            markerUltimo = L.marker(latlngs[latlngs.length - 1]).addTo(map).bindPopup("🚗 Última posição");
-            lastCount = latlngs.length;
-            return;
-        }
+        // Se não mudou a quantidade de pontos, não refaz o snap
+        if (rawLatLngs.length === lastCount && rotaSnapped) return;
 
-        if (latlngs.length > lastCount) {
-            rota.setLatLngs(latlngs);
-            markerUltimo.setLatLng(latlngs[latlngs.length - 1]);
-            lastCount = latlngs.length;
+        // Evitar requests concorrentes
+        if (__snapInFlight) return;
+        __snapInFlight = true;
+
+        try {
+            // Obter rota encaixada nas ruas
+            const result = await getSnappedRoute(rawLatLngs);
+            const snappedLatLngs = result.latlngs;
+
+            // Rota principal (encaixada nas ruas)
+            if (!rotaSnapped) {
+                rotaSnapped = L.polyline(snappedLatLngs, {
+                    color: "#3b82f6",
+                    weight: 5,
+                    opacity: 0.85,
+                    smoothFactor: 1,
+                    lineCap: "round",
+                    lineJoin: "round",
+                }).addTo(map);
+
+                // Linha fantasma (pontos GPS reais) — sutil para debug visual
+                rotaRawGhost = L.polyline(rawLatLngs, {
+                    color: "#94a3b8",
+                    weight: 1.5,
+                    opacity: 0.25,
+                    dashArray: "4 6",
+                }).addTo(map);
+
+                if (!didFitBounds) {
+                    map.fitBounds(rotaSnapped.getBounds(), { padding: [30, 30] });
+                    didFitBounds = true;
+                }
+
+                markerInicio = L.marker(rawLatLngs[0]).addTo(map)
+                    .bindPopup("📍 Início");
+
+                markerUltimo = L.marker(rawLatLngs[rawLatLngs.length - 1], {
+                    icon: currentPosIcon,
+                    zIndexOffset: 1000,
+                }).addTo(map).bindPopup("🚗 Última posição");
+            } else {
+                rotaSnapped.setLatLngs(snappedLatLngs);
+                rotaRawGhost.setLatLngs(rawLatLngs);
+                markerUltimo.setLatLng(rawLatLngs[rawLatLngs.length - 1]);
+            }
+
+            lastCount = rawLatLngs.length;
+            showRouteInfo(result.snapped, result.method);
+
+        } catch (err) {
+            console.error("[renderOrUpdateMap] erro no snap:", err);
+            // Fallback total: linha reta como antes
+            const rawLatLngs2 = clean.map(p => [p.latitude, p.longitude]);
+            if (!rotaSnapped) {
+                rotaSnapped = L.polyline(rawLatLngs2, {
+                    color: "#3b82f6", weight: 4, opacity: 0.8,
+                }).addTo(map);
+                if (!didFitBounds) {
+                    map.fitBounds(rotaSnapped.getBounds(), { padding: [30, 30] });
+                    didFitBounds = true;
+                }
+                markerInicio = L.marker(rawLatLngs2[0]).addTo(map).bindPopup("📍 Início");
+                markerUltimo = L.marker(rawLatLngs2[rawLatLngs2.length - 1]).addTo(map).bindPopup("🚗 Última posição");
+            } else {
+                rotaSnapped.setLatLngs(rawLatLngs2);
+                markerUltimo.setLatLng(rawLatLngs2[rawLatLngs2.length - 1]);
+            }
+            lastCount = rawLatLngs2.length;
+            showRouteInfo(false);
+        } finally {
+            __snapInFlight = false;
         }
     }
 
@@ -595,7 +894,7 @@
             })
         }).addTo(map).bindPopup("📍 Origem da Missão");
 
-        if (!rota && !didFitBounds) {
+        if (!rotaSnapped && !didFitBounds) {
             map.setView([geofence.latitude, geofence.longitude], 15);
         }
     }
@@ -687,7 +986,6 @@
                     ${btnHtml}
                 </div>`;
 
-
             L.marker([lat, lng], { icon: panicIcon }).bindPopup(popup).addTo(panicLayer);
         });
     }
@@ -714,7 +1012,7 @@
     }
 
     // ═══════════════════════════════════════════════════
-    // GEOFENCE CHECK (somente se status == missao_aceita)
+    // GEOFENCE CHECK
     // ═══════════════════════════════════════════════════
     async function geofenceCheckIfNeeded(reason = "auto") {
         if (currentMissionStatus !== "missao_aceita") return;
@@ -725,8 +1023,6 @@
 
         try {
             const resp = await fetch(GEOFENCE_CHECK_URL, { cache: "no-store" });
-
-            // se não existe, não faz nada (pelo seu urls.py, NÃO existe mesmo)
             if (resp.status === 404) return;
 
             const raw = await resp.text();
@@ -748,17 +1044,15 @@
     }
 
     // ═══════════════════════════════════════════════════
-    // RESOLVE PANIC (ACK + opcional promote teste)
+    // RESOLVE PANIC
     // ═══════════════════════════════════════════════════
     async function resolvePanic(panicId, isTestMode) {
-        // 1) ACK do evento (salva acknowledged_at/by no backend)
         const ackData = await fetchJsonOrThrow(
             ACK_PANIC(panicId),
             { method: "POST", headers: { "Content-Type": "application/json" } },
             "panic_ack"
         );
 
-        // 2) Se for TESTE, promove status via panic-resolve
         if (isTestMode) {
             try {
                 const resolveData = await fetchJsonOrThrow(
@@ -772,7 +1066,6 @@
                     renderStepper(currentMissionStatus);
                 }
             } catch (err) {
-                // 409 = não existe teste aberto (não quebra UI)
                 if (err.httpStatus === 409) {
                     console.warn("panic-resolve 409:", err.data || err.raw);
                     return;
@@ -817,7 +1110,7 @@
                 await geofenceCheckIfNeeded("refreshAll");
             }
 
-            if (pontos) renderOrUpdateMap(pontos);
+            if (pontos) await renderOrUpdateMap(pontos);
 
             if (panicData) {
                 renderPanicMarkers(panicData.rows || []);

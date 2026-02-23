@@ -128,7 +128,32 @@ class RequisicaoSolicitacao(models.Model):
     
     def __str__(self):
         return f"#{self.id} - {self.cliente}"
-        
+
+class FranquiaAgente(models.Model):
+    id_externo = models.IntegerField(unique=True, help_text="ID do tipo de serviço no GSAcionamento")
+
+    nome = models.CharField(max_length=100, verbose_name="Nome da Franquia")
+    valor_acionamento = models.DecimalField(max_digits=8, decimal_places=2, blank=True, null=True, verbose_name="Valor do Acionamento (R$)")
+
+    franquia_km = models.PositiveIntegerField(blank=True, null=True, verbose_name="Franquia de KM")
+    franquia_horas = models.PositiveIntegerField(blank=True, null=True, verbose_name="Franquia de Horas")
+
+    valor_km_excedente = models.DecimalField(max_digits=8, decimal_places=2, blank=True, null=True, verbose_name="Valor de KM Excedentes (R$)")
+    valor_horas_excedente = models.DecimalField(max_digits=8, decimal_places=2, blank=True, null=True, verbose_name="Valor de Horas Excedentes (R$)")
+
+    nome_user = models.CharField(max_length=150, blank=True, null=True)
+
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True) 
+
+    class Meta:
+        ordering = ['-criado_em']
+        permissions = [
+            ("view_listfranquia", "Pode visualizar lista de franquias"),
+        ]
+
+    def __str__(self):
+        return f'Franquia #{self.id}'
 
 # ------------------------------------------------------
 #                 Registro de Agentes
