@@ -13,6 +13,8 @@ class HorasForm(forms.ModelForm):
             'comprovante2',
             'motivo',
             'total',
+            'solicitante',
+            'data_solicitacao',
         ]
 
         widgets = {
@@ -33,5 +35,13 @@ class HorasForm(forms.ModelForm):
 
             'total': forms.TextInput(
                 attrs={'class': 'form-control', 'readonly': True}
+            ),
+
+            'solicitante': forms.TextInput(
+                attrs={'class': 'form-control', 'placeholder': 'Nome de quem solicitou a hora extra'}
+            ),
+
+            'data_solicitacao': forms.DateTimeInput(
+                attrs={'class': 'form-control', 'type': 'datetime-local'}
             ),
         }

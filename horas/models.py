@@ -1,10 +1,19 @@
 from django.db import models
-from django.conf import settings  # Importa as configurações, inclusive o AUTH_USER_MODEL
-from decimal import Decimal
-# models.py
-import datetime
-from django.db import models
 from django.conf import settings
+from decimal import Decimal
+import datetime
+
+DIAS_SEMANA_PT = {
+    0: 'Segunda-feira',
+    1: 'Terça-feira',
+    2: 'Quarta-feira',
+    3: 'Quinta-feira',
+    4: 'Sexta-feira',
+    5: 'Sábado',
+    6: 'Domingo',
+}
+
+
 class horas(models.Model):
     STATUS_CHOICES = [
         ('Pendente', 'Pendente'),
@@ -15,26 +24,56 @@ class horas(models.Model):
         choices=STATUS_CHOICES,
         max_length=50,
         null=True,
-        blank=True
+        blank=True,
     )
 
     funcionario = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         null=True,
-        blank=True
+        blank=True,
     )
 
     comprovante1 = models.ImageField(upload_to='imagens/', null=True, blank=True)
     comprovante2 = models.ImageField(upload_to='imagens/', null=True, blank=True)
 
-    hora_inicial = models.DateTimeField(null=True, blank=True)
-    hora_final   = models.DateTimeField(null=True, blank=True)
+    hora_inicial = models.DateTimeField(null=True, blank=True, verbose_name='Hora Inicial')
+    hora_final   = models.DateTimeField(null=True, blank=True, verbose_name='Hora Final')
 
     motivo = models.CharField(max_length=50, null=True, blank=True)
 
     total = models.CharField(max_length=10, null=True, blank=True)
-    total_de_horas = models.CharField(max_length=50,null=True,blank=True)
+    total_de_horas = models.CharField(max_length=50, null=True, blank=True)
+
+    # Novos campos
+    solicitante = models.CharField(
+        max_length=100,
+        null=True,
+        blank=True,
+        verbose_name='Solicitante da Hora Extra',
+    )
+    data_solicitacao = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Horário da Solicitação',
+    )
+
+    # ------------------------------------------------------------------ #
+    # Propriedades auxiliares – dia da semana em português                #
+    # ------------------------------------------------------------------ #
+    @property
+    def dia_semana_inicial(self) -> str:
+        """Retorna o dia da semana da hora_inicial em português."""
+        if self.hora_inicial:
+            return DIAS_SEMANA_PT.get(self.hora_inicial.weekday(), '')
+        return ''
+
+    @property
+    def dia_semana_final(self) -> str:
+        """Retorna o dia da semana da hora_final em português."""
+        if self.hora_final:
+            return DIAS_SEMANA_PT.get(self.hora_final.weekday(), '')
+        return ''
 
     def save(self, *args, **kwargs):
         if self.hora_inicial and self.hora_final and self.hora_final > self.hora_inicial:

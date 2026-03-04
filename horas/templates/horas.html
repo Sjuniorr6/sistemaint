@@ -186,6 +186,37 @@
             {% endfor %}
         </div>
         
+        <!-- Solicitante -->
+        <div class="mb-3">
+            <label for="{{ form.solicitante.id_for_label }}" class="form-label">
+                <i class="fas fa-user-tie"></i> Solicitante da Hora Extra
+            </label>
+            <input type="text"
+                   name="{{ form.solicitante.html_name }}"
+                   id="{{ form.solicitante.id_for_label }}"
+                   class="form-control"
+                   placeholder="Nome de quem solicitou a hora extra"
+                   value="{{ form.solicitante.value|default:'' }}">
+            {% for error in form.solicitante.errors %}
+                <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        <!-- Horário da Solicitação -->
+        <div class="mb-3">
+            <label for="{{ form.data_solicitacao.id_for_label }}" class="form-label">
+                <i class="fas fa-calendar-alt"></i> Horário da Solicitação
+            </label>
+            <input type="datetime-local"
+                   name="{{ form.data_solicitacao.html_name }}"
+                   id="{{ form.data_solicitacao.id_for_label }}"
+                   class="form-control"
+                   value="{% if form.data_solicitacao.value %}{{ form.data_solicitacao.value|date:'Y-m-d\\TH:i' }}{% endif %}">
+            {% for error in form.data_solicitacao.errors %}
+                <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+        </div>
+
         <div class="mb-3">
             <label for="{{ form.total.id_for_label }}" class="form-label">
                 <i class="fas fa-calculator"></i> Total de Horas Extras

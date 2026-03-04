@@ -248,6 +248,8 @@
                 <th>Comprovante Hora Final</th>
                 <th>Motivo</th>
                 <th>Total</th>
+                <th>Solicitante</th>
+                <th>Horário da Solicitação</th>
                 <th>Ação</th>
               </tr>
             </thead>
@@ -255,7 +257,10 @@
           {% for item in employee.records %}
           <tr>
             <td class="text-nowrap funcionario-cell">{{ item.funcionario }}</td>
-            <td class="text-nowrap"><i class="bi bi-clock me-1"></i> {{ item.hora_inicial }}</td>
+            <td class="text-nowrap">
+                <div><i class="bi bi-clock me-1"></i> {{ item.hora_inicial|date:"d/m/Y H:i" }}</div>
+                {% if item.dia_semana_inicial %}<small class="text-muted">{{ item.dia_semana_inicial }}</small>{% endif %}
+            </td>
             <td class="text-nowrap">
                       {% if item.comprovante1 %}
                       <div class="comprovante-box">
@@ -267,7 +272,10 @@
                       </div>
                       {% else %}<span class="text-muted">—</span>{% endif %}
             </td>
-            <td class="text-nowrap"><i class="bi bi-clock me-1"></i> {{ item.hora_final }}</td>
+            <td class="text-nowrap">
+                <div><i class="bi bi-clock me-1"></i> {{ item.hora_final|date:"d/m/Y H:i" }}</div>
+                {% if item.dia_semana_final %}<small class="text-muted">{{ item.dia_semana_final }}</small>{% endif %}
+            </td>
             <td class="text-nowrap">
                       {% if item.comprovante2 %}
                       <div class="comprovante-box">
@@ -284,6 +292,12 @@
                 <i class="bi bi-calculator me-1"></i>
                 {% if item.total %}{{ item.total }}{% else %}00:00{% endif %}
             </td>
+            <td class="text-nowrap">{{ item.solicitante|default:"—" }}</td>
+            <td class="text-nowrap">
+                {% if item.data_solicitacao %}
+                    <div>{{ item.data_solicitacao|date:"d/m/Y H:i" }}</div>
+                {% else %}—{% endif %}
+            </td>
 
             <td class="text-nowrap">
               <div class="d-flex gap-2 justify-content-center">
@@ -298,13 +312,13 @@
           </tr>
           {% empty %}
           <tr>
-            <td colspan="8" class="text-center text-muted">Nenhum registro encontrado para este funcionário.</td>
+            <td colspan="10" class="text-center text-muted">Nenhum registro encontrado para este funcionário.</td>
           </tr>
           {% endfor %}
         </tbody>
         <tfoot>
           <tr>
-            <td colspan="7" class="text-end"><strong>Total de Horas:</strong></td>
+            <td colspan="9" class="text-end"><strong>Total de Horas:</strong></td>
             <td><strong><i class="bi bi-calculator"></i> {{ employee.total }}</strong></td>
           </tr>
         </tfoot>

@@ -200,6 +200,18 @@ def consulta_horas_pdf(request):
     # (parse_datetime_flexible já está disponível globalmente)
 
     # Agrupa dados por funcionário
+    DIAS_SEMANA_PT = {
+        0: 'Segunda-feira', 1: 'Terça-feira', 2: 'Quarta-feira',
+        3: 'Quinta-feira', 4: 'Sexta-feira', 5: 'Sábado', 6: 'Domingo',
+    }
+
+    def fmt_dt_dia(dt):
+        """Formata datetime como 'DD/MM/AAAA HH:MM\\n(Dia da Semana)'."""
+        if not dt:
+            return ""
+        dia = DIAS_SEMANA_PT.get(dt.weekday(), '')
+        return f"{dt.strftime('%d/%m/%Y %H:%M')}\n({dia})"
+
     employee_data = []
     for func_id in qs.values_list('funcionario', flat=True).distinct():
         records = qs.filter(funcionario=func_id)
@@ -213,14 +225,16 @@ def consulta_horas_pdf(request):
             h, rem = divmod(int(diff), 3600)
             m, s = divmod(rem, 60)
             row_total = f"{h:02d}:{m:02d}:{s:02d}"
-            # Formatar datas para DD/MM/AAAA HH:MM:SS
-            hi_str = hi.strftime("%d/%m/%Y %H:%M:%S") if hi else ""
-            hf_str = hf.strftime("%d/%m/%Y %H:%M:%S") if hf else ""
+            hi_str = fmt_dt_dia(hi)
+            hf_str = fmt_dt_dia(hf)
+            ds_str = it.data_solicitacao.strftime('%d/%m/%Y %H:%M') if it.data_solicitacao else ''
             rows.append({
-                'hora_inicial': hi_str,
-                'hora_final':   hf_str,
-                'motivo':       it.motivo or "",
-                'total':        row_total,
+                'hora_inicial':     hi_str,
+                'hora_final':       hf_str,
+                'motivo':           it.motivo or "",
+                'total':            row_total,
+                'solicitante':      it.solicitante or "",
+                'data_solicitacao': ds_str,
             })
         # Total agregado por funcionário
         h, rem = divmod(total_seconds, 3600)
@@ -258,31 +272,35 @@ def consulta_horas_pdf(request):
     for emp in employee_data:
         story.append(Paragraph(f"Funcionário: {emp['funcionario']}", styles['Heading3']))
         data = [[
-            Paragraph("Data e Hora Inicial", wrap_style),
-            Paragraph("Data e Hora Final", wrap_style),
+            Paragraph("Data e Hora Inicial<br/>(Dia da Semana)", wrap_style),
+            Paragraph("Data e Hora Final<br/>(Dia da Semana)", wrap_style),
             Paragraph("Motivo", wrap_style),
             Paragraph("Total", wrap_style),
+            Paragraph("Solicitante", wrap_style),
+            Paragraph("Horário da Solicitação", wrap_style),
         ]]
         for row in emp['rows']:
             data.append([
-                Paragraph(row['hora_inicial'], wrap_style),
-                Paragraph(row['hora_final'], wrap_style),
+                Paragraph(row['hora_inicial'].replace('\n', '<br/>'), wrap_style),
+                Paragraph(row['hora_final'].replace('\n', '<br/>'), wrap_style),
                 Paragraph(row['motivo'], wrap_style),
                 Paragraph(row['total'], wrap_style),
+                Paragraph(row['solicitante'], wrap_style),
+                Paragraph(row['data_solicitacao'], wrap_style),
             ])
         data.append([
-            "", "",
-            Paragraph("Total de Horas:", bold_style),
+            "", "", "",
+            Paragraph("Total:", bold_style),
             Paragraph(emp['agg_total'], bold_style),
+            "",
         ])
-        tbl = Table(data, colWidths=[5*cm, 5*cm, 6*cm, 3*cm])
+        tbl = Table(data, colWidths=[3.5*cm, 3.5*cm, 4*cm, 2*cm, 3.5*cm, 3.5*cm])
         tbl.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
             ('GRID', (0,0), (-1,-1), 0.5, colors.black),
-            ('ALIGN', (3,-1), (3,-1), 'RIGHT'),
             ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('FONTNAME', (2,-1), (3,-1), 'Helvetica-Bold'),
+            ('FONTNAME', (3,-1), (4,-1), 'Helvetica-Bold'),
         ]))
         story.append(tbl)
         story.append(Spacer(1, 24))
