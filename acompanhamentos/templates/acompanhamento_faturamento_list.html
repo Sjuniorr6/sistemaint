@@ -471,18 +471,8 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if item.validar_acompanhamento == 1 %}
-
-                                            {% if item.validar_pagamento == 0 %}
-                                                R$ {{ item.valor_contrato|floatformat:2 }}
-                                            {% else %}
-                                                {% if item.valor_contrato %}
-                                                    R$ {{ item.valor_contrato|floatformat:2 }}
-                                                {% else %}
-                                                    —
-                                                {% endif %}
-                                            {% endif %}
-
+                                        {% if item.valor_contrato %}
+                                            R$ {{ item.valor_contrato|floatformat:2 }}
                                         {% else %}
                                             —
                                         {% endif %}

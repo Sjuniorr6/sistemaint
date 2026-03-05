@@ -1890,15 +1890,11 @@ def acompanhamento_mapa_supabase(request, mission_id):
         }
     )
 
-def validar_acompanhamento(request, id):
+def validar_pagamento(request, id):
     acompanhamento = get_object_or_404(registroacompanhamento, id=id)
 
-    acompanhamento.validar_acompanhamento = True
-
-    acompanhamento.recalcular_financeiro()
-
-    acompanhamento.nome_user = request.user.get_full_name() or request.user.username
-    acompanhamento.save(update_fields=["validar_acompanhamento", "nome_user"])
+    acompanhamento.validar_pagamento = True
+    acompanhamento.save(update_fields=["validar_pagamento"])
 
     return redirect("acompanhamentosListFaturamento")
 
@@ -2067,7 +2063,7 @@ def atualizar_franquia_acompanhamento(request):
         })
 
     # Só recalcula financeiro se já estiver validado
-    if acompanhamento.validar_acompanhamento:
+    if acompanhamento.status_acompanhamento == "verificado":
         acompanhamento.recalcular_financeiro()
     acompanhamento.nome_user = request.user.get_full_name() or request.user.username
     acompanhamento.save(update_fields=["nome_user"])
@@ -2797,7 +2793,7 @@ def atualizar_pedagio_acompanhamento(request, pk):
 
     acompanhamento.refresh_from_db()
     
-    if acompanhamento.validar_acompanhamento:
+    if acompanhamento.status_acompanhamento == "verificado":
         acompanhamento.recalcular_financeiro()
 
     if acompanhamento.status_acompanhamento != "verificado":
@@ -2817,3 +2813,13 @@ def atualizar_pedagio_acompanhamento(request, pk):
         "pedagio": str(valor),
         "status_acompanhamento": acompanhamento.status_acompanhamento,
     })
+
+def validar_acompanhamento(request, id):
+    acompanhamento = get_object_or_404(registroacompanhamento, id=id)
+
+    acompanhamento.validar_acompanhamento = True
+
+    acompanhamento.nome_user = request.user.get_full_name() or request.user.username
+    acompanhamento.save(update_fields=["validar_acompanhamento", "nome_user"])
+
+    return redirect("acompanhamentosListFaturamento")

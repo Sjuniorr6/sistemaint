@@ -63,7 +63,7 @@ def notificar_gs_verificado(acomp_id):
 
     # ── Recalcular valor_contrato e lucro_total do acompanhamento ──
     acomp.refresh_from_db()
-    acomp.recalcular_valor_contrato()
+    acomp.recalcular_financeiro()
 
     # ── Recarregar agente principal (com valores atualizados) ──
     ag_principal.refresh_from_db()
@@ -215,7 +215,7 @@ def _build_concluido_payload(acomp, ag_principal):
         "data_finalizacao": _date_iso(ag_principal.data_finalizacao),
         "horario_total": _duration_seconds(ag_principal.horario_total),
         "horario_excedente": _duration_seconds(ag_principal.horario_excedente),
-        "total": str(acomp.total_valor_agentes or Decimal("0.00")),
+        "total": str(acomp.valor_contrato or Decimal("0.00")),
     }
 
     # =============================================

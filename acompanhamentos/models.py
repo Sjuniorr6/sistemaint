@@ -591,8 +591,7 @@ class registroacompanhamento(models.Model):
     #     self.save(update_fields=["valor_contrato", "lucro_total"])
 
     def recalcular_financeiro(self, commit=True):
-        # 🔒 Só calcula se estiver validado
-        if not self.validar_acompanhamento:
+        if self.status_acompanhamento != "verificado":
             self.valor_contrato = None
             self.lucro_total = None
 
@@ -600,7 +599,6 @@ class registroacompanhamento(models.Model):
                 self.save(update_fields=["valor_contrato", "lucro_total"])
             return
 
-        # ✅ REUSO: zera valores (reuso não tem custo)
         if self.is_reuso:
             self.valor_contrato = Decimal("0.00")
             self.lucro_total = Decimal("0.00")

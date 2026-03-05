@@ -14,7 +14,7 @@ ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '0.0.0.0', 'intgoldensat.com.br', 'ww
 AGENTTRACKER_WEB_BASE_URL = "https://intgoldensat.com.br"
 
 
-GS_ACIONAMENTO_URL = 'https://gsacionamento.com/'
+GS_ACIONAMENTO_URL = 'http://127.0.0.1:8000'
 GS_ACIONAMENTO_TOKEN = '9c50d06c647e4ca8609ca1bf0ecfde5ee74b2c88'
 
 #LOGGING = {
