@@ -96,7 +96,160 @@
         .select2-selection__arrow {
             height: 28px !important;
         }
- 
+        
+        #alertas-agendamento-container {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 90vh;
+            overflow-y: auto;
+            max-width: 420px;
+            width: 100%;
+            pointer-events: none;
+        }
+
+        .alerta-agendamento {
+            pointer-events: auto;
+            border-radius: 12px;
+            padding: 14px 16px;
+            color: #fff;
+            font-size: 0.85rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            animation: alertaSlideIn 0.35s ease-out;
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            backdrop-filter: blur(6px);
+            cursor: pointer;
+            transition: transform 0.15s, opacity 0.15s;
+            position: relative;
+        }
+        .alerta-agendamento:hover {
+            transform: translateX(-4px);
+        }
+        .alerta-agendamento.dismissed {
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.3s ease;
+        }
+
+        /* Urgência */
+        .alerta-aviso {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            border-left: 4px solid #92400e;
+        }
+        .alerta-alerta {
+            background: linear-gradient(135deg, #f97316, #ea580c);
+            border-left: 4px solid #9a3412;
+        }
+        .alerta-critico {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            border-left: 4px solid #7f1d1d;
+            animation: alertaSlideIn 0.35s ease-out, alertaPulse 2s ease-in-out infinite;
+        }
+
+        .alerta-icon {
+            font-size: 1.6rem;
+            flex-shrink: 0;
+            line-height: 1;
+        }
+        .alerta-body {
+            flex: 1;
+            min-width: 0;
+        }
+        .alerta-title {
+            font-weight: 800;
+            font-size: 0.9rem;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .alerta-detail {
+            opacity: 0.92;
+            line-height: 1.4;
+        }
+        .alerta-detail strong {
+            color: #fff;
+        }
+        .alerta-timer {
+            font-size: 1.3rem;
+            font-weight: 900;
+            text-align: center;
+            flex-shrink: 0;
+            min-width: 60px;
+            line-height: 1;
+        }
+        .alerta-timer small {
+            font-size: 0.65rem;
+            font-weight: 600;
+            display: block;
+            opacity: 0.8;
+        }
+        .alerta-close {
+            position: absolute;
+            top: 6px;
+            right: 8px;
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.6);
+            font-size: 1rem;
+            cursor: pointer;
+            padding: 2px;
+            line-height: 1;
+        }
+        .alerta-close:hover {
+            color: #fff;
+        }
+
+        /* Badge contador no canto da tela */
+        #alertas-badge-count {
+            position: fixed;
+            top: 12px;
+            right: 440px;
+            z-index: 9998;
+            background: #dc2626;
+            color: white;
+            font-weight: 900;
+            font-size: 0.85rem;
+            padding: 6px 12px;
+            border-radius: 999px;
+            box-shadow: 0 4px 12px rgba(220,38,38,0.4);
+            display: none;
+            cursor: pointer;
+            animation: alertaPulse 2s ease-in-out infinite;
+        }
+
+        /* Barra de som (notificação sonora) */
+        #alerta-sound {
+            display: none;
+        }
+
+        @keyframes alertaSlideIn {
+            from { opacity: 0; transform: translateX(100%); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes alertaPulse {
+            0%, 100% { box-shadow: 0 8px 32px rgba(220,38,38,0.2); }
+            50%      { box-shadow: 0 8px 32px rgba(220,38,38,0.5); }
+        }
+
+        /* Mobile */
+        @media (max-width: 575px) {
+            #alertas-agendamento-container {
+                max-width: calc(100vw - 24px);
+                right: 12px;
+                left: 12px;
+            }
+            #alertas-badge-count {
+                right: auto;
+                left: 12px;
+            }
+        }
     </style>
         
     {% load static %}
@@ -120,6 +273,22 @@
         </div>
         <div class="row">
             <div class="col-12">
+                <div id="alertas-agendamento-container"></div>
+
+                <!-- Badge com contagem de alertas -->
+                <div id="alertas-badge-count" title="Clique para ver alertas">
+                    <i class="bi bi-bell-fill"></i> <span id="alertas-count-num">0</span>
+                </div>
+
+                <!-- Som de notificação (beep curto) -->
+                <audio id="alerta-sound" preload="auto">
+                    <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgipKRfGNXW3eOj4V0Z2BsfI+PiXdsYWl2h4+Ld29ka3KCjYp0b2lsdIOMiHVwamx0gYuIdnBqbnOAioZ3cmpuc4CJhXhya25zgImEeHJrb3OAiIR5c2tvc4CHg3lzbHBzgIaCenRscHR/hYF7dG1wdH+EgHx1bXF0foN/fHVucXR+g398dnBxdH6CfX13cHJ0fYF8fndwcnV9gHt/eHFzdXx/e4B4cnN1fH97gHlzc3V8fXuBeXN0dXx8e4B6dHR2fHt7gHp1dXZ8ent/e3Z1d3x5en9+d3Z3fHh6fn97d3h4fHd5fX98eHl5e3Z5fH9+eXp5e3V5e39/enp6e3R5en+Ae3t6e3N5eX+Ae3x7e3J5eH+BfHx8e3F4d3+CfX18e3B4d3+CfX5+e3B3dn+Dfn5+e293dn+Df39/e252dX+EgH9/e212dH+EgICAfG11c3+FgYCAe2x0c3+GgoGBe2tzcn+Gg4GBe2pycn+HhIKBemlyc36HhIKBemhxc36Ih4OBemdwdH6Ih4OAeWZvdH+Jh4SAeGVudH+KiISAd2RtdYCKiYSAdmNsdYCLiYWAdWJrdYGMioWAc2FqdYGNi4WAdF9pdIKNi4aAc15odIKOjIaAdV1ndIOPjYeAd1xmdIOQjYeAeVtldISRjoeAeltldISSj4iBe1pkdIWTj4mBfFljc4WUkIqBfVhic4aVkIuBfldhcoaWkYyCgFZgcoaXkomCgVVfcoeYk4qDglRecoiZk4uDg1NdcYialIuEhFJccYmalYyEhVFbcIqbl42Fh1BacIudlo6GiFBZb4udl4+HiU9Yboyen5CIik5Xboyfo5GJi01Wbo2gpZKKjExVbY6hppSLjUtUbI+iqJWMjkpTa5CjqZaOj0lSapGlq5ePkEhRaZKmrJmQkUdQaJOnrpqSlEdPZ5SosJyTlEZOZpWps52Ul0VNZZaqtJ+VmERMZJertaCXmkNLY5ittqKZnEJKYpqvuKObnUFJYZuxuqWdnkBIYJyyy6qgn0BHX5y0za2ip0BGXZ22z7CkqUBFXJ640rKnrEBEW5+61bSqr0BDWqC82Letr0BCWKG+3Luwsj9BWaLA3r6ytD9AWKPB4MC1tj8/V6TD4sO3uT8+VaXF5ca6vD89VKXH58m9vz88U6bI6cy/wj87UqfK7M/CxT86UajL7tLFyD85UKnN8NXIyz84T6rO8tjLzj83TqvP9NvO0T82TavR9t7R1D81TKzS+OHU1z80S63T+uTX2j8zSq7V/OfZ3T8ySa/X/urb" type="audio/wav">
+                </audio>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-12">
                 <div class="content-main text-start">
                     <h2 class="fs-5">Filtragem para extrair Excel / Pdf</h2>
                     <hr>
@@ -134,11 +303,11 @@
                                     <input type="date" class="search-input form-control" name="data2" placeholder="Data Solicitada"
                                     value="{{ request.GET.data2|default:'' }}" min="1" data-bs-theme="light">
                                 </div>
-                                <div class="col-12 col-md-3 col-lg-2 mb-2">
+                                <!-- <div class="col-12 col-md-3 col-lg-2 mb-2">
                                     <input type="text" class="search-input form-control" name="agente" placeholder="Nome do Agente..."
                                     value="{{ request.GET.agente|default:'' }}" data-bs-theme="light">
-                                </div>
-                                <div class="col-12 col-md-3 col-lg-2 mb-2">
+                                </div> -->
+                                <div class="col-12 col-md-3 col-lg-4 mb-2">
                                     <input type="text" class="search-input form-control" name="cliente" placeholder="Nome do Cliente..."
                                     value="{{ request.GET.cliente|default:'' }}" data-bs-theme="light">
                                 </div>
@@ -252,7 +421,13 @@
                                         </span>
                                     </td>
 
-                                    <td>{{ item.cliente }}</td>
+                                    <td>{{ item.cliente }}
+                                        <span class="text-secondary" style="font-size: 12px;">
+                                            {% if item.cliente and item.cliente.comercial %}
+                                                | {{ item.cliente.comercial }}
+                                            {% endif %}
+                                        </span>
+                                    </td>
                                     <td>
                                         {{ item.tipo_servico }}
                                     </td>
@@ -323,22 +498,166 @@
 
 
     <script>
-    $(document).ready(function () {
+        $(document).ready(function () {
 
-        const table = $('#tabela-acompanhamentos').DataTable({
-            scrollX: true,
-            scrollCollapse: true,
-            autoWidth: false,
-            language: {
-                url: "https://cdn.datatables.net/plug-ins/1.13.8/i18n/pt-BR.json"
-            },
-            pageLength: 10,
-            lengthMenu: [10, 25, 50, 100],
-            order: [[1, 'desc']],
+            const table = $('#tabela-acompanhamentos').DataTable({
+                scrollX: true,
+                scrollCollapse: true,
+                autoWidth: false,
+                language: {
+                    url: "https://cdn.datatables.net/plug-ins/1.13.8/i18n/pt-BR.json"
+                },
+                pageLength: 10,
+                lengthMenu: [10, 25, 50, 100],
+                // order: [[1, 'desc']],
+            });
         });
-    });
-</script>
+    </script>
 
+    <script>
+        (function() {
+            function syncStatus() {
+                fetch('/acompanhamentos/api/sync-status-supabase/')
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.updated > 0) {
+                            console.log(`[Sync] ${data.updated} status atualizados`);
+                        }
+                    })
+                    .catch(err => console.warn('[Sync] Erro:', err));
+            }
+
+            syncStatus();
+            setInterval(syncStatus, 10000);
+        })();
+    </script>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// ALERTA DE AGENDAMENTO — Polling a cada 30s
+// ═══════════════════════════════════════════════════════════════
+(function() {
+    const POLL_INTERVAL = 30000;  // 30 segundos
+    const container = document.getElementById('alertas-agendamento-container');
+    const badge = document.getElementById('alertas-badge-count');
+    const countNum = document.getElementById('alertas-count-num');
+    const sound = document.getElementById('alerta-sound');
+
+    // IDs já notificados (para não tocar som de novo)
+    const notificados = new Set();
+    // IDs dispensados pelo usuário (para não mostrar de novo nesta sessão)
+    const dispensados = new Set();
+
+    function criarAlertaHTML(alerta) {
+        const icon = alerta.urgencia === 'critico' ? '🚨'
+                   : alerta.urgencia === 'alerta' ? '⚠️' : '📞';
+
+        const timerText = alerta.minutos_restantes <= 0
+            ? '<span style="font-size:1rem;">AGORA!</span>'
+            : `${alerta.minutos_restantes}<small>min</small>`;
+
+        return `
+        <div class="alerta-agendamento alerta-${alerta.urgencia}"
+             data-id="${alerta.acompanhamento_id}"
+             onclick="window.open('${alerta.link_mapa}', '_blank')">
+            <button class="alerta-close" onclick="event.stopPropagation(); dispensarAlerta(${alerta.acompanhamento_id})" title="Dispensar">
+                &times;
+            </button>
+            <div class="alerta-icon">${icon}</div>
+            <div class="alerta-body">
+                <div class="alerta-title">
+                    Ligar para o Agente!
+                </div>
+                <div class="alerta-detail">
+                    <strong>${alerta.agente_nome}</strong> · ${alerta.agente_placa}<br>
+                    ${alerta.cliente} · ${alerta.origem}<br>
+                    Agendado: <strong>${alerta.data_agendada} às ${alerta.horario_agendado}</strong>
+                </div>
+            </div>
+            <div class="alerta-timer">${timerText}</div>
+        </div>`;
+    }
+
+    // Expor função de dispensar
+    window.dispensarAlerta = function(id) {
+        dispensados.add(id);
+        const el = container.querySelector(`[data-id="${id}"]`);
+        if (el) {
+            el.classList.add('dismissed');
+            setTimeout(() => el.remove(), 300);
+        }
+        atualizarBadge();
+    };
+
+    function atualizarBadge() {
+        const count = container.querySelectorAll('.alerta-agendamento:not(.dismissed)').length;
+        if (count > 0) {
+            badge.style.display = '';
+            countNum.textContent = count;
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+
+    function tocarSom() {
+        try {
+            if (sound) {
+                sound.currentTime = 0;
+                sound.play().catch(() => {});
+            }
+        } catch(e) {}
+    }
+
+    async function verificarAlertas() {
+        try {
+            const resp = await fetch('/acompanhamentos/api/alertas-agendamento/');
+            if (!resp.ok) return;
+            const data = await resp.json();
+
+            if (!data.alertas || data.alertas.length === 0) {
+                container.innerHTML = '';
+                atualizarBadge();
+                return;
+            }
+
+            // Filtrar dispensados
+            const ativos = data.alertas.filter(a => !dispensados.has(a.acompanhamento_id));
+
+            // Verificar se tem novos (para tocar som)
+            let temNovo = false;
+            for (const a of ativos) {
+                if (!notificados.has(a.acompanhamento_id)) {
+                    notificados.add(a.acompanhamento_id);
+                    temNovo = true;
+                }
+            }
+
+            if (temNovo) {
+                tocarSom();
+            }
+
+            // Reconstruir container
+            container.innerHTML = ativos.map(criarAlertaHTML).join('');
+            atualizarBadge();
+
+        } catch(err) {
+            console.warn('[Alertas] Erro:', err);
+        }
+    }
+
+    // Toggle container ao clicar no badge
+    badge.addEventListener('click', function() {
+        container.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    // Iniciar polling
+    verificarAlertas();
+    setInterval(verificarAlertas, POLL_INTERVAL);
+
+    // Primeira verificação mais rápida
+    setTimeout(verificarAlertas, 3000);
+})();
+</script>
 
 </body>
 

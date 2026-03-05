@@ -36,6 +36,23 @@ def _err(message, status=400, details=None):
 def _now_iso():
     return datetime.now(dt_timezone.utc).isoformat()
 
+def _sync_django_status(mission_id: str, new_status: str) -> bool:
+    try:
+        mission_uuid = uuid.UUID(mission_id)
+    except ValueError:
+        logger.warning(f"UUID inválido para sync django: {mission_id}")
+        return False
+
+    updated = registroacompanhamento.objects.filter(
+        supabase_mission_id=mission_uuid
+    ).update(status_acompanhamento=new_status)
+
+    if updated:
+        logger.info(f"Django status_acompanhamento → {new_status} (mission={mission_id})")
+    else:
+        logger.warning(f"Django sync: nenhum acompanhamento encontrado para mission={mission_id}")
+
+    return updated > 0
 
 def _parse_ts_to_dt(ts_value):
     """
@@ -386,6 +403,7 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
 
         # 1) atualiza status no Supabase
         _supabase_update_status(sb, mission_id, STATUS_PLACA_INICIO_OK)
+        _sync_django_status(mission_id, STATUS_PLACA_INICIO_OK)
 
         # 2) grava PLACA + data_inicio/horario_inicio no Django
         with transaction.atomic():
@@ -425,6 +443,7 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
 
         # 1) atualiza status no Supabase
         _supabase_update_status(sb, mission_id, STATUS_ODO_INICIO_OK)
+        _sync_django_status(mission_id, STATUS_ODO_INICIO_OK)
 
         # 2) grava KM no Django
         with transaction.atomic():
@@ -461,6 +480,7 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
 
         # 1) atualiza status no Supabase
         _supabase_update_status(sb, mission_id, STATUS_ODO_FINAL_OK)
+        _sync_django_status(mission_id, STATUS_ODO_FINAL_OK)
 
         # 2) grava KM no Django
         with transaction.atomic():
@@ -524,6 +544,7 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
 
         # 1) atualiza status no Supabase
         _supabase_update_status(sb, mission_id, STATUS_PLACA_FINAL_OK)
+        _sync_django_status(mission_id, STATUS_PLACA_FINAL_OK)
 
         # 2) grava PLACA + data_finalizacao/horario_finalizacao no Django
         with transaction.atomic():

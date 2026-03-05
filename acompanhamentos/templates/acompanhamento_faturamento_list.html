@@ -236,10 +236,10 @@
                                     <th>KM Excedente</th>
                                     <th>Valor agente</th>
                                     <th>Total</th>
-                                    <th>Ocorrência</th>
-                                    <th>Usuário</th>
+                                    <!-- <th>Ocorrência</th> -->
+                                    <!-- <th>Usuário</th> -->
                                     <th>Validado Cliente</th>
-                                    <th>Validar</th>
+                                    <th>Validar Pgto Agente</th>
                                     <th>Valor Contrato Cliente</th>
                                     <th>Lucro</th>
                                     <th>Pagamento</th>
@@ -251,7 +251,14 @@
                                 {% for item in itens %}
                                 <tr>
                                     <td>{{ item.id }}</td>
-                                    <td>{{ item.cliente }}</td>
+                                    <td>
+                                        {{ item.cliente }}
+                                        <span class="text-secondary" style="font-size: 12px;">
+                                            {% if item.cliente and item.cliente.comercial %}
+                                                | {{ item.cliente.comercial }}
+                                            {% endif %}
+                                        </span>
+                                    </td>
                                     <td>
                                         {{ item.tipo_servico }}
                                     </td>
@@ -441,17 +448,15 @@
                                     </td>
 
 
-                                    <td>{{ item.ocorrencia }}</td>
-                                    <td class="user" data-id="{{ item.id }}">
+                                    <!-- <td>{{ item.ocorrencia }}</td> -->
+                                    <!-- <td class="user" data-id="{{ item.id }}">
                                         {{ item.nome_user }}
-                                    </td>
+                                    </td> -->
                                     <td>
                                         {% if item.validado_cliente == 0 %}
-                                            -
+                                            Aguardando Validação
                                         {% else %}
-                                            <a class="btn btn-success btn-sm">
-                                                <i class="bi bi-check-lg"></i>
-                                            </a>
+                                            <i class="bi bi-check-lg"></i>
                                         {% endif %}
                                     </td>
                                     <td>

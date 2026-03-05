@@ -181,16 +181,35 @@ def _update_supabase_status(sb, mission_id, new_status):
 
 
 def _sync_django_status(mission_id, new_status):
-    """Sincroniza o status_acompanhamento no Django."""
     try:
         mission_uuid = uuid.UUID(mission_id)
     except ValueError:
         return False
 
-    updated = registroacompanhamento.objects.filter(
+    # Busca o acomp para ter o PK (necessário para notificar GS)
+    acomp = registroacompanhamento.objects.filter(
         supabase_mission_id=mission_uuid
-    ).update(status_acompanhamento=new_status)
-    return updated > 0
+    ).only("pk", "status_acompanhamento").first()
+
+    if not acomp:
+        return False
+
+    old_status = acomp.status_acompanhamento
+
+    # Atualiza status no Django
+    registroacompanhamento.objects.filter(pk=acomp.pk).update(
+        status_acompanhamento=new_status
+    )
+
+    # Notificar GS se status mudou para em_andamento ou concluido
+    if old_status != new_status:
+        try:
+            from acompanhamentos.gs_sync_utils import notificar_gs_mudanca_status
+            notificar_gs_mudanca_status(acomp.pk, new_status)
+        except Exception as e:
+            logger.warning(f"[_sync_django_status] Erro ao notificar GS: {e}")
+
+    return True
 
 
 def _get_django_acompanhamento(mission_id):

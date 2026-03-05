@@ -690,74 +690,178 @@
      * então fazemos chunking para missões longas.
      */
     const OSRM_BASE = "https://router.project-osrm.org";
-    const OSRM_MAX_COORDS = 100;    // limite seguro por request
-    const OSRM_CACHE = new Map();    // cache simples: hash dos pontos → geometria
+    const OSRM_MAX_COORDS = 80;     // margem de seguranca (API aceita ~100)
+    const OSRM_OVERLAP = 3;         // overlap entre chunks para continuidade
+    const OSRM_CACHE = new Map();
 
-    function hashPoints(points) {
-        // Hash rápido baseado em quantidade + primeiro + último ponto
-        if (!points.length) return "empty";
-        const f = points[0], l = points[points.length - 1];
-        return `${points.length}_${f[0].toFixed(5)}_${f[1].toFixed(5)}_${l[0].toFixed(5)}_${l[1].toFixed(5)}`;
+    // ── Utilidades geometricas ──
+
+    /** Distancia haversine entre 2 pontos [lat,lng] em metros */
+    function haversineM(a, b) {
+        const R = 6371000;
+        const toRad = x => x * Math.PI / 180;
+        const dLat = toRad(b[0] - a[0]);
+        const dLng = toRad(b[1] - a[1]);
+        const sinLat = Math.sin(dLat / 2);
+        const sinLng = Math.sin(dLng / 2);
+        const h = sinLat * sinLat + Math.cos(toRad(a[0])) * Math.cos(toRad(b[0])) * sinLng * sinLng;
+        return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+    }
+
+    /** Distancia perpendicular de um ponto a uma reta (A-B), em metros */
+    function perpDistM(point, lineStart, lineEnd) {
+        // Aproximacao planar (boa para distancias < 10km)
+        const dx = lineEnd[1] - lineStart[1];
+        const dy = lineEnd[0] - lineStart[0];
+        const lenSq = dx * dx + dy * dy;
+        if (lenSq === 0) return haversineM(point, lineStart);
+
+        let t = ((point[1] - lineStart[1]) * dx + (point[0] - lineStart[0]) * dy) / lenSq;
+        t = Math.max(0, Math.min(1, t));
+        const proj = [lineStart[0] + t * dy, lineStart[1] + t * dx];
+        return haversineM(point, proj);
     }
 
     /**
-     * Divide array de coordenadas em chunks com overlap de 1 ponto
-     * para garantir continuidade entre segmentos.
+     * Douglas-Peucker simplification.
+     * Remove pontos redundantes mantendo a forma geral da rota.
+     * epsilon em metros.
      */
-    function chunkCoords(coords, maxSize) {
+    function douglasPeucker(points, epsilon) {
+        if (points.length <= 2) return points;
+
+        let maxDist = 0, maxIdx = 0;
+        const first = points[0], last = points[points.length - 1];
+
+        for (let i = 1; i < points.length - 1; i++) {
+            const d = perpDistM(points[i], first, last);
+            if (d > maxDist) { maxDist = d; maxIdx = i; }
+        }
+
+        if (maxDist > epsilon) {
+            const left = douglasPeucker(points.slice(0, maxIdx + 1), epsilon);
+            const right = douglasPeucker(points.slice(maxIdx), epsilon);
+            return left.slice(0, -1).concat(right);
+        }
+        return [first, last];
+    }
+
+    /**
+     * Remove outliers (saltos GPS absurdos).
+     * Se um ponto esta a > maxJumpM metros do anterior E do proximo,
+     * provavelmente e ruido GPS.
+     */
+    function removeOutliers(points, maxJumpM = 500) {
+        if (points.length <= 2) return points;
+        const result = [points[0]];
+        for (let i = 1; i < points.length - 1; i++) {
+            const dPrev = haversineM(points[i], points[i - 1]);
+            const dNext = haversineM(points[i], points[i + 1]);
+            // Se esta longe do anterior E do proximo, e outlier
+            if (dPrev > maxJumpM && dNext > maxJumpM) continue;
+            result.push(points[i]);
+        }
+        result.push(points[points.length - 1]);
+        return result;
+    }
+
+    /**
+     * Remove pontos consecutivos muito proximos (< minDistM metros).
+     * Mantém sempre o primeiro e o ultimo.
+     */
+    function removeDuplicates(points, minDistM = 3) {
+        if (points.length <= 2) return points;
+        const result = [points[0]];
+        for (let i = 1; i < points.length - 1; i++) {
+            if (haversineM(points[i], result[result.length - 1]) >= minDistM) {
+                result.push(points[i]);
+            }
+        }
+        result.push(points[points.length - 1]);
+        return result;
+    }
+
+    /** Hash baseado em conteudo real dos pontos */
+    function hashPoints(points) {
+        if (!points.length) return "empty";
+        const n = points.length;
+        const f = points[0], l = points[n - 1];
+        // Inclui ponto do meio para detectar mudancas no trajeto
+        const m = points[Math.floor(n / 2)];
+        return `${n}_${f[0].toFixed(5)}_${f[1].toFixed(5)}_${m[0].toFixed(5)}_${m[1].toFixed(5)}_${l[0].toFixed(5)}_${l[1].toFixed(5)}`;
+    }
+
+    /** Divide array com overlap para continuidade entre chunks */
+    function chunkCoords(coords, maxSize, overlap = OSRM_OVERLAP) {
         if (coords.length <= maxSize) return [coords];
+        const step = maxSize - overlap;
         const chunks = [];
-        for (let i = 0; i < coords.length; i += maxSize - 1) {
-            chunks.push(coords.slice(i, i + maxSize));
+        for (let i = 0; i < coords.length; i += step) {
+            const end = Math.min(i + maxSize, coords.length);
+            chunks.push(coords.slice(i, end));
+            if (end >= coords.length) break;
         }
         return chunks;
     }
 
-    /**
-     * OSRM Match API — map matching (ideal para GPS tracking)
-     * Encaixa pontos GPS nas ruas mais prováveis.
-     */
+    /** Merge latlngs de chunks removendo sobreposicao */
+    function mergeChunkResults(allLatLngs, newLatLngs) {
+        if (allLatLngs.length === 0) return newLatLngs;
+        if (newLatLngs.length === 0) return allLatLngs;
+
+        // Encontrar o melhor ponto de juncao (mais proximo entre final do acumulado e inicio do novo)
+        const last = allLatLngs[allLatLngs.length - 1];
+        let bestIdx = 0, bestDist = Infinity;
+        const searchRange = Math.min(newLatLngs.length, 10); // olhar os primeiros 10
+
+        for (let i = 0; i < searchRange; i++) {
+            const d = haversineM(last, newLatLngs[i]);
+            if (d < bestDist) { bestDist = d; bestIdx = i; }
+        }
+
+        // Se o ponto mais proximo esta a < 50m, cortar a sobreposicao
+        if (bestDist < 50) {
+            return allLatLngs.concat(newLatLngs.slice(bestIdx + 1));
+        }
+        return allLatLngs.concat(newLatLngs);
+    }
+
+    // ── OSRM APIs ──
+
     async function osrmMatch(lngLatPairs) {
         const coordStr = lngLatPairs.map(c => `${c[0]},${c[1]}`).join(";");
-        // radiuses: tolerância em metros para cada ponto (GPS tem ~10-20m de erro)
-        const radiuses = lngLatPairs.map(() => "25").join(";");
+        // Radiuses maiores para GPS urbano (muita reflexao de sinal)
+        const radiuses = lngLatPairs.map(() => "30").join(";");
 
-        const url = `${OSRM_BASE}/match/v1/driving/${coordStr}?overview=full&geometries=geojson&radiuses=${radiuses}`;
+        const url = `${OSRM_BASE}/match/v1/driving/${coordStr}?overview=full&geometries=geojson&radiuses=${radiuses}&gaps=ignore`;
 
         const resp = await fetch(url);
         if (!resp.ok) throw new Error(`OSRM Match HTTP ${resp.status}`);
 
         const data = await resp.json();
         if (data.code !== "Ok" || !data.matchings || data.matchings.length === 0) {
-            throw new Error(`OSRM Match failed: ${data.code}`);
+            throw new Error(`OSRM Match: ${data.code}`);
         }
 
-        // Combinar todas as matchings em uma única lista de coordenadas
         let allCoords = [];
         for (const matching of data.matchings) {
-            const coords = matching.geometry.coordinates; // [lng, lat]
-            // Evitar duplicação no ponto de junção
-            if (allCoords.length > 0) {
+            const coords = matching.geometry.coordinates;
+            if (allCoords.length > 0 && coords.length > 0) {
                 const last = allCoords[allCoords.length - 1];
                 const first = coords[0];
-                if (last[0] === first[0] && last[1] === first[1]) {
+                if (Math.abs(last[0] - first[0]) < 0.00001 && Math.abs(last[1] - first[1]) < 0.00001) {
                     allCoords = allCoords.concat(coords.slice(1));
                 } else {
                     allCoords = allCoords.concat(coords);
                 }
             } else {
-                allCoords = coords;
+                allCoords = allCoords.concat(coords);
             }
         }
 
-        // Converter [lng, lat] → [lat, lng] para Leaflet
         return allCoords.map(c => [c[1], c[0]]);
     }
 
-    /**
-     * OSRM Route API — fallback se Match falhar
-     * Calcula rota entre waypoints.
-     */
     async function osrmRoute(lngLatPairs) {
         const coordStr = lngLatPairs.map(c => `${c[0]},${c[1]}`).join(";");
         const url = `${OSRM_BASE}/route/v1/driving/${coordStr}?overview=full&geometries=geojson`;
@@ -767,52 +871,57 @@
 
         const data = await resp.json();
         if (data.code !== "Ok" || !data.routes || data.routes.length === 0) {
-            throw new Error(`OSRM Route failed: ${data.code}`);
+            throw new Error(`OSRM Route: ${data.code}`);
         }
 
-        const coords = data.routes[0].geometry.coordinates;
-        return coords.map(c => [c[1], c[0]]);
+        return data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
     }
 
     /**
-     * Função principal: tenta Match, fallback para Route, fallback para linha reta.
-     * Retorna { latlngs: [[lat,lng],...], snapped: boolean }
+     * Pipeline completo:
+     *   1) Remove outliers (saltos > 500m)
+     *   2) Remove duplicatas (< 3m)
+     *   3) Douglas-Peucker (epsilon 15m — preserva curvas mas elimina ruido)
+     *   4) OSRM Match (chunked, com overlap)
+     *   5) Fallback: OSRM Route
+     *   6) Fallback: linha reta filtrada
      */
-    async function getSnappedRoute(trackingPoints) {
-        if (trackingPoints.length < 2) {
-            return { latlngs: trackingPoints.map(p => [p[0], p[1]]), snapped: false };
+    async function getSnappedRoute(rawTrackingPoints) {
+        if (rawTrackingPoints.length < 2) {
+            return { latlngs: rawTrackingPoints, snapped: false, method: "raw" };
         }
 
-        // Converter [lat, lng] → [lng, lat] para OSRM
-        const lngLat = trackingPoints.map(p => [p[1], p[0]]);
+        // ── Etapa 1-3: Limpeza dos pontos ──
+        let cleaned = removeOutliers(rawTrackingPoints, 500);
+        cleaned = removeDuplicates(cleaned, 3);
 
-        const cacheKey = hashPoints(lngLat);
-        if (OSRM_CACHE.has(cacheKey)) {
-            return OSRM_CACHE.get(cacheKey);
+        // Para OSRM, simplificar mais agressivamente se muitos pontos
+        let forOsrm = cleaned;
+        if (cleaned.length > 200) {
+            forOsrm = douglasPeucker(cleaned, 15);  // 15m epsilon
+        } else if (cleaned.length > 50) {
+            forOsrm = douglasPeucker(cleaned, 8);   // 8m para menos pontos
         }
 
-        // Dividir em chunks se necessário
-        const chunks = chunkCoords(lngLat, OSRM_MAX_COORDS);
+        // Garantir minimo de 2 pontos
+        if (forOsrm.length < 2) forOsrm = cleaned;
+        if (forOsrm.length < 2) return { latlngs: rawTrackingPoints, snapped: false, method: "raw" };
 
+        const cacheKey = hashPoints(forOsrm);
+        if (OSRM_CACHE.has(cacheKey)) return OSRM_CACHE.get(cacheKey);
+
+        // [lat,lng] -> [lng,lat] para OSRM
+        const lngLat = forOsrm.map(p => [p[1], p[0]]);
+
+        // ── Etapa 4: OSRM Match ──
         try {
-            // Tentar Match API (melhor para GPS tracking)
+            const chunks = chunkCoords(lngLat, OSRM_MAX_COORDS);
             let allLatLngs = [];
+
             for (const chunk of chunks) {
                 if (chunk.length < 2) continue;
                 const chunkResult = await osrmMatch(chunk);
-                // Merge sem duplicar ponto de junção
-                if (allLatLngs.length > 0 && chunkResult.length > 0) {
-                    const last = allLatLngs[allLatLngs.length - 1];
-                    const first = chunkResult[0];
-                    const dist = Math.abs(last[0] - first[0]) + Math.abs(last[1] - first[1]);
-                    if (dist < 0.0001) {
-                        allLatLngs = allLatLngs.concat(chunkResult.slice(1));
-                    } else {
-                        allLatLngs = allLatLngs.concat(chunkResult);
-                    }
-                } else {
-                    allLatLngs = allLatLngs.concat(chunkResult);
-                }
+                allLatLngs = mergeChunkResults(allLatLngs, chunkResult);
             }
 
             if (allLatLngs.length >= 2) {
@@ -822,74 +931,56 @@
             }
             throw new Error("Match retornou poucos pontos");
         } catch (matchErr) {
-            console.warn("[OSRM Match] falhou, tentando Route API...", matchErr.message);
+            console.warn("[OSRM Match] falhou:", matchErr.message);
+        }
 
-            try {
-                // Fallback: Route API (precisa de menos pontos, ~100 waypoints)
-                // Para Route, usamos um subconjunto de pontos (a cada N pontos)
-                const maxWaypoints = 50;
-                let waypointLngLat;
-                if (lngLat.length > maxWaypoints) {
-                    const step = Math.ceil(lngLat.length / maxWaypoints);
-                    waypointLngLat = lngLat.filter((_, i) => i === 0 || i === lngLat.length - 1 || i % step === 0);
-                } else {
-                    waypointLngLat = lngLat;
-                }
+        // ── Etapa 5: OSRM Route (fallback) ──
+        try {
+            const maxWP = 50;
+            let wpLngLat = lngLat;
+            if (lngLat.length > maxWP) {
+                const step = Math.ceil(lngLat.length / maxWP);
+                wpLngLat = lngLat.filter((_, i) => i === 0 || i === lngLat.length - 1 || i % step === 0);
+            }
 
-                // Route também precisa de chunking
-                const routeChunks = chunkCoords(waypointLngLat, OSRM_MAX_COORDS);
-                let allLatLngs = [];
+            const chunks = chunkCoords(wpLngLat, OSRM_MAX_COORDS);
+            let allLatLngs = [];
 
-                for (const chunk of routeChunks) {
-                    if (chunk.length < 2) continue;
-                    const chunkResult = await osrmRoute(chunk);
-                    if (allLatLngs.length > 0 && chunkResult.length > 0) {
-                        const last = allLatLngs[allLatLngs.length - 1];
-                        const first = chunkResult[0];
-                        const dist = Math.abs(last[0] - first[0]) + Math.abs(last[1] - first[1]);
-                        if (dist < 0.0001) {
-                            allLatLngs = allLatLngs.concat(chunkResult.slice(1));
-                        } else {
-                            allLatLngs = allLatLngs.concat(chunkResult);
-                        }
-                    } else {
-                        allLatLngs = allLatLngs.concat(chunkResult);
-                    }
-                }
+            for (const chunk of chunks) {
+                if (chunk.length < 2) continue;
+                const chunkResult = await osrmRoute(chunk);
+                allLatLngs = mergeChunkResults(allLatLngs, chunkResult);
+            }
 
-                if (allLatLngs.length >= 2) {
-                    const result = { latlngs: allLatLngs, snapped: true, method: "route" };
-                    OSRM_CACHE.set(cacheKey, result);
-                    return result;
-                }
-                throw new Error("Route retornou poucos pontos");
-            } catch (routeErr) {
-                console.warn("[OSRM Route] também falhou, usando linha reta.", routeErr.message);
-                const result = {
-                    latlngs: trackingPoints.map(p => [p[0], p[1]]),
-                    snapped: false,
-                    method: "raw"
-                };
+            if (allLatLngs.length >= 2) {
+                const result = { latlngs: allLatLngs, snapped: true, method: "route" };
                 OSRM_CACHE.set(cacheKey, result);
                 return result;
             }
+        } catch (routeErr) {
+            console.warn("[OSRM Route] falhou:", routeErr.message);
         }
+
+        // ── Etapa 6: Fallback linha reta (com pontos limpos) ──
+        const result = { latlngs: cleaned, snapped: false, method: "raw" };
+        OSRM_CACHE.set(cacheKey, result);
+        return result;
     }
 
-    // ═══════════════════════════════════════════════════
+    // =====================================================
     // MAPA
-    // ═══════════════════════════════════════════════════
+    // =====================================================
     const map = L.map("map", { preferCanvas: true });
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
 
-    let rotaSnapped = null;       // polyline da rota encaixada nas ruas
-    let rotaRawGhost = null;      // polyline fantasma (pontos GPS reais, para debug)
+    let rotaSnapped = null;
+    let rotaRawGhost = null;
     let markerInicio = null;
     let markerUltimo = null;
-    let lastCount = 0;
+    let lastPointsHash = "";       // hash real dos pontos (nao apenas count)
     let didFitBounds = false;
     let geofenceCircle = null;
-    let __snapInFlight = false;   // evitar requests concorrentes ao OSRM
+    let __snapInFlight = false;
     const panicLayer = L.layerGroup().addTo(map);
 
     const panicIcon = L.divIcon({
@@ -902,7 +993,6 @@
         iconSize: [14, 14], iconAnchor: [7, 7]
     });
 
-    // Ícone customizado para última posição (pulso animado)
     const currentPosIcon = L.divIcon({
         className: "",
         html: `<div style="position:relative;width:20px;height:20px;">
@@ -938,8 +1028,6 @@
     function showRouteInfo(snapped, method) {
         const el = document.getElementById("routeInfo");
         if (snapped) {
-            const dotEl = el.querySelector(".dot");
-            dotEl.className = "dot snapped";
             el.innerHTML = `<span class="dot snapped"></span> Rota nas ruas (OSRM ${method || "match"})`;
         } else {
             el.innerHTML = `<span class="dot raw"></span> Rota aproximada (GPS direto)`;
@@ -953,35 +1041,35 @@
 
         const rawLatLngs = clean.map(p => [p.latitude, p.longitude]);
 
-        // Se não mudou a quantidade de pontos, não refaz o snap
-        if (rawLatLngs.length === lastCount && rotaSnapped) return;
+        // Verificar se realmente mudou (hash baseado em conteudo)
+        const currentHash = hashPoints(rawLatLngs);
+        if (currentHash === lastPointsHash && rotaSnapped) return;
 
-        // Evitar requests concorrentes
         if (__snapInFlight) return;
         __snapInFlight = true;
 
         try {
-            // Obter rota encaixada nas ruas
             const result = await getSnappedRoute(rawLatLngs);
             const snappedLatLngs = result.latlngs;
 
-            // Rota principal (encaixada nas ruas)
             if (!rotaSnapped) {
+                // Primeira vez: criar polylines
                 rotaSnapped = L.polyline(snappedLatLngs, {
                     color: "#3b82f6",
-                    weight: 5,
-                    opacity: 0.85,
-                    smoothFactor: 1,
+                    weight: 4,
+                    opacity: 0.9,
+                    smoothFactor: 1.5,       // suaviza curvas pequenas
                     lineCap: "round",
                     lineJoin: "round",
                 }).addTo(map);
 
-                // Linha fantasma (pontos GPS reais) — sutil para debug visual
+                // Ghost line (pontos GPS reais — sutil)
                 rotaRawGhost = L.polyline(rawLatLngs, {
                     color: "#94a3b8",
-                    weight: 1.5,
-                    opacity: 0.25,
-                    dashArray: "4 6",
+                    weight: 1,
+                    opacity: 0.15,
+                    dashArray: "4 8",
+                    interactive: false,
                 }).addTo(map);
 
                 if (!didFitBounds) {
@@ -990,40 +1078,40 @@
                 }
 
                 markerInicio = L.marker(rawLatLngs[0]).addTo(map)
-                    .bindPopup("📍 Início");
+                    .bindPopup("Inicio");
 
                 markerUltimo = L.marker(rawLatLngs[rawLatLngs.length - 1], {
                     icon: currentPosIcon,
                     zIndexOffset: 1000,
-                }).addTo(map).bindPopup("🚗 Última posição");
+                }).addTo(map).bindPopup("Ultima posicao");
             } else {
                 rotaSnapped.setLatLngs(snappedLatLngs);
                 rotaRawGhost.setLatLngs(rawLatLngs);
                 markerUltimo.setLatLng(rawLatLngs[rawLatLngs.length - 1]);
             }
 
-            lastCount = rawLatLngs.length;
+            lastPointsHash = currentHash;
             showRouteInfo(result.snapped, result.method);
 
         } catch (err) {
-            console.error("[renderOrUpdateMap] erro no snap:", err);
-            // Fallback total: linha reta como antes
-            const rawLatLngs2 = clean.map(p => [p.latitude, p.longitude]);
+            console.error("[renderOrUpdateMap] erro:", err);
+            const fallbackLatLngs = clean.map(p => [p.latitude, p.longitude]);
             if (!rotaSnapped) {
-                rotaSnapped = L.polyline(rawLatLngs2, {
+                rotaSnapped = L.polyline(fallbackLatLngs, {
                     color: "#3b82f6", weight: 4, opacity: 0.8,
+                    smoothFactor: 1.5, lineCap: "round", lineJoin: "round",
                 }).addTo(map);
                 if (!didFitBounds) {
                     map.fitBounds(rotaSnapped.getBounds(), { padding: [30, 30] });
                     didFitBounds = true;
                 }
-                markerInicio = L.marker(rawLatLngs2[0]).addTo(map).bindPopup("📍 Início");
-                markerUltimo = L.marker(rawLatLngs2[rawLatLngs2.length - 1]).addTo(map).bindPopup("🚗 Última posição");
+                markerInicio = L.marker(fallbackLatLngs[0]).addTo(map).bindPopup("Inicio");
+                markerUltimo = L.marker(fallbackLatLngs[fallbackLatLngs.length - 1]).addTo(map).bindPopup("Ultima posicao");
             } else {
-                rotaSnapped.setLatLngs(rawLatLngs2);
-                markerUltimo.setLatLng(rawLatLngs2[rawLatLngs2.length - 1]);
+                rotaSnapped.setLatLngs(fallbackLatLngs);
+                markerUltimo.setLatLng(fallbackLatLngs[fallbackLatLngs.length - 1]);
             }
-            lastCount = rawLatLngs2.length;
+            lastPointsHash = currentHash;
             showRouteInfo(false);
         } finally {
             __snapInFlight = false;

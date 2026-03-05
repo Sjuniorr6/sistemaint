@@ -13,92 +13,107 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css"/>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 
-        <!-- jQuery -->
-        <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-
-        <!-- Select2 CSS -->
-        <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-
-        <!-- Select2 JS -->
-        <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-
-        <!-- DataTables JS -->
-        <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
-
-        <!-- DataTables PT-BR -->
-        <script src="https://cdn.datatables.net/plug-ins/1.13.8/i18n/pt-BR.json"></script>
-
-        <style>
+    <style>
         body {
             max-width: 100%;
             overflow-x: hidden;
             background: #45494E;
         }
-
         .expedicao-title {
-            /* font-size: 2.5rem; */
             font-weight: 700;
             color: white;
         }
-
-        .expedicao-title i,
-        .expedicao-sub-title {
+        .expedicao-title i, .expedicao-sub-title {
             color: #bfa16c;
         }
-
         .content-main {
             background: #ffffff;
             border: 2px solid #bfa16c;
             border-radius: 16px;
             padding: 1.5rem;
             box-shadow: 0 4px 20px rgba(191, 161, 108, 0.15);
-            transition: all 0.3s ease;
         }
-
-        /* Estilo Excel */
         .table-excel {
             overflow-x: auto;
             white-space: nowrap;
         }
-
-        #tabela-acompanhamentos th,
-        #tabela-acompanhamentos td {
+        #tabela-requisicoes th,
+        #tabela-requisicoes td {
             white-space: nowrap;
             vertical-align: middle;
         }
-
-        #tabela-acompanhamentos th {
+        #tabela-requisicoes th {
             background-color: #f8f9fa;
             font-weight: 600;
         }
 
-        #tabela-acompanhamentos td {
-            cursor: default;
+        /* ── Chevron expand ── */
+        td.dt-control {
+            cursor: pointer;
+            text-align: center;
+        }
+        td.dt-control .chevron {
+            display: inline-block;
+            transition: transform 0.2s ease;
+        }
+        tr.shown td.dt-control .chevron {
+            transform: rotate(90deg);
+        }
+
+        /* ── Badge ── */
+        .badge-servicos {
+            font-size: 0.7rem;
+            vertical-align: middle;
+            margin-left: 0.3rem;
+        }
+
+        /* ── Child row (sub-tabela) ── */
+        .child-table-wrapper {
+            padding: 0.5rem 1rem 0.5rem 2.5rem;
+            background: #fdf8f0;
+        }
+        .child-table {
+            width: 100%;
+            font-size: 0.875rem;
+            border-collapse: collapse;
+        }
+        .child-table th {
+            background: #f0ebe0;
+            font-weight: 600;
+            padding: 0.35rem 0.75rem;
+            border-bottom: 1px solid #d4c9a8;
+            font-size: 0.8rem;
+            color: #6b5e45;
+        }
+        .child-table td {
+            padding: 0.35rem 0.75rem;
+            border-bottom: 1px dashed #e0d8c8;
+        }
+        .child-table .btn-sm {
+            padding: 0.15rem 0.4rem;
+            font-size: 0.75rem;
         }
 
         @media screen and (max-width: 767px) {
-            .header-tablee{
-                flex-direction: column;
-            }
+            .header-tablee { flex-direction: column; }
         }
-
         .select2-container .select2-selection--single {
-            height: 31px;
-            padding: 2px 6px;
-            font-size: 0.875rem;
+            height: 31px; padding: 2px 6px; font-size: 0.875rem;
         }
-
-        .select2-selection__rendered {
-            line-height: 26px !important;
+        .select2-selection__rendered { line-height: 26px !important; }
+        .select2-selection__arrow { height: 28px !important; }
+        .badge-comboio{
+            font-size: 0.65rem;
+            padding: 0.2rem 0.35rem;
+            vertical-align: middle;
         }
-
-        .select2-selection__arrow {
-            height: 28px !important;
-        }
- 
     </style>
-        
+
     {% load static %}
     {% load user_groups %}
 </head>
@@ -106,14 +121,12 @@
 <body>
     {% include 'components/_header.html' %}
 
-
     <div class="container mt-3 mb-5 text-center">
         <div class="row">
             <div class="col-12 mb-2">
-                <div class="" style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; justify-content: center; align-items: center;">
                     <h1 class="expedicao-title">
-                        <i class="bi bi-list-task"></i>
-                        Listagem Solicitações de Requisições
+                        Solicitações de Requisições
                     </h1>
                 </div>
             </div>
@@ -124,20 +137,24 @@
         <div class="row">
             <div class="col-12">
                 <div class="content-main">
-                     <div class="table-responsive table-excel">
-                        <div class="header-tablee mb-2" style="display: flex; justify-content: end; align-items: center;">
-
-                            <a href="?{% for key, value in request.GET.items %}{% if key != 'pendente' %}{{ key }}={{ value }}&{% endif %}{% endfor %}pendente=true" class="badge bg-warning text-dark fs-6 mt-1 mt-md-0" style="text-decoration: none;">
-                                Pendentes: {{ pendentes_count }}
+                    <div class="table-responsive table-excel">
+                        <div class="header-tablee mb-2" style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <span class="text-muted small">{{ total_grupos }} requisição{{ total_grupos|pluralize:"ões" }}</span>
+                            </div>
+                            <a href="?{% for key, value in request.GET.items %}{% if key != 'pendente' %}{{ key }}={{ value }}&{% endif %}{% endfor %}pendente=true"
+                               class="badge bg-warning text-dark fs-6 mt-1 mt-md-0" style="text-decoration: none;">
+                                Pendentes: {{ total_grupos }}
                             </a>
-
                         </div>
+
                         <table id="tabela-requisicoes" class="table table-striped table-hover mb-2">
                             <thead>
                                 <tr>
+                                    <th style="width: 40px;"></th>
                                     <th>Ações</th>
-                                    <th>ID</th>
-                                    <th>ID Externo</th>
+                                    <th>Acomp. ID</th>
+                                    <th>Missão</th>
                                     <th>Cliente</th>
                                     <th>Tipo Serviço</th>
                                     <th>Origem</th>
@@ -150,30 +167,103 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for req in requisicoes %}
+                                {% for grupo in grupos %}
+
+                                {% if grupo.tem_multiplos %}
+                                {# ── GRUPO: só a linha pai, 15 TDs ── #}
+                                <tr class="grupo-row" data-servicos='{{ grupo.servicos_json }}'>
+                                    <td class="dt-control">
+                                        <span class="chevron"><i class="bi bi-chevron-right"></i></span>
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'RequisicaoGrupoCreate' grupo.requisicao_id_externo %}" class="btn btn-warning btn-sm">
+                                            <i class="bi bi-plus-circle"></i>
+                                        </a>
+                                    </td>
+                                    <td>{{ grupo.requisicao_id_externo }} <span class="badge bg-info badge-servicos">{{ grupo.servicos|length }} serviços</span></td>
+                                    <td>{{ grupo.primeiro.missao|default:"-" }}</td>
+                                    <td>{{ grupo.primeiro.cliente }}</td>
+                                    <td><em class="text-muted">{{ grupo.servicos|length }} serviço{{ grupo.servicos|length|pluralize:"s" }}</em></td>
+                                    <td>{{ grupo.primeiro.origem }}</td>
+                                    <td>{{ grupo.primeiro.destino|default:"-" }}</td>
+                                    <td></td>
+                                    <td></td>
+                                    <td>{{ grupo.primeiro.data_agendamento|date:"d/m/Y" }}</td>
+                                    <td>{{ grupo.primeiro.horario_agendamento|time:"H:i" }}</td>
+                                    <td>{{ grupo.primeiro.nome_user }}</td>
+                                </tr>
+
+                                {% else %}
+                                {# ── SERVIÇO ÚNICO: 15 TDs ── #}
+                                {% with req=grupo.primeiro %}
                                 <tr>
-                                    <td>   
-                                        <a href="{% url 'RequisicaoCreate' req.pk %}" class="btn btn-warning btn-sm">
+                                    <td></td>
+                                    <td>
+                                        {% if req.is_reuso %}
+                                            <!-- REUSO: dois botões -->
+                                            <a href="{% url 'RequisicaoCreate' req.pk %}" class="btn btn-success btn-sm" title="Criar acompanhamento (reuso)">
+                                                <i class="bi bi-recycle"></i>
+                                            </a>
+                                            <form method="post" action="{% url 'recusar_reuso' req.pk %}"
+                                                onsubmit="return confirm('Recusar reuso deste agente?\\nO GS será notificado para escalar outro.');"
+                                                style="display: inline;">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-outline-danger btn-sm" title="Recusar reuso">
+                                                    <i class="bi bi-x-circle"></i>
+                                                </button>
+                                            </form>
+                                        {% else %}
+                                            <!-- NORMAL -->
+                                            <a href="{% url 'RequisicaoCreate' req.pk %}" class="btn btn-warning btn-sm">
                                                 <i class="bi bi-plus-circle"></i>
                                             </a>
-                                        </td>
-                                    <td>{{ req.id }}</td>
-                                    <td>{{ req.id_externo }}</td>
-                                    <td>{{ req.cliente }}</td>
-                                    <td>{{ req.tipo_servico }}</td>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ req.requisicao_id_externo|default:req.id_externo }}</td>
+                                    <td>{{ req.missao|default:"-" }}</td>
+                                    <td>{{ req.cliente }}
+                                        <span class="text-secondary" style="font-size: 12px;">
+                                            {% if req.cliente and req.cliente.comercial %}
+                                                | {{ req.cliente.comercial }}
+                                            {% endif %}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if req.comboio %}
+                                            <span class="badge text-bg-secondary badge-comboio me-1">
+                                                <i class="bi bi-truck me-1"></i>C{{ req.quantidade_veiculos_comboio|default:"-" }}
+                                            </span>
+                                        {% endif %}
+
+                                        {% if req.is_reuso %}
+                                            <span class="badge text-bg-success me-1" title="Agente: {{ req.agente_nome_reuso }} | Placa: {{ req.agente_placa_reuso }}">
+                                                <i class="bi bi-recycle me-1"></i>REUSO
+                                            </span>
+                                        {% endif %}
+
+                                        {{ req.tipo_servico }}
+                                    </td>
                                     <td>{{ req.origem }}</td>
-                                    <td>{{ req.destino }}</td>
+                                    <td>{{ req.destino|default:"-" }}</td>
                                     <td>{{ req.motorista }}</td>
                                     <td>{{ req.placa }}</td>
-                                    <td>{{ req.data_agendamento }}</td>
-                                    <td>{{ req.horario_agendamento }}</td>
+                                    <td>{{ req.data_agendamento|date:"d/m/Y" }}</td>
+                                    <td>{{ req.horario_agendamento|time:"H:i" }}</td>
                                     <td>{{ req.nome_user }}</td>
                                 </tr>
+                                {% endwith %}
+                                {% endif %}
+
                                 {% empty %}
                                 <tr>
-                                    <td colspan="11" class="text-center">
+                                    <td></td><td></td><td></td><td></td><td></td>
+                                    <td></td><td></td>
+                                    <td class="text-center py-4 text-muted">
+                                        <i class="bi bi-inbox fs-3 d-block mb-2"></i>
                                         Nenhuma requisição encontrada.
                                     </td>
+                                    <td></td><td></td><td></td><td></td>
+                                    <td></td><td></td><td></td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -185,25 +275,112 @@
     </div>
 
     <script>
-        $(document).ready(function () {
+    $(document).ready(function () {
 
-            const table = $('#tabela-requisicoes').DataTable({
-                scrollX: true,
-                scrollCollapse: true,
-                autoWidth: false,
-                language: {
-                    url: "https://cdn.datatables.net/plug-ins/1.13.8/i18n/pt-BR.json"
-                },
-                pageLength: 10,
-                lengthMenu: [10, 25, 50, 100],
-                order: [[1, 'desc']],
-                drawCallback: function () {
-                    inicializarSelectFranquia();
-                }
+        function escapeHtml(str) {
+            return String(str ?? '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
+        function renderComboioBadge(s) {
+            const isComboio = (s.comboio === true || s.comboio === 1 || s.comboio === "true");
+            const qtd = s.quantidade_veiculos_comboio;
+
+            // Se for comboio e tiver qtd, mostra C{qtd}. Se não tiver qtd, mostra só "Comboio".
+            if (!isComboio) return '';
+
+            const label = (qtd !== null && qtd !== undefined && String(qtd).trim() !== '')
+                ? `C${escapeHtml(qtd)}`
+                : 'Comboio';
+
+            return `<span class="badge text-bg-secondary badge-comboio me-1">
+                    <i class="bi bi-truck me-1"></i>${label}
+                    </span>`;
+        }
+
+        function renderChildRows(servicos) {
+            let html = '<div class="child-table-wrapper">';
+            html += '<table class="child-table">';
+            html += '<thead><tr>';
+            html += '<th>ID Ext.</th>';
+            html += '<th>Tipo Serviço</th>';
+            html += '<th>Motorista</th>';
+            html += '<th>Placa</th>';
+            html += '<th>Data</th>';
+            html += '<th>Hora</th>';
+
+            html += '<th>Reuso</th>';
+            html += '<th>Agente (reuso)</th>';
+            html += '<th>Placa (reuso)</th>';
+
+            html += '</tr></thead><tbody>';
+
+            servicos.forEach(function (s) {
+                html += '<tr>';
+                html += '<td>#' + escapeHtml(s.id_externo) + '</td>';
+
+                const badge = renderComboioBadge(s);
+                html += '<td>' + badge + '<strong>' + escapeHtml(s.tipo_servico) + '</strong></td>';
+
+                html += '<td>' + escapeHtml(s.motorista) + '</td>';
+                html += '<td>' + escapeHtml(s.placa) + '</td>';
+                html += '<td>' + escapeHtml(s.data_agendamento) + '</td>';
+                html += '<td>' + escapeHtml(s.horario_agendamento) + '</td>';
+
+                const isReuso = (s.is_reuso === true || s.is_reuso === 1 || s.is_reuso === "true");
+                html += '<td>' + (isReuso ? '<span class="badge text-bg-success"><i class="bi bi-recycle me-1"></i>REUSO</span>' : '') + '</td>';
+                html += '<td>' + (isReuso ? escapeHtml(s.agente_nome_reuso) : '') + '</td>';
+                html += '<td>' + (isReuso ? escapeHtml(s.agente_placa_reuso) : '') + '</td>';
+                
+                html += '</tr>';
             });
 
-            inicializarSelectFranquia();
+            html += '</tbody></table></div>';
+            return html;
+        }
+
+        const table = $('#tabela-requisicoes').DataTable({
+            scrollX: true,
+            scrollCollapse: true,
+            autoWidth: false,
+            language: {
+                url: "https://cdn.datatables.net/plug-ins/1.13.8/i18n/pt-BR.json"
+            },
+            pageLength: 10,
+            lengthMenu: [10, 25, 50, 100],
+            order: [[2, 'desc']],
+            // Coluna 0 (chevron) não é ordenável
+            columnDefs: [
+                { orderable: false, targets: [0, 1] }
+            ],
+            drawCallback: function () {
+                if (typeof inicializarSelectFranquia === 'function') {
+                    inicializarSelectFranquia();
+                }
+            }
         });
+
+        $('#tabela-requisicoes tbody').on('click', 'td.dt-control', function (e) {
+            e.stopPropagation();
+            const tr = $(this).closest('tr');
+            const row = table.row(tr);
+
+            if (row.child.isShown()) {
+                row.child.hide();
+                tr.removeClass('shown');
+            } else {
+                const servicos = tr.data('servicos');
+                if (servicos && servicos.length) {
+                    row.child(renderChildRows(servicos)).show();
+                    tr.addClass('shown');
+                }
+            }
+        });
+    });
     </script>
 
 </body>

@@ -3,7 +3,7 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_GET
 from django.utils import timezone
-from acompanhamentos.models import registroacompanhamento, AcompanhamentoLocalizacao
+from acompanhamentos.models import registroacompanhamento
 from math import radians, cos, sin, asin, sqrt
 import json
 import time
@@ -12,6 +12,8 @@ from supabase import create_client
 from .supabase_client import get_supabase
 from datetime import datetime, timezone as dt_tz
 import uuid
+
+
 # from .utils import validate_odometer_with_ai
 
 # ──────────────────────────────────────────────────────────

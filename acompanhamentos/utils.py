@@ -1,9 +1,12 @@
 import uuid
 import logging
 from django.utils import timezone
+from datetime import datetime, timedelta
 from .api.supabase_client import get_supabase
 from urllib.parse import urlencode
 from django.conf import settings
+logger = logging.getLogger(__name__)
+# acompanhamentos/utils.py
 
 def gerar_link_app_missao(acompanhamento, request=None):
     """
@@ -62,9 +65,15 @@ def gerar_link_app_missao(acompanhamento, request=None):
 
     return f"{base_url}{static_url}missao.html?{urlencode(params)}"
 
-# acompanhamentos/utils.py
-
-logger = logging.getLogger(__name__)
+def _as_aware(dt: datetime) -> datetime:
+    """
+    Garante datetime timezone-aware (pro ISO não sair sem fuso e virar bagunça no front).
+    """
+    if dt is None:
+        return None
+    if timezone.is_naive(dt):
+        return timezone.make_aware(dt, timezone.get_current_timezone())
+    return dt
 
 def sync_acompanhamento_to_supabase(acompanhamento):
     try:
@@ -81,18 +90,16 @@ def sync_acompanhamento_to_supabase(acompanhamento):
         agente_principal = (
             acompanhamento.agentes
             .filter(tipo_agente="principal")
-            .select_related("agente")
+            .select_related("agente", "franquia")
             .first()
-            or acompanhamento.agentes.select_related("agente").first()
+            or acompanhamento.agentes.select_related("agente", "franquia").first()
         )
 
         agente_nome = ""
         if agente_principal and agente_principal.agente:
             agente_nome = (getattr(agente_principal.agente, "nome", "") or "").strip()
-
-        # ✅ NUNCA deixar vazio, porque no Supabase é NOT NULL
         if not agente_nome:
-            agente_nome = "Não atribuído"
+            agente_nome = "Não atribuído"  # NOT NULL no Supabase
 
         # ✅ Geofence (cerca_origem) enviada para o Supabase
         geofence = None
@@ -106,10 +113,39 @@ def sync_acompanhamento_to_supabase(acompanhamento):
                 "raio": int(getattr(acompanhamento, "raio_cerca", None) or 60),
             }
 
+        # -----------------------------
+        # ✅ NOVO: franquia_horas + inicio + fim previsto
+        # -----------------------------
+        franquia_horas = None
+        franquia_inicio_dt = None
+        franquia_fim_previsto_dt = None
+
+        if agente_principal:
+            # franquia_horas vem da franquia vinculada ao agente deste acompanhamento
+            if getattr(agente_principal, "franquia", None) and agente_principal.franquia.franquia_horas is not None:
+                # franquia_horas no seu model é PositiveIntegerField (horas inteiras)
+                franquia_horas = float(agente_principal.franquia.franquia_horas)
+
+            # "horário previsto pra início": vou usar data_solicitada + horario_solicitado
+            data_solic = getattr(agente_principal, "data_solicitada", None)
+            hora_solic = getattr(agente_principal, "horario_solicitado", None)
+
+            if data_solic and hora_solic:
+                franquia_inicio_dt = _as_aware(datetime.combine(data_solic, hora_solic))
+
+                # fim previsto = inicio + franquia_horas
+                if franquia_horas is not None:
+                    franquia_fim_previsto_dt = franquia_inicio_dt + timedelta(hours=franquia_horas)
+
         agent_data = {
             "acompanhamento_id": acompanhamento.id,
             "criado_em": (getattr(acompanhamento, "criado_em", None) or timezone.now()).isoformat(),
             "agente_nome": agente_nome,
+
+            # ✅ NOVOS CAMPOS (do jeito que você pediu)
+            "franquia_horas": franquia_horas,  # number | null
+            "franquia_inicio": franquia_inicio_dt.isoformat() if franquia_inicio_dt else None,
+            "franquia_fim_previsto": franquia_fim_previsto_dt.isoformat() if franquia_fim_previsto_dt else None,
         }
 
         if agente_principal:
@@ -119,13 +155,18 @@ def sync_acompanhamento_to_supabase(acompanhamento):
                 "placa_motorista": str(getattr(agente_principal, "placa_motorista", "") or ""),
             })
 
+            # (opcional, mas ajuda no debug e no front)
+            if getattr(agente_principal, "franquia", None):
+                agent_data["franquia_nome"] = str(getattr(agente_principal.franquia, "nome", "") or "")
+                agent_data["franquia_id"] = int(agente_principal.franquia.id)
+
         # ✅ anexa geofence no agent_data
         if geofence:
             agent_data["geofence"] = geofence
 
         payload = {
             "id": mission_id,
-            "status": (acompanhamento.status or "pendente"),
+            "status": (getattr(acompanhamento, "status_acompanhamento", None) or "pendente"),
             "origem": (acompanhamento.origem or ""),
             "agente": agente_nome,
             "agent_data": agent_data,
@@ -139,14 +180,6 @@ def sync_acompanhamento_to_supabase(acompanhamento):
         logger.exception("Erro ao sincronizar missão no Supabase")
         return False, None, str(e)
 
-
-
-import logging
-from django.utils import timezone
-from .api.supabase_client import get_supabase
-
-logger = logging.getLogger(__name__)
-
 def update_supabase_mission_status(mission_id: str, new_status: str) -> bool:
     try:
         sb = get_supabase()
@@ -158,7 +191,6 @@ def update_supabase_mission_status(mission_id: str, new_status: str) -> bool:
     except Exception:
         logger.exception("Erro ao atualizar status no Supabase")
         return False
-
 
 def delete_supabase_mission(mission_id):
     """

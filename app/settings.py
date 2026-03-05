@@ -13,6 +13,10 @@ DEBUG = True
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '0.0.0.0', 'intgoldensat.com.br', 'www.intgoldensat.com.br', 'testserver']
 AGENTTRACKER_WEB_BASE_URL = "https://intgoldensat.com.br"
 
+
+GS_ACIONAMENTO_URL = 'https://gsacionamento.com/'
+GS_ACIONAMENTO_TOKEN = '9c50d06c647e4ca8609ca1bf0ecfde5ee74b2c88'
+
 #LOGGING = {
  #  'version': 1,
 
@@ -73,9 +77,10 @@ INSTALLED_APPS = [
     'corte',
     'compras',
     'franquia',
-    'acompanhamentos',
+    # 'acompanhamentos',
     'kanban_inteligencia',
     'kanban_TI',
+    "acompanhamentos.apps.AcompanhamentosConfig",
 ]
 
 MIDDLEWARE = [
@@ -186,7 +191,7 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 LANGUAGE_CODE = 'pt-br'
 TIME_ZONE = 'America/Sao_Paulo'
 USE_I18N = True
-USE_TZ = False
+USE_TZ = True
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [

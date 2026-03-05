@@ -227,9 +227,22 @@
                                 <tr>
                                     <td>
                                         {% if item.validar_acompanhamento == 0 %}
-                                            <a href="{% url 'acompanhamentosUpdate' item.pk %}" class="btn btn-warning btn-sm">
-                                                <i class="bi bi-pencil"></i>
-                                            </a>
+                                            {% if item.status_acompanhamento == "pendente" or item.status_acompanhamento == "missao_aceita" or item.status_acompanhamento == "agendada" %}
+                                                <a href="{% url 'acompanhamentosUpdate' item.pk %}" class="btn btn-warning btn-sm">
+                                                    <i class="bi bi-pencil"></i>
+                                                </a>
+                                            {% elif item.status_acompanhamento == "concluido" %}
+                                                <button
+                                                    type="button"
+                                                    class="btn btn-success btn-sm btn-pedagio"
+                                                    data-bs-toggle="modal"
+                                                    data-bs-target="#modalPedagio"
+                                                    data-id="{{ item.id }}"
+                                                    data-url="{% url 'acompanhamentosUpdatePedagio' item.id %}"
+                                                    >
+                                                    <i class="bi bi-cash-coin"></i>
+                                                </button>
+                                            {% endif %}
                                         {% else %}
                                             {% if item.validar_pagamento == 0 %}
                                                 {% if user|has_group:"DiretoriaFinanceiro" %}
@@ -245,7 +258,14 @@
                                         {% endif %}
                                     </td>
                                     <td>{{ item.id }}</td>
-                                    <td>{{ item.cliente }}</td>
+                                    <td>
+                                    {{ item.cliente }}
+                                        <span class="text-secondary" style="font-size: 12px;">
+                                            {% if item.cliente and item.cliente.comercial %}
+                                                | {{ item.cliente.comercial }}
+                                            {% endif %}
+                                        </span>
+                                    </td>
                                     <td>
                                         {{ item.tipo_servico }}
                                     </td>
@@ -383,36 +403,10 @@
                                     </td>
                                     <td>
                                         {% with agentes=item.agentes.all %}
-                                            {% if perms.requisicao.add_registrodeacompanhamento %}
-
-                                                <select
-                                                    class="form-select form-select-sm franquia-select select-franquia"
-                                                    style="width: 150px;"
-                                                    data-acompanhamento-id="{{ item.id }}"
-                                                    {% if item.validar_acompanhamento or item.validar_pagamento %}
-                                                        disabled
-                                                    {% endif %}
-                                                >
-                                                    <option value="">Selecione</option>
-
-                                                    {% for franquia in franquias %}
-                                                        <option
-                                                            value="{{ franquia.id }}"
-                                                            {% if agentes and agentes.0.franquia and agentes.0.franquia.id == franquia.id %}
-                                                                selected
-                                                            {% endif %}
-                                                        >
-                                                            {{ franquia.nome }}
-                                                        </option>
-                                                    {% endfor %}
-                                                </select>
-
+                                            {% if agentes and agentes.0.franquia %}
+                                            {{ agentes.0.franquia.nome }}
                                             {% else %}
-                                                {% if agentes and agentes.0.franquia %}
-                                                    {{ agentes.0.franquia.nome }}
-                                                {% else %}
-                                                    
-                                                {% endif %}
+                                            —
                                             {% endif %}
                                         {% endwith %}
                                     </td>
@@ -475,117 +469,115 @@
         </div>
     </div>
 
+    <div class="modal fade" id="modalPedagio" tabindex="-1" aria-labelledby="modalPedagioLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+
+            <form id="formPedagio" method="post" action="">
+                {% csrf_token %}
+
+                <div class="modal-header">
+                <h5 class="modal-title" id="modalPedagioLabel">Adicionar Pedágio</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+
+                <div class="modal-body">
+                <div class="mb-2">
+                    <small class="text-muted">Acompanhamento: <strong id="pedagioAcompId">—</strong></small>
+                </div>
+
+                <label class="form-label">Valor do pedágio (R$)</label>
+                <input
+                    type="number"
+                    class="form-control"
+                    name="pedagio"
+                    step="0.01"
+                    min="0"
+                    placeholder="Ex: 25.50 (se não teve, deixe vazio ou 0)"
+                />
+
+                <div class="form-text">
+                    Se não teve pedágio, deixe vazio que o sistema salva como <strong>0</strong>.
+                </div>
+                </div>
+
+                <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-success">
+                    Salvar
+                </button>
+                </div>
+            </form>
+
+            </div>
+        </div>
+    </div>
+
     <script>
-        $(document).on('change', '.franquia-select', function () {
+        $(document).ready(function () {
 
-            const acompanhamentoId = $(this).data('acompanhamento-id');
-            const franquiaId = $(this).val();
-
-            if (!acompanhamentoId) return;
-
-            fetch("{% url 'acompanhamentosUpdateFranquia' %}", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRFToken": "{{ csrf_token }}",
+            const table = $('#tabela-acompanhamentos').DataTable({
+                scrollX: true,
+                scrollCollapse: true,
+                autoWidth: false,
+                language: {
+                    url: "https://cdn.datatables.net/plug-ins/1.13.8/i18n/pt-BR.json"
                 },
-                body: JSON.stringify({
-                    acompanhamento_id: acompanhamentoId,
-                    franquia_id: franquiaId
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-
-                if (!data.success) {
-                    alert("Erro ao salvar franquia");
-                    return;
-                }
-
-                const horarioCell = document.querySelector(
-                    `.horario-excedente[data-id="${acompanhamentoId}"]`
-                );
-                const kmCell = document.querySelector(
-                    `.km-excedente[data-id="${acompanhamentoId}"]`
-                );
-                const valorCell = document.querySelector(
-                    `.valor-agente[data-id="${acompanhamentoId}"]`
-                );
-
-                if (horarioCell && kmCell && valorCell) {
-                    horarioCell.innerHTML = "";
-                    kmCell.innerHTML = "";
-                    valorCell.innerHTML = "";
-
-                    data.agentes.forEach(a => {
-                        horarioCell.innerHTML += `${a.horario_excedente}<br>`;
-                        kmCell.innerHTML += `${a.km_excedente}<br>`;
-                        valorCell.innerHTML += `${a.valor_agente}<br>`;
-                    });
-                }
-
-                // total
-                const totalCell = valorCell.closest("tr").querySelector("td:nth-child(27)");
-                if (totalCell) {
-                    totalCell.innerHTML = data.total;
-                }
-
-                // usuário
-                const userCell = document.querySelector(
-                    `.user[data-id="${acompanhamentoId}"]`
-                );
-                if (userCell) {
-                    userCell.innerHTML = data.usuario;
-                }
-
-                // feedback visual
-                $(event.target)
-                    .closest('.select2-container')
-                    .find('.select2-selection')
-                    .addClass('border border-success');
-
-                setTimeout(() => {
-                    $('.select2-selection').removeClass('border border-success');
-                }, 1200);
+                pageLength: 10,
+                lengthMenu: [10, 25, 50, 100],
+                order: [[1, 'desc']],
             });
-
         });
     </script>
 
     <script>
-    function inicializarSelectFranquia() {
-        $('.select-franquia').select2({
-            width: 'resolve',
-            placeholder: 'Selecione',
-            allowClear: true,
-            dropdownAutoWidth: true,
-            language: {
-                noResults: function () {
-                    return "Nenhuma franquia encontrada";
-                }
-            }
-        });
-    }
+  $(document).ready(function () {
+    const modalEl = document.getElementById("modalPedagio");
+    const $form = $("#formPedagio");
 
-    $(document).ready(function () {
+    // 1) Quando abrir o modal, define action/id
+    $("#modalPedagio").on("show.bs.modal", function (event) {
+      const btn = event.relatedTarget;
+      const id = $(btn).data("id");
+      const url = $(btn).data("url");
 
-        const table = $('#tabela-acompanhamentos').DataTable({
-            scrollX: true,
-            scrollCollapse: true,
-            autoWidth: false,
-            language: {
-                url: "https://cdn.datatables.net/plug-ins/1.13.8/i18n/pt-BR.json"
-            },
-            pageLength: 10,
-            lengthMenu: [10, 25, 50, 100],
-            order: [[1, 'desc']],
-            drawCallback: function () {
-                inicializarSelectFranquia();
-            }
-        });
+      $("#pedagioAcompId").text(id);
+      $form.attr("action", url);
 
-        inicializarSelectFranquia();
+      $form.find("input[name='pedagio']").val("");
     });
+
+    // 2) Submit via AJAX (impede navegar pro JSON)
+    $form.on("submit", function (e) {
+      e.preventDefault();
+
+      const url = $form.attr("action");
+      const formData = new FormData(this);
+
+      fetch(url, {
+        method: "POST",
+        body: formData,
+        headers: { "X-Requested-With": "XMLHttpRequest" }
+      })
+      .then(async (resp) => {
+        const data = await resp.json();
+        if (!resp.ok || !data.success) throw new Error(data.error || "Erro ao salvar pedágio.");
+        return data;
+      })
+      .then((data) => {
+        // fecha modal
+        const instance = bootstrap.Modal.getInstance(modalEl);
+        if (instance) instance.hide();
+
+        // força reload (garantido)
+        window.location.href = window.location.href;
+      })
+      .catch((err) => {
+        console.error(err);
+        alert(err.message || "Falha ao comunicar com o servidor.");
+      });
+    });
+  });
 </script>
 
 

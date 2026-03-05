@@ -501,14 +501,6 @@
                                         </li>
                                         {% endif %}
 
-                                        <!-- {% if perms.requisicao.add_registrodeacompanhamento %}
-                                        <li>
-                                            <a class="dropdown-item" href="{% url 'AcompanhamentosCreate' %}">
-                                                Criar Acompanhamento
-                                            </a>
-                                        </li>
-                                        {% endif %} -->
-
                                         {% if perms.acompanhamentos.view_registroacompanhamento %}
                                         <li>
                                             <a class="dropdown-item" href="{% url 'acompanhamentosPanicoList' %}">
@@ -517,20 +509,6 @@
                                         </li>
                                         {% endif %}
 
-                                        {% if perms.acompanhamentos.view_registrodeclienteacompanhamento %}
-                                        <li>
-                                            <a class="dropdown-item" href="{% url 'clienteAcompanhamentoList' %}">
-                                                Ver Clientes
-                                            </a>
-                                        </li>
-                                        {% endif %}
-                                        <!-- {% if perms.acompanhamentos.add_registrodeclienteacompanhamento %}
-                                        <li>
-                                            <a class="dropdown-item" href="{% url 'clienteAcompanhamentoCreate' %}">
-                                                Cadastro Cliente
-                                            </a>
-                                        </li>
-                                        {% endif %} -->
                                         {% if perms.requisicao.add_registrodeacompanhamento %}
                                         <li>
                                             <a class="dropdown-item" href="{% url 'responsavelagenteAcompanhamentoList' %}">
@@ -541,40 +519,26 @@
                                         {% if perms.acompanhamentos.view_registrodeagenteacompanhamento %}
                                         <li>
                                             <a class="dropdown-item" href="{% url 'agenteAcompanhamentoList' %}">
-                                                Ver Agentes
+                                                Agentes Acompanhamento
                                             </a>
                                         </li>
                                         {% endif %}
-                                        {% if perms.acompanhamentos.add_registrodeagenteacompanhamento %}
+                                        {% if perms.acompanhamentos.view_registroacompanhamento %}
                                         <li>
-                                            <a class="dropdown-item" href="{% url 'agenteAcompanhamentoCreate' %}">
-                                                Cadastro Agente
+                                            <a class="dropdown-item" href="{% url 'clienteList' %}">
+                                                Clientes
                                             </a>
                                         </li>
                                         {% endif %}
                                     </ul>
                                 </li>
-                                <li class="dropdown-submenu">
-                                    <a class="dropdown-item dropdown-toggle">
-                                        Franquias
-                                    </a>
-                                    <ul class="dropdown-menu">
-                                        {% if perms.franquia.view_listfranquia %}
-                                        <li>
-                                            <a class="dropdown-item" href="{% url 'franquiaList' %}">
-                                                Ver Franquias
-                                            </a>
-                                        </li>
-                                        {% endif %}
-                                        {% if perms.franquia.add_registrodefranquia %}
-                                        <li>
-                                            <a class="dropdown-item" href="{% url 'franquiaCreate' %}">
-                                                Criar Franquia
-                                            </a>
-                                        </li>
-                                        {% endif %}
-                                    </ul>
-                                </li>
+                                {% if perms.acompanhamentos.view_listfranquia %}
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'franquiaList' %}">
+                                            Ver Franquias
+                                        </a>
+                                    </li>
+                                {% endif %}
                             {% endif %}
 
                         </ul>
@@ -660,7 +624,7 @@
                                         </a>
                                     </li>
                                 {% endif %}
-                                {% if perms.franquia.view_listfranquia %}
+                                {% if perms.acompanhamentos.view_listfranquia %}
                                     <li>
                                         <a class="dropdown-item" href="{% url 'franquiaList' %}">
                                             Ver Franquias

@@ -47,9 +47,6 @@ class FranquiaCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView
             for campo in campos_para_validar
         )
 
-        if todos_vazios:
-            return redirect("franquiaCreate")
-
         instance = form.save(commit=False)
 
         user = getattr(self.request, 'user', None)

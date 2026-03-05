@@ -6,6 +6,11 @@ from . import api_views
 urlpatterns = [
     # ============== Acompanhamentos ==============
 
+    # Franquia Agentes URLs
+    path("fraquia/",views.FranquiaListView.as_view(),name="franquiaList",),
+
+    path("clientes/",views.ClientListView.as_view(),name="clienteList",),
+
     # Agentes Acompanhamento URLs
     path("novoAgente/",views.AgenteAcompanhamentoCreateView.as_view(),name="agenteAcompanhamentoCreate",),
     path("listAgente/",views.AgenteAcompanhamentoListView.as_view(),name="agenteAcompanhamentoList",),
@@ -15,22 +20,12 @@ urlpatterns = [
     path("ajax/novo-responsavel-agente/",views.criar_responsavel_agente_ajax,name="criar_responsavel_agente_ajax"),
     path("listResponsavelAgente/",views.ResponsavelAgenteAcompanhamentoListView.as_view(),name="responsavelagenteAcompanhamentoList",),
     path("ajax/editar-responsavel-agente/<int:pk>/",views.editar_responsavel_agente_ajax,name="editar_responsavel_agente_ajax"),
-
-    # Clientes Acompanhamento URLs
-    path("novoCliente/",views.ClienteAcompanhamentoCreateView.as_view(),name="clienteAcompanhamentoCreate",),
-    path("listCliente/",views.ClienteAcompanhamentoListView.as_view(),name="clienteAcompanhamentoList",),
-    path('<int:pk>/editarCliente/',views.RegistroClienteAcompanhamentoUpdateView.as_view(),name='clienteAcompanhamentoUpdate'),
-
-    # Serviços Acompanhamento URLs
-    path("novoServico/",views.ServicoAcompanhamentoCreateView.as_view(),name="servicoAcompanhamentoCreate",),
-    path("listServico/",views.ServicoAcompanhamentoListView.as_view(),name="servicoAcompanhamentoList",),
-    path('<int:pk>/editarServico/',views.RegistroServicoAcompanhamentoUpdateView.as_view(),name='servicoAcompanhamentoUpdate'),
     
     # Acompanhamento URLs
     path("novo/",views.AcompanhamentoCreateView.as_view(),name="AcompanhamentosCreate",),
     path('<int:pk>/editar/',views.RegistroAcompanhamentoUpdateView.as_view(),name='acompanhamentosUpdate'),
     path("list/",views.AcompanhamentoListView.as_view(),name="acompanhamentosList",),
-    path("atualizar-franquia/", views.atualizar_franquia_acompanhamento, name="acompanhamentosUpdateFranquia"),
+    # path("atualizar-franquia/", views.atualizar_franquia_acompanhamento, name="acompanhamentosUpdateFranquia"),
 
     # Acompanhamento Faturamento URLs
     path("listFaturamento/",views.AcompanhamentoFaturamentoListView.as_view(),name="acompanhamentosListFaturamento",),
@@ -88,9 +83,33 @@ urlpatterns = [
     path('api/sync/tipo-servico/', api_views.sync_tipo_servico, name='api_sync_tipo_servico'),
     path('api/sync/requisicao/', api_views.sync_requisicao, name='api_sync_requisicao'),
     path('api/sync/franquia/', api_views.sync_franquia, name='sync_franquia'),
+    path('api/sync/missao/', api_views.sync_missao, name='sync_missao'),
+    path('api/callback/acompanhamento-aprovado/', api_views.callback_acompanhamento_aprovado, name='callback_acompanhamento_aprovado',),
+    path("api/sync-status-supabase/", views.sync_status_from_supabase, name="sync_status_supabase"),
+    path("api/lucro-total-por-dia/", api_views.api_lucro_total_por_dia, name="api_lucro_total_por_dia"),
+    path("api/top-clientes-pagadores/", api_views.api_top_clientes_pagadores),
+    path("api/alertas-agendamento/", views.api_alertas_agendamento, name="api_alertas_agendamento",),
+
+    path('requisicoes-solicitacao/', views.RequisicaoSolicitacaoListView.as_view(), name='requisicao_solicitacao_list'),
+    path('requisicao/nova/<int:pk>/', views.AcompanhamentoFromRequisicaoCreateView.as_view(), name='RequisicaoCreate'),
+    path(
+        'requisicao/nova/grupo/<int:req_id_externo>/',
+        views.AcompanhamentoFromGrupoCreateView.as_view(),
+        name='RequisicaoGrupoCreate'
+    ),
+    path(
+        'requisicoes-solicitacao/<int:pk>/recusar-reuso/',
+        views.recusar_reuso,
+        name='recusar_reuso'
+    ),
+
+    path(
+        "<int:pk>/atualizar-pedagio/",
+        views.atualizar_pedagio_acompanhamento,
+        name="acompanhamentosUpdatePedagio",
+    ),
 
 
-    path("requisicoes-solicitacao/", views.RequisicaoSolicitacaoListView.as_view(), name="requisicao_solicitacao_list"),
-    path("requisicao/nova/<int:pk>/", views.AcompanhamentoFromRequisicaoCreateView.as_view(), name="RequisicaoCreate"),
+
     # path('requisicao/<int:pk>/editar/',views.RegistroAcompanhamentoUpdateView.as_view(),name='acompanhamentosUpdate'),
 ]

@@ -190,9 +190,6 @@ def _build_clone_acompanhamento(base, *, tipo_servico, nome_user):
         status_acompanhamento=getattr(base, "status_acompanhamento", None) or "pendente",
         botao_panico=getattr(base, "botao_panico", False),
 
-        # ✅ Copia is_reuso do base
-        is_reuso=getattr(base, "is_reuso", False),
-
         nome_user=nome_user,
     )
 
@@ -939,7 +936,7 @@ class AcompanhamentoFaturamentoListView(LoginRequiredMixin, PermissionRequiredMi
                 status_acompanhamento="concluido",
                 status__in=["pendente", "aguardando"]
             )
-            .exclude(is_reuso=True)
+            .exclude(requisicao_solicitacao__is_reuso=True)
             .distinct()
         )
 
@@ -952,10 +949,7 @@ class AcompanhamentoFaturamentoListView(LoginRequiredMixin, PermissionRequiredMi
                 "agentes__franquia"
             )
             .select_related("cliente")
-            .filter(
-                status_acompanhamento="verificado",
-                is_reuso=False,  # <- garante que não vem reuso
-            )
+            .filter(status_acompanhamento="verificado")
         )
 
         data = self.request.GET.get("data")
@@ -2337,8 +2331,6 @@ class AcompanhamentoFromRequisicaoCreateView(LoginRequiredMixin, PermissionRequi
         base.cliente = requisicao.cliente
         base.tipo_servico = requisicao.tipo_servico
         base.nome_user = nome_user
-        # ✅ Copia flag is_reuso da requisição
-        base.is_reuso = requisicao.is_reuso
 
         agentes_principais = _extract_principais_from_formset(agentes_formset)
         if not agentes_principais:
@@ -2553,8 +2545,6 @@ class AcompanhamentoFromGrupoCreateView(LoginRequiredMixin, PermissionRequiredMi
         req_principal = requisicoes[0]
         base.cliente = req_principal.cliente
         base.nome_user = nome_user
-        # ✅ Copia is_reuso da requisição principal
-        base.is_reuso = req_principal.is_reuso
 
         criados = []
         reqs_para_marcar = []

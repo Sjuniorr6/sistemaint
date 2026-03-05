@@ -247,7 +247,7 @@ class FranquiaAgente(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.nome} (#{self.id})"
+        return f'Franquia #{self.id}'
 
 # ------------------------------------------------------
 #                 Registro de Agentes
@@ -516,12 +516,6 @@ class registroacompanhamento(models.Model):
         help_text="Quantidade total de veículos no comboio (quando aplicável)."
     )
 
-    is_reuso = models.BooleanField(
-        default=False,
-        verbose_name="É reuso de agente",
-        help_text="Acompanhamentos de reuso não têm custo para o cliente."
-    )
-
     ocorrencia = models.TextField(blank=True, null=True)
     nome_user = models.CharField(max_length=150, blank=True, null=True)
 
@@ -591,7 +585,6 @@ class registroacompanhamento(models.Model):
     #     self.save(update_fields=["valor_contrato", "lucro_total"])
 
     def recalcular_financeiro(self, commit=True):
-        # 🔒 Só calcula se estiver validado
         if not self.validar_acompanhamento:
             self.valor_contrato = None
             self.lucro_total = None
@@ -600,8 +593,7 @@ class registroacompanhamento(models.Model):
                 self.save(update_fields=["valor_contrato", "lucro_total"])
             return
 
-        # ✅ REUSO: zera valores (reuso não tem custo)
-        if self.is_reuso:
+        if self.requisicao_solicitacao and self.requisicao_solicitacao.is_reuso:
             self.valor_contrato = Decimal("0.00")
             self.lucro_total = Decimal("0.00")
 
@@ -952,16 +944,6 @@ class registroacompanhamentoagente(models.Model):
             self.horario_total = fim - inicio
         else:
             self.horario_total = None
-
-        # ✅ REUSO: zera todos os valores R$ (reuso não tem custo)
-        if self.acompanhamento and self.acompanhamento.is_reuso:
-            self.pedagio = Decimal("0.00")
-            self.valor_agente = Decimal("0.00")
-            self.km_excedente = None
-            self.horario_excedente = None
-
-            super().save(*args, **kwargs)
-            return
 
         if self.tipo_agente == "carona":
             self.valor_agente = Decimal("0.00")

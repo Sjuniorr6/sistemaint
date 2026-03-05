@@ -43,7 +43,6 @@ urlpatterns = [
     path('corte/', include('corte.urls')),
     path('compras/', include('compras.urls')),
     path('inteligencia/kanban/', include('kanban_inteligencia.urls')),
-    path('franquia/', include('franquia.urls')),
     path('acompanhamentos/', include('acompanhamentos.urls')), 
     path('TI/kanban/', include('kanban_TI.urls')),
 
