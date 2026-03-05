@@ -46,6 +46,7 @@ def format_responsavel(username):
         'Patricia.Costa': 'Patricia C.',
         'Anália': 'Anália V.',
         'Evellyn.Taila': 'Evellyn T.',
+        'kethleen.araujo': 'Kethleen A.',
         'Tiago.Faria': 'Tiago F.',
         'Inteligencia': 'Inteligencia',
     }

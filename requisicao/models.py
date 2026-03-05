@@ -340,6 +340,7 @@ class Requisicoes(models.Model):
         ('Patricia.Costa', 'Patricia Costa'),
         ('Anália', 'Anália Venancio'),
         ('Evellyn.Taila', 'Evellyn Taila'),
+        ('kethleen.araujo', 'Kethleen Araujo'),
         ('Tiago.Faria', 'Tiago Faria'),
         ('Inteligencia', 'Inteligencia'),
     ]
