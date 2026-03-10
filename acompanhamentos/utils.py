@@ -152,6 +152,7 @@ def sync_acompanhamento_to_supabase(acompanhamento):
             agent_data.update({
                 "placa_agente": str(getattr(agente_principal, "placa_agente", "") or ""),
                 "motorista": str(getattr(agente_principal, "motorista", "") or ""),
+                "numero_motorista": str(getattr(agente_principal, "numero_motorista", "") or ""),
                 "placa_motorista": str(getattr(agente_principal, "placa_motorista", "") or ""),
             })
 

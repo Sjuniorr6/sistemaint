@@ -161,6 +161,7 @@
                                     <th>Destino</th>
                                     <th>Motorista</th>
                                     <th>Placa</th>
+                                    <th>Número Motorista</th>
                                     <th>Data Solicitada</th>
                                     <th>Hora Solicitada</th>
                                     <th>Usuário</th>
@@ -247,6 +248,7 @@
                                     <td>{{ req.destino|default:"-" }}</td>
                                     <td>{{ req.motorista }}</td>
                                     <td>{{ req.placa }}</td>
+                                    <td>{{ req.numero_motorista }}</td>
                                     <td>{{ req.data_agendamento|date:"d/m/Y" }}</td>
                                     <td>{{ req.horario_agendamento|time:"H:i" }}</td>
                                     <td>{{ req.nome_user }}</td>

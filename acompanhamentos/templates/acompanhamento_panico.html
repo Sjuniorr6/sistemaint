@@ -370,6 +370,7 @@
                                     <th>Placa Agente</th>
                                     <th>Motorista</th>
                                     <th>Placa Motorista</th>
+                                    <th>Número Motorista</th>
                                     <th>Data Solicitada</th>
                                     <th>Horário Solicitado</th>
                                 </tr>
@@ -467,6 +468,14 @@
                                         {% for agente in item.agentes.all %}
                                             {% if agente.tipo_agente != "carona" %}
                                                 {{ agente.placa_motorista|default:"" }}<br>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </td>
+
+                                    <td>
+                                        {% for agente in item.agentes.all %}
+                                            {% if agente.tipo_agente != "carona" %}
+                                                {{ agente.numero_motorista|default:"" }}<br>
                                             {% endif %}
                                         {% endfor %}
                                     </td>

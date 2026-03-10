@@ -198,6 +198,7 @@ def sync_requisicao(request):
                 'longitude_origem': data.get('longitude_origem'),
                 'destino': data.get('destino', ''),
                 'motorista': data.get('motorista'),
+                'numero_motorista': data.get('numero_motorista'),
                 'placa': data.get('placa'),
                 'agente': data.get('agente', ''),
                 'placa_agente': data.get('placa_agente', ''),

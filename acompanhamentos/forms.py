@@ -154,6 +154,7 @@ class RegistroAcompanhamentoAgenteForm(forms.ModelForm):
             "placa_agente": forms.TextInput(attrs={"class": "form-control", "placeholder": "Placa Agente"}),
             "motorista": forms.TextInput(attrs={"class": "form-control bg-light", "placeholder": "Motorista", "readonly": "readonly"}),
             "placa_motorista": forms.TextInput(attrs={"class": "form-control bg-light", "placeholder": "Placa Motorista", "readonly": "readonly"}),
+            "numero_motorista": forms.TextInput(attrs={"class": "form-control bg-light", "placeholder": "Número Motorista", "readonly": "readonly"}),
 
             "data_solicitada": forms.DateInput(format="%Y-%m-%d", attrs={"type": "date", "class": "form-control bg-light", "readonly": "readonly"}),
             "horario_solicitado": forms.TimeInput(attrs={"type": "time", "class": "form-control bg-light", "readonly": "readonly"}),

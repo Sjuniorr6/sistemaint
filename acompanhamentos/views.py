@@ -2270,6 +2270,7 @@ class AcompanhamentoFromRequisicaoCreateView(LoginRequiredMixin, PermissionRequi
                 formset.forms[0].initial = {
                     "motorista": requisicao.motorista,
                     "placa_motorista": requisicao.placa,
+                    "numero_motorista": requisicao.numero_motorista,
                     "data_solicitada": requisicao.data_agendamento,
                     "horario_solicitado": requisicao.horario_agendamento,
                 }
@@ -2481,6 +2482,7 @@ class AcompanhamentoFromGrupoCreateView(LoginRequiredMixin, PermissionRequiredMi
         initial["campo_personalizado_titulo"] = req.campo_personalizado_titulo or ""
         initial["campo_personalizado_valor"] = req.campo_personalizado_valor or ""
         initial["ocorrencia"] = req.ocorrencia or ""
+        initial["numero_motorista"] = req.numero_motorista or ""
 
         return initial
 

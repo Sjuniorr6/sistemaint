@@ -176,6 +176,7 @@ class RequisicaoSolicitacao(models.Model):
     destino = models.CharField(max_length=500, blank=True, null=True)
 
     motorista = models.CharField(max_length=255)
+    numero_motorista = models.CharField(max_length=255)
     placa = models.CharField(max_length=10)
     data_agendamento = models.DateField()
     horario_agendamento = models.TimeField()
@@ -731,6 +732,8 @@ class registroacompanhamentoagente(models.Model):
 
     motorista = models.CharField(max_length=100, blank=True, null=True)
     placa_motorista = models.CharField(max_length=10, blank=True, null=True)
+
+    numero_motorista = models.CharField(max_length=15, blank=True, null=True)
     
     bancario = models.BooleanField(
         default=False,

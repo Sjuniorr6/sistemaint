@@ -311,6 +311,7 @@ class RegistroAcompanhamentoAgenteAdmin(admin.ModelAdmin):
                 "placa_agente",
                 "motorista",
                 "placa_motorista",
+                "numero_motorista",
             )
         }),
 
@@ -470,7 +471,7 @@ class MissaoAdmin(admin.ModelAdmin):
 
 @admin.register(RequisicaoSolicitacao)
 class RequisicaoSolicitacaoAdmin(admin.ModelAdmin):
-    list_display = ['id', 'id_externo', 'requisicao_id_externo', 'missao', 'cliente', 'motorista', 'placa', 'data_agendamento', 'is_reuso', 'agente_nome_reuso', 'agente_placa_reuso', 'criado_em']
+    list_display = ['id', 'id_externo', 'requisicao_id_externo', 'missao', 'cliente', 'motorista', 'numero_motorista', 'placa', 'data_agendamento', 'is_reuso', 'agente_nome_reuso', 'agente_placa_reuso', 'criado_em']
     list_filter = ['cliente', 'data_agendamento']
     search_fields = ['motorista', 'placa', 'cliente__nome']
     
@@ -479,7 +480,7 @@ class RequisicaoSolicitacaoAdmin(admin.ModelAdmin):
         'id_externo', 'requisicao_id_externo', 'missao', 'cliente', 'tipo_servico',
         'campo_personalizado_titulo', 'campo_personalizado_valor',
         'origem', 'destino',
-        'motorista', 'placa', 'comboio', 'quantidade_veiculos_comboio', 'data_agendamento', 'horario_agendamento',
+        'motorista', 'numero_motorista', 'placa', 'comboio', 'quantidade_veiculos_comboio', 'data_agendamento', 'horario_agendamento',
         'nome_user', 'sincronizado_em', 'criado_em'
     ]
     
@@ -489,7 +490,7 @@ class RequisicaoSolicitacaoAdmin(admin.ModelAdmin):
             'fields': (
                 'id_externo', 'requisicao_id_externo', 'missao', 'cliente', 'tipo_servico', 'nome_user',
                 'origem', 'destino',
-                'motorista', 'placa', 'comboio', 'quantidade_veiculos_comboio', 'data_agendamento', 'horario_agendamento',
+                'motorista', 'numero_motorista', 'placa', 'comboio', 'quantidade_veiculos_comboio', 'data_agendamento', 'horario_agendamento',
                 'campo_personalizado_titulo', 'campo_personalizado_valor',
 
                 'is_reuso', 'agente_nome_reuso', 'agente_placa_reuso',

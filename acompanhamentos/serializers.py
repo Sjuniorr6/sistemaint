@@ -57,7 +57,7 @@ class RequisicaoSolicitacaoSerializer(serializers.ModelSerializer):
             'id', 'id_externo', 'cliente_id_externo', 'tipo_servico_id_externo',
             'campo_personalizado_titulo', 'campo_personalizado_valor',
             'origem', 'latitude_origem', 'longitude_origem', 'destino',
-            'motorista', 'placa', 'data_agendamento', 'horario_agendamento',
+            'motorista', 'placa', 'numero_motorista', 'data_agendamento', 'horario_agendamento',
             'ocorrencia', 'nome_user'
         ]
     
