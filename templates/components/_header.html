@@ -668,7 +668,22 @@
                     </li>
                     {% endif %}
 
-
+                    {% if user|has_group:"TI" %}
+                    <!-- Marketing -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="dropdownTI" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi-megaphone"></i> Marketing
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="dropdownTI">
+                            <li>
+                                <a class="dropdown-item" href="{% url 'kanban_marketing:home' %}">
+                                    <i class="bi bi-kanban me-2"></i>
+                                    Kanban Marketing
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    {% endif %}
 
                     <!-- Logout -->
                     <li class="nav-item">

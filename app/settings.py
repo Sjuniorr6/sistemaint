@@ -83,6 +83,7 @@ INSTALLED_APPS = [
     'kanban_inteligencia',
     'kanban_TI',
     "acompanhamentos.apps.AcompanhamentosConfig",
+    'kanban_marketing',
 ]
 
 MIDDLEWARE = [

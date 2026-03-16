@@ -1,0 +1,766 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<style>
+    /* 1. REMOVER TRAVAS DO BASE.HTML */
+    .container, .container-fluid, #main-wrapper, .body-content {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* 2. CONFIGURAÇÃO DA PÁGINA */
+    .kanban-marketing-page {
+        background-color: #0d1117;
+        min-height: 100vh;
+        width: 100vw !important;
+        padding: 20px !important;
+        box-sizing: border-box;
+    }
+
+    /* 3. CABEÇALHO */
+    .marketing-header {
+        background: linear-gradient(135deg, #6e01db 0%, #ff00cc 100%) !important;
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 25px;
+        color: white;
+        box-shadow: 0 4px 15px rgba(255, 0, 204, 0.3);
+    }
+
+    /* 4. GRID FULL WIDTH */
+    .kanban-grid-full {
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: space-between;
+        gap: 15px;
+        width: 100% !important;
+    }
+
+    .marketing-col {
+        background-color: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 10px;
+        flex: 1 !important;
+        min-width: 250px;
+        display: flex;
+        flex-direction: column;
+        min-height: 80vh;
+    }
+
+    .marketing-col-title {
+        padding: 15px;
+        background: #21262d;
+        border-radius: 10px 10px 0 0;
+        border-bottom: 3px solid #ff00cc;
+        text-align: center;
+        font-weight: bold;
+    }
+
+    .marketing-card {
+        background: #0d1117;
+        border: 1px solid #30363d;
+        border-left: 5px solid #ff00cc;
+        margin: 10px;
+        padding: 15px;
+        border-radius: 8px;
+        color: white;
+    }
+
+    .prio-alta { border-left-color: #ff4444 !important; }
+    .prio-media { border-left-color: #ffbb33 !important; }
+    .prio-baixa { border-left-color: #00C851 !important; }
+
+    .btn-nova-tarefa {
+        background-color: #ffffff;
+        color: #6e01db !important;
+        padding: 12px 25px;
+        border-radius: 30px;
+        font-weight: bold;
+        border: none;
+        transition: 0.3s;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    .btn-nova-tarefa:hover {
+        background-color: #ff00cc;
+        color: white !important;
+        transform: scale(1.05);
+    }
+
+    .marketing-card { cursor: grab; }
+    .marketing-card:active { cursor: grabbing; }
+    .dragging { opacity: 0.4; border: 2px dashed #ff00cc !important; }
+
+    /* O card volta a ter o cursor de "mão agarrando" para indicar que pode arrastar */
+.marketing-card {
+    position: relative;
+    cursor: grab; 
+}
+.marketing-card:active {
+    cursor: grabbing;
+}
+
+/* O botão de lápis terá o cursor de "dedo apontando" */
+.btn-edit-hover {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    opacity: 0; /* Escondido por padrão */
+    cursor: pointer; /* Mãozinha de clique */
+    transition: opacity 0.2s;
+    background: #30363d;
+    border: 1px solid #444;
+    color: white;
+    padding: 5px 8px;
+    border-radius: 4px;
+}
+
+.marketing-card:hover .btn-edit-hover {
+    opacity: 1; /* Aparece quando o mouse passa no card */
+}
+
+.btn-edit-hover {
+    /* ... seus outros estilos ... */
+    z-index: 99; /* Garante que ele fique "em cima" de tudo no card */
+}
+
+/* Melhora a leitura do texto nos cards */
+.marketing-card p {
+    line-height: 1.2;
+    margin-bottom: 8px;
+}
+
+.card-thumb {
+    width: 100%;
+    max-height: 130px;
+    object-fit: cover;
+    border-radius: 6px;
+    margin-top: 8px;
+    border: 1px solid #30363d;
+}
+
+.modal-thumb {
+    width: 100%;
+    max-height: 280px;
+    object-fit: contain;
+    border-radius: 8px;
+    border: 1px solid #30363d;
+    background: #0d1117;
+    padding: 6px;
+}
+
+/* Estilo para quando o card está na coluna de conclusão */
+[data-status="concluido"] .marketing-card {
+    opacity: 0.95;
+    background: rgba(0, 200, 81, 0.08);
+    border-left-color: #00C851 !important;
+    transition: 0.3s;
+}
+
+[data-status="concluido"] .marketing-card:hover {
+    opacity: 1;
+    transform: translateY(-2px);
+}
+
+[data-status="publicado"] .marketing-card {
+    opacity: 0.95;
+    background: rgba(0, 200, 81, 0.08);
+    border-left-color: #00C851 !important;
+    transition: 0.3s;
+}
+
+[data-status="publicado"] .marketing-card:hover {
+    opacity: 1;
+    transform: translateY(-2px);
+}
+
+.texto-atrasado {
+    color: #ff4444;
+    margin-top: 3px;
+    font-weight: bold;
+}
+
+.texto-ok {
+    color: #00C851;
+    margin-top: 3px;
+    font-weight: bold;
+}
+
+/* Botão de aprovação do briefing */
+.btn-aprovar-briefing {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    opacity: 0;
+    cursor: pointer;
+    transition: opacity 0.2s, background 0.2s;
+    background: #21262d;
+    border: 1px solid #444;
+    color: #8b949e;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    z-index: 99;
+    line-height: 1;
+}
+
+.marketing-card:hover .btn-aprovar-briefing {
+    opacity: 1;
+}
+
+/* Estado: aprovado — fica sempre visível e destacado */
+.btn-aprovar-briefing.aprovado {
+    opacity: 1;
+    background: rgba(0, 200, 81, 0.15);
+    border-color: #00C851;
+    color: #00C851;
+}
+
+/* Garante espaço no card para o botão de aprovar não sobrepor o texto */
+[data-status="briefing"] .marketing-card {
+    padding-bottom: 32px;
+}
+
+</style>
+
+<div class="kanban-marketing-page">
+    <div class="marketing-header d-flex justify-content-between align-items-center">
+        <div>
+            <h2>🚀 Kanban Marketing</h2>
+            <p class="mb-0">Visão Geral de Campanhas e Criação</p>
+        </div>
+        <button type="button" class="btn-nova-tarefa" data-bs-toggle="modal" data-bs-target="#modalNovaTarefa">
+            + Nova Tarefa
+        </button>
+    </div>
+
+    <div class="modal fade" id="modalEditarTarefa" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-white" style="border: 1px solid #ff00cc;">
+                <div class="modal-header">
+                    <h5 class="modal-title">Editar Tarefa</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="formEditarTarefa" method="POST" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label>Título</label>
+                            <input type="text" name="titulo" id="edit_titulo" class="form-control bg-secondary text-white" required>
+                        </div>
+                        <div class="mb-3">
+                            <label>Descrição</label>
+                            <textarea name="descricao" id="edit_descricao" class="form-control bg-secondary text-white" rows="3"></textarea>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label>Responsável</label>
+                                <select name="responsavel" id="edit_responsavel" class="form-select bg-secondary text-white">
+                                    <option value="felipe nery">Felipe Nery</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label>Prioridade</label>
+                                <select name="prioridade" id="edit_prioridade" class="form-select bg-secondary text-white">
+                                    <option value="baixa">Baixa</option>
+                                    <option value="media">Média</option>
+                                    <option value="alta">Alta</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label>Prazo Final</label>
+                            <input type="date" name="data_limite" id="edit_data_limite" class="form-control bg-secondary text-white">
+                        </div>
+                        <div class="mb-3">
+                            <label>Imagem</label>
+                            <input type="file" name="imagem" id="edit_imagem" accept="image/*" class="form-control bg-secondary text-white">
+                        </div>
+                        <div id="edit_imagem_atual_wrap" class="mb-2" style="display: none;">
+                            <small class="text-white-50">Imagem atual:</small>
+                            <img id="edit_imagem_atual" class="modal-thumb mt-2" alt="Imagem atual da tarefa">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn" style="background: #ff00cc; color: white;">Salvar Alterações</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalDetalheTarefa" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content bg-dark text-white" style="border: 1px solid #00C851;">
+                <div class="modal-header" style="border-bottom: 1px solid #30363d;">
+                    <h5 class="modal-title">Detalhes da Tarefa</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <h4 id="det_titulo" class="mb-3"></h4>
+                    <p id="det_descricao" class="text-white-50"></p>
+                    <div class="mb-2"><strong>Status:</strong> <span id="det_status"></span></div>
+                    <div class="mb-2"><strong>Responsavel:</strong> <span id="det_responsavel"></span></div>
+                    <div class="mb-2"><strong>Prioridade:</strong> <span id="det_prioridade"></span></div>
+                    <div class="mb-2"><strong>Criado em:</strong> <span id="det_data_criacao"></span></div>
+                    <div class="mb-2"><strong>Prazo:</strong> <span id="det_data_limite"></span></div>
+                    <div class="mb-2"><strong>Total previsto:</strong> <span id="det_total_dias"></span></div>
+                    <div id="det_atraso" class="texto-atrasado fw-bold" style="display: none;">❗ Atrasado</div>
+                    <div id="det_imagem_wrap" class="mt-3" style="display: none;">
+                        <img id="det_imagem" class="modal-thumb" alt="Imagem da tarefa">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<div class="kanban-grid-full">
+    <div class="marketing-col" data-status="briefing">
+        <div class="marketing-col-title">💡 Briefing - Total: {{ briefing|length }}</div>
+        <div class="col-content">
+            {% for tarefa in briefing %}
+                <div class="marketing-card prio-{{ tarefa.prioridade }}" draggable="true" data-id="{{ tarefa.id }}">
+                    <button type="button" class="btn-edit-hover" onclick="abrirModalEdicao('{{ tarefa.id }}')" title="Editar">✎</button>
+
+                    <strong>{{ tarefa.titulo }}</strong>
+                    <p style="color: #8b949e; font-size: 0.85rem; margin: 5px 0;">{{ tarefa.descricao|truncatechars:60 }}</p>
+                    <div style="font-size: 0.75rem; color: #6e7681; margin-top: 8px;">
+                        <span>👤 {{ tarefa.get_responsavel_display }}</span><br>
+                        <span>📅 Criado: {{ tarefa.data_criacao|date:"d/m/Y" }}</span>
+                        {% if tarefa.data_limite %}
+                            <div class="prazo-info {% if tarefa.esta_atrasada %}texto-atrasado{% else %}texto-ok{% endif %}">
+                                {% if tarefa.esta_atrasada %}❗ Atrasado<br>{% endif %}
+                                🗓️ Prazo: {{ tarefa.data_limite|date:"d/m/Y" }}
+                                {% if tarefa.total_dias_previstos is not None %}
+                                    <br>⏱️ Total previsto: {{ tarefa.total_dias_previstos }} dia{% if tarefa.total_dias_previstos != 1 %}s{% endif %}
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <button
+                        type="button"
+                        class="btn-aprovar-briefing {% if tarefa.briefing_aprovado %}aprovado{% endif %}"
+                        data-tarefa-id="{{ tarefa.id }}"
+                        onclick="toggleAprovacao(event, this.dataset.tarefaId, this)"
+                        title="{% if tarefa.briefing_aprovado %}Aprovado — clique para remover aprovação{% else %}Aprovar briefing{% endif %}"
+                    >
+                        {% if tarefa.briefing_aprovado %}✅ Aprovado{% else %}☐ Aprovar{% endif %}
+                    </button>
+                </div>
+            {% empty %}
+                <p class="text-center text-white mt-3">Sem ideias por enquanto</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="marketing-col" data-status="em_producao">
+        <div class="marketing-col-title">🛠 Em Produção - Total: {{ em_producao|length }}</div>
+        <div class="col-content">
+            {% for tarefa in em_producao %}
+                <div class="marketing-card prio-{{ tarefa.prioridade }}" draggable="true" data-id="{{ tarefa.id }}">
+                    <button type="button" class="btn-edit-hover" onclick="abrirModalEdicao('{{ tarefa.id }}')" title="Editar">✎</button>
+                    <strong>{{ tarefa.titulo }}</strong>
+                    <p style="color: #8b949e; font-size: 0.85rem; margin: 5px 0;">{{ tarefa.descricao|truncatechars:60 }}</p>
+                    <div style="font-size: 0.75rem; color: #6e7681; margin-top: 8px;">
+                        <span>👤 {{ tarefa.get_responsavel_display }}</span><br>
+                        <span>📅 Criado: {{ tarefa.data_criacao|date:"d/m/Y" }}</span>
+                        {% if tarefa.data_limite %}
+                            <div class="prazo-info {% if tarefa.esta_atrasada %}texto-atrasado{% else %}texto-ok{% endif %}">
+                                {% if tarefa.esta_atrasada %}❗ Atrasado<br>{% endif %}
+                                🗓️ Prazo: {{ tarefa.data_limite|date:"d/m/Y" }}
+                                {% if tarefa.total_dias_previstos is not None %}
+                                    <br>⏱️ Total previsto: {{ tarefa.total_dias_previstos }} dia{% if tarefa.total_dias_previstos != 1 %}s{% endif %}
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% empty %}
+                <p class="text-center text-white mt-3">Nada em produção</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="marketing-col" data-status="concluido">
+        <div class="marketing-col-title">✅ Concluído - Total: {{ concluido|length }}</div>
+        <div class="col-content">
+            {% for tarefa in concluido %}
+                <div class="marketing-card prio-{{ tarefa.prioridade }}" draggable="true" data-id="{{ tarefa.id }}">
+                    <button type="button" class="btn-edit-hover" onclick="abrirModalEdicao('{{ tarefa.id }}')" title="Editar">✎</button>
+                    <strong>{{ tarefa.titulo }}</strong>
+                    <p style="color: #8b949e; font-size: 0.85rem; margin: 5px 0;">{{ tarefa.descricao|truncatechars:60 }}</p>
+                    <div style="font-size: 0.75rem; color: #6e7681; margin-top: 8px;">
+                        <span>👤 {{ tarefa.get_responsavel_display }}</span><br>
+                        <span>📅 Criado: {{ tarefa.data_criacao|date:"d/m/Y" }}</span>
+                        <br><span class="check-concluido" style="color: #00C851; font-weight: bold;">✅ Tarefa concluída</span>
+                    </div>
+                </div>
+            {% empty %}
+                <p class="text-center text-white mt-3">Nenhuma tarefa concluída</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="marketing-col" data-status="publicado">
+        <div class="marketing-col-title">📢 Publicado - Total: {{ publicado|length }}</div>
+        <div class="col-content">
+            {% for tarefa in publicado %}
+                <div class="marketing-card prio-{{ tarefa.prioridade }}" draggable="true" data-id="{{ tarefa.id }}">
+                    <button type="button" class="btn-edit-hover" onclick="abrirModalEdicao('{{ tarefa.id }}')" title="Editar">✎</button>
+                    <strong>{{ tarefa.titulo }}</strong>
+                    <p style="color: #8b949e; font-size: 0.85rem; margin: 5px 0;">{{ tarefa.descricao|truncatechars:60 }}</p>
+                    <div style="font-size: 0.75rem; color: #6e7681; margin-top: 8px;">
+                        <span>👤 {{ tarefa.get_responsavel_display }}</span><br>
+                        <span>📅 Criado: {{ tarefa.data_criacao|date:"d/m/Y" }}</span>
+                        <br><span class="check-publicado" style="color: #00C851; font-weight: bold;">📢 Tarefa publicada</span>
+                    </div>
+                </div>
+            {% empty %}
+                <p class="text-center text-white mt-3">Nada publicado ainda</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+    <div class="modal fade" id="modalNovaTarefa" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-white" style="border: 1px solid #ff00cc;">
+                <div class="modal-header" style="border-bottom: 1px solid #30363d;">
+                    <h5 class="modal-title">Nova Campanha / Tarefa</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Título</label>
+                            <input type="text" name="titulo" class="form-control bg-secondary text-white" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descrição / Briefing</label>
+                            <textarea name="descricao" class="form-control bg-secondary text-white" rows="3"></textarea>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Responsável</label>
+                                <select name="responsavel" class="form-select bg-secondary text-white">
+                                    <option value="felipe nery">Felipe Nery</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Prioridade</label>
+                                <select name="prioridade" class="form-select bg-secondary text-white">
+                                    <option value="baixa">Baixa</option>
+                                    <option value="media">Média</option>
+                                    <option value="alta">Alta</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Prazo Final</label>
+                            <input type="date" name="data_limite" class="form-control bg-secondary text-white">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Imagem</label>
+                            <input type="file" name="imagem" accept="image/*" class="form-control bg-secondary text-white">
+                        </div>
+                    </div>
+                    <div class="modal-footer" style="border-top: 1px solid #30363d;">
+                        <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn" style="background: #ff00cc; color: white;">Salvar Tarefa</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const cards = document.querySelectorAll('.marketing-card');
+    const colunas = document.querySelectorAll('.marketing-col');
+
+    function salvarPrazoOriginal(card) {
+        const prazoAtual = card.querySelector('.prazo-info');
+        if (prazoAtual && !card.dataset.prazoOriginalHtml) {
+            card.dataset.prazoOriginalHtml = prazoAtual.outerHTML;
+        }
+    }
+
+    function removerPrazoDoCard(card) {
+        salvarPrazoOriginal(card);
+        const prazoAtual = card.querySelector('.prazo-info');
+        if (prazoAtual) {
+            prazoAtual.remove();
+        }
+    }
+
+    function restaurarPrazoDoCard(card) {
+        const infoDiv = card.querySelector('div[style*="font-size: 0.75rem"]');
+        const prazoAtual = card.querySelector('.prazo-info');
+        if (!prazoAtual && card.dataset.prazoOriginalHtml && infoDiv) {
+            infoDiv.insertAdjacentHTML('beforeend', card.dataset.prazoOriginalHtml);
+        }
+    }
+
+    function atualizarEstiloCard(card, novoStatus) {
+        const tituloCard = card.querySelector('strong');
+        const infoDiv = card.querySelector('div[style*="font-size: 0.75rem"]');
+
+        const checkConcluido = card.querySelector('.check-concluido');
+        if (checkConcluido) {
+            checkConcluido.remove();
+        }
+
+        const checkPublicado = card.querySelector('.check-publicado');
+        if (checkPublicado) {
+            checkPublicado.remove();
+        }
+
+        if (novoStatus === 'concluido') {
+            card.style.borderLeft = "5px solid #00C851";
+            card.style.background = "rgba(0, 200, 81, 0.05)";
+            card.style.opacity = "1";
+            removerPrazoDoCard(card);
+
+            if (tituloCard) {
+                tituloCard.style.color = "#00C851";
+            }
+            if (infoDiv) {
+                infoDiv.innerHTML += '<br><span class="check-concluido" style="color: #00C851; font-weight: bold;">✅ Tarefa concluída</span>';
+            }
+        } else if (novoStatus === 'publicado') {
+            card.style.borderLeft = "5px solid #00C851";
+            card.style.background = "rgba(0, 200, 81, 0.05)";
+            card.style.opacity = "1";
+            removerPrazoDoCard(card);
+
+            if (tituloCard) {
+                tituloCard.style.color = "#00C851";
+            }
+
+            if (infoDiv) {
+                infoDiv.innerHTML += '<br><span class="check-publicado" style="color: #00C851; font-weight: bold;">📢 Tarefa publicada</span>';
+            }
+        } else {
+            card.style.background = "#0d1117";
+            card.style.opacity = "1";
+
+            if (tituloCard) {
+                tituloCard.style.color = "white";
+            }
+
+            if (card.classList.contains('prio-alta')) {
+                card.style.borderLeft = "5px solid #ff4444";
+            } else if (card.classList.contains('prio-media')) {
+                card.style.borderLeft = "5px solid #ffbb33";
+            } else if (card.classList.contains('prio-baixa')) {
+                card.style.borderLeft = "5px solid #00C851";
+            }
+
+            if (novoStatus === 'em_producao') {
+                restaurarPrazoDoCard(card);
+            }
+        }
+    }
+
+    cards.forEach(card => {
+        salvarPrazoOriginal(card);
+
+        card.addEventListener('click', (event) => {
+            if (event.target.closest('.btn-edit-hover') || event.target.closest('.btn-aprovar-briefing')) {
+                return;
+            }
+            if (card.classList.contains('dragging')) {
+                return;
+            }
+            const tarefaId = card.getAttribute('data-id');
+            if (tarefaId) {
+                abrirModalDetalhes(tarefaId);
+            }
+        });
+
+        card.addEventListener('dragstart', () => {
+            card.classList.add('dragging');
+        });
+
+        card.addEventListener('dragend', () => {
+            card.classList.remove('dragging');
+        });
+    });
+
+    colunas.forEach(coluna => {
+        coluna.addEventListener('dragover', e => {
+            e.preventDefault();
+        });
+
+        coluna.addEventListener('drop', e => {
+            e.preventDefault();
+
+            const card = document.querySelector('.dragging');
+            if (!card) return;
+
+            const status = coluna.getAttribute('data-status');
+            const tarefaId = card.getAttribute('data-id');
+            const container = coluna.querySelector('.col-content');
+
+            if (!container) return;
+
+            // Move visualmente
+            container.appendChild(card);
+
+            // Atualiza estilo visual imediatamente
+            atualizarEstiloCard(card, status);
+
+            // Salva no backend e recarrega a página ao concluir com sucesso
+            fetch(`atualizar-status/${tarefaId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ status: status })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Erro ao salvar o movimento.');
+                }
+
+                // Reload da página após salvar no banco
+                window.location.reload();
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                alert('Erro ao salvar o movimento.');
+                window.location.reload();
+            });
+        });
+    });
+
+    function abrirModalEdicao(id) {
+        fetch(`obter/${id}/`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Erro ao buscar dados');
+                }
+                return response.json();
+            })
+            .then(data => {
+                document.getElementById('edit_titulo').value = data.titulo;
+                document.getElementById('edit_descricao').value = data.descricao;
+                document.getElementById('edit_responsavel').value = data.responsavel;
+                document.getElementById('edit_prioridade').value = data.prioridade;
+                document.getElementById('edit_data_limite').value = data.data_limite;
+                document.getElementById('formEditarTarefa').action = `editar/${id}/`;
+
+                const editImagemAtual = document.getElementById('edit_imagem_atual');
+                const editImagemAtualWrap = document.getElementById('edit_imagem_atual_wrap');
+                document.getElementById('edit_imagem').value = '';
+
+                if (data.imagem_url) {
+                    editImagemAtual.src = data.imagem_url;
+                    editImagemAtualWrap.style.display = 'block';
+                } else {
+                    editImagemAtual.src = '';
+                    editImagemAtualWrap.style.display = 'none';
+                }
+
+                const modalElement = document.getElementById('modalEditarTarefa');
+                const modalInstance = bootstrap.Modal.getOrCreateInstance(modalElement);
+                modalInstance.show();
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+            });
+    }
+
+    function abrirModalDetalhes(id) {
+        fetch(`obter/${id}/`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Erro ao buscar detalhes da tarefa');
+                }
+                return response.json();
+            })
+            .then(data => {
+                document.getElementById('det_titulo').textContent = data.titulo || '-';
+                document.getElementById('det_descricao').textContent = data.descricao || 'Sem descricao';
+                document.getElementById('det_status').textContent = data.status_display || '-';
+                document.getElementById('det_responsavel').textContent = data.responsavel_display || '-';
+                document.getElementById('det_prioridade').textContent = data.prioridade_display || '-';
+                document.getElementById('det_data_criacao').textContent = data.data_criacao || '-';
+                document.getElementById('det_data_limite').textContent = data.data_limite_display || 'Sem prazo';
+                document.getElementById('det_total_dias').textContent = data.total_dias_previstos !== null ? `${data.total_dias_previstos} dia(s)` : '-';
+
+                const atraso = document.getElementById('det_atraso');
+                atraso.style.display = data.esta_atrasada ? 'block' : 'none';
+
+                const imagemWrap = document.getElementById('det_imagem_wrap');
+                const imagem = document.getElementById('det_imagem');
+                if (data.imagem_url) {
+                    imagem.src = data.imagem_url;
+                    imagemWrap.style.display = 'block';
+                } else {
+                    imagem.src = '';
+                    imagemWrap.style.display = 'none';
+                }
+
+                const modalElement = document.getElementById('modalDetalheTarefa');
+                const modalInstance = bootstrap.Modal.getOrCreateInstance(modalElement);
+                modalInstance.show();
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+            });
+    }
+
+    function toggleAprovacao(event, tarefaId, botao) {
+    // Impede que o clique no botão inicie o drag do card
+    event.stopPropagation();
+    event.preventDefault();
+
+    // Feedback visual imediato — evita double-click
+    botao.disabled = true;
+
+    fetch(`toggle-aprovacao/${tarefaId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({})
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => { throw new Error(err.error || 'Erro desconhecido'); });
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            if (data.aprovado) {
+                botao.textContent = '✅ Aprovado';
+                botao.classList.add('aprovado');
+                botao.title = 'Aprovado — clique para remover aprovação';
+            } else {
+                botao.textContent = '☐ Aprovar';
+                botao.classList.remove('aprovado');
+                botao.title = 'Aprovar briefing';
+            }
+        } else {
+            alert('Erro: ' + (data.error || 'Não foi possível salvar.'));
+        }
+    })
+    .catch(error => {
+        console.error('Erro ao alternar aprovação:', error);
+        alert('Erro ao salvar aprovação: ' + error.message);
+    })
+    .finally(() => {
+        botao.disabled = false;
+    });
+}
+
+</script>
+
+{% endblock %}
