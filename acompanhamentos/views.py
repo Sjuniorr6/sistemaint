@@ -528,6 +528,12 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
     context_object_name = "itens"
     permission_required = "acompanhamentos.view_registroacompanhamento"
 
+    TIPOS_CADASTRO = [
+        ("", "Todos"),
+        ("acompanhamento", "Acompanhamento"),
+        ("pronta_resposta", "Pronta Resposta"),
+    ]
+
     def get_pendentes_queryset(self):
         return registroacompanhamento.objects.filter(
             Q(tipo_servico__isnull=True) |
@@ -572,6 +578,7 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
         agente = self.request.GET.get("agente")
         cliente = self.request.GET.get("cliente")
         responsavel = self.request.GET.get("responsavel")
+        tipo_cadastro = self.request.GET.get("tipo_cadastro")
 
         if data and data2:
             if data > data2:
@@ -592,6 +599,9 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
             queryset = queryset.filter(
                 agentes__responsavel_agente_id=responsavel
             )
+        
+        if tipo_cadastro in {"acompanhamento", "pronta_resposta"}:
+            qs = qs.filter(cliente__tipo_cadastro=tipo_cadastro)
 
         return qs.distinct().order_by("-criado_em")
 
@@ -856,6 +866,8 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
         context["data2"] = self.request.GET.get("data2", "")
         context["agente"] = self.request.GET.get("agente", "")
         context["cliente"] = self.request.GET.get("cliente", "")
+        context["tipo_cadastro"] = self.request.GET.get("tipo_cadastro", "")
+        context["tipos_cadastro"] = self.TIPOS_CADASTRO
 
         return context
 
@@ -932,6 +944,12 @@ class AcompanhamentoFaturamentoListView(LoginRequiredMixin, PermissionRequiredMi
     context_object_name = "itens"
     permission_required = "acompanhamentos.view_listacompanhamento"
 
+    TIPOS_CADASTRO = [
+        ("", "Todos"),
+        ("acompanhamento", "Acompanhamento"),
+        ("pronta_resposta", "Pronta Resposta"),
+    ]
+
     def get_pendentes_queryset(self):
         return (
             registroacompanhamento.objects
@@ -963,6 +981,7 @@ class AcompanhamentoFaturamentoListView(LoginRequiredMixin, PermissionRequiredMi
         agente = self.request.GET.get("agente")
         cliente = self.request.GET.get("cliente")
         status = self.request.GET.get("status")
+        tipo_cadastro = self.request.GET.get("tipo_cadastro")
 
         if data and data2:
             if data > data2:
@@ -981,6 +1000,9 @@ class AcompanhamentoFaturamentoListView(LoginRequiredMixin, PermissionRequiredMi
 
         if status:
             qs = qs.filter(status=status)
+
+        if tipo_cadastro in {"acompanhamento", "pronta_resposta"}:
+            qs = qs.filter(cliente__tipo_cadastro=tipo_cadastro)
 
         return qs.distinct().order_by("-criado_em")
 
@@ -1506,7 +1528,9 @@ class AcompanhamentoFaturamentoListView(LoginRequiredMixin, PermissionRequiredMi
         context["data2"] = self.request.GET.get("data2", "")
         context["agente"] = self.request.GET.get("agente", "")
         context["cliente"] = self.request.GET.get("cliente", "")
-
+        context["tipo_cadastro"] = self.request.GET.get("tipo_cadastro", "")
+        context["tipos_cadastro"] = self.TIPOS_CADASTRO
+        
         return context
 
 # ACOMPANHAMENTO PANICO
@@ -1516,6 +1540,12 @@ class AcompanhamentoPanicoListView(LoginRequiredMixin, PermissionRequiredMixin, 
     template_name = "acompanhamento_panico.html"
     context_object_name = "itens"
     permission_required = "acompanhamentos.view_registroacompanhamento"
+
+    TIPOS_CADASTRO = [
+        ("", "Todos"),
+        ("acompanhamento", "Acompanhamento"),
+        ("pronta_resposta", "Pronta Resposta"),
+    ]
 
     def get_pendentes_queryset(self):
         return registroacompanhamento.objects.filter(
@@ -1559,6 +1589,7 @@ class AcompanhamentoPanicoListView(LoginRequiredMixin, PermissionRequiredMixin, 
         agente = self.request.GET.get("agente")
         cliente = self.request.GET.get("cliente")
         responsavel = self.request.GET.get("responsavel")
+        tipo_cadastro = self.request.GET.get("tipo_cadastro")
 
         if data and data2:
             if data > data2:
@@ -1579,6 +1610,9 @@ class AcompanhamentoPanicoListView(LoginRequiredMixin, PermissionRequiredMixin, 
             qs = qs.filter(
                 agentes__responsavel_agente_id=responsavel
             )
+
+        if tipo_cadastro in {"acompanhamento", "pronta_resposta"}:
+            qs = qs.filter(cliente__tipo_cadastro=tipo_cadastro)
 
         qs = qs.annotate(
             status_rank=Case(
@@ -2122,7 +2156,7 @@ def acompanhamento_dashboard_data(request):
 from django.views.generic import ListView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
-from .models import RequisicaoSolicitacao
+from .models import RequisicaoSolicitacao, Cliente
 from collections import OrderedDict
 import json
 
@@ -2146,17 +2180,22 @@ class RequisicaoSolicitacaoListView(LoginRequiredMixin, ListView):
         data_inicio = self.request.GET.get("data_inicio")
         data_fim = self.request.GET.get("data_fim")
         busca = self.request.GET.get("busca")
+        tipo_cadastro = self.request.GET.get("tipo_cadastro")
 
         if cliente:
             queryset = queryset.filter(cliente__nome__icontains=cliente)
+
         if placa:
             queryset = queryset.filter(placa__icontains=placa)
+
         if motorista:
             queryset = queryset.filter(motorista__icontains=motorista)
+
         if data_inicio and data_fim:
             queryset = queryset.filter(data_agendamento__range=[data_inicio, data_fim])
         elif data_inicio:
             queryset = queryset.filter(data_agendamento=data_inicio)
+
         if busca:
             queryset = queryset.filter(
                 Q(origem__icontains=busca) |
@@ -2164,17 +2203,28 @@ class RequisicaoSolicitacaoListView(LoginRequiredMixin, ListView):
                 Q(nome_user__icontains=busca)
             )
 
+        # Filtro por tipo de cadastro do cliente
+        if tipo_cadastro in {"acompanhamento", "pronta_resposta"}:
+            queryset = queryset.filter(cliente__tipo_cadastro=tipo_cadastro)
+
         return queryset.order_by("-criado_em")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["filtros"] = self.request.GET
 
+        context["tipos_cadastro"] = [
+            ("", "Todos"),
+            ("acompanhamento", "Acompanhamento"),
+            ("pronta_resposta", "Pronta Resposta"),
+        ]
+
         qs = context["requisicoes_raw"]
         agrupado = OrderedDict()
 
         for req in qs:
             key = req.requisicao_id_externo or f"solo_{req.pk}"
+
             if key not in agrupado:
                 agrupado[key] = {
                     "primeiro": req,
@@ -2182,13 +2232,13 @@ class RequisicaoSolicitacaoListView(LoginRequiredMixin, ListView):
                     "requisicao_id_externo": req.requisicao_id_externo,
                     "tem_multiplos": False,
                 }
+
             agrupado[key]["servicos"].append(req)
 
         for grupo in agrupado.values():
             grupo["tem_multiplos"] = len(grupo["servicos"]) > 1
-            # Serializa os serviços como JSON para uso no JS (child rows)
+
             if grupo["tem_multiplos"]:
-                from django.urls import reverse
                 grupo["servicos_json"] = json.dumps([
                     {
                         "pk": s.pk,
@@ -2201,14 +2251,12 @@ class RequisicaoSolicitacaoListView(LoginRequiredMixin, ListView):
                         "data_agendamento": s.data_agendamento.strftime("%d/%m/%Y") if s.data_agendamento else "-",
                         "horario_agendamento": s.horario_agendamento.strftime("%H:%M") if s.horario_agendamento else "-",
                         "url_criar": reverse("RequisicaoCreate", args=[s.pk]),
-
                         "comboio": bool(getattr(s, "comboio", False)),
                         "quantidade_veiculos_comboio": (
                             int(s.quantidade_veiculos_comboio)
                             if getattr(s, "quantidade_veiculos_comboio", None)
                             else None
                         ),
-
                         "is_reuso": bool(getattr(s, "is_reuso", False)),
                         "agente_nome_reuso": getattr(s, "agente_nome_reuso", "") or "",
                         "agente_placa_reuso": getattr(s, "agente_placa_reuso", "") or "",
@@ -2220,6 +2268,7 @@ class RequisicaoSolicitacaoListView(LoginRequiredMixin, ListView):
         context["total_grupos"] = len(agrupado)
 
         return context
+
 from django.views.generic import CreateView
 from django.urls import reverse_lazy, reverse
 from django.shortcuts import get_object_or_404, redirect

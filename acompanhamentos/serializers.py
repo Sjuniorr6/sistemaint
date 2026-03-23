@@ -6,7 +6,7 @@ class ClienteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Cliente
         fields = [
-            'id', 'id_externo', 'nome', 'cnpj', 'email', 'ativo'
+            'id', 'id_externo', 'nome', 'cnpj', 'email', 'tipo_cadastro', 'ativo'
         ]
     
     def create(self, validated_data):
@@ -24,7 +24,7 @@ class TipoServicoSerializer(serializers.ModelSerializer):
     class Meta:
         model = TipoServico
         fields = [
-            'id', 'id_externo', 'cliente_id_externo', 'codigo', 'ativo',
+            'id', 'id_externo', 'cliente_id_externo', 'codigo', 'ativo', 'tipo_cadastro',
             'valor_acionamento', 'franquia_km', 'franquia_horas',
             'valor_hora', 'valor_km'
         ]

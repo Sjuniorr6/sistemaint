@@ -29,6 +29,13 @@ class Cliente(models.Model):
         verbose_name="Cliente Comercial"
     )
     
+    tipo_cadastro = models.CharField(
+        max_length=40, 
+        blank=True,
+        null=True,
+        verbose_name="Tipo de atendimento"
+    )
+
     sincronizado_em = models.DateTimeField(auto_now=True)
     criado_em = models.DateTimeField(auto_now_add=True)
 
@@ -43,6 +50,10 @@ class Cliente(models.Model):
         return self.tipos_servico.filter(ativo=True)
 
 class TipoServico(models.Model):
+    class TipoAtendimento(models.TextChoices):
+        ACOMPANHAMENTO = "acompanhamento", "Acompanhamento"
+        PRONTA_RESPOSTA = "pronta_resposta", "Pronta Resposta"
+
     TIPOS_CHOICES = [
         ('MOTO_1', 'Moto | 1 Agente(s) - MOTO MONITORAMENTO ATIVO'),
         ('CARRO_1', 'Carro | 1 Agente(s) - CARRO MONITORAMENTO ATIVO'),
@@ -51,9 +62,8 @@ class TipoServico(models.Model):
         ('CARRO_2_1S1G', 'Carro | 2 Agente(s) - CARRO MONITORAMENTO ATIVO - 1S/1G'),
         ('CARRO_2_2G', 'Carro | 2 Agente(s) - CARRO MONITORAMENTO ATIVO - 2G'),
 
-        ('PR_MOTO_1', 'Moto | 1 Agente(s) - PRONTA RESPOSTA'),
-        ('PR_CARRO_1', 'Carro | 1 Agente(s) - PRONTA RESPOSTA'),
-        ('PR_CARRO_2', 'Carro | 2 Agente(s) - PRONTA RESPOSTA'),
+        ('AMBULANCIA', 'Ambulância - Transporte de Paciente'),
+        ('REBOQUE', 'Reboque - Resgate Veicular'),
     ]
 
     id_externo = models.IntegerField(unique=True, help_text="ID do tipo de serviço no GSAcionamento")
@@ -63,7 +73,17 @@ class TipoServico(models.Model):
         on_delete=models.CASCADE,
         related_name='tipos_servico'
     )
+
     codigo = models.CharField(max_length=20, choices=TIPOS_CHOICES)
+
+    tipo_cadastro = models.CharField(
+        max_length=20,
+        choices=TipoAtendimento.choices,
+        blank=True,
+        null=True,
+        verbose_name="Tipo de atendimento"
+    )
+    
     ativo = models.BooleanField(default=True)
 
     valor_acionamento = models.DecimalField(

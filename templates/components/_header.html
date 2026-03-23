@@ -476,7 +476,7 @@
                             {% if perms.requisicao.add_registrodeacompanhamento or perms.acompanhamentos.view_registrodeclienteacompanhamento or perms.acompanhamentos.view_registrodeagenteacompanhamento %}
                                 <li class="dropdown-submenu">
                                     <a class="dropdown-item dropdown-toggle">
-                                        Acompanhamento
+                                        Acionamentos
                                     </a>
                                     <ul class="dropdown-menu">
                                         <!-- {% if perms.requisicao.view_listacompanhamento %}
@@ -496,7 +496,7 @@
                                         {% if perms.acompanhamentos.view_registroacompanhamento %}
                                         <li>
                                             <a class="dropdown-item" href="{% url 'acompanhamentosList' %}">
-                                                Ver Acompanhamentos
+                                                Ver Acionamentos
                                             </a>
                                         </li>
                                         {% endif %}
@@ -504,7 +504,7 @@
                                         {% if perms.acompanhamentos.view_registroacompanhamento %}
                                         <li>
                                             <a class="dropdown-item" href="{% url 'acompanhamentosPanicoList' %}">
-                                                Acompanhamentos Central
+                                                Acionamentos Central
                                             </a>
                                         </li>
                                         {% endif %}
@@ -519,7 +519,7 @@
                                         {% if perms.acompanhamentos.view_registrodeagenteacompanhamento %}
                                         <li>
                                             <a class="dropdown-item" href="{% url 'agenteAcompanhamentoList' %}">
-                                                Agentes Acompanhamento
+                                                Agentes Acionamento
                                             </a>
                                         </li>
                                         {% endif %}

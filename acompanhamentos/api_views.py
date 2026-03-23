@@ -84,6 +84,7 @@ def sync_cliente(request):
             defaults={
                 'nome': data.get('nome'),
                 'cnpj': data.get('cnpj'),
+                'tipo_cadastro': data.get('tipo_cadastro') or None,
                 'email': data.get('email', ''),
                 'ativo': data.get('ativo', True),
 
@@ -123,6 +124,7 @@ def sync_tipo_servico(request):
                 'cliente': cliente,
                 'codigo': data.get('codigo'),
                 'ativo': data.get('ativo', True),
+                'tipo_cadastro': data.get('tipo_cadastro', '') or None,
                 'valor_acionamento': data.get('valor_acionamento', 0),
                 'franquia_km': data.get('franquia_km', 0),
                 'franquia_horas': data.get('franquia_horas', 0),

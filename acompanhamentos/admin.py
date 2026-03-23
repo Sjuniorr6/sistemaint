@@ -364,7 +364,6 @@ class RegistroAcompanhamentoAgenteAdmin(admin.ModelAdmin):
         }),
     )
 
-
 # ------------------------------------------------------
 #             Novo Acompanhamento
 # ------------------------------------------------------
@@ -396,7 +395,14 @@ class ClienteAdmin(admin.ModelAdmin):
     list_display = ['id', 'id_externo', 'comercial', 'nome', 'cnpj', 'ativo', 'sincronizado_em']
     search_fields = ['nome', 'cnpj']
     list_filter = ['ativo']
-    fildsets = [ 'comercial']
+    fieldsets = (
+        ("Informações do Cliente", {
+            "fields": ('id_externo', 'nome', 'tipo_cadastro', 'cnpj', 'email', 'ativo')
+        }),
+        ("Auditoria", {
+            "fields": ('sincronizado_em', 'criado_em')
+        })
+    )
     readonly_fields = ['id_externo', 'nome', 'cnpj', 'email', 'ativo', 'sincronizado_em', 'criado_em']
     
     def has_add_permission(self, request):

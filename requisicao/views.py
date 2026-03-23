@@ -2698,22 +2698,8 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 @api_view(["GET"])
-@cache_page(60 * 30)  # Cache de 30 minutos
+@cache_page(60 * 30)
 def api_requisicoes(request):
-    """
-    API para retornar todas as requisições do sistema
-    Atualiza a cada 30 minutos (cache)
-
-    Retorna:
-    - N° Pedido
-    - Cliente
-    - Contrato (Descartavel / Retornavel)
-    - Modelo
-    - Status
-    - Comercial
-    - Customização
-    - Quantidade
-    """
     requisicoes = (
         Requisicoes.objects.select_related("nome", "tipo_produto").all().order_by("-id")
     )
@@ -2732,6 +2718,9 @@ def api_requisicoes(request):
                 "customizacao": req.tipo_customizacao if req.tipo_customizacao else "",
                 "quantidade": (
                     req.numero_de_equipamentos if req.numero_de_equipamentos else "0"
+                ),
+                "valor_total": (
+                    req.valor_total if req.valor_total else "0"
                 ),
             }
         )
