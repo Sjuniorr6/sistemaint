@@ -191,9 +191,23 @@ class RequisicaoSolicitacao(models.Model):
     campo_personalizado_valor = models.CharField(max_length=255, blank=True, null=True)
 
     origem = models.CharField(max_length=500)
+    origem_2 = models.CharField(max_length=500)
+    origem_3 = models.CharField(max_length=500)
     latitude_origem = models.DecimalField(max_digits=10, decimal_places=7, blank=True, null=True)
     longitude_origem = models.DecimalField(max_digits=10, decimal_places=7, blank=True, null=True)
+    latitude_origem_2 = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    longitude_origem_2 = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    latitude_origem_3 = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    longitude_origem_3 = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
     destino = models.CharField(max_length=500, blank=True, null=True)
+    destino_2 = models.CharField(max_length=500, blank=True)
+    destino_3 = models.CharField(max_length=500, blank=True)
+    latitude_destino = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    longitude_destino = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    latitude_destino_2 = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    longitude_destino_2 = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    latitude_destino_3 = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    longitude_destino_3 = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
 
     motorista = models.CharField(max_length=255)
     numero_motorista = models.CharField(max_length=255)
@@ -485,12 +499,92 @@ class registroacompanhamento(models.Model):
         verbose_name="Longitude do Origem"
     )
 
+    origem_2 = models.CharField(max_length=100, blank=True, null=True)
+
+    latitude_origem2 = models.DecimalField(
+        max_digits=9, decimal_places=7,
+        blank=True, null=True,
+        verbose_name="Latitude do Origem"
+    )
+
+    longitude_origem2 = models.DecimalField(
+        max_digits=9, decimal_places=7,
+        blank=True, null=True,
+        verbose_name="Longitude do Origem"
+    )
+
+    origem_3 = models.CharField(max_length=100, blank=True, null=True)
+
+    latitude_origem3 = models.DecimalField(
+        max_digits=9, decimal_places=7,
+        blank=True, null=True,
+        verbose_name="Latitude do Origem"
+    )
+
+    longitude_origem3 = models.DecimalField(
+        max_digits=9, decimal_places=7,
+        blank=True, null=True,
+        verbose_name="Longitude do Origem"
+    )
+
     raio_cerca = models.PositiveIntegerField(
         default=60,
         verbose_name="Raio da Cerca (metros)"
     )
 
+    raio_cerca_2 = models.PositiveIntegerField(
+        default=60,
+        verbose_name="Raio da Cerca 2 (metros)",
+        blank=True,
+        null=True,
+    )
+
+    raio_cerca_3 = models.PositiveIntegerField(
+        default=60,
+        verbose_name="Raio da Cerca 3 (metros)",
+        blank=True,
+        null=True,
+    )
+
     destino = models.CharField(max_length=100, blank=True, null=True,)
+    destino_2 = models.CharField(max_length=100, blank=True, null=True,)
+    destino_3 = models.CharField(max_length=100, blank=True, null=True,)
+
+    latitude_destino = models.DecimalField(
+        max_digits=9, decimal_places=7,
+        blank=True, null=True,
+        verbose_name="Latitude do Destino"
+    )
+
+    longitude_destino = models.DecimalField(
+        max_digits=9, decimal_places=7,
+        blank=True, null=True,
+        verbose_name="Longitude do Destino"
+    )
+
+    latitude_destino_2 = models.DecimalField(
+        max_digits=9, decimal_places=7,
+        blank=True, null=True,
+        verbose_name="Latitude do Destino"
+    )
+
+    longitude_destino_2 = models.DecimalField(
+        max_digits=9, decimal_places=7,
+        blank=True, null=True,
+        verbose_name="Longitude do Destino"
+    )
+
+    latitude_destino_3 = models.DecimalField(
+        max_digits=9, decimal_places=7,
+        blank=True, null=True,
+        verbose_name="Latitude do Destino"
+    )
+
+    longitude_destino_3 = models.DecimalField(
+        max_digits=9, decimal_places=7,
+        blank=True, null=True,
+        verbose_name="Longitude do Destino"
+    )
 
     valor_contrato = models.DecimalField(
         max_digits=12,

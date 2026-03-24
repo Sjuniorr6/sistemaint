@@ -101,17 +101,55 @@ def sync_acompanhamento_to_supabase(acompanhamento):
         if not agente_nome:
             agente_nome = "Não atribuído"  # NOT NULL no Supabase
 
-        # ✅ Geofence (cerca_origem) enviada para o Supabase
-        geofence = None
-        if (
-            getattr(acompanhamento, "latitude_origem", None) is not None
-            and getattr(acompanhamento, "longitude_origem", None) is not None
-        ):
-            geofence = {
-                "latitude": float(acompanhamento.latitude_origem),
-                "longitude": float(acompanhamento.longitude_origem),
+        # Define tipo_acionamento para o app:
+        # pronta_resposta = 1 | acompanhamento (e demais casos) = 0
+        tipo_cadastro_base = (
+            getattr(getattr(acompanhamento, "tipo_servico", None), "tipo_cadastro", None)
+            or getattr(getattr(acompanhamento, "cliente", None), "tipo_cadastro", None)
+            or ""
+        )
+        tipo_cadastro_normalizado = str(tipo_cadastro_base).strip().lower()
+        tipo_acionamento = 1 if tipo_cadastro_normalizado == "pronta_resposta" else 0
+
+        # ✅ Origens e destinos em listas (formato único no agent_data)
+        origem_points = [
+            {
+                "descricao": str(getattr(acompanhamento, "origem", "") or ""),
+                "latitude": float(getattr(acompanhamento, "latitude_origem", None)) if getattr(acompanhamento, "latitude_origem", None) is not None else None,
+                "longitude": float(getattr(acompanhamento, "longitude_origem", None)) if getattr(acompanhamento, "longitude_origem", None) is not None else None,
                 "raio": int(getattr(acompanhamento, "raio_cerca", None) or 60),
-            }
+            },
+            {
+                "descricao": str(getattr(acompanhamento, "origem_2", "") or ""),
+                "latitude": float(getattr(acompanhamento, "latitude_origem2", None)) if getattr(acompanhamento, "latitude_origem2", None) is not None else None,
+                "longitude": float(getattr(acompanhamento, "longitude_origem2", None)) if getattr(acompanhamento, "longitude_origem2", None) is not None else None,
+                "raio": int(getattr(acompanhamento, "raio_cerca_2", None) or 60),
+            },
+            {
+                "descricao": str(getattr(acompanhamento, "origem_3", "") or ""),
+                "latitude": float(getattr(acompanhamento, "latitude_origem3", None)) if getattr(acompanhamento, "latitude_origem3", None) is not None else None,
+                "longitude": float(getattr(acompanhamento, "longitude_origem3", None)) if getattr(acompanhamento, "longitude_origem3", None) is not None else None,
+                "raio": int(getattr(acompanhamento, "raio_cerca_3", None) or 60),
+            },
+        ]
+
+        destino_points = [
+            {
+                "descricao": str(getattr(acompanhamento, "destino", "") or ""),
+                "latitude": float(getattr(acompanhamento, "latitude_destino", None)) if getattr(acompanhamento, "latitude_destino", None) is not None else None,
+                "longitude": float(getattr(acompanhamento, "longitude_destino", None)) if getattr(acompanhamento, "longitude_destino", None) is not None else None,
+            },
+            {
+                "descricao": str(getattr(acompanhamento, "destino_2", "") or ""),
+                "latitude": float(getattr(acompanhamento, "latitude_destino_2", None)) if getattr(acompanhamento, "latitude_destino_2", None) is not None else None,
+                "longitude": float(getattr(acompanhamento, "longitude_destino_2", None)) if getattr(acompanhamento, "longitude_destino_2", None) is not None else None,
+            },
+            {
+                "descricao": str(getattr(acompanhamento, "destino_3", "") or ""),
+                "latitude": float(getattr(acompanhamento, "latitude_destino_3", None)) if getattr(acompanhamento, "latitude_destino_3", None) is not None else None,
+                "longitude": float(getattr(acompanhamento, "longitude_destino_3", None)) if getattr(acompanhamento, "longitude_destino_3", None) is not None else None,
+            },
+        ]
 
         # -----------------------------
         # ✅ NOVO: franquia_horas + inicio + fim previsto
@@ -141,6 +179,9 @@ def sync_acompanhamento_to_supabase(acompanhamento):
             "acompanhamento_id": acompanhamento.id,
             "criado_em": (getattr(acompanhamento, "criado_em", None) or timezone.now()).isoformat(),
             "agente_nome": agente_nome,
+            "tipo_acionamento": tipo_acionamento,
+            "origens": origem_points,
+            "destinos": destino_points,
 
             # ✅ NOVOS CAMPOS (do jeito que você pediu)
             "franquia_horas": franquia_horas,  # number | null
@@ -161,14 +202,15 @@ def sync_acompanhamento_to_supabase(acompanhamento):
                 agent_data["franquia_nome"] = str(getattr(agente_principal.franquia, "nome", "") or "")
                 agent_data["franquia_id"] = int(agente_principal.franquia.id)
 
-        # ✅ anexa geofence no agent_data
-        if geofence:
-            agent_data["geofence"] = geofence
-
         payload = {
             "id": mission_id,
             "status": (getattr(acompanhamento, "status_acompanhamento", None) or "pendente"),
             "origem": (acompanhamento.origem or ""),
+            "origem_2": (getattr(acompanhamento, "origem_2", "") or ""),
+            "origem_3": (getattr(acompanhamento, "origem_3", "") or ""),
+            "destino": (getattr(acompanhamento, "destino", "") or ""),
+            "destino_2": (getattr(acompanhamento, "destino_2", "") or ""),
+            "destino_3": (getattr(acompanhamento, "destino_3", "") or ""),
             "agente": agente_nome,
             "agent_data": agent_data,
             "updated_at": timezone.now().isoformat(),

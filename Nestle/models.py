@@ -20,6 +20,7 @@ class GridInternacional(models.Model):
         ('Extraviado', 'Extraviado'),
         ('Reversa Finalizada', 'Reversa Finalizada'),
         ('Equipamento na Base', 'Equipamento na Base'),
+        ('Fora de Operação', 'Fora de Operação'),
         
     ]
 
@@ -143,6 +144,8 @@ class GridInternacional(models.Model):
         
         if self.status_operacao == 'Extraviado':
             status = 'Extraviado'
+        elif self.status_operacao == 'Fora de Operação':
+            status = 'Fora de Operação'
         elif self.golden_sat:
             status = 'Reversa Finalizada'
         elif self.liberacao:
@@ -181,6 +184,7 @@ class GridInternacional(models.Model):
             'Em Viagem': 'Em viagem',
             'Estoque Golden': 'Estoque Cliente',
             'Aguardando Envio': 'Aguardando Embarque Internacional',
+            'Fora de Operação': 'Fora de Operação',
             # Adicione outros mapeamentos conforme necessário
         }
 

@@ -485,7 +485,8 @@ class RequisicaoSolicitacaoAdmin(admin.ModelAdmin):
     readonly_fields = [
         'id_externo', 'requisicao_id_externo', 'missao', 'cliente', 'tipo_servico',
         'campo_personalizado_titulo', 'campo_personalizado_valor',
-        'origem', 'destino',
+        'origem', 'origem_2', 'origem_3',
+        'destino', 'destino_2', 'destino_3',
         'motorista', 'numero_motorista', 'placa', 'comboio', 'quantidade_veiculos_comboio', 'data_agendamento', 'horario_agendamento',
         'nome_user', 'sincronizado_em', 'criado_em'
     ]
@@ -495,7 +496,8 @@ class RequisicaoSolicitacaoAdmin(admin.ModelAdmin):
         ('Dados do GSAcionamento (Somente Leitura)', {
             'fields': (
                 'id_externo', 'requisicao_id_externo', 'missao', 'cliente', 'tipo_servico', 'nome_user',
-                'origem', 'destino',
+                'origem', 'origem_2', 'origem_3',
+                'destino', 'destino_2', 'destino_3',
                 'motorista', 'numero_motorista', 'placa', 'comboio', 'quantidade_veiculos_comboio', 'data_agendamento', 'horario_agendamento',
                 'campo_personalizado_titulo', 'campo_personalizado_valor',
 
@@ -503,7 +505,7 @@ class RequisicaoSolicitacaoAdmin(admin.ModelAdmin):
             )
         }),
         ('Campos Editáveis', {
-            'fields': ('ocorrencia', 'solicitado', 'latitude_origem', 'longitude_origem',)
+            'fields': ('ocorrencia', 'solicitado', 'latitude_origem', 'longitude_origem', 'latitude_origem_2', 'longitude_origem_2', 'latitude_origem_3', 'longitude_origem_3', 'latitude_destino', 'longitude_destino', 'latitude_destino_2', 'longitude_destino_2', 'latitude_destino_3', 'longitude_destino_3')
         }),
         ('Metadados', {
             'fields': ('sincronizado_em', 'criado_em'),

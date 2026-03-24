@@ -327,43 +327,75 @@ def sb_mission_location(request, mission_id):
 
         current_status = (mission.get("status") or "").strip()
 
-        # 3) Geofence: preferir Supabase (agent_data.geofence)
+        # 3) Geofence: aceita múltiplas cercas (agent_data.geofences)
         geofence_result = None
         status_changed = False
         new_status = None
 
         agent_data = mission.get("agent_data") or {}
-        gf = agent_data.get("geofence") or {}
-
-        lat_orig = gf.get("latitude")
-        lng_orig = gf.get("longitude")
-        raio = gf.get("raio")
+        geofences = agent_data.get("geofences") or []
+        if not geofences and agent_data.get("geofence"):
+            geofences = [agent_data.get("geofence")]
 
         # fallback: se ainda não tiver geofence no Supabase, usa Django (compatibilidade)
-        if (lat_orig is None or lng_orig is None) and current_status == STATUS_MISSAO_ACEITA:
+        if not geofences and current_status == STATUS_MISSAO_ACEITA:
             acomp = _get_django_acompanhamento(mission_id)
-            if acomp and acomp.latitude_origem and acomp.longitude_origem:
-                lat_orig = float(acomp.latitude_origem)
-                lng_orig = float(acomp.longitude_origem)
-                raio = int(acomp.raio_cerca or 60)
+            if acomp:
+                if acomp.latitude_origem is not None and acomp.longitude_origem is not None:
+                    geofences.append({
+                        "latitude": float(acomp.latitude_origem),
+                        "longitude": float(acomp.longitude_origem),
+                        "raio": int(acomp.raio_cerca or 60),
+                        "origem_index": 1,
+                    })
+                if acomp.latitude_origem2 is not None and acomp.longitude_origem2 is not None:
+                    geofences.append({
+                        "latitude": float(acomp.latitude_origem2),
+                        "longitude": float(acomp.longitude_origem2),
+                        "raio": int((acomp.raio_cerca_2 if acomp.raio_cerca_2 is not None else 60) or 60),
+                        "origem_index": 2,
+                    })
+                if acomp.latitude_origem3 is not None and acomp.longitude_origem3 is not None:
+                    geofences.append({
+                        "latitude": float(acomp.latitude_origem3),
+                        "longitude": float(acomp.longitude_origem3),
+                        "raio": int((acomp.raio_cerca_3 if acomp.raio_cerca_3 is not None else 60) or 60),
+                        "origem_index": 3,
+                    })
 
-        if lat_orig is not None and lng_orig is not None:
+        checks = []
+        for idx, gf in enumerate(geofences, start=1):
+            lat_orig = gf.get("latitude")
+            lng_orig = gf.get("longitude")
+            if lat_orig is None or lng_orig is None:
+                continue
+
             lat_orig = float(lat_orig)
             lng_orig = float(lng_orig)
-            raio = int(raio or 60)
-
+            raio = int(gf.get("raio") or 60)
             distancia = haversine(lat, lng, lat_orig, lng_orig)
 
-            geofence_result = {
+            checks.append({
                 "distance_meters": round(distancia, 2),
                 "radius_meters": raio,
                 "inside": distancia <= raio,
                 "origin_lat": lat_orig,
                 "origin_lng": lng_orig,
+                "origin_index": gf.get("origem_index") or idx,
+            })
+
+        if checks:
+            best = min(checks, key=lambda item: item["distance_meters"])
+            inside_any = any(item["inside"] for item in checks)
+
+            geofence_result = {
+                **best,
+                "inside_any": inside_any,
+                "geofences": checks,
             }
 
-            # ✅ regra principal: entrou na cerca_origem com missão aceita -> no_local
-            if current_status == STATUS_MISSAO_ACEITA and distancia <= raio:
+            # ✅ regra principal: entrou em qualquer cerca_origem com missão aceita -> no_local
+            if current_status == STATUS_MISSAO_ACEITA and inside_any:
                 _update_supabase_status(sb, mission_id, STATUS_NO_LOCAL)
                 _sync_django_status(mission_id, STATUS_NO_LOCAL)
                 new_status = STATUS_NO_LOCAL
@@ -754,13 +786,33 @@ def sb_mission_status(request, mission_id):
 
         # Geofence info (do Django)
         geofence = None
+        geofences = []
         acomp = _get_django_acompanhamento(mission_id)
-        if acomp and acomp.latitude_origem and acomp.longitude_origem:
-            geofence = {
-                "latitude": float(acomp.latitude_origem),
-                "longitude": float(acomp.longitude_origem),
-                "raio": acomp.raio_cerca or 60,
-            }
+        if acomp:
+            if acomp.latitude_origem is not None and acomp.longitude_origem is not None:
+                geofences.append({
+                    "latitude": float(acomp.latitude_origem),
+                    "longitude": float(acomp.longitude_origem),
+                    "raio": acomp.raio_cerca or 60,
+                    "origem_index": 1,
+                })
+            if acomp.latitude_origem2 is not None and acomp.longitude_origem2 is not None:
+                geofences.append({
+                    "latitude": float(acomp.latitude_origem2),
+                    "longitude": float(acomp.longitude_origem2),
+                    "raio": (acomp.raio_cerca_2 if acomp.raio_cerca_2 is not None else 60) or 60,
+                    "origem_index": 2,
+                })
+            if acomp.latitude_origem3 is not None and acomp.longitude_origem3 is not None:
+                geofences.append({
+                    "latitude": float(acomp.latitude_origem3),
+                    "longitude": float(acomp.longitude_origem3),
+                    "raio": (acomp.raio_cerca_3 if acomp.raio_cerca_3 is not None else 60) or 60,
+                    "origem_index": 3,
+                })
+
+        if geofences:
+            geofence = geofences[0]
 
         return _ok({
             "mission_id": mission_id,
@@ -773,6 +825,7 @@ def sb_mission_status(request, mission_id):
             "panic_active": panic_active,
             "panics": panics,
             "geofence": geofence,
+            "geofences": geofences,
         })
 
     try:
@@ -802,23 +855,16 @@ def sb_mission_geofence_check(request, mission_id):
 
         current_status = (mission.get("status") or "").strip()
         agent_data = mission.get("agent_data") or {}
-        geofence = agent_data.get("geofence") or {}
+        geofences = agent_data.get("geofences") or []
+        if not geofences and agent_data.get("geofence"):
+            geofences = [agent_data.get("geofence")]
 
-        lat_orig = geofence.get("latitude")
-        lng_orig = geofence.get("longitude")
-        raio = geofence.get("raio")
-
-        if lat_orig is None or lng_orig is None:
+        if not geofences:
             return _err(
-                "Geofence não configurado em agent_data.geofence",
+                "Geofence não configurado em agent_data.geofence(s)",
                 status=409,
                 details={"agent_data": agent_data},
             )
-
-        # Normaliza tipos
-        lat_orig = float(lat_orig)
-        lng_orig = float(lng_orig)
-        raio = float(raio or 60)
 
         # 2) Buscar último ponto do tracking
         last_res = (
@@ -842,9 +888,33 @@ def sb_mission_geofence_check(request, mission_id):
         lat = float(lat)
         lng = float(lng)
 
-        # 3) Calcular distância e decidir
-        distancia = haversine(lat, lng, lat_orig, lng_orig)
-        inside = distancia <= raio
+        # 3) Calcular distância em todas as cercas e decidir
+        checks = []
+        for idx, gf in enumerate(geofences, start=1):
+            lat_orig = gf.get("latitude")
+            lng_orig = gf.get("longitude")
+            if lat_orig is None or lng_orig is None:
+                continue
+
+            lat_orig = float(lat_orig)
+            lng_orig = float(lng_orig)
+            raio = float(gf.get("raio") or 60)
+            distancia = haversine(lat, lng, lat_orig, lng_orig)
+
+            checks.append({
+                "latitude": lat_orig,
+                "longitude": lng_orig,
+                "raio": raio,
+                "distance_meters": round(distancia, 2),
+                "inside": distancia <= raio,
+                "origin_index": gf.get("origem_index") or idx,
+            })
+
+        if not checks:
+            return _err("Geofence inválido: nenhum ponto latitude/longitude", status=409)
+
+        best = min(checks, key=lambda item: item["distance_meters"])
+        inside = any(item["inside"] for item in checks)
 
         changed = False
         new_status = current_status
@@ -862,17 +932,19 @@ def sb_mission_geofence_check(request, mission_id):
             "new_status": new_status,
             "changed": changed,
             "geofence": {
-                "latitude": lat_orig,
-                "longitude": lng_orig,
-                "raio": raio,
+                "latitude": best["latitude"],
+                "longitude": best["longitude"],
+                "raio": best["raio"],
+                "origin_index": best["origin_index"],
             },
+            "geofences": checks,
             "last_tracking": {
                 "id": last.get("id"),
                 "lat": lat,
                 "lng": lng,
                 "timestamp": last.get("timestamp") or last.get("created_at"),
             },
-            "distance_meters": round(distancia, 2),
+            "distance_meters": best["distance_meters"],
             "inside": inside,
             "checked_at": _now_iso(),
         })

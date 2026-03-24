@@ -176,6 +176,7 @@ class GridInternacional(ListView):
             'Aguardando Coleta',
             'Aguardando Embarque Internacional',
             'Aguardando Chegada na Base',
+            'Fora de Operação',
         ]}
         if cliente_nome:
             qs = list(GridInternacionalModel.objects.filter(cliente__icontains=cliente_nome))
@@ -393,6 +394,8 @@ def grid_internacional_quick_edit(request):
                 badge_class = 'bg-warning'
             elif value == 'Em reversa para o Brasil':
                 badge_class = 'bg-info'
+            elif value == 'Fora de Operação':
+                badge_class = 'bg-danger'
             elif value == 'No destino':
                 badge_class = 'bg-secondary'
             else:
@@ -600,7 +603,7 @@ def grid_internacional_json(request):
         status_labels = [
             'Em Contrato', 'Em Estoque', 'Em Viagem', 'No Destino',
             'Menos de 75 dias', 'Mais de 75 dias', 'Retirado Ag. Envio',
-            'Em Reversa Para o Brasil', 'Reversa Finalizada', 'Resumo Para Envio'
+            'Em Reversa Para o Brasil', 'Reversa Finalizada', 'Resumo Para Envio', 'Fora de Operação'
         ]
         
         # Lista completa de SLAs disponíveis
@@ -1018,7 +1021,7 @@ def clientes_sla_view(request):
     status_labels = [
         'Em Contrato', 'Em Estoque', 'Em Viagem', 'No Destino',
         'Menos de 75 dias', 'Mais de 75 dias', 'Retirado Ag. Envio',
-        'Em Reversa Para o Brasil', 'Reversa Finalizada', 'Resumo Para Envio'
+        'Em Reversa Para o Brasil', 'Reversa Finalizada', 'Resumo Para Envio', 'Fora de Operação'
     ]
     sla_labels = [
         'sla_insercao', 'sla_terrestre', 'sla_porto_nacional', 'sla_maritimo',

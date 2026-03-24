@@ -61,11 +61,28 @@ class RegistroAcompanhamentoForm(forms.ModelForm):
             "cliente",
             "tipo_servico",
             "origem",
+            "origem_2",
+            "origem_3",
             "destino",
+            "destino_2",
+            "destino_3",
 
             "latitude_origem",
             "longitude_origem",
+            "latitude_origem2",
+            "longitude_origem2",
+            "latitude_origem3",
+            "longitude_origem3",
             "raio_cerca",
+            "raio_cerca_2",
+            "raio_cerca_3",
+
+            "latitude_destino",
+            "longitude_destino",
+            "latitude_destino_2",
+            "longitude_destino_2",
+            "latitude_destino_3",
+            "longitude_destino_3",
 
             "campo_personalizado_titulo",
             "campo_personalizado_valor",
@@ -77,7 +94,11 @@ class RegistroAcompanhamentoForm(forms.ModelForm):
             "cliente": forms.Select(attrs={"class": "form-control select2"}),
             "tipo_servico": forms.Select(attrs={"class": "form-control select2"}),
             "origem": forms.TextInput(attrs={"class": "form-control bg-light"}),
+            "origem_2": forms.TextInput(attrs={"class": "form-control bg-light"}),
+            "origem_3": forms.TextInput(attrs={"class": "form-control bg-light"}),
             "destino": forms.TextInput(attrs={"class": "form-control bg-light"}),
+            "destino_2": forms.TextInput(attrs={"class": "form-control bg-light"}),
+            "destino_3": forms.TextInput(attrs={"class": "form-control bg-light"}),
 
             "latitude_origem": forms.NumberInput(attrs={
                 "class": "form-control", 
@@ -89,9 +110,67 @@ class RegistroAcompanhamentoForm(forms.ModelForm):
                 "placeholder": "Ex: -46.633308",
                 "step": "any"
             }),
+            "latitude_origem2": forms.NumberInput(attrs={
+                "class": "form-control",
+                "placeholder": "Ex: -23.550520",
+                "step": "any"
+            }),
+            "longitude_origem2": forms.NumberInput(attrs={
+                "class": "form-control",
+                "placeholder": "Ex: -46.633308",
+                "step": "any"
+            }),
+            "latitude_origem3": forms.NumberInput(attrs={
+                "class": "form-control",
+                "placeholder": "Ex: -23.550520",
+                "step": "any"
+            }),
+            "longitude_origem3": forms.NumberInput(attrs={
+                "class": "form-control",
+                "placeholder": "Ex: -46.633308",
+                "step": "any"
+            }),
             "raio_cerca": forms.NumberInput(attrs={
                 "class": "form-control",
                 "placeholder": "Raio em metros"
+            }),
+            "raio_cerca_2": forms.NumberInput(attrs={
+                "class": "form-control",
+                "placeholder": "Raio em metros"
+            }),
+            "raio_cerca_3": forms.NumberInput(attrs={
+                "class": "form-control",
+                "placeholder": "Raio em metros"
+            }),
+            "latitude_destino": forms.NumberInput(attrs={
+                "class": "form-control",
+                "placeholder": "Ex: -23.550520",
+                "step": "any"
+            }),
+            "longitude_destino": forms.NumberInput(attrs={
+                "class": "form-control",
+                "placeholder": "Ex: -46.633308",
+                "step": "any"
+            }),
+            "latitude_destino_2": forms.NumberInput(attrs={
+                "class": "form-control",
+                "placeholder": "Ex: -23.550520",
+                "step": "any"
+            }),
+            "longitude_destino_2": forms.NumberInput(attrs={
+                "class": "form-control",
+                "placeholder": "Ex: -46.633308",
+                "step": "any"
+            }),
+            "latitude_destino_3": forms.NumberInput(attrs={
+                "class": "form-control",
+                "placeholder": "Ex: -23.550520",
+                "step": "any"
+            }),
+            "longitude_destino_3": forms.NumberInput(attrs={
+                "class": "form-control",
+                "placeholder": "Ex: -46.633308",
+                "step": "any"
             }),
 
             "campo_personalizado_titulo": forms.TextInput(attrs={
@@ -240,10 +319,26 @@ class RegistroAcompanhamentoFromRequisicaoForm(forms.ModelForm):
             "cliente",
             "tipo_servico",
             "origem",
+            "origem_2",
+            "origem_3",
             "destino",
+            "destino_2",
+            "destino_3",
             "latitude_origem",
             "longitude_origem",
+            "latitude_origem2",
+            "longitude_origem2",
+            "latitude_origem3",
+            "longitude_origem3",
             "raio_cerca",
+            "raio_cerca_2",
+            "raio_cerca_3",
+            "latitude_destino",
+            "longitude_destino",
+            "latitude_destino_2",
+            "longitude_destino_2",
+            "latitude_destino_3",
+            "longitude_destino_3",
             "campo_personalizado_titulo",
             "campo_personalizado_valor",
             "ocorrencia",
@@ -253,7 +348,11 @@ class RegistroAcompanhamentoFromRequisicaoForm(forms.ModelForm):
             "cliente": forms.HiddenInput(),
             "tipo_servico": forms.Select(attrs={"class": "form-control select2", "disabled": "disabled"}),
             "origem": forms.TextInput(attrs={"class": "form-control "}),
+            "origem_2": forms.TextInput(attrs={"class": "form-control "}),
+            "origem_3": forms.TextInput(attrs={"class": "form-control "}),
             "destino": forms.TextInput(attrs={"class": "form-control "}),
+            "destino_2": forms.TextInput(attrs={"class": "form-control "}),
+            "destino_3": forms.TextInput(attrs={"class": "form-control "}),
             "latitude_origem": forms.NumberInput(attrs={
                 "class": "form-control bg-light",
                 "step": "any",
@@ -264,8 +363,64 @@ class RegistroAcompanhamentoFromRequisicaoForm(forms.ModelForm):
                 "step": "any",
                 "readonly": "readonly"
             }),
+            "latitude_origem2": forms.NumberInput(attrs={
+                "class": "form-control bg-light",
+                "step": "any",
+                "readonly": "readonly"
+            }),
+            "longitude_origem2": forms.NumberInput(attrs={
+                "class": "form-control bg-light",
+                "step": "any",
+                "readonly": "readonly"
+            }),
+            "latitude_origem3": forms.NumberInput(attrs={
+                "class": "form-control bg-light",
+                "step": "any",
+                "readonly": "readonly"
+            }),
+            "longitude_origem3": forms.NumberInput(attrs={
+                "class": "form-control bg-light",
+                "step": "any",
+                "readonly": "readonly"
+            }),
             "raio_cerca": forms.NumberInput(attrs={
                 "class": "form-control"
+            }),
+            "raio_cerca_2": forms.NumberInput(attrs={
+                "class": "form-control"
+            }),
+            "raio_cerca_3": forms.NumberInput(attrs={
+                "class": "form-control"
+            }),
+            "latitude_destino": forms.NumberInput(attrs={
+                "class": "form-control bg-light",
+                "step": "any",
+                "readonly": "readonly"
+            }),
+            "longitude_destino": forms.NumberInput(attrs={
+                "class": "form-control bg-light",
+                "step": "any",
+                "readonly": "readonly"
+            }),
+            "latitude_destino_2": forms.NumberInput(attrs={
+                "class": "form-control bg-light",
+                "step": "any",
+                "readonly": "readonly"
+            }),
+            "longitude_destino_2": forms.NumberInput(attrs={
+                "class": "form-control bg-light",
+                "step": "any",
+                "readonly": "readonly"
+            }),
+            "latitude_destino_3": forms.NumberInput(attrs={
+                "class": "form-control bg-light",
+                "step": "any",
+                "readonly": "readonly"
+            }),
+            "longitude_destino_3": forms.NumberInput(attrs={
+                "class": "form-control bg-light",
+                "step": "any",
+                "readonly": "readonly"
             }),
             "campo_personalizado_titulo": forms.TextInput(attrs={
                 "class": "form-control"
@@ -301,7 +456,9 @@ class RegistroAcompanhamentoFromRequisicaoForm(forms.ModelForm):
 
 class RegistroAcompanhamentoEditForm(forms.ModelForm):
     CAMPOS_EDITAVEIS = [
-        "origem", "destino", "raio_cerca",
+        "origem", "origem_2", "origem_3",
+        "destino", "destino_2", "destino_3",
+        "raio_cerca", "raio_cerca_2", "raio_cerca_3",
         "campo_personalizado_titulo", "campo_personalizado_valor",
         "ocorrencia",
     ]
@@ -312,10 +469,26 @@ class RegistroAcompanhamentoEditForm(forms.ModelForm):
             "cliente",
             "tipo_servico",
             "origem",
+            "origem_2",
+            "origem_3",
             "destino",
+            "destino_2",
+            "destino_3",
             "latitude_origem",
             "longitude_origem",
+            "latitude_origem2",
+            "longitude_origem2",
+            "latitude_origem3",
+            "longitude_origem3",
             "raio_cerca",
+            "raio_cerca_2",
+            "raio_cerca_3",
+            "latitude_destino",
+            "longitude_destino",
+            "latitude_destino_2",
+            "longitude_destino_2",
+            "latitude_destino_3",
+            "longitude_destino_3",
             "campo_personalizado_titulo",
             "campo_personalizado_valor",
             "ocorrencia",
@@ -325,15 +498,55 @@ class RegistroAcompanhamentoEditForm(forms.ModelForm):
             "cliente": forms.Select(attrs={"class": "form-control select2"}),
             "tipo_servico": forms.Select(attrs={"class": "form-control select2"}),
             "origem": forms.TextInput(attrs={"class": "form-control"}),
+            "origem_2": forms.TextInput(attrs={"class": "form-control"}),
+            "origem_3": forms.TextInput(attrs={"class": "form-control"}),
             "destino": forms.TextInput(attrs={"class": "form-control"}),
+            "destino_2": forms.TextInput(attrs={"class": "form-control"}),
+            "destino_3": forms.TextInput(attrs={"class": "form-control"}),
             "latitude_origem": forms.NumberInput(attrs={
                 "class": "form-control", "step": "any"
             }),
             "longitude_origem": forms.NumberInput(attrs={
                 "class": "form-control", "step": "any"
             }),
+            "latitude_origem2": forms.NumberInput(attrs={
+                "class": "form-control", "step": "any"
+            }),
+            "longitude_origem2": forms.NumberInput(attrs={
+                "class": "form-control", "step": "any"
+            }),
+            "latitude_origem3": forms.NumberInput(attrs={
+                "class": "form-control", "step": "any"
+            }),
+            "longitude_origem3": forms.NumberInput(attrs={
+                "class": "form-control", "step": "any"
+            }),
             "raio_cerca": forms.NumberInput(attrs={
                 "class": "form-control", "placeholder": "Raio em metros"
+            }),
+            "raio_cerca_2": forms.NumberInput(attrs={
+                "class": "form-control", "placeholder": "Raio em metros"
+            }),
+            "raio_cerca_3": forms.NumberInput(attrs={
+                "class": "form-control", "placeholder": "Raio em metros"
+            }),
+            "latitude_destino": forms.NumberInput(attrs={
+                "class": "form-control", "step": "any"
+            }),
+            "longitude_destino": forms.NumberInput(attrs={
+                "class": "form-control", "step": "any"
+            }),
+            "latitude_destino_2": forms.NumberInput(attrs={
+                "class": "form-control", "step": "any"
+            }),
+            "longitude_destino_2": forms.NumberInput(attrs={
+                "class": "form-control", "step": "any"
+            }),
+            "latitude_destino_3": forms.NumberInput(attrs={
+                "class": "form-control", "step": "any"
+            }),
+            "longitude_destino_3": forms.NumberInput(attrs={
+                "class": "form-control", "step": "any"
             }),
             "campo_personalizado_titulo": forms.TextInput(attrs={
                 "class": "form-control"

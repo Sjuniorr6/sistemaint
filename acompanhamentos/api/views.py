@@ -140,23 +140,54 @@ def api_missao_location(request, id):
             except (ValueError, AttributeError):
                 pass
             
-            if django_acomp and django_acomp.latitude_origem and django_acomp.longitude_origem:
-                lat_orig = float(django_acomp.latitude_origem)
-                lng_orig = float(django_acomp.longitude_origem)
-                raio = django_acomp.raio_cerca or 60
-                
-                distancia = haversine(lat, lng, lat_orig, lng_orig)
-                
+            geofences = []
+            if django_acomp:
+                if django_acomp.latitude_origem is not None and django_acomp.longitude_origem is not None:
+                    geofences.append({
+                        "latitude": float(django_acomp.latitude_origem),
+                        "longitude": float(django_acomp.longitude_origem),
+                        "raio": float(django_acomp.raio_cerca or 60),
+                        "origin_index": 1,
+                    })
+                if django_acomp.latitude_origem2 is not None and django_acomp.longitude_origem2 is not None:
+                    geofences.append({
+                        "latitude": float(django_acomp.latitude_origem2),
+                        "longitude": float(django_acomp.longitude_origem2),
+                        "raio": float((django_acomp.raio_cerca_2 if django_acomp.raio_cerca_2 is not None else 60) or 60),
+                        "origin_index": 2,
+                    })
+                if django_acomp.latitude_origem3 is not None and django_acomp.longitude_origem3 is not None:
+                    geofences.append({
+                        "latitude": float(django_acomp.latitude_origem3),
+                        "longitude": float(django_acomp.longitude_origem3),
+                        "raio": float((django_acomp.raio_cerca_3 if django_acomp.raio_cerca_3 is not None else 60) or 60),
+                        "origin_index": 3,
+                    })
+
+            if geofences:
+                checks = []
+                for gf in geofences:
+                    distancia = haversine(lat, lng, gf["latitude"], gf["longitude"])
+                    checks.append({
+                        "distance_meters": round(distancia, 2),
+                        "radius_meters": gf["raio"],
+                        "inside": distancia <= gf["raio"],
+                        "origin_lat": gf["latitude"],
+                        "origin_lng": gf["longitude"],
+                        "origin_index": gf["origin_index"],
+                    })
+
+                best = min(checks, key=lambda item: item["distance_meters"])
+                inside_any = any(item["inside"] for item in checks)
+
                 geofence_result = {
-                    "distance_meters": round(distancia, 2),
-                    "radius_meters": raio,
-                    "inside": distancia <= raio,
-                    "origin_lat": lat_orig,
-                    "origin_lng": lng_orig,
+                    **best,
+                    "inside_any": inside_any,
+                    "geofences": checks,
                 }
-                
-                # Entrou na cerca → no_local
-                if distancia <= raio:
+
+                # Entrou em qualquer cerca → no_local
+                if inside_any:
                     sb.table("missions_control").update({
                         "status": "no_local",
                         "updated_at": _now_iso(),
@@ -338,17 +369,36 @@ def api_missao_localizacoes(request, id):
         
         # Buscar origin do Django (como referência)
         geofence_data = None
+        geofences_data = []
         try:
             mission_uuid_obj = uuid.UUID(mission_uuid)
             django_acomp = registroacompanhamento.objects.filter(
                 supabase_mission_id=mission_uuid_obj
             ).first()
-            if django_acomp and django_acomp.latitude_origem and django_acomp.longitude_origem:
-                geofence_data = {
-                    "latitude": float(django_acomp.latitude_origem),
-                    "longitude": float(django_acomp.longitude_origem),
-                    "raio": django_acomp.raio_cerca or 60,
-                }
+            if django_acomp:
+                if django_acomp.latitude_origem is not None and django_acomp.longitude_origem is not None:
+                    geofences_data.append({
+                        "latitude": float(django_acomp.latitude_origem),
+                        "longitude": float(django_acomp.longitude_origem),
+                        "raio": django_acomp.raio_cerca or 60,
+                        "origin_index": 1,
+                    })
+                if django_acomp.latitude_origem2 is not None and django_acomp.longitude_origem2 is not None:
+                    geofences_data.append({
+                        "latitude": float(django_acomp.latitude_origem2),
+                        "longitude": float(django_acomp.longitude_origem2),
+                        "raio": (django_acomp.raio_cerca_2 if django_acomp.raio_cerca_2 is not None else 60) or 60,
+                        "origin_index": 2,
+                    })
+                if django_acomp.latitude_origem3 is not None and django_acomp.longitude_origem3 is not None:
+                    geofences_data.append({
+                        "latitude": float(django_acomp.latitude_origem3),
+                        "longitude": float(django_acomp.longitude_origem3),
+                        "raio": (django_acomp.raio_cerca_3 if django_acomp.raio_cerca_3 is not None else 60) or 60,
+                        "origin_index": 3,
+                    })
+                if geofences_data:
+                    geofence_data = geofences_data[0]
         except:
             pass
         
@@ -364,6 +414,7 @@ def api_missao_localizacoes(request, id):
             "last_panic_id": last_panic.get("id") if last_panic else None,
             "last_panic_at": last_panic.get("timestamp") if last_panic else None,
             "geofence": geofence_data,
+            "geofences": geofences_data,
             "status_acompanhamento": mission.get("status") or "",
         }, status=200)
     

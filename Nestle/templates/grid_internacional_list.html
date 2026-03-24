@@ -544,6 +544,10 @@
                                             {% if request.GET.status_operacao == 'Em reversa para o Brasil' %}selected{% endif %}>
                                             Em reversa para o Brasil
                                         </option>
+                                        <option value="Fora de Operação"
+                                            {% if request.GET.status_operacao == 'Fora de Operação' %}selected{% endif %}>
+                                            Fora de Operação
+                                        </option>
                                         <option value="Retirado, Ag. Envio"
                                             {% if request.GET.status_operacao == 'Retirado, Ag. Envio' %}selected{% endif %}>
                                             Retirado, Ag. Envio
@@ -666,6 +670,7 @@
                                         <option value="Danificado">Danificado</option>
                                         <option value="Extraviado">Extraviado</option>
                                         <option value="Reversa Finalizada">Reversa Finalizada</option>
+                                        <option value="Fora de Operação">Fora de Operação</option>
                                     </select>
                                     <label>Novo Status</label>
                                 </div>
@@ -919,6 +924,7 @@
                             <option value="Estoque Cliente">Estoque Cliente</option>
                             <option value="Danificado">Danificado</option>
                             <option value="Extraviado">Extraviado</option>
+                            <option value="Fora de Operação">Fora de Operação</option>
                         </select>
                     </div>
                 </form>
@@ -1031,7 +1037,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             badgeClass = 'bg-info';
                         } else if (value === 'Estoque Golden') {
                             badgeClass = 'bg-primary';
-                        } else if (value === 'Extraviado' || value === 'Danificado') {
+                        } else if (value === 'Extraviado' || value === 'Danificado' || value === 'Fora de Operação') {
                             badgeClass = 'bg-danger';
                         } else if (value === 'Retirado, Ag. Envio') {
                             badgeClass = 'bg-secondary';

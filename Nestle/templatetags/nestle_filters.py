@@ -73,6 +73,7 @@ def badge_style(status):
         'Extraviado': 'background:#dc3545;color:#fff;',
         'Equipamento na Base': 'background:#6c757d;color:#fff;',
         'Reversa Finalizada': 'background:#28a745;color:#fff;border:2px solid #28a745;font-weight:bold;',
+        'Fora de Operação': 'background:#dc3545;color:#fff;border:2px solid #dc3545;font-weight:bold;',
     }
     return mapping.get(status, 'background:#f8f9fa;color:#111;') 
 

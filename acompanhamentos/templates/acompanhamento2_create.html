@@ -169,7 +169,7 @@
                                 <div>
                                     <strong>Modo Edição</strong> — Somente os campos habilitados podem ser alterados.
                                     <br><small class="text-muted">
-                                        Editáveis: Origem, Destino, Raio da Cerca, Observações,
+                                        Editáveis: Origens, Destinos, Raios das Cercas, Observações,
                                         Campo Personalizado, Motorista, Placa Motorista, Agente e Placa do Agente.
                                     </small>
                                 </div>
@@ -185,26 +185,29 @@
 
 
                         <div class="row mb-3">
-                            <div class="col-md-3">
+                            <div class="col-md-12">
                                 <label class="form-label">Cliente</label>
                                 {{ form.cliente }}
                                 {{ form.status_acompanhamento }}
                                 <input type="text" class="form-control bg-light input-hid" value="{{ requisicao.cliente.nome }}" readonly>
                             </div>
-                            <div class="col-md-3">
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
                                 <label for="origem" class="form-label">Origem</label>
                                 {{ form.origem }}
                             </div>
-                             <div class="col-md-2">
-                                <label for="latitude_origem" class="form-label">Latitude da Origem</label>
+                            <div class="col-md-2">
+                                <label for="latitude_origem" class="form-label">Latitude Origem</label>
                                 {{ form.latitude_origem }}
                             </div>
                             <div class="col-md-2">
-                                <label for="longitude_origem" class="form-label">Longitude da Origem</label>
+                                <label for="longitude_origem" class="form-label">Longitude Origem</label>
                                 {{ form.longitude_origem }}
                             </div>
-                             <div class="col-md-2">
-                                <label for="raio_cerca" class="form-label">Raio da Cerca (m)</label>
+                            <div class="col-md-2">
+                                <label for="raio_cerca" class="form-label">Raio Cerca (m)</label>
                                 {{ form.raio_cerca }}
                             </div>
                         </div>
@@ -213,6 +216,104 @@
                             <div class="col-md-6">
                                 <label for="destino" class="form-label">Destino</label>
                                 {{ form.destino }}
+                            </div>
+                            <div class="col-md-3">
+                                <label for="latitude_destino" class="form-label">Latitude Destino</label>
+                                {{ form.latitude_destino }}
+                            </div>
+                            <div class="col-md-3">
+                                <label for="longitude_destino" class="form-label">Longitude Destino</label>
+                                {{ form.longitude_destino }}
+                            </div>
+                        </div>
+                        
+                        {% if form.origem_2.value or form.destino_2.value %}
+                        <hr>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="origem_2" class="form-label">Origem 2</label>
+                                {{ form.origem_2 }}
+                            </div>
+                            <div class="col-md-2">
+                                <label for="latitude_origem2" class="form-label">Latitude Origem 2</label>
+                                {{ form.latitude_origem2 }}
+                            </div>
+                            <div class="col-md-2">
+                                <label for="longitude_origem2" class="form-label">Longitude Origem 2</label>
+                                {{ form.longitude_origem2 }}
+                            </div>
+                            <div class="col-md-2">
+                                <label for="raio_cerca_2" class="form-label">Raio Cerca 2 (m)</label>
+                                {{ form.raio_cerca_2 }}
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+
+                            <div class="col-md-6">
+                                <label for="destino_2" class="form-label">Destino 2</label>
+                                {{ form.destino_2 }}
+                            </div>
+                            <div class="col-md-3">
+                                <label for="latitude_destino_2" class="form-label">Latitude Destino 2</label>
+                                {{ form.latitude_destino_2 }}
+                            </div>
+                            <div class="col-md-3">
+                                <label for="longitude_destino_2" class="form-label">Longitude Destino 2</label>
+                                {{ form.longitude_destino_2 }}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if form.origem_3.value or form.destino_3.value %}
+                        <hr>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="origem_3" class="form-label">Origem 3</label>
+                                {{ form.origem_3 }}
+                            </div>
+                            <div class="col-md-2">
+                                <label for="latitude_origem3" class="form-label">Latitude Origem 3</label>
+                                {{ form.latitude_origem3 }}
+                            </div>
+                            <div class="col-md-2">
+                                <label for="longitude_origem3" class="form-label">Longitude Origem 3</label>
+                                {{ form.longitude_origem3 }}
+                            </div>
+                            <div class="col-md-2">
+                                <label for="raio_cerca_3" class="form-label">Raio Cerca 3 (m)</label>
+                                {{ form.raio_cerca_3 }}
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="destino_3" class="form-label">Destino 3</label>
+                                {{ form.destino_3 }}
+                            </div>
+                            <div class="col-md-3">
+                                <label for="latitude_destino_3" class="form-label">Latitude Destino 3</label>
+                                {{ form.latitude_destino_3 }}
+                            </div>
+                            <div class="col-md-3">
+                                <label for="longitude_destino_3" class="form-label">Longitude Destino 3</label>
+                                {{ form.longitude_destino_3 }}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if form.origem_2.value or form.destino_2.value or form.origem_3.value or form.destino_3.value %}
+                        <hr>
+                        {% endif %}
+
+                        <div class="row mb-3">
+                            <div class="col-12 col-md-6">
+                                 <label for="ocorrencia" class="form-label">
+                                    Observações
+                                </label>
+                                {{ form.ocorrencia }}
                             </div>
                             <div class="col-md-3">
                                 <label for="campo_personalizado_titulo" class="form-label">
@@ -236,12 +337,7 @@
                         </div>
 
                         <div class="row mb-3">
-                            <div class="col-12">
-                                 <label for="ocorrencia" class="form-label">
-                                    Observações
-                                </label>
-                                {{ form.ocorrencia }}
-                            </div>
+
                         </div>
 
                         <!-- ===============================

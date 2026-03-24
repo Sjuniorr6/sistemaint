@@ -177,10 +177,26 @@ def _build_clone_acompanhamento(base, *, tipo_servico, nome_user):
         tipo_servico=tipo_servico or base.tipo_servico,
 
         origem=base.origem,
+        origem_2=base.origem_2,
+        origem_3=base.origem_3,
         destino=base.destino,
+        destino_2=base.destino_2,
+        destino_3=base.destino_3,
         latitude_origem=base.latitude_origem,
         longitude_origem=base.longitude_origem,
+        latitude_origem2=base.latitude_origem2,
+        longitude_origem2=base.longitude_origem2,
+        latitude_origem3=base.latitude_origem3,
+        longitude_origem3=base.longitude_origem3,
+        latitude_destino=base.latitude_destino,
+        longitude_destino=base.longitude_destino,
+        latitude_destino_2=base.latitude_destino_2,
+        longitude_destino_2=base.longitude_destino_2,
+        latitude_destino_3=base.latitude_destino_3,
+        longitude_destino_3=base.longitude_destino_3,
         raio_cerca=base.raio_cerca if base.raio_cerca is not None else 60,
+        raio_cerca_2=base.raio_cerca_2 if base.raio_cerca_2 is not None else 60,
+        raio_cerca_3=base.raio_cerca_3 if base.raio_cerca_3 is not None else 60,
 
         campo_personalizado_titulo=base.campo_personalizado_titulo,
         campo_personalizado_valor=base.campo_personalizado_valor,
@@ -1791,12 +1807,14 @@ class AcompanhamentoPanicoListView(LoginRequiredMixin, PermissionRequiredMixin, 
 
         itens = context["itens"]
         for item in itens:
-            # ✅ agora pega domínio e https corretos automaticamente se settings não estiverem setadas
             item.link_app = gerar_link_app_missao(item, request=self.request)
 
         context["nao_concluidos_count"] = registroacompanhamento.objects.exclude(
             status_acompanhamento="concluido"
         ).count()
+
+        context["tipo_cadastro"] = self.request.GET.get("tipo_cadastro", "")
+        context["tipos_cadastro"] = self.TIPOS_CADASTRO
 
         return context
 
@@ -2353,9 +2371,23 @@ class AcompanhamentoFromRequisicaoCreateView(LoginRequiredMixin, PermissionRequi
             "cliente": requisicao.cliente,
             "tipo_servico": requisicao.tipo_servico,
             "origem": requisicao.origem,
+            "origem_2": requisicao.origem_2 or "",
+            "origem_3": requisicao.origem_3 or "",
             "destino": requisicao.destino or "",
+            "destino_2": requisicao.destino_2 or "",
+            "destino_3": requisicao.destino_3 or "",
             "latitude_origem": requisicao.latitude_origem,
             "longitude_origem": requisicao.longitude_origem,
+            "latitude_origem2": requisicao.latitude_origem_2,
+            "longitude_origem2": requisicao.longitude_origem_2,
+            "latitude_origem3": requisicao.latitude_origem_3,
+            "longitude_origem3": requisicao.longitude_origem_3,
+            "latitude_destino": requisicao.latitude_destino,
+            "longitude_destino": requisicao.longitude_destino,
+            "latitude_destino_2": requisicao.latitude_destino_2,
+            "longitude_destino_2": requisicao.longitude_destino_2,
+            "latitude_destino_3": requisicao.latitude_destino_3,
+            "longitude_destino_3": requisicao.longitude_destino_3,
             "campo_personalizado_titulo": requisicao.campo_personalizado_titulo or "",
             "campo_personalizado_valor": requisicao.campo_personalizado_valor or "",
             "ocorrencia": requisicao.ocorrencia or "",
@@ -2525,9 +2557,23 @@ class AcompanhamentoFromGrupoCreateView(LoginRequiredMixin, PermissionRequiredMi
         initial["cliente"] = req.cliente
         initial["tipo_servico"] = req.tipo_servico
         initial["origem"] = req.origem
+        initial["origem_2"] = req.origem_2 or ""
+        initial["origem_3"] = req.origem_3 or ""
         initial["destino"] = req.destino or ""
+        initial["destino_2"] = req.destino_2 or ""
+        initial["destino_3"] = req.destino_3 or ""
         initial["latitude_origem"] = req.latitude_origem
         initial["longitude_origem"] = req.longitude_origem
+        initial["latitude_origem2"] = req.latitude_origem_2
+        initial["longitude_origem2"] = req.longitude_origem_2
+        initial["latitude_origem3"] = req.latitude_origem_3
+        initial["longitude_origem3"] = req.longitude_origem_3
+        initial["latitude_destino"] = req.latitude_destino
+        initial["longitude_destino"] = req.longitude_destino
+        initial["latitude_destino_2"] = req.latitude_destino_2
+        initial["longitude_destino_2"] = req.longitude_destino_2
+        initial["latitude_destino_3"] = req.latitude_destino_3
+        initial["longitude_destino_3"] = req.longitude_destino_3
         initial["campo_personalizado_titulo"] = req.campo_personalizado_titulo or ""
         initial["campo_personalizado_valor"] = req.campo_personalizado_valor or ""
         initial["ocorrencia"] = req.ocorrencia or ""
