@@ -62,8 +62,9 @@ class TipoServico(models.Model):
         ('CARRO_2_1S1G', 'Carro | 2 Agente(s) - CARRO MONITORAMENTO ATIVO - 1S/1G'),
         ('CARRO_2_2G', 'Carro | 2 Agente(s) - CARRO MONITORAMENTO ATIVO - 2G'),
 
-        ('AMBULANCIA', 'Ambulância - Transporte de Paciente'),
-        ('REBOQUE', 'Reboque - Resgate Veicular'),
+        ('Pronta_Resposta_G', 'Pronta Resposta - 1 Agente(s) - G'),
+        ('Pronta_Resposta_S', 'Pronta Resposta - 1 Agente(s) - S'),
+        ('Antenista', 'Antenista'),
     ]
 
     id_externo = models.IntegerField(unique=True, help_text="ID do tipo de serviço no GSAcionamento")

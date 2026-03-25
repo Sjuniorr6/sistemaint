@@ -224,8 +224,30 @@
                                     <td>{{ grupo.primeiro.missao|default:"-" }}</td>
                                     <td>{{ grupo.primeiro.cliente }}</td>
                                     <td><em class="text-muted">{{ grupo.servicos|length }} serviço{{ grupo.servicos|length|pluralize:"s" }}</em></td>
-                                    <td>{{ grupo.primeiro.origem }}</td>
-                                    <td>{{ grupo.primeiro.destino|default:"-" }}</td>
+                                    <td>
+                                        {{ grupo.primeiro.origem|default:"-" }}
+                                        {% if grupo.primeiro.origem_2 and grupo.primeiro.origem_3 %}
+                                            <span class="badge text-bg-secondary badge-comboio ms-1" title="Possui Origem 2 e Origem 3">
+                                                <i class="bi bi-geo-alt me-1"></i>+2
+                                            </span>
+                                        {% elif grupo.primeiro.origem_2 or grupo.primeiro.origem_3 %}
+                                            <span class="badge text-bg-secondary badge-comboio ms-1" title="Possui mais 1 origem">
+                                                <i class="bi bi-geo-alt me-1"></i>+1
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {{ grupo.primeiro.destino|default:"-" }}
+                                        {% if grupo.primeiro.destino_2 and grupo.primeiro.destino_3 %}
+                                            <span class="badge text-bg-secondary badge-comboio ms-1" title="Possui Destino 2 e Destino 3">
+                                                <i class="bi bi-geo-alt-fill me-1"></i>+2
+                                            </span>
+                                        {% elif grupo.primeiro.destino_2 or grupo.primeiro.destino_3 %}
+                                            <span class="badge text-bg-secondary badge-comboio ms-1" title="Possui mais 1 destino">
+                                                <i class="bi bi-geo-alt-fill me-1"></i>+1
+                                            </span>
+                                        {% endif %}
+                                    </td>
                                     <td></td>
                                     <td></td>
                                     <td>{{ grupo.primeiro.data_agendamento|date:"d/m/Y" }}</td>
@@ -302,8 +324,30 @@
                                     </td>
 
                                     <!-- COLUNAS restantes -->
-                                    <td>{{ req.origem }}</td>
-                                    <td>{{ req.destino|default:"-" }}</td>
+                                    <td>
+                                        {{ req.origem|default:"-" }}
+                                        {% if req.origem_2 and req.origem_3 %}
+                                            <span class="badge text-bg-secondary badge-comboio ms-1" title="Possui Origem 2 e Origem 3">
+                                                <i class="bi bi-geo-alt me-1"></i>+2
+                                            </span>
+                                        {% elif req.origem_2 or req.origem_3 %}
+                                            <span class="badge text-bg-secondary badge-comboio ms-1" title="Possui mais 1 origem">
+                                                <i class="bi bi-geo-alt me-1"></i>+1
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {{ req.destino|default:"-" }}
+                                        {% if req.destino_2 and req.destino_3 %}
+                                            <span class="badge text-bg-secondary badge-comboio ms-1" title="Possui Destino 2 e Destino 3">
+                                                <i class="bi bi-geo-alt-fill me-1"></i>+2
+                                            </span>
+                                        {% elif req.destino_2 or req.destino_3 %}
+                                            <span class="badge text-bg-secondary badge-comboio ms-1" title="Possui mais 1 destino">
+                                                <i class="bi bi-geo-alt-fill me-1"></i>+1
+                                            </span>
+                                        {% endif %}
+                                    </td>
                                     <td>{{ req.motorista }}</td>
                                     <td>{{ req.placa }}</td>
                                     <td>{{ req.numero_motorista }}</td>

@@ -618,6 +618,42 @@
                 </div>
             </form>
 
+            <form method="get" action="{% url 'grid_internacional_export_excel' %}" class="row g-3 mb-3">
+                <input type="hidden" name="cliente" value="{{ request.GET.cliente }}">
+                <input type="hidden" name="container" value="{{ request.GET.container }}">
+                <input type="hidden" name="ids" value="{{ request.GET.ids }}">
+                <input type="hidden" name="sem_dados" value="{{ request.GET.sem_dados }}">
+
+                <div class="col-md-4">
+                    <div class="form-floating">
+                        <select name="export_status" class="form-select" id="exportStatusSelect">
+                            <option value="" {% if not request.GET.status_operacao %}selected{% endif %}>Todos os Status</option>
+                            <option value="Aguardando Liberação RFB" {% if request.GET.status_operacao == 'Aguardando Liberação RFB' %}selected{% endif %}>Aguardando Liberação RFB</option>
+                            <option value="Aguardando Chegada na Base" {% if request.GET.status_operacao == 'Aguardando Chegada na Base' %}selected{% endif %}>Aguardando Chegada na Base</option>
+                            <option value="Aguardando Coleta" {% if request.GET.status_operacao == 'Aguardando Coleta' %}selected{% endif %}>Aguardando Coleta</option>
+                            <option value="Aguardando Embarque Internacional" {% if request.GET.status_operacao == 'Aguardando Embarque Internacional' %}selected{% endif %}>Aguardando Embarque Internacional</option>
+                            <option value="Em reversa para o Brasil" {% if request.GET.status_operacao == 'Em reversa para o Brasil' %}selected{% endif %}>Em reversa para o Brasil</option>
+                            <option value="Retirado, Ag. Envio" {% if request.GET.status_operacao == 'Retirado, Ag. Envio' %}selected{% endif %}>Retirado, Ag. Envio</option>
+                            <option value="Em viagem" {% if request.GET.status_operacao == 'Em viagem' %}selected{% endif %}>Em viagem</option>
+                            <option value="No destino" {% if request.GET.status_operacao == 'No destino' %}selected{% endif %}>No destino</option>
+                            <option value="Estoque Cliente" {% if request.GET.status_operacao == 'Estoque Cliente' %}selected{% endif %}>Estoque Cliente</option>
+                            <option value="Danificado" {% if request.GET.status_operacao == 'Danificado' %}selected{% endif %}>Danificado</option>
+                            <option value="Extraviado" {% if request.GET.status_operacao == 'Extraviado' %}selected{% endif %}>Extraviado</option>
+                            <option value="Reversa Finalizada" {% if request.GET.status_operacao == 'Reversa Finalizada' %}selected{% endif %}>Reversa Finalizada</option>
+                            <option value="Equipamento na Base" {% if request.GET.status_operacao == 'Equipamento na Base' %}selected{% endif %}>Equipamento na Base</option>
+                            <option value="Fora de Operação" {% if request.GET.status_operacao == 'Fora de Operação' %}selected{% endif %}>Fora de Operação</option>
+                        </select>
+                        <label for="exportStatusSelect">Status para exportar</label>
+                    </div>
+                </div>
+
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-success w-100 d-flex align-items-center justify-content-center" style="height: 58px;">
+                        <i class="fas fa-file-excel me-2"></i> Exportar Excel
+                    </button>
+                </div>
+            </form>
+
             <!-- 5) Alteração em Massa / Enviar planilha por email -->
             <form method="post" class="row g-3 mb-4" style="align-items:end;">
                 {% csrf_token %}

@@ -204,7 +204,12 @@
                             </div>
                             <div class="col-md-2">
                                 <label for="longitude_origem" class="form-label">Longitude Origem</label>
-                                {{ form.longitude_origem }}
+                                <div class="input-group">
+                                    {{ form.longitude_origem }}
+                                    <button type="button" class="btn btn-outline-primary" title="Ver no mapa" onclick="openLatLngMap('id_latitude_origem', 'id_longitude_origem')">
+                                        <i class="bi bi-geo-alt-fill"></i>
+                                    </button>
+                                </div>
                             </div>
                             <div class="col-md-2">
                                 <label for="raio_cerca" class="form-label">Raio Cerca (m)</label>
@@ -223,7 +228,12 @@
                             </div>
                             <div class="col-md-3">
                                 <label for="longitude_destino" class="form-label">Longitude Destino</label>
-                                {{ form.longitude_destino }}
+                                <div class="input-group">
+                                    {{ form.longitude_destino }}
+                                    <button type="button" class="btn btn-outline-primary" title="Ver no mapa" onclick="openLatLngMap('id_latitude_destino', 'id_longitude_destino')">
+                                        <i class="bi bi-geo-alt-fill"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         
@@ -241,7 +251,12 @@
                             </div>
                             <div class="col-md-2">
                                 <label for="longitude_origem2" class="form-label">Longitude Origem 2</label>
-                                {{ form.longitude_origem2 }}
+                                <div class="input-group">
+                                    {{ form.longitude_origem2 }}
+                                    <button type="button" class="btn btn-outline-primary" title="Ver no mapa" onclick="openLatLngMap('id_latitude_origem2', 'id_longitude_origem2')">
+                                        <i class="bi bi-geo-alt-fill"></i>
+                                    </button>
+                                </div>
                             </div>
                             <div class="col-md-2">
                                 <label for="raio_cerca_2" class="form-label">Raio Cerca 2 (m)</label>
@@ -261,7 +276,12 @@
                             </div>
                             <div class="col-md-3">
                                 <label for="longitude_destino_2" class="form-label">Longitude Destino 2</label>
-                                {{ form.longitude_destino_2 }}
+                                <div class="input-group">
+                                    {{ form.longitude_destino_2 }}
+                                    <button type="button" class="btn btn-outline-primary" title="Ver no mapa" onclick="openLatLngMap('id_latitude_destino_2', 'id_longitude_destino_2')">
+                                        <i class="bi bi-geo-alt-fill"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         {% endif %}
@@ -280,7 +300,12 @@
                             </div>
                             <div class="col-md-2">
                                 <label for="longitude_origem3" class="form-label">Longitude Origem 3</label>
-                                {{ form.longitude_origem3 }}
+                                <div class="input-group">
+                                    {{ form.longitude_origem3 }}
+                                    <button type="button" class="btn btn-outline-primary" title="Ver no mapa" onclick="openLatLngMap('id_latitude_origem3', 'id_longitude_origem3')">
+                                        <i class="bi bi-geo-alt-fill"></i>
+                                    </button>
+                                </div>
                             </div>
                             <div class="col-md-2">
                                 <label for="raio_cerca_3" class="form-label">Raio Cerca 3 (m)</label>
@@ -299,7 +324,12 @@
                             </div>
                             <div class="col-md-3">
                                 <label for="longitude_destino_3" class="form-label">Longitude Destino 3</label>
-                                {{ form.longitude_destino_3 }}
+                                <div class="input-group">
+                                    {{ form.longitude_destino_3 }}
+                                    <button type="button" class="btn btn-outline-primary" title="Ver no mapa" onclick="openLatLngMap('id_latitude_destino_3', 'id_longitude_destino_3')">
+                                        <i class="bi bi-geo-alt-fill"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         {% endif %}
@@ -840,6 +870,37 @@
         });
 
     });
+</script>
+
+<script>
+    function openLatLngMap(latFieldId, lngFieldId) {
+        const latField = document.getElementById(latFieldId);
+        const lngField = document.getElementById(lngFieldId);
+
+        if (!latField || !lngField) {
+            alert('Campos de latitude/longitude nao encontrados.');
+            return;
+        }
+
+        const lat = (latField.value || '').trim();
+        const lng = (lngField.value || '').trim();
+
+        if (!lat || !lng) {
+            alert('Preencha latitude e longitude para abrir o mapa.');
+            return;
+        }
+
+        const latNum = Number(lat.replace(',', '.'));
+        const lngNum = Number(lng.replace(',', '.'));
+
+        if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+            alert('Latitude/longitude invalidas.');
+            return;
+        }
+
+        const url = `https://www.google.com/maps?q=${encodeURIComponent(`${latNum},${lngNum}`)}`;
+        window.open(url, '_blank', 'noopener,noreferrer');
+    }
 </script>
 
 <script>

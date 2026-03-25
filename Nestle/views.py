@@ -1,6 +1,6 @@
 from django.urls import reverse_lazy, path
 from django.views.generic import CreateView, ListView, UpdateView, DeleteView, DetailView
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST
 from django.utils.decorators import method_decorator
 from django.contrib.auth.decorators import login_required
@@ -450,6 +450,123 @@ class ClienteDeleteView(LoginRequiredMixin, DeleteView):
     model = clientesNestle
     template_name = 'clientes_confirm_delete.html'
     success_url = reverse_lazy('clientes_nestle_list')
+
+
+def _get_grid_queryset_filtrado(cliente=None, container=None, status_operacao=None, ids=None, sem_dados=None):
+    queryset = GridInternacionalModel.objects.all().exclude(cliente__icontains='prysmian')
+
+    if ids:
+        id_list = [i.strip() for i in ids.replace('\n', ',').replace(';', ',').split(',') if i.strip()]
+        queryset_ids = [obj for obj in queryset if str(obj.id_planilha) in id_list]
+        return sorted(
+            queryset_ids,
+            key=lambda obj: (
+                str(obj.id_planilha),
+                obj.data_insercao or obj.data_envio or datetime.date.min
+            )
+        )
+
+    if sem_dados:
+        queryset_sem_dados = [
+            obj for obj in queryset
+            if (not obj.destino or not obj.bl or not obj.container or not obj.local)
+            and obj.get_status_automatico() != 'Reversa Finalizada'
+        ]
+        return sorted(queryset_sem_dados, key=lambda obj: str(obj.id_planilha))
+
+    if cliente:
+        queryset = queryset.filter(cliente__icontains=cliente)
+    if container:
+        queryset = queryset.filter(container__icontains=container)
+
+    queryset = list(queryset)
+    queryset = [
+        obj for obj in queryset
+        if (not obj.golden_sat and obj.get_status_automatico() != 'Reversa Finalizada')
+        or obj.get_status_automatico() == 'Danificado'
+    ]
+
+    if status_operacao:
+        queryset = [obj for obj in queryset if obj.get_status_automatico() == status_operacao]
+
+    return sorted(queryset, key=lambda obj: str(obj.id_planilha))
+
+
+def grid_internacional_export_excel(request):
+    cliente = request.GET.get('cliente')
+    container = request.GET.get('container')
+    ids = request.GET.get('ids')
+    sem_dados = request.GET.get('sem_dados')
+    status_operacao = request.GET.get('export_status')
+
+    queryset = _get_grid_queryset_filtrado(
+        cliente=cliente,
+        container=container,
+        status_operacao=status_operacao,
+        ids=ids,
+        sem_dados=sem_dados,
+    )
+
+    def fmt_date(value):
+        return value.strftime('%d/%m/%Y') if value else ''
+
+    data = []
+    for obj in queryset:
+        sla_liberacao = ''
+        if obj.liberacao and obj.data_brasil:
+            sla_liberacao = (obj.liberacao - obj.data_brasil).days
+
+        data.append({
+            'ID': obj.id_planilha,
+            'Requisição': obj.requisicao,
+            'Cliente': obj.cliente,
+            'Local Entrega': obj.local_de_entrega,
+            'Modelo': obj.modelo,
+            'Destino': obj.destino,
+            'BL': obj.bl,
+            'Container': obj.container,
+            'Local': obj.local,
+            'Status Operação': obj.get_status_automatico(),
+            'Entrega': fmt_date(obj.data_envio),
+            'Inserção': fmt_date(obj.data_insercao),
+            'Porto Brasil': fmt_date(obj.data_chegada_porto),
+            'Embarque Marítimo': fmt_date(obj.data_embarque_maritimo),
+            'Desembarque Marítimo': fmt_date(obj.data_desembarque_maritimo),
+            'Chegada Destino': fmt_date(obj.data_chegada_destino),
+            'Retirada': fmt_date(obj.data_retirada),
+            'Invoice': fmt_date(obj.data_envoice),
+            'RF Invoice': obj.rf_invoice,
+            'Coleta': fmt_date(obj.coleta),
+            'Envio Brasil': fmt_date(obj.data_envio_brasil),
+            'Data Brasil': fmt_date(obj.data_brasil),
+            'Liberacao': fmt_date(obj.liberacao),
+            'GoldenSat': fmt_date(obj.golden_sat),
+            'SLA Liberação': sla_liberacao,
+            'Observação': obj.observacao,
+        })
+
+    colunas_ordenadas = [
+        'ID', 'Requisição', 'Cliente', 'Local Entrega', 'Modelo', 'Destino', 'BL', 'Container', 'Local',
+        'Status Operação', 'Entrega', 'Inserção', 'Porto Brasil', 'Embarque Marítimo', 'Desembarque Marítimo',
+        'Chegada Destino', 'Retirada', 'Invoice', 'RF Invoice', 'Coleta', 'Envio Brasil', 'Data Brasil',
+        'Liberacao', 'GoldenSat', 'SLA Liberação', 'Observação'
+    ]
+
+    df = pd.DataFrame(data, columns=colunas_ordenadas)
+    output = BytesIO()
+    df.to_excel(output, index=False, sheet_name='Grid Internacional')
+    output.seek(0)
+
+    status_nome = status_operacao if status_operacao else 'todos_status'
+    status_nome = status_nome.replace(' ', '_').replace('/', '_')
+    nome_arquivo = f'grid_internacional_{status_nome}.xlsx'
+
+    response = HttpResponse(
+        output.read(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="{nome_arquivo}"'
+    return response
 
 @csrf_exempt
 def grid_internacional_send_email(request):

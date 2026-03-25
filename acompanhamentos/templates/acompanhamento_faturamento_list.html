@@ -96,6 +96,12 @@
         .select2-selection__arrow {
             height: 28px !important;
         }
+
+        .btn-location-more {
+            font-size: 0.7rem;
+            line-height: 1.1;
+            padding: 0.1rem 0.35rem;
+        }
  
     </style>
         
@@ -287,8 +293,46 @@
                                     <td>
                                         {{ item.tipo_servico }}
                                     </td>
-                                    <td>{{ item.origem }}</td>
-                                    <td>{{ item.destino }}</td>
+                                    <td>
+                                        <div>{{ item.origem|default:"-" }}</div>
+                                        {% if item.origem_2 or item.origem_3 %}
+                                            <button
+                                                class="btn btn-outline-secondary btn-sm btn-location-more mt-1"
+                                                type="button"
+                                                data-bs-toggle="collapse"
+                                                data-bs-target="#origens-fat-{{ item.id }}"
+                                                aria-expanded="false"
+                                                aria-controls="origens-fat-{{ item.id }}"
+                                            >
+                                                <i class="bi bi-geo-alt"></i>
+                                                +{% if item.origem_2 and item.origem_3 %}2{% else %}1{% endif %}
+                                            </button>
+                                            <div class="collapse mt-1" id="origens-fat-{{ item.id }}">
+                                                {% if item.origem_2 %}<div class="small text-muted">{{ item.origem_2 }}</div>{% endif %}
+                                                {% if item.origem_3 %}<div class="small text-muted">{{ item.origem_3 }}</div>{% endif %}
+                                            </div>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div>{{ item.destino|default:"-" }}</div>
+                                        {% if item.destino_2 or item.destino_3 %}
+                                            <button
+                                                class="btn btn-outline-secondary btn-sm btn-location-more mt-1"
+                                                type="button"
+                                                data-bs-toggle="collapse"
+                                                data-bs-target="#destinos-fat-{{ item.id }}"
+                                                aria-expanded="false"
+                                                aria-controls="destinos-fat-{{ item.id }}"
+                                            >
+                                                <i class="bi bi-geo-alt-fill"></i>
+                                                +{% if item.destino_2 and item.destino_3 %}2{% else %}1{% endif %}
+                                            </button>
+                                            <div class="collapse mt-1" id="destinos-fat-{{ item.id }}">
+                                                {% if item.destino_2 %}<div class="small text-muted">{{ item.destino_2 }}</div>{% endif %}
+                                                {% if item.destino_3 %}<div class="small text-muted">{{ item.destino_3 }}</div>{% endif %}
+                                            </div>
+                                        {% endif %}
+                                    </td>
                                     <td>
                                         {% for agente in item.agentes.all %}
                                             {% if agente.tipo_agente != "carona" %}

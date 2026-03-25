@@ -22,6 +22,7 @@ urlpatterns = [
     path('grid/<int:pk>/', views.GridInternacionalDetail.as_view(), name='grid_internacional_detail'),
     path('grid/quick-edit/', views.grid_internacional_quick_edit, name='grid_internacional_quick_edit'),
     path('grid/send-email/', views.grid_internacional_send_email, name='grid_internacional_send_email'),
+    path('grid/exportar-excel/', views.grid_internacional_export_excel, name='grid_internacional_export_excel'),
     path('grid/api/', views.grid_internacional_api, name='grid_internacional_api'),
     path('grid/json/', views.grid_internacional_json, name='grid_internacional_json'),
     path('grid/sla-resumo/', grid_internacional_sla_resumo, name='grid_internacional_sla_resumo'),
