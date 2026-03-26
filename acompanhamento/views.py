@@ -44,6 +44,7 @@ class ClienteDeleteView(PermissionRequiredMixin, LoginRequiredMixin, DeleteView)
     success_url = reverse_lazy('cliente_list')
     permission_required = "acompanhamento.delete_clientes"
 
+@login_required
 def home_view(request):
     return render(request, 'home.html')
 
