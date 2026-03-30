@@ -103,9 +103,13 @@
                     <div class="filtro-excel">
                         <form method="get" action="{% url 'franquiaList' %}" class="search-form">
                             <div class="row">
-                                <div class="col-12 col-md-10 mb-2">
+                                <div class="col-12 col-md-5 mb-2">
                                     <input type="text" class="search-input form-control" name="nome" placeholder="Nome da Franquia..."
                                     value="{{ request.GET.nome|default:'' }}" data-bs-theme="light">
+                                </div>
+                                <div class="col-12 col-md-5 mb-2">
+                                    <input type="text" class="search-input form-control" name="cliente" placeholder="Nome do Cliente..."
+                                    value="{{ request.GET.cliente|default:'' }}" data-bs-theme="light">
                                 </div>
                                 <div class="col-12 col-md-2 text-center">
                                     <button type="submit" class="btn btn-primary col-12">
@@ -115,7 +119,7 @@
                             </div>
                         </form>
 
-                        {% if request.GET.nome %}
+                        {% if request.GET.nome or request.GET.cliente %}
                             <div class="row mb-2 mt-3">
                                 <div class="col-12 text-center">
                                     <a href="{% url 'franquiaList' %}" class="btn btn-secondary">
@@ -139,6 +143,8 @@
                             <thead>
                                 <tr>
                                     <th>Nome</th>
+                                    <th>Cliente</th>
+                                    <th>Tipo de Serviço</th>
                                     <th>Valor de Acionamento</th>
                                     <th>Franquia KM</th>
                                     <th>Franquia Horas</th>
@@ -150,6 +156,16 @@
                                 {% for item in franquias %}
                                 <tr>
                                     <td>{{ item.nome }}</td>
+                                    <td>
+                                        {% if item.cliente %}
+                                            {{ item.cliente.nome }}
+                                        {% elif item.tipo_servico and item.tipo_servico.cliente %}
+                                            {{ item.tipo_servico.cliente.nome }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ item.tipo_servico|default:"-" }}</td>
                                     <td>R$ {{ item.valor_acionamento }}</td>
                                     <td>{{ item.franquia_km }} KM</td>
                                     <td>{{ item.franquia_horas }} H</td>
@@ -169,7 +185,6 @@
         $(document).ready(function () {
             $('#tabela-franquia').DataTable({
                 scrollX: true,
-                scrollCollapse: true,
                 autoWidth: false,
 
                 language: {

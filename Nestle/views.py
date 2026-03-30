@@ -1,7 +1,7 @@
 from django.urls import reverse_lazy, path
 from django.views.generic import CreateView, ListView, UpdateView, DeleteView, DetailView
 from django.http import JsonResponse, HttpResponse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_GET
 from django.utils.decorators import method_decorator
 from django.contrib.auth.decorators import login_required
 from .models import GridInternacional as GridInternacionalModel, clientesNestle, ValorMensalCliente, Carga
@@ -363,6 +363,9 @@ def grid_internacional_quick_edit(request):
             except Exception as e:
                 return JsonResponse({'success': False, 'error': 'Data inválida'})
 
+        if field == 'porta_aberta':
+            value = 1 if str(value).strip() in ['1', 'true', 'True', 'on', 'sim', 'SIM'] else 0
+
         setattr(obj, field, value)
         obj.save()
 
@@ -373,6 +376,8 @@ def grid_internacional_quick_edit(request):
         # Formatar valor para exibição
         if field.startswith('data_') or field in ['liberacao', 'coleta', 'golden_sat', 'data_envoice']:
             display_value = value.strftime('%d/%m/%Y')
+        elif field == 'porta_aberta':
+            display_value = value
         else:
             display_value = value
 
@@ -408,7 +413,13 @@ def grid_internacional_quick_edit(request):
             'sla_terminal_internacional', 'sla_terrestre_internacional', 'sla_internacional'
         ]
         sla_data = {f: getattr(obj, f) for f in sla_fields}
-        return JsonResponse({'success': True, 'value': display_value, 'badge_class': badge_class, **sla_data})
+        battery_data = {
+            'bateria_insercao': obj.bateria_insercao,
+            'bateria_chegada_destino': obj.bateria_chegada_destino,
+            'media_bateria_viagem': float(obj.media_bateria_viagem) if obj.media_bateria_viagem is not None else None,
+            'porta_aberta': obj.porta_aberta,
+        }
+        return JsonResponse({'success': True, 'value': display_value, 'badge_class': badge_class, **sla_data, **battery_data})
 
     except GridInternacionalModel.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Registro não encontrado'})
@@ -599,7 +610,8 @@ def grid_internacional_send_email(request):
             'data_desembarque_maritimo', 'data_envoice', 'data_chegada_terminal', 'data_saida_terminal',
             'sla_porto_nacional', 'sla_terrestre', 'sla_maritimo', 'sla_terminal_internacional',
             'sla_terrestre_internacional', 'local', 'status_container', 'data_desembarque',
-            'sla_internacional', 'rf_invoice', 'coleta', 'liberacao', 'golden_sat', 'sla_embarque'
+            'sla_internacional', 'rf_invoice', 'coleta', 'liberacao', 'golden_sat', 'sla_embarque',
+            'bateria_insercao', 'bateria_chegada_destino', 'media_bateria_viagem'
         ]
         data = []
         for obj in queryset:
@@ -694,6 +706,10 @@ def grid_internacional_api(request):
                 'coleta': obj.coleta.strftime('%Y-%m-%d') if obj.coleta else None,
                 'liberacao': obj.liberacao.strftime('%Y-%m-%d') if obj.liberacao else None,
                 'golden_sat': obj.golden_sat.strftime('%Y-%m-%d') if obj.golden_sat else None,
+                'bateria_insercao': obj.bateria_insercao,
+                'bateria_chegada_destino': obj.bateria_chegada_destino,
+                'media_bateria_viagem': float(obj.media_bateria_viagem) if obj.media_bateria_viagem is not None else None,
+                'porta_aberta': obj.porta_aberta,
                 'status_automatico': obj.get_status_automatico()
             }
             data.append(item)
@@ -707,6 +723,49 @@ def grid_internacional_api(request):
             'status': 'error',
             'message': str(e)
         }, status=500)
+
+
+@require_GET
+def grid_internacional_equipamentos_bateria_api(request):
+    """
+    API simplificada para consulta por equipamento/observacao com datas e baterias.
+        Filtros opcionais:
+            - id_equipamento (busca parcial em id_planilha)
+            - observacao (busca parcial em observacao)
+    """
+    id_equipamento = (request.GET.get('id_equipamento') or request.GET.get('id_planilha') or '').strip()
+    observacao = (request.GET.get('observacao') or '').strip()
+
+    queryset = GridInternacionalModel.objects.all()
+
+    if id_equipamento:
+        queryset = queryset.filter(id_planilha__icontains=id_equipamento)
+    if observacao:
+        queryset = queryset.filter(observacao__icontains=observacao)
+
+    queryset = queryset.order_by('-id')
+
+    data = []
+    for obj in queryset:
+        data.append({
+            'id': obj.id,
+            'id_equipamento': obj.id_planilha,
+            'observacao': obj.observacao,
+            'data_insercao': obj.data_insercao.strftime('%Y-%m-%d') if obj.data_insercao else None,
+            'bateria_insercao': obj.bateria_insercao,
+            'data_chegada_destino': obj.data_chegada_destino.strftime('%Y-%m-%d') if obj.data_chegada_destino else None,
+            'bateria_chegada_destino': obj.bateria_chegada_destino,
+        })
+
+    return JsonResponse({
+        'status': 'success',
+        'count': len(data),
+        'filters': {
+            'id_equipamento': id_equipamento or None,
+            'observacao': observacao or None,
+        },
+        'data': data,
+    })
 
 @csrf_exempt
 def grid_internacional_json(request):
@@ -883,6 +942,10 @@ def grid_internacional_json(request):
                 'coleta': obj.coleta.strftime('%Y-%m-%d') if obj.coleta else None,
                 'liberacao': obj.liberacao.strftime('%Y-%m-%d') if obj.liberacao else None,
                 'golden_sat': obj.golden_sat.strftime('%Y-%m-%d') if obj.golden_sat else None,
+                'bateria_insercao': obj.bateria_insercao,
+                'bateria_chegada_destino': obj.bateria_chegada_destino,
+                'media_bateria_viagem': float(obj.media_bateria_viagem) if obj.media_bateria_viagem is not None else None,
+                'porta_aberta': obj.porta_aberta,
                 'status_automatico': obj.get_status_automatico()
             }
             data.append(item)

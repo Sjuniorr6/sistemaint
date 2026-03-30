@@ -1,11 +1,28 @@
 # models.py
 from django.db import models
 from django.core.validators import MinValueValidator
+from django.conf import settings
 from decimal import Decimal
 from datetime import timedelta # Necessário para calcular_slas
+import datetime
+import json
 import requests
 
 class GridInternacional(models.Model):
+    T42_API_URL = "https://mongol.brono.com/mongol/api.php"
+    T42_USER = "wimc_u_nestle"
+    T42_PASS = "Inte@20xx"
+    ASSETSCONTROLS_API_URL = "http://cloud.assetscontrols.com:8092/OpenApi/LBS"
+    ASSETSCONTROLS_TOKEN = "7e88e035-285a-4f7d-8e63-8b403d04dcfa"
+    ASSETSCONTROLS_ACTION = "QueryLBSMonitorListByFGUIDs"
+    ASSETSCONTROLS_TYPE = 2
+    ASSETSCONTROLS_PREFIXES = ("8373", "8375", "8303", "8304")
+    ASSETSCONTROLS_DEFAULT_GUID_BY_ASSET = {
+        "837303000460": "5F94106A-F267-42D2-A3B5-7A95C9F7E448",
+        "837504000383": "3B87FCD2-5577-4082-8964-9E2C0979EF9B",
+    }
+    _asset_guid_cache = {}
+
     STATUS_CHOICES = [
         ('Aguardando Liberação RFB', 'Aguardando Liberação RFB'),
         ('Aguardando Chegada na Base', 'Aguardando Chegada na Base'),
@@ -70,6 +87,10 @@ class GridInternacional(models.Model):
     liberacao                  = models.DateField("Liberacao", null=True, blank=True)
     golden_sat                  = models.DateField("GoldenSat", null=True, blank=True)
     sla_destino                 = models.CharField("SLA Destino", max_length=255, null=True, blank=True)
+    bateria_insercao            = models.PositiveSmallIntegerField("Bateria na Inserção (%)", null=True, blank=True)
+    bateria_chegada_destino     = models.PositiveSmallIntegerField("Bateria na Chegada no Destino (%)", null=True, blank=True)
+    media_bateria_viagem        = models.DecimalField("Média de Bateria da Viagem (%)", max_digits=5, decimal_places=2, null=True, blank=True)
+    porta_aberta                = models.PositiveSmallIntegerField("Porta Aberta", null=True, blank=True)
    
 
     def __str__(self):
@@ -107,9 +128,364 @@ class GridInternacional(models.Model):
                     pass
         self.sla_operacao = sla_soma
 
+    @staticmethod
+    def calcular_bateria_t42(main_voltage):
+        try:
+            if main_voltage is None or main_voltage == "":
+                return None
+
+            v = float(main_voltage)
+
+            if v <= 3.56:
+                return 0
+
+            if v <= 4.05:
+                percentual = ((v - 3.56) / (4.05 - 3.56)) * 90
+                return max(0, min(90, round(percentual)))
+
+            if v <= 4.12:
+                percentual = 90 + ((v - 4.05) / (4.12 - 4.05)) * 10
+                return max(90, min(100, round(percentual)))
+
+            return 100
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _parse_t42_datetime(value):
+        if not value:
+            return None
+
+        if isinstance(value, datetime.datetime):
+            return value
+
+        if isinstance(value, datetime.date):
+            return datetime.datetime.combine(value, datetime.time.min)
+
+        raw = str(value).strip()
+        formats = [
+            "%Y-%m-%d %H:%M:%S",
+            "%Y-%m-%dT%H:%M:%S",
+            "%Y-%m-%dT%H:%M:%S.%f",
+            "%d/%m/%Y %H:%M:%S",
+            "%Y-%m-%d",
+        ]
+
+        for fmt in formats:
+            try:
+                return datetime.datetime.strptime(raw, fmt)
+            except ValueError:
+                continue
+        return None
+
+    @staticmethod
+    def _extract_transmits(payload):
+        if isinstance(payload, list):
+            return payload
+        if isinstance(payload, dict):
+            for key in ["data", "results", "result", "transmits", "records", "items"]:
+                value = payload.get(key)
+                if isinstance(value, list):
+                    return value
+        return []
+
+    def _get_t42_unitnumber(self):
+        for candidate in [self.id_planilha, self.ccid]:
+            if candidate is None:
+                continue
+            normalized = str(candidate).strip()
+            if normalized:
+                return normalized
+        return None
+
+    @staticmethod
+    def _normalize_assetscontrols_battery(item):
+        fbattery = item.get("FBattery")
+        if fbattery in [None, ""]:
+            return None
+
+        try:
+            raw = float(fbattery)
+        except (TypeError, ValueError):
+            return None
+
+        if 0 <= raw <= 100:
+            return max(0, min(100, int(round(raw))))
+
+        return None
+
+    @staticmethod
+    def _parse_assetscontrols_datetime(item):
+        if item is None:
+            return None
+
+        ts = item.get("FGPSTimestamp")
+        if ts not in [None, ""]:
+            try:
+                return datetime.datetime.utcfromtimestamp(float(ts) / 1000.0)
+            except (TypeError, ValueError, OSError):
+                pass
+
+        dt_raw = item.get("FGPSTime") or item.get("FRecvTime")
+        if not dt_raw:
+            return None
+
+        raw = str(dt_raw).strip().replace("Z", "+00:00")
+        try:
+            dt = datetime.datetime.fromisoformat(raw)
+            if dt.tzinfo is not None:
+                dt = dt.replace(tzinfo=None)
+            return dt
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _normalize_assetscontrols_door(item):
+        door = item.get("FDoor")
+        if door in [None, "", -1, "-1"]:
+            return None
+
+        try:
+            raw = int(door)
+        except (TypeError, ValueError):
+            return None
+
+        if raw in (0, 1):
+            return raw
+
+        return None
+
+    def _buscar_registro_assetscontrols_por_data(self, data_referencia):
+        unitnumber = self._get_t42_unitnumber()
+        if not unitnumber or not data_referencia:
+            return None
+
+        guid_by_asset = getattr(settings, "ASSETSCONTROLS_GUID_BY_ASSET", {}) or {}
+        merged_guid_by_asset = dict(self.ASSETSCONTROLS_DEFAULT_GUID_BY_ASSET)
+        merged_guid_by_asset.update(guid_by_asset)
+        fguids_setting = getattr(settings, "ASSETSCONTROLS_FGUIDS", "") or ""
+
+        guid_value = (
+            merged_guid_by_asset.get(unitnumber)
+            or self._asset_guid_cache.get(unitnumber)
+        )
+
+        fguids = ""
+        if guid_value:
+            fguids = str(guid_value).strip()
+        elif fguids_setting:
+            fguids = str(fguids_setting).strip()
+        else:
+            return None
+
+        payload = {
+            "FAction": self.ASSETSCONTROLS_ACTION,
+            "FTokenID": self.ASSETSCONTROLS_TOKEN,
+            "FGUIDs": fguids,
+            "FType": self.ASSETSCONTROLS_TYPE,
+        }
+
+        try:
+            response = requests.post(
+                self.ASSETSCONTROLS_API_URL,
+                data=payload,
+                timeout=30,
+            )
+            response.raise_for_status()
+            payload = response.json()
+        except Exception:
+            return None
+
+        if isinstance(payload, dict):
+            records = payload.get("FObject")
+            if not isinstance(records, list):
+                records = []
+        elif isinstance(payload, list):
+            records = payload
+        else:
+            records = []
+
+        if not records:
+            return None
+
+        for item in records:
+            item_asset = str(item.get("FAssetID", "") or item.get("FVehicleName", "")).strip()
+            item_guid = str(item.get("FAssetGUID", "") or item.get("FVehicleGUID", "")).strip()
+            if item_asset and item_guid:
+                self._asset_guid_cache[item_asset] = item_guid
+
+        records_filtrados = [
+            item for item in records
+            if str(item.get("FAssetID", "") or item.get("FVehicleName", "")).strip() == unitnumber
+        ]
+        if records_filtrados:
+            records = records_filtrados
+
+        target = datetime.datetime.combine(data_referencia, datetime.time(hour=12))
+        melhor = None
+        melhor_delta = None
+
+        for item in records:
+            dt = self._parse_assetscontrols_datetime(item)
+            if dt is None:
+                dt = target
+
+            delta = abs((dt - target).total_seconds())
+            if melhor_delta is None or delta < melhor_delta:
+                melhor_delta = delta
+                melhor = item
+
+        return melhor
+
+    def _buscar_bateria_assetscontrols_por_data(self, data_referencia):
+        item = self._buscar_registro_assetscontrols_por_data(data_referencia)
+        if not item:
+            return None
+        return self._normalize_assetscontrols_battery(item)
+
+    def _buscar_porta_assetscontrols_por_data(self, data_referencia):
+        item = self._buscar_registro_assetscontrols_por_data(data_referencia)
+        if not item:
+            return None
+        return self._normalize_assetscontrols_door(item)
+
+    def _buscar_bateria_por_data(self, data_referencia):
+        unitnumber = self._get_t42_unitnumber()
+        if not unitnumber:
+            return None
+
+        if unitnumber.startswith(self.ASSETSCONTROLS_PREFIXES):
+            return self._buscar_bateria_assetscontrols_por_data(data_referencia)
+
+        return self._buscar_bateria_t42_por_data(data_referencia)
+
+    def _buscar_bateria_t42_por_data(self, data_referencia):
+        unitnumber = self._get_t42_unitnumber()
+        if not unitnumber or not data_referencia:
+            return None
+
+        inicio = datetime.datetime.combine(data_referencia, datetime.time.min)
+        fim = datetime.datetime.combine(data_referencia, datetime.time.max)
+
+        headers = {
+            "User-Agent": "GoldenSat-NestleBattery/1.0"
+        }
+
+        base_params = {
+            "user": self.T42_USER,
+            "pass": self.T42_PASS,
+            "format": "json",
+            "unitnumber": unitnumber,
+        }
+
+        candidates = [
+            {
+                "commandname": "get_transmits",
+                "from": inicio.strftime("%Y-%m-%d %H:%M:%S"),
+                "to": fim.strftime("%Y-%m-%d %H:%M:%S"),
+            },
+            {
+                "commandname": "get_transmits",
+                "datefrom": inicio.strftime("%Y-%m-%d %H:%M:%S"),
+                "dateto": fim.strftime("%Y-%m-%d %H:%M:%S"),
+            },
+            {
+                "commandname": "get_last_transmits",
+            },
+        ]
+
+        target = datetime.datetime.combine(data_referencia, datetime.time(hour=12))
+
+        for extra in candidates:
+            try:
+                params = dict(base_params)
+                params.update(extra)
+                response = requests.get(self.T42_API_URL, params=params, headers=headers, timeout=20)
+                response.raise_for_status()
+                payload = response.json()
+                records = self._extract_transmits(payload)
+
+                if not records:
+                    continue
+
+                registros_unidade = [
+                    r for r in records
+                    if str(r.get("unitnumber", "")).strip() == unitnumber
+                ]
+                if registros_unidade:
+                    records = registros_unidade
+
+                melhor = None
+                melhor_delta = None
+                for rec in records:
+                    voltagem = rec.get("main_voltage")
+                    if voltagem in [None, ""]:
+                        continue
+
+                    dt_raw = (
+                        rec.get("transmit_date")
+                        or rec.get("transmitdate")
+                        or rec.get("gpsdatetime")
+                        or rec.get("datetime")
+                        or rec.get("date")
+                    )
+                    dt = self._parse_t42_datetime(dt_raw)
+                    if dt is None:
+                        dt = target
+
+                    delta = abs((dt - target).total_seconds())
+                    if melhor_delta is None or delta < melhor_delta:
+                        melhor_delta = delta
+                        melhor = rec
+
+                if melhor:
+                    return self.calcular_bateria_t42(melhor.get("main_voltage"))
+            except Exception:
+                continue
+
+        return None
+
+    def _atualizar_baterias_viagem(self):
+        original = None
+        if self.pk:
+            original = GridInternacional.objects.filter(pk=self.pk).only(
+                "data_insercao",
+                "data_chegada_destino",
+                "bateria_insercao",
+                "bateria_chegada_destino",
+            ).first()
+
+        data_insercao_alterada = (
+            original is None or original.data_insercao != self.data_insercao
+        )
+        data_chegada_alterada = (
+            original is None or original.data_chegada_destino != self.data_chegada_destino
+        )
+
+        if self.data_insercao:
+            if data_insercao_alterada or self.bateria_insercao is None:
+                self.bateria_insercao = self._buscar_bateria_por_data(self.data_insercao)
+        else:
+            self.bateria_insercao = None
+
+        if self.data_chegada_destino:
+            if data_chegada_alterada or self.bateria_chegada_destino is None:
+                self.bateria_chegada_destino = self._buscar_bateria_por_data(self.data_chegada_destino)
+        else:
+            self.bateria_chegada_destino = None
+
+        if self.bateria_insercao is not None and self.bateria_chegada_destino is not None:
+            self.media_bateria_viagem = round(
+                (self.bateria_insercao + self.bateria_chegada_destino) / 2,
+                2,
+            )
+        else:
+            self.media_bateria_viagem = None
+
     def save(self, *args, **kwargs):
         # Sempre recalcula o status antes de salvar
         self.status_operacao = self.get_status_automatico()
+        self._atualizar_baterias_viagem()
         self.calcular_slas()
         super().save(*args, **kwargs)
 

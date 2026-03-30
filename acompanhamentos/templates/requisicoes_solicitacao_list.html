@@ -212,9 +212,9 @@
                                         </a>
                                     </td>
                                     <td>
-                                        {% if grupo.primeiro.cliente.tipo_cadastro == "acompanhamento" %}
+                                        {% if grupo.primeiro.tipo_servico and grupo.primeiro.tipo_servico.tipo_cadastro == "acompanhamento" %}
                                             <span class="badge bg-primary">Acompanhamento</span>
-                                        {% elif grupo.primeiro.cliente.tipo_cadastro == "pronta_resposta" %}
+                                        {% elif grupo.primeiro.tipo_servico and grupo.primeiro.tipo_servico.tipo_cadastro == "pronta_resposta" %}
                                             <span class="badge bg-danger">Pronta Resposta</span>
                                         {% else %}
                                             <span class="badge bg-secondary">Não definido</span>
@@ -281,9 +281,9 @@
 
                                     <!-- COLUNA: Tipo Cadastro -->
                                     <td>
-                                        {% if req.cliente.tipo_cadastro == "acompanhamento" %}
+                                        {% if req.tipo_servico and req.tipo_servico.tipo_cadastro == "acompanhamento" %}
                                             <span class="badge bg-primary">Acompanhamento</span>
-                                        {% elif req.cliente.tipo_cadastro == "pronta_resposta" %}
+                                        {% elif req.tipo_servico and req.tipo_servico.tipo_cadastro == "pronta_resposta" %}
                                             <span class="badge bg-danger">Pronta Resposta</span>
                                         {% else %}
                                             <span class="badge bg-secondary">Não definido</span>

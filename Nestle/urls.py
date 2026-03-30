@@ -24,6 +24,7 @@ urlpatterns = [
     path('grid/send-email/', views.grid_internacional_send_email, name='grid_internacional_send_email'),
     path('grid/exportar-excel/', views.grid_internacional_export_excel, name='grid_internacional_export_excel'),
     path('grid/api/', views.grid_internacional_api, name='grid_internacional_api'),
+    path('grid/api/equipamentos-bateria/', views.grid_internacional_equipamentos_bateria_api, name='grid_internacional_equipamentos_bateria_api'),
     path('grid/json/', views.grid_internacional_json, name='grid_internacional_json'),
     path('grid/sla-resumo/', grid_internacional_sla_resumo, name='grid_internacional_sla_resumo'),
     path('grid/sla-por-cliente/', sla_por_cliente_json, name='sla_por_cliente_json'),

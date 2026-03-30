@@ -9,6 +9,7 @@ from .models import (
 )
 from django.core.exceptions import ValidationError
 from django.forms.models import BaseInlineFormSet
+from django.db.models import Q
 
 
 # ===============================
@@ -191,7 +192,53 @@ class RegistroAcompanhamentoForm(forms.ModelForm):
 # forms.py
 
 class RegistroAcompanhamentoAgenteForm(forms.ModelForm):
+    def _resolve_cliente_id(self):
+        if getattr(self, "_cliente_id_explicit", None):
+            return self._cliente_id_explicit
+
+        if getattr(self.instance, "tipo_servico", None) and self.instance.tipo_servico.cliente_id:
+            return self.instance.tipo_servico.cliente_id
+
+        tipo_servico_id = self._resolve_tipo_servico_id()
+        if tipo_servico_id:
+            from .models import TipoServico
+            ts = TipoServico.objects.filter(pk=tipo_servico_id).only("cliente_id").first()
+            if ts:
+                return ts.cliente_id
+
+        return None
+
+    def _resolve_tipo_servico_id(self):
+        if getattr(self, "_tipo_servico_id_explicit", None):
+            return self._tipo_servico_id_explicit
+
+        # 1) Instancia existente (edicao)
+        if getattr(self.instance, "tipo_servico_id", None):
+            return self.instance.tipo_servico_id
+
+        # 2) Initial (GET/formset inicial)
+        initial_tipo = self.initial.get("tipo_servico") if hasattr(self, "initial") else None
+        if initial_tipo:
+            try:
+                return int(initial_tipo)
+            except (TypeError, ValueError):
+                pass
+
+        # 3) POST (quando vier no formset com prefix)
+        if self.is_bound and self.prefix:
+            key = f"{self.prefix}-tipo_servico"
+            raw = self.data.get(key)
+            if raw:
+                try:
+                    return int(raw)
+                except (TypeError, ValueError):
+                    pass
+
+        return None
+
     def __init__(self, *args, **kwargs):
+        self._cliente_id_explicit = kwargs.pop("cliente_id", None)
+        self._tipo_servico_id_explicit = kwargs.pop("tipo_servico_id", None)
         super().__init__(*args, **kwargs)
 
         for field in self.fields.values():
@@ -205,7 +252,20 @@ class RegistroAcompanhamentoAgenteForm(forms.ModelForm):
                 self.fields[name].widget.attrs["required"] = "required"
 
         if "franquia" in self.fields:
-            self.fields["franquia"].queryset = FranquiaAgente.objects.all().order_by("nome")
+            tipo_servico_id = self._resolve_tipo_servico_id()
+            cliente_id = self._resolve_cliente_id()
+            qs_franquia = FranquiaAgente.objects.all()
+
+            if cliente_id:
+                qs_franquia = qs_franquia.filter(
+                    Q(cliente_id=cliente_id) |
+                    Q(cliente__isnull=True, tipo_servico__cliente_id=cliente_id)
+                )
+
+            if tipo_servico_id:
+                qs_franquia = qs_franquia.filter(tipo_servico_id=tipo_servico_id)
+
+            self.fields["franquia"].queryset = qs_franquia.order_by("nome")
             self.fields["franquia"].widget.attrs.update({"class": "form-control select2"})
 
         if "tipo_servico" in self.fields:
@@ -592,9 +652,23 @@ class RegistroAcompanhamentoAgenteEditForm(forms.ModelForm):
             )
 
         if "franquia" in self.fields:
-            self.fields["franquia"].queryset = (
-                FranquiaAgente.objects.all().order_by("nome")
-            )
+            tipo_servico_id = getattr(self.instance, "tipo_servico_id", None)
+            cliente_id = None
+            if getattr(self.instance, "tipo_servico", None):
+                cliente_id = self.instance.tipo_servico.cliente_id
+
+            qs_franquia = FranquiaAgente.objects.all()
+
+            if cliente_id:
+                qs_franquia = qs_franquia.filter(
+                    Q(cliente_id=cliente_id) |
+                    Q(cliente__isnull=True, tipo_servico__cliente_id=cliente_id)
+                )
+
+            if tipo_servico_id:
+                qs_franquia = qs_franquia.filter(tipo_servico_id=tipo_servico_id)
+
+            self.fields["franquia"].queryset = qs_franquia.order_by("nome")
 
         if "tipo_servico" in self.fields:
             from .models import TipoServico

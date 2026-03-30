@@ -1,364 +1,382 @@
-{% extends 'base.html' %}
-{% load static %}
 {% load nestle_filters %}
 
 {% block content %}
+<!DOCTYPE html>
+<html lang="pt-br" data-bs-theme="light">
 
-<style>
-    .table-responsive {
-    max-height: 550px;
-    overflow-y: auto;
-    overflow-x: auto;
-    margin: 0;
-    width: 100%;
-    display: block;
-}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>{% block title %} | Listagem de Franquias | {% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    
+    {% load static %}
+    {% load user_groups %}
 
-.table-container {
-    width: 100%;
-    margin: 0;
-    display: block;
-}
-/* Typography */
-.main-content,
-.table,
-.table th,
-.table td,
-.badge,
-.btn {
-    font-family: 'Open Sans', sans-serif;
-}
-
-/* Layout */
-.main-content {
-    width: 200%;
-    margin-left: -50%;
-    min-height: 92vh;
-    padding: 1.5rem 2rem;
-    background-color: #f0f2f5;
-    overflow-x: auto;
-}
-
-.grid-container {
-    height: calc(100vh - 200px);
-    overflow: auto;
-}
-
-/* Table */
-.table {
-    margin: 0;
-    width: 100%;
-    min-width: 100%;
-}
-
-.table thead th {
-    position: sticky;
-    top: 0;
-    background-color: #817a85;
-    color: #0c0b0b;
-    z-index: 1;
-    font-weight: 700;
-    border-bottom: 2px solid #B0BEC5;
-    text-align: center;
-    vertical-align: middle;
-}
-
-/* Fixar coluna ID */
-.table thead th:first-child {
-    position: sticky;
-    left: 0;
-    top: 0;
-    background-color: #817a85;
-    z-index: 3;
-    border-right: 2px solid #B0BEC5;
-}
-
-.table tbody td:first-child {
-    position: sticky;
-    left: 0;
-    background-color: #FFFFFF;
-    z-index: 2;
-    border-right: 2px solid #B0BEC5;
-}
-
-.table tbody tr:hover td:first-child {
-    background-color: #FFF5E6;
-}
-
-.table tbody tr {
-    background-color: #FFFFFF;
-    transition: background-color 0.2s;
-}
-
-.table tbody tr:hover {
-    background-color: #FFF5E6;
-}
-
-.table td,
-.table th {
-    padding: 0.75rem 1rem;
-    border: 1px solid #ECECEC;
-    vertical-align: middle;
-    color: #1d1c1c;
-    font-size: 0.95rem;
-}
-
-/* Scrollbar */
-.table-section::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-}
-
-.table-section::-webkit-scrollbar-track {
-    background: #F0F0F0;
-    border-radius: 4px;
-}
-
-.table-section::-webkit-scrollbar-thumb {
-    background: #C0C0C0;
-    border-radius: 4px;
-}
-
-.table-section::-webkit-scrollbar-thumb:hover {
-    background: #A0A0A0;
-}
-
-/* SLA Table */
-.table-bordered.table-sm {
-    background-color: #FAFAFA;
-    border: 1px solid #E0E0E0;
-    width: auto;
-}
-
-.table-bordered.table-sm thead th {
-    background-color: #DDEBF7;
-    color: #333333;
-    border-bottom: 2px solid #C0C0C0;
-    font-weight: 600;
-}
-
-.table-bordered.table-sm tbody td {
-    background-color: #FFFFFF;
-    color: #555555;
-}
-
-.table-secondary td {
-    background-color: #F0F0F0 !important;
-    color: #555555;
-}
-
-.table-warning td {
-    background-color: #FFF3E0 !important;
-    color: #8B5A2B;
-}
-
-/* Badges */
-.badge {
-    font-size: 0.85rem;
-    font-weight: 600;
-    padding: 0.4em 0.75em;
-    border-radius: 0.5rem;
-    display: inline-block;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-}
-
-.badge.bg-success {
-    background-color: #DFF5E1;
-    color: #2E7D32;
-}
-
-.badge.bg-warning {
-    background-color: #FFF9C4;
-    color: #F9A825;
-}
-
-.badge.bg-info {
-    background-color: #E3F2FD;
-    color: #1565C0;
-}
-
-.badge.bg-danger {
-    background-color: #FFEBEE;
-    color: #f3f2f2;
-}
-
-.badge.bg-dark {
-    background-color: #7788a5 !important;
-    color: #fff;
-}
-
-.badge-rounded {
-    border-radius: 999px;
-    padding: 0.35rem 0.75rem;
-    font-weight: 600;
-    font-size: 0.85rem;
-    background-color: #E8F5E9;
-    color: #2E7D32;
-}
-
-/* Buttons */
-.btn {
-    border-radius: 0.5rem;
-    font-weight: 600;
-    transition: all 0.2s;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
-}
-
-.btn:hover {
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
-    transform: translateY(-1px);
-}
-
-.btn-primary {
-    background-color: #8AB6D6;
-    border-color: #7A9FB4;
-    color: #FFFFFF;
-}
-
-.btn-primary:hover {
-    background-color: #7A9FB4;
-    border-color: #6A8B9C;
-    color: #FFFFFF;
-}
-
-.btn-warning {
-    background-color: #FFE59D;
-    border-color: #EEDD8A;
-    color: #333333;
-}
-
-.btn-warning:hover {
-    background-color: #EEDD8A;
-    border-color: #D4CC74;
-    color: #333333;
-}
-
-.btn-outline-primary {
-    color: #8AB6D6;
-    border-color: #8AB6D6;
-    background-color: transparent;
-}
-
-.btn-outline-primary:hover {
-    background-color: #8AB6D6;
-    color: #FFFFFF;
-    border-color: #7A9FB4;
-}
-
-.btn-outline-success {
-    color: #A8D5BA;
-    border-color: #A8D5BA;
-    background-color: transparent;
-}
-
-.btn-outline-success:hover {
-    background-color: #A8D5BA;
-    color: #FFFFFF;
-    border-color: #8EC79C;
-}
-
-.btn-outline-secondary {
-    color: #6c757d;
-    border-color: #6c757d;
-    background-color: #ffffff;
-}
-
-.btn-outline-secondary:hover {
-    background-color: #6c757d;
-    color: #ffffff;
-}
-
-.btn-light-green {
-    background-color: #b2dfdb;
-    color: #212529;
-    font-weight: 600;
-    border: none;
-    border-radius: 8px;
-    padding: 0.45rem 1rem;
-}
-
-.btn-light-green:hover {
-    background-color: #a5ccc8;
-    color: #212529;
-}
-
-.btn-success {
-    background-color: #105f30bd;
-    color: #FFFFFF;
-}
-
-/* SLA Cards */
-.sla-card {
-    background: #ffffff;
-    padding: 1rem;
-    border-radius: 12px;
-    box-shadow: 0 3px 6px rgba(0,0,0,0.06);
-    border-left: 5px solid #ccc;
-    text-align: left;
-}
-
-.sla-value {
-    font-size: 1.4rem;
-    font-weight: 700;
-    margin-bottom: 0.25rem;
-    color: #333;
-}
-
-.sla-label {
-    font-size: 0.85rem;
-    color: #6c757d;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin: 0;
-}
-
-/* Colored Borders */
-.border-left-green   { border-left-color: #28a745; }
-.border-left-gray    { border-left-color: #6c757d; }
-.border-left-yellow  { border-left-color: #ffc107; }
-.border-left-cyan    { border-left-color: #17a2b8; }
-.border-left-blue    { border-left-color: #007bff; }
-.border-left-orange  { border-left-color: #fd7e14; }
-.border-left-pink    { border-left-color: #e83e8c; }
-.border-left-indigo  { border-left-color: #6610f2; }
-.border-left-purple  { border-left-color: #6f42c1; }
-.border-left-teal    { border-left-color: #20c997; }
-.border-left-red     { border-left-color: #dc3545; }
-
-.border-left-warning {
-    border-left: 4px solid #ffae00;
-    background-color: #fff8e1;
-}
-
-/* Modal */
-.modal-title {
-    color: #333 !important;
-    font-weight: 600;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-    .table thead th,
-    .table td {
-        padding: 0.5rem;
-        font-size: 0.85rem;
+    
+    <style>
+        body{
+            background-color: #45494E;;
+        }
+        .table-responsive {
+        max-height: 550px;
+        overflow-y: auto;
+        overflow-x: auto;
+        margin: 0;
+        width: 100%;
+        display: block;
     }
 
+    .table-container {
+        width: 100%;
+        margin: 0;
+        display: block;
+    }
+    /* Typography */
+    .main-content,
+    .table,
+    .table th,
+    .table td,
+    .badge,
     .btn {
-        font-size: 0.9rem;
-        padding: 0.4rem 0.8rem;
+        font-family: 'Open Sans', sans-serif;
     }
-}
 
-.card-header.bg-primary {
-    background: linear-gradient(90deg, #0056b3 0%, #009BDE 100%);
-    border-color: #004494; /* opcional: ajustar borda para um tom harmônico */
-}
-</style>
+    /* Layout */
+    .main-content {
+        min-height: 92vh;
+        padding: 1.5rem 2rem;
+        background-color: #45494E;;
+    }
 
+    .grid-container {
+        height: calc(100vh - 200px);
+        overflow: auto;
+    }
 
-<main class="main-content">
+    /* Table */
+    .table {
+        margin: 0;
+        width: 100%;
+        min-width: 100%;
+    }
+
+    .table thead th {
+        position: sticky;
+        top: 0;
+        background-color: #817a85;
+        color: #0c0b0b;
+        z-index: 1;
+        font-weight: 700;
+        border-bottom: 2px solid #B0BEC5;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    /* Fixar coluna ID */
+    .table thead th:first-child {
+        position: sticky;
+        left: 0;
+        top: 0;
+        background-color: #817a85;
+        z-index: 3;
+        border-right: 2px solid #B0BEC5;
+    }
+
+    .table tbody td:first-child {
+        position: sticky;
+        left: 0;
+        background-color: #FFFFFF;
+        z-index: 2;
+        border-right: 2px solid #B0BEC5;
+    }
+
+    .table tbody tr:hover td:first-child {
+        background-color: #FFF5E6;
+    }
+
+    .table tbody tr {
+        background-color: #FFFFFF;
+        transition: background-color 0.2s;
+    }
+
+    .table tbody tr:hover {
+        background-color: #FFF5E6;
+    }
+
+    .table td,
+    .table th {
+        padding: 0.75rem 1rem;
+        border: 1px solid #ECECEC;
+        vertical-align: middle;
+        color: #1d1c1c;
+        font-size: 0.95rem;
+    }
+
+    /* Scrollbar */
+    .table-section::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    .table-section::-webkit-scrollbar-track {
+        background: #F0F0F0;
+        border-radius: 4px;
+    }
+
+    .table-section::-webkit-scrollbar-thumb {
+        background: #C0C0C0;
+        border-radius: 4px;
+    }
+
+    .table-section::-webkit-scrollbar-thumb:hover {
+        background: #A0A0A0;
+    }
+
+    /* SLA Table */
+    .table-bordered.table-sm {
+        background-color: #FAFAFA;
+        border: 1px solid #E0E0E0;
+        width: auto;
+    }
+
+    .table-bordered.table-sm thead th {
+        background-color: #DDEBF7;
+        color: #333333;
+        border-bottom: 2px solid #C0C0C0;
+        font-weight: 600;
+    }
+
+    .table-bordered.table-sm tbody td {
+        background-color: #FFFFFF;
+        color: #555555;
+    }
+
+    .table-secondary td {
+        background-color: #F0F0F0 !important;
+        color: #555555;
+    }
+
+    .table-warning td {
+        background-color: #FFF3E0 !important;
+        color: #8B5A2B;
+    }
+
+    /* Badges */
+    .badge {
+        font-size: 0.85rem;
+        font-weight: 600;
+        padding: 0.4em 0.75em;
+        border-radius: 0.5rem;
+        display: inline-block;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+    }
+
+    .badge.bg-success {
+        background-color: #DFF5E1;
+        color: #2E7D32;
+    }
+
+    .badge.bg-warning {
+        background-color: #FFF9C4;
+        color: #F9A825;
+    }
+
+    .badge.bg-info {
+        background-color: #E3F2FD;
+        color: #1565C0;
+    }
+
+    .badge.bg-danger {
+        background-color: #FFEBEE;
+        color: #f3f2f2;
+    }
+
+    .badge.bg-dark {
+        background-color: #7788a5 !important;
+        color: #fff;
+    }
+
+    .badge-rounded {
+        border-radius: 999px;
+        padding: 0.35rem 0.75rem;
+        font-weight: 600;
+        font-size: 0.85rem;
+        background-color: #E8F5E9;
+        color: #2E7D32;
+    }
+
+    /* Buttons */
+    .btn {
+        border-radius: 0.5rem;
+        font-weight: 600;
+        transition: all 0.2s;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+    }
+
+    .btn:hover {
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
+        transform: translateY(-1px);
+    }
+
+    .btn-primary {
+        background-color: #8AB6D6;
+        border-color: #7A9FB4;
+        color: #FFFFFF;
+    }
+
+    .btn-primary:hover {
+        background-color: #7A9FB4;
+        border-color: #6A8B9C;
+        color: #FFFFFF;
+    }
+
+    .btn-warning {
+        background-color: #FFE59D;
+        border-color: #EEDD8A;
+        color: #333333;
+    }
+
+    .btn-warning:hover {
+        background-color: #EEDD8A;
+        border-color: #D4CC74;
+        color: #333333;
+    }
+
+    .btn-outline-primary {
+        color: #8AB6D6;
+        border-color: #8AB6D6;
+        background-color: transparent;
+    }
+
+    .btn-outline-primary:hover {
+        background-color: #8AB6D6;
+        color: #FFFFFF;
+        border-color: #7A9FB4;
+    }
+
+    .btn-outline-success {
+        color: #A8D5BA;
+        border-color: #A8D5BA;
+        background-color: transparent;
+    }
+
+    .btn-outline-success:hover {
+        background-color: #A8D5BA;
+        color: #FFFFFF;
+        border-color: #8EC79C;
+    }
+
+    .btn-outline-secondary {
+        color: #6c757d;
+        border-color: #6c757d;
+        background-color: #ffffff;
+    }
+
+    .btn-outline-secondary:hover {
+        background-color: #6c757d;
+        color: #ffffff;
+    }
+
+    .btn-light-green {
+        background-color: #b2dfdb;
+        color: #212529;
+        font-weight: 600;
+        border: none;
+        border-radius: 8px;
+        padding: 0.45rem 1rem;
+    }
+
+    .btn-light-green:hover {
+        background-color: #a5ccc8;
+        color: #212529;
+    }
+
+    .btn-success {
+        background-color: #105f30bd;
+        color: #FFFFFF;
+    }
+
+    /* SLA Cards */
+    .sla-card {
+        background: #ffffff;
+        padding: 1rem;
+        border-radius: 12px;
+        box-shadow: 0 3px 6px rgba(0,0,0,0.06);
+        border-left: 5px solid #ccc;
+        text-align: left;
+    }
+
+    .sla-value {
+        font-size: 1.4rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+        color: #333;
+    }
+
+    .sla-label {
+        font-size: 0.85rem;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin: 0;
+    }
+
+    /* Colored Borders */
+    .border-left-green   { border-left-color: #28a745; }
+    .border-left-gray    { border-left-color: #6c757d; }
+    .border-left-yellow  { border-left-color: #ffc107; }
+    .border-left-cyan    { border-left-color: #17a2b8; }
+    .border-left-blue    { border-left-color: #007bff; }
+    .border-left-orange  { border-left-color: #fd7e14; }
+    .border-left-pink    { border-left-color: #e83e8c; }
+    .border-left-indigo  { border-left-color: #6610f2; }
+    .border-left-purple  { border-left-color: #6f42c1; }
+    .border-left-teal    { border-left-color: #20c997; }
+    .border-left-red     { border-left-color: #dc3545; }
+
+    .border-left-warning {
+        border-left: 4px solid #ffae00;
+        background-color: #fff8e1;
+    }
+
+    /* Modal */
+    .modal-title {
+        color: #333 !important;
+        font-weight: 600;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .table thead th,
+        .table td {
+            padding: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .btn {
+            font-size: 0.9rem;
+            padding: 0.4rem 0.8rem;
+        }
+    }
+
+    .card-header.bg-primary {
+        background: linear-gradient(90deg, #0056b3 0%, #009BDE 100%);
+        border-color: #004494; /* opcional: ajustar borda para um tom harmônico */
+    }
+    </style>
+</head>
+
+<body>
+    {% include 'components/_header.html' %}
+
+<main class="container-fluid main-content">
     <div class="card shadow-sm">
         <!-- Card Header -->
         <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
@@ -618,6 +636,10 @@
                 </div>
             </form>
 
+            <hr>
+
+            <p>Exportar Equipamentos</p>
+
             <form method="get" action="{% url 'grid_internacional_export_excel' %}" class="row g-3 mb-3">
                 <input type="hidden" name="cliente" value="{{ request.GET.cliente }}">
                 <input type="hidden" name="container" value="{{ request.GET.container }}">
@@ -772,12 +794,13 @@
                                 <th>Embarque Marítimo</th>
                                 <th>Desembarque Marítimo</th>
                                 <th>Chegada Destino</th>
+                                <th>Porta Aberta</th>
                                 <th>Retirada</th>
                                 
                                 <th>Invoice</th>
                                 <th>RF Invoice</th>
                                 <th>Coleta</th>
-				<th>Envio Brasil</th>
+				                <th>Envio Brasil</th>
                                 
                                 <th>Data Brasil</th>
                                 
@@ -807,12 +830,32 @@
                                         </span>
                                     </td>
                                     <td class="editable-cell" data-field="data_envio" data-pk="{{ grid.pk }}">{{ grid.data_envio|date:"d/m/Y" }}</td>
-                                    <td class="editable-cell" data-field="data_insercao" data-pk="{{ grid.pk }}">{{ grid.data_insercao|date:"d/m/Y" }}</td>
+                                    <td class="editable-cell" data-field="data_insercao" data-pk="{{ grid.pk }}">
+                                        {{ grid.data_insercao|date:"d/m/Y" }}
+                                        {% if grid.bateria_insercao %}
+                                            <br>
+                                            {{ grid.bateria_insercao }}% <i class="bi bi-battery-charging"></i>
+                                        {% endif %}
+                                    </td>
                                     
                                     <td class="editable-cell" data-field="data_chegada_porto" data-pk="{{ grid.pk }}">{{ grid.data_chegada_porto|date:"d/m/Y" }}</td>
                                     <td class="editable-cell" data-field="data_embarque_maritimo" data-pk="{{ grid.pk }}">{{ grid.data_embarque_maritimo|date:"d/m/Y" }}</td>
                                     <td class="editable-cell" data-field="data_desembarque_maritimo" data-pk="{{ grid.pk }}">{{ grid.data_desembarque_maritimo|date:"d/m/Y" }}</td>
-                                    <td class="editable-cell" data-field="data_chegada_destino" data-pk="{{ grid.pk }}">{{ grid.data_chegada_destino|date:"d/m/Y" }}</td>
+                                    <td class="editable-cell" data-field="data_chegada_destino" data-pk="{{ grid.pk }}">{{ grid.data_chegada_destino|date:"d/m/Y" }}
+                                        <br>
+                                        {% if grid.bateria_chegada_destino %}
+                                            {{ grid.bateria_chegada_destino }}% <i class="bi bi-battery-charging"></i>
+                                        {% endif %}
+                                    </td>
+                                    <td data-field="porta_aberta" data-pk="{{ grid.pk }}" class="text-center">
+                                        <input
+                                            type="checkbox"
+                                            class="form-check-input porta-checkbox"
+                                            data-field="porta_aberta"
+                                            data-pk="{{ grid.pk }}"
+                                            {% if grid.porta_aberta == 1 %}checked{% endif %}
+                                        >
+                                    </td>
                                     <td class="editable-cell" data-field="data_retirada" data-pk="{{ grid.pk }}">{{ grid.data_retirada|date:"d/m/Y" }}</td>
                                     
                                     <td class="editable-cell" data-field="data_envoice" data-pk="{{ grid.pk }}">{{ grid.data_envoice|date:"d/m/Y" }}</td>
@@ -1107,6 +1150,13 @@ document.addEventListener('DOMContentLoaded', function() {
                             }
                         }
                     });
+
+                    if (typeof data.porta_aberta !== 'undefined') {
+                        const doorCheckbox = document.querySelector(`.porta-checkbox[data-pk="${pk}"]`);
+                        if (doorCheckbox) {
+                            doorCheckbox.checked = Number(data.porta_aberta) === 1;
+                        }
+                    }
                 }
 
                 // Atualizar a soma total após a edição
@@ -1134,6 +1184,37 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Chamar a função inicialmente
     atualizarSomaTotal();
+
+    document.querySelectorAll('.porta-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const formData = new FormData();
+            formData.append('field', this.dataset.field);
+            formData.append('pk', this.dataset.pk);
+            formData.append('value', this.checked ? '1' : '0');
+            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+            fetch('{% url "grid_internacional_quick_edit" %}', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    this.checked = !this.checked;
+                }
+            })
+            .catch(() => {
+                this.checked = !this.checked;
+            });
+        });
+    });
 });
 </script>
+
+</body>
+
+</html>
 {% endblock %}

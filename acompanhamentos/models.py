@@ -36,6 +36,22 @@ class Cliente(models.Model):
         verbose_name="Tipo de atendimento"
     )
 
+    permite_comboio = models.BooleanField(
+        default=False,
+        verbose_name="Permite comboio"
+    )
+
+    max_veiculos_comboio = models.PositiveIntegerField(
+        default=1,
+        validators=[MinValueValidator(1)],
+        verbose_name="Máximo de veículos em comboio"
+    )
+
+    reutilizar_franquia = models.BooleanField(
+        default=False,
+        verbose_name="Reutilizar franquia"
+    )
+
     sincronizado_em = models.DateTimeField(auto_now=True)
     criado_em = models.DateTimeField(auto_now_add=True)
 
@@ -84,6 +100,13 @@ class TipoServico(models.Model):
         null=True,
         verbose_name="Tipo de atendimento"
     )
+
+    nome_variacao = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name="Nome da variação"
+    )
     
     ativo = models.BooleanField(default=True)
 
@@ -103,15 +126,24 @@ class TipoServico(models.Model):
     valor_hora = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     valor_km = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
+    lat_origem = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    long_origem = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    lat_destino = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    long_destino = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+
     sincronizado_em = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ['cliente', 'codigo']
         verbose_name = 'Tipo de Serviço'
         verbose_name_plural = 'Tipos de Serviço'
 
     def __str__(self):
-        return f"{self.get_codigo_display()} - {self.cliente.nome}"
+        base = self.get_codigo_display()
+
+        if self.nome_variacao:
+            return f"{base} - {self.nome_variacao} - {self.cliente.nome}"
+
+        return f"{base} - {self.cliente.nome}"
     
     def get_codigo_display(self):
         return dict(self.TIPOS_CHOICES).get(self.codigo, self.codigo)
@@ -261,6 +293,24 @@ class RequisicaoSolicitacao(models.Model):
 
 class FranquiaAgente(models.Model):
     id_externo = models.IntegerField(unique=True, help_text="ID do tipo de serviço no GSAcionamento")
+
+    cliente = models.ForeignKey(
+        Cliente,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='franquias_agente',
+        verbose_name="Cliente"
+    )
+
+    tipo_servico = models.ForeignKey(
+        TipoServico,
+        on_delete=models.PROTECT,
+        related_name='franquias',
+        null=True,
+        blank=True,
+        verbose_name="Tipo de Serviço"
+    )
 
     nome = models.CharField(max_length=100, verbose_name="Nome da Franquia")
     valor_acionamento = models.DecimalField(max_digits=8, decimal_places=2, blank=True, null=True, verbose_name="Valor do Acionamento (R$)")

@@ -374,6 +374,7 @@ class FranquiaAdmin(admin.ModelAdmin):
         'id',
         'id_externo',
         'valor_acionamento',
+        'tipo_servico',
         'nome',
         'franquia_km',
         'franquia_horas',
@@ -381,8 +382,8 @@ class FranquiaAdmin(admin.ModelAdmin):
         'valor_horas_excedente',
     )
     list_filter = ('criado_em',)
-    search_fields = ('id', 'id_externo', 'valor_acionamento', 'nome_user', 'nome', 'franquia_km', 'franquia_horas', 'valor_km_excedente', 'valor_horas_excedente')
-    readonly_fields = ('id', 'id_externo', 'valor_acionamento', 'nome_user', 'nome', 'franquia_km', 'franquia_horas', 'valor_km_excedente', 'valor_horas_excedente',)
+    search_fields = ('id', 'id_externo', 'valor_acionamento', 'nome_user', 'nome', 'tipo_servico', 'franquia_km', 'franquia_horas', 'valor_km_excedente', 'valor_horas_excedente')
+    readonly_fields = ('id', 'id_externo', 'valor_acionamento', 'nome_user', 'nome', 'tipo_servico', 'franquia_km', 'franquia_horas', 'valor_km_excedente', 'valor_horas_excedente',)
 
     def has_add_permission(self, request):
         return False

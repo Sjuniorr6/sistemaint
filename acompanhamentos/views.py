@@ -617,7 +617,7 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
             )
         
         if tipo_cadastro in {"acompanhamento", "pronta_resposta"}:
-            qs = qs.filter(cliente__tipo_cadastro=tipo_cadastro)
+            qs = qs.filter(tipo_servico__tipo_cadastro=tipo_cadastro)
 
         return qs.distinct().order_by("-criado_em")
 
@@ -1018,7 +1018,7 @@ class AcompanhamentoFaturamentoListView(LoginRequiredMixin, PermissionRequiredMi
             qs = qs.filter(status=status)
 
         if tipo_cadastro in {"acompanhamento", "pronta_resposta"}:
-            qs = qs.filter(cliente__tipo_cadastro=tipo_cadastro)
+            qs = qs.filter(tipo_servico__tipo_cadastro=tipo_cadastro)
 
         return qs.distinct().order_by("-criado_em")
 
@@ -1628,7 +1628,7 @@ class AcompanhamentoPanicoListView(LoginRequiredMixin, PermissionRequiredMixin, 
             )
 
         if tipo_cadastro in {"acompanhamento", "pronta_resposta"}:
-            qs = qs.filter(cliente__tipo_cadastro=tipo_cadastro)
+            qs = qs.filter(tipo_servico__tipo_cadastro=tipo_cadastro)
 
         qs = qs.annotate(
             status_rank=Case(
@@ -2221,9 +2221,9 @@ class RequisicaoSolicitacaoListView(LoginRequiredMixin, ListView):
                 Q(nome_user__icontains=busca)
             )
 
-        # Filtro por tipo de cadastro do cliente
+        # Filtro por tipo de atendimento do tipo de servico
         if tipo_cadastro in {"acompanhamento", "pronta_resposta"}:
-            queryset = queryset.filter(cliente__tipo_cadastro=tipo_cadastro)
+            queryset = queryset.filter(tipo_servico__tipo_cadastro=tipo_cadastro)
 
         return queryset.order_by("-criado_em")
 
@@ -2328,20 +2328,33 @@ class AcompanhamentoFromRequisicaoCreateView(LoginRequiredMixin, PermissionRequi
 
         # Formset: se POST, mantém dados enviados; se GET, cria vazio e injeta initial no 1º form
         if self.request.POST:
-            context["agentes_formset"] = RegistroAcompanhamentoAgenteCreateFormSet(self.request.POST, prefix="agentes")
+            context["agentes_formset"] = RegistroAcompanhamentoAgenteCreateFormSet(
+                self.request.POST,
+                prefix="agentes",
+                form_kwargs={
+                    "cliente_id": requisicao.cliente_id,
+                    "tipo_servico_id": requisicao.tipo_servico_id,
+                },
+            )
         else:
-            formset = RegistroAcompanhamentoAgenteCreateFormSet(prefix="agentes")
-
-            # Pré-preenche o primeiro form do formset usando dados da requisição
-            if formset.forms:
-                formset.forms[0].initial = {
+            formset = RegistroAcompanhamentoAgenteCreateFormSet(
+                prefix="agentes",
+                initial=[{
+                    "tipo_servico": requisicao.tipo_servico.pk if requisicao.tipo_servico else None,
                     "motorista": requisicao.motorista,
                     "placa_motorista": requisicao.placa,
                     "numero_motorista": requisicao.numero_motorista,
                     "data_solicitada": requisicao.data_agendamento,
                     "horario_solicitado": requisicao.horario_agendamento,
-                }
+                }],
+                form_kwargs={
+                    "cliente_id": requisicao.cliente_id,
+                    "tipo_servico_id": requisicao.tipo_servico_id,
+                },
+            )
 
+            # Pré-preenche o primeiro form do formset usando dados da requisição
+            if formset.forms:
                 if requisicao.is_reuso:
                     # tenta achar por nome exato (você pode trocar por icontains se precisar)
                     agente_obj = (
@@ -2490,12 +2503,19 @@ class FranquiaListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
     permission_required = "acompanhamentos.view_listfranquia"
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = super().get_queryset().select_related('cliente', 'tipo_servico__cliente')
 
         nome = self.request.GET.get("nome")
+        cliente = self.request.GET.get("cliente")
 
         if nome:
             queryset = queryset.filter(nome__icontains=nome)
+
+        if cliente:
+            queryset = queryset.filter(
+                Q(cliente__nome__icontains=cliente) |
+                Q(tipo_servico__cliente__nome__icontains=cliente)
+            )
 
         return queryset.order_by("-criado_em")
 
@@ -2610,7 +2630,9 @@ class AcompanhamentoFromGrupoCreateView(LoginRequiredMixin, PermissionRequiredMi
             if self.request.POST:
                 context["agentes_formset"] = GrupoFormSet(self.request.POST)
             else:
-                formset = GrupoFormSet()
+                formset = GrupoFormSet(
+                    form_kwargs={"cliente_id": req_principal.cliente_id}
+                )
                 for i, req in enumerate(requisicoes):
                     if i < len(formset.forms):
                         formset.forms[i].initial = {

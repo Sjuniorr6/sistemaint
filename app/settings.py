@@ -1,6 +1,7 @@
 from pathlib import Path
 import os.path
 import os
+import json
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -98,6 +99,10 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # Adicione este middleware
 ]
+
+# OpenStreetMap tile servers require Referer for usage-policy compliance.
+# Django default "same-origin" strips referrer on cross-origin tile requests.
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
 
 CORS_ALLOW_ALL_ORIGINS = True
 
@@ -225,6 +230,22 @@ DEFAULT_FROM_EMAIL = 'sysggoldensat@gmail.com'
 # OpenAI
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_ODOMETER_MODEL = os.getenv("OPENAI_ODOMETER_MODEL", "")
+
+# AssetsControls (Nestle battery lookup for prefixes 8373/8375/8303/8304)
+# ASSETSCONTROLS_FGUIDS: comma-separated GUID list accepted by QueryLBSMonitorListByFGUIDs
+_assetscontrols_seed_path = BASE_DIR / "Nestle" / "assetscontrols_fguids_seed.txt"
+if _assetscontrols_seed_path.exists():
+    _assetscontrols_seed_fguids = _assetscontrols_seed_path.read_text(encoding="utf-8").strip()
+else:
+    _assetscontrols_seed_fguids = ""
+
+ASSETSCONTROLS_FGUIDS = os.getenv("ASSETSCONTROLS_FGUIDS", _assetscontrols_seed_fguids)
+
+# ASSETSCONTROLS_GUID_BY_ASSET: JSON map {"837303000460": "5F94..."}
+try:
+    ASSETSCONTROLS_GUID_BY_ASSET = json.loads(os.getenv("ASSETSCONTROLS_GUID_BY_ASSET", "{}"))
+except json.JSONDecodeError:
+    ASSETSCONTROLS_GUID_BY_ASSET = {}
 
 # Supabase
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")

@@ -274,9 +274,9 @@
                                 <tr>
                                     <td>{{ item.id }}</td>
                                     <td>
-                                        {% if item.cliente.tipo_cadastro == "acompanhamento" %}
+                                        {% if item.tipo_servico and item.tipo_servico.tipo_cadastro == "acompanhamento" %}
                                             <span class="badge bg-primary">Acompanhamento</span>
-                                        {% elif item.cliente.tipo_cadastro == "pronta_resposta" %}
+                                        {% elif item.tipo_servico and item.tipo_servico.tipo_cadastro == "pronta_resposta" %}
                                             <span class="badge bg-danger">Pronta Resposta</span>
                                         {% else %}
                                             <span class="badge bg-secondary">Não definido</span>

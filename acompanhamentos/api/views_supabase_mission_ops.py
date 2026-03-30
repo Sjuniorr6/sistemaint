@@ -787,6 +787,7 @@ def sb_mission_status(request, mission_id):
         # Geofence info (do Django)
         geofence = None
         geofences = []
+        destination_geofences = []
         acomp = _get_django_acompanhamento(mission_id)
         if acomp:
             if acomp.latitude_origem is not None and acomp.longitude_origem is not None:
@@ -811,6 +812,29 @@ def sb_mission_status(request, mission_id):
                     "origem_index": 3,
                 })
 
+            # Destinos como cercas no mapa (com raio padrão de 60m)
+            if acomp.latitude_destino is not None and acomp.longitude_destino is not None:
+                destination_geofences.append({
+                    "latitude": float(acomp.latitude_destino),
+                    "longitude": float(acomp.longitude_destino),
+                    "raio": (acomp.raio_cerca if acomp.raio_cerca is not None else 60) or 60,
+                    "destino_index": 1,
+                })
+            if acomp.latitude_destino_2 is not None and acomp.longitude_destino_2 is not None:
+                destination_geofences.append({
+                    "latitude": float(acomp.latitude_destino_2),
+                    "longitude": float(acomp.longitude_destino_2),
+                    "raio": (acomp.raio_cerca_2 if acomp.raio_cerca_2 is not None else 60) or 60,
+                    "destino_index": 2,
+                })
+            if acomp.latitude_destino_3 is not None and acomp.longitude_destino_3 is not None:
+                destination_geofences.append({
+                    "latitude": float(acomp.latitude_destino_3),
+                    "longitude": float(acomp.longitude_destino_3),
+                    "raio": (acomp.raio_cerca_3 if acomp.raio_cerca_3 is not None else 60) or 60,
+                    "destino_index": 3,
+                })
+
         if geofences:
             geofence = geofences[0]
 
@@ -826,6 +850,7 @@ def sb_mission_status(request, mission_id):
             "panics": panics,
             "geofence": geofence,
             "geofences": geofences,
+            "destination_geofences": destination_geofences,
         })
 
     try:
