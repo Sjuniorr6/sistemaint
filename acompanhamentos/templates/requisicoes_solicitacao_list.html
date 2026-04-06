@@ -142,10 +142,19 @@
                             <div>
                                 <span class="text-muted small">{{ total_grupos }} requisição{{ total_grupos|pluralize:"ões" }}</span>
                             </div>
-                            <a href="?{% for key, value in request.GET.items %}{% if key != 'pendente' %}{{ key }}={{ value }}&{% endif %}{% endfor %}pendente=true"
-                               class="badge bg-warning text-dark fs-6 mt-1 mt-md-0" style="text-decoration: none;">
-                                Pendentes: {{ total_grupos }}
-                            </a>
+                            <div class="d-flex gap-2 mt-1 mt-md-0">
+                                <a href="?{% for key, value in request.GET.items %}{% if key != 'canceladas' and key != 'pendente' %}{{ key }}={{ value }}&{% endif %}{% endfor %}"
+                                   class="badge {% if not mostrando_canceladas %}bg-warning text-dark{% else %}bg-secondary text-light{% endif %} fs-6"
+                                   style="text-decoration: none;">
+                                    Pendentes: {{ total_grupos_pendentes }}
+                                </a>
+
+                                <a href="?{% for key, value in request.GET.items %}{% if key != 'canceladas' and key != 'pendente' %}{{ key }}={{ value }}&{% endif %}{% endfor %}canceladas=true"
+                                   class="badge {% if mostrando_canceladas %}bg-danger text-light{% else %}bg-secondary text-light{% endif %} fs-6"
+                                   style="text-decoration: none;">
+                                    Cancelados: {{ total_grupos_cancelados }}
+                                </a>
+                            </div>
                         </div>
                         
                         <form method="get" class="row g-2 mb-3 align-items-end">
@@ -207,9 +216,29 @@
                                         <span class="chevron"><i class="bi bi-chevron-right"></i></span>
                                     </td>
                                     <td>
-                                        <a href="{% url 'RequisicaoGrupoCreate' grupo.requisicao_id_externo %}" class="btn btn-warning btn-sm">
-                                            <i class="bi bi-plus-circle"></i>
-                                        </a>
+                                        {% with status=grupo.primeiro.status_requisicao|default:''|lower %}
+                                            {% if status == "cancelado" or status == "cancelada" or status == "canceladas" %}
+                                                <button type="button"
+                                                        class="btn btn-outline-danger btn-sm btn-cancelamento-info"
+                                                        title="Ver informações do cancelamento"
+                                                        data-cancel-status="{{ grupo.primeiro.status_requisicao|default:'-' }}"
+                                                        data-cancel-taxa="{{ grupo.primeiro.taxa_cancelamento_percentual|default:'-' }}"
+                                                        data-cancel-valor="{{ grupo.primeiro.valor_cancelamento|default:'-' }}"
+                                                        data-cancel-aceitou="{% if grupo.primeiro.aceitou_termos_cancelamento %}Sim{% else %}Não{% endif %}"
+                                                        data-cancel-usuario="{{ grupo.primeiro.usuario_aceitou_termos_cancelamento|default:'-' }}"
+                                                        data-cancel-justificativa="{{ grupo.primeiro.justificativa_cancelamento|default:'-' }}"
+                                                        data-cancel-motivos="{{ grupo.primeiro.motivos_cancelamento|join:', '|default:'-' }}"
+                                                        data-cancelado-em="{{ grupo.primeiro.cancelado_em|date:'d/m/Y H:i'|default:'-' }}"
+                                                        data-bs-toggle="modal"
+                                                        data-bs-target="#cancelamentoModal">
+                                                    <i class="bi bi-x-octagon"></i>
+                                                </button>
+                                            {% else %}
+                                                <a href="{% url 'RequisicaoGrupoCreate' grupo.requisicao_id_externo %}" class="btn btn-warning btn-sm">
+                                                    <i class="bi bi-plus-circle"></i>
+                                                </a>
+                                            {% endif %}
+                                        {% endwith %}
                                     </td>
                                     <td>
                                         {% if grupo.primeiro.tipo_servico and grupo.primeiro.tipo_servico.tipo_cadastro == "acompanhamento" %}
@@ -238,23 +267,41 @@
                                     </td>
                                     <td>
                                         {{ grupo.primeiro.destino|default:"-" }}
-                                        {% if grupo.primeiro.destino_2 and grupo.primeiro.destino_3 %}
-                                            <span class="badge text-bg-secondary badge-comboio ms-1" title="Possui Destino 2 e Destino 3">
-                                                <i class="bi bi-geo-alt-fill me-1"></i>+2
-                                            </span>
-                                        {% elif grupo.primeiro.destino_2 or grupo.primeiro.destino_3 %}
-                                            <span class="badge text-bg-secondary badge-comboio ms-1" title="Possui mais 1 destino">
-                                                <i class="bi bi-geo-alt-fill me-1"></i>+1
-                                            </span>
-                                        {% endif %}
-                                    </td>
-                                    <td></td>
-                                    <td></td>
-                                    <td>{{ grupo.primeiro.data_agendamento|date:"d/m/Y" }}</td>
-                                    <td>{{ grupo.primeiro.horario_agendamento|time:"H:i" }}</td>
-                                    <td>{{ grupo.primeiro.nome_user }}</td>
-                                </tr>
-
+                                            {% with status=req.status_requisicao|default:''|lower %}
+                                                {% if status == "cancelado" or status == "cancelada" or status == "canceladas" %}
+                                                    <button type="button"
+                                                            class="btn btn-outline-danger btn-sm btn-cancelamento-info"
+                                                            title="Ver informações do cancelamento"
+                                                            data-cancel-status="{{ req.status_requisicao|default:'-' }}"
+                                                            data-cancel-taxa="{{ req.taxa_cancelamento_percentual|default:'-' }}"
+                                                            data-cancel-valor="{{ req.valor_cancelamento|default:'-' }}"
+                                                            data-cancel-aceitou="{% if req.aceitou_termos_cancelamento %}Sim{% else %}Não{% endif %}"
+                                                            data-cancel-usuario="{{ req.usuario_aceitou_termos_cancelamento|default:'-' }}"
+                                                            data-cancel-justificativa="{{ req.justificativa_cancelamento|default:'-' }}"
+                                                            data-cancel-motivos="{{ req.motivos_cancelamento|join:', '|default:'-' }}"
+                                                            data-cancelado-em="{{ req.cancelado_em|date:'d/m/Y H:i'|default:'-' }}"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#cancelamentoModal">
+                                                        <i class="bi bi-x-octagon"></i>
+                                                    </button>
+                                                {% elif req.is_reuso %}
+                                                    <a href="{% url 'RequisicaoCreate' req.pk %}" class="btn btn-success btn-sm" title="Criar acompanhamento (reuso)">
+                                                        <i class="bi bi-recycle"></i>
+                                                    </a>
+                                                    <form method="post" action="{% url 'recusar_reuso' req.pk %}"
+                                                        onsubmit="return confirm('Recusar reuso deste agente?\nO GS será notificado para escalar outro.');"
+                                                        style="display: inline;">
+                                                        {% csrf_token %}
+                                                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Recusar reuso">
+                                                            <i class="bi bi-x-circle"></i>
+                                                        </button>
+                                                    </form>
+                                                {% else %}
+                                                    <a href="{% url 'RequisicaoCreate' req.pk %}" class="btn btn-warning btn-sm">
+                                                        <i class="bi bi-plus-circle"></i>
+                                                    </a>
+                                                {% endif %}
+                                            {% endwith %}
                                 {% else %}
                                 {% with req=grupo.primeiro %}
                                 <tr>
@@ -273,9 +320,27 @@
                                                 </button>
                                             </form>
                                         {% else %}
-                                            <a href="{% url 'RequisicaoCreate' req.pk %}" class="btn btn-warning btn-sm">
-                                                <i class="bi bi-plus-circle"></i>
-                                            </a>
+                                            {% if grupo.primeiro.status_requisicao != "cancelado" %}
+                                                <a href="{% url 'RequisicaoCreate' req.pk %}" class="btn btn-warning btn-sm">
+                                                    <i class="bi bi-plus-circle"></i>
+                                                </a>
+                                            {% else %}
+                                                <button type="button"
+                                                            class="btn btn-outline-danger btn-sm btn-cancelamento-info"
+                                                            title="Ver informações do cancelamento"
+                                                            data-cancel-status="{{ req.status_requisicao|default:'-' }}"
+                                                            data-cancel-taxa="{{ req.taxa_cancelamento_percentual|default:'-' }}"
+                                                            data-cancel-aceitou="{% if req.aceitou_termos_cancelamento %}Sim{% else %}Não{% endif %}"
+                                                            data-cancel-usuario="{{ req.usuario_aceitou_termos_cancelamento|default:'-' }}"
+                                                            data-cancel-justificativa="{{ req.justificativa_cancelamento|default:'-' }}"
+                                                            data-cancel-motivos="{{ req.motivos_cancelamento|join:', '|default:'-' }}"
+                                                            data-cancelado-em="{{ req.cancelado_em|date:'d/m/Y H:i'|default:'-' }}"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#cancelamentoModal">
+                                                        <i class="bi bi-x-octagon"></i>
+                                                    </button>
+                                            {% endif %}
+                                            
                                         {% endif %}
                                     </td>
 
@@ -378,8 +443,63 @@
         </div>
     </div>
 
+    <div class="modal fade" id="cancelamentoModal" tabindex="-1" aria-labelledby="cancelamentoModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="cancelamentoModalLabel">
+                        <i class="bi bi-x-octagon-fill text-danger me-2"></i>Detalhes do Cancelamento
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Status</small>
+                            <strong id="modal-cancel-status">-</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Taxa de cancelamento (%)</small>
+                            <strong id="modal-cancel-taxa">-</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Valor cancelamento (R$)</small>
+                            <strong id="modal-cancel-valor">-</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Aceitou termos</small>
+                            <strong id="modal-cancel-aceitou">-</strong>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">Usuário que aceitou termos</small>
+                            <strong id="modal-cancel-usuario">-</strong>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">Cancelado em</small>
+                            <strong id="modal-cancelado-em">-</strong>
+                        </div>
+                        <div class="col-12">
+                            <small class="text-muted d-block">Justificativa</small>
+                            <div id="modal-cancel-justificativa">-</div>
+                        </div>
+                        <div class="col-12">
+                            <small class="text-muted d-block">Motivos</small>
+                            <div id="modal-cancel-motivos">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
     $(document).ready(function () {
+
+        function firstValue(val) {
+            if (val === undefined || val === null) return '-';
+            const s = String(val).trim();
+            return s ? s : '-';
+        }
 
         function escapeHtml(str) {
             return String(str ?? '')
@@ -482,6 +602,19 @@
                     tr.addClass('shown');
                 }
             }
+        });
+
+        $(document).on('click', '.btn-cancelamento-info', function () {
+            const $btn = $(this);
+
+            $('#modal-cancel-status').text(firstValue($btn.data('cancel-status')));
+            $('#modal-cancel-taxa').text(firstValue($btn.data('cancel-taxa')));
+            $('#modal-cancel-valor').text(firstValue($btn.data('cancel-valor')));
+            $('#modal-cancel-aceitou').text(firstValue($btn.data('cancel-aceitou')));
+            $('#modal-cancel-usuario').text(firstValue($btn.data('cancel-usuario')));
+            $('#modal-cancel-justificativa').text(firstValue($btn.data('cancel-justificativa')));
+            $('#modal-cancel-motivos').text(firstValue($btn.data('cancel-motivos')));
+            $('#modal-cancelado-em').text(firstValue($btn.data('cancelado-em')));
         });
     });
     </script>

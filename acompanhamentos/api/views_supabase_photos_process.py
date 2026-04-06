@@ -174,6 +174,69 @@ def _find_acompanhamento_by_supabase_mission_id(mission_id: str):
     ).first()
 
 
+def _get_principal_vinculo(acompanhamento):
+    if not acompanhamento:
+        return None
+    return (
+        acompanhamento.agentes.filter(tipo_agente="principal").first()
+        or acompanhamento.agentes.first()
+    )
+
+
+def _is_pronta_resposta(acompanhamento, vinculo=None):
+    """Retorna True quando o tipo de atendimento é pronta_resposta."""
+    try:
+        tipo_obj = (getattr(vinculo, "tipo_servico", None) if vinculo else None) or getattr(acompanhamento, "tipo_servico", None)
+        tipo_cadastro = (getattr(tipo_obj, "tipo_cadastro", "") or "").strip().lower()
+        return tipo_cadastro == "pronta_resposta"
+    except Exception:
+        return False
+
+
+def _resolve_km_estimado_referencia(acompanhamento, vinculo=None):
+    """
+    Decide qual km estimado usar na validação do odômetro final.
+    Preferência por tipo de serviço (MOTO/CARRO). Se não for possível inferir,
+    usa o maior entre os estimados disponíveis para evitar bloqueio indevido.
+    """
+    if not acompanhamento:
+        return None, None
+
+    km_carro_raw = getattr(acompanhamento, "km_estimado_carro", None)
+    km_moto_raw = getattr(acompanhamento, "km_estimado_moto", None)
+
+    try:
+        km_carro = float(km_carro_raw) if km_carro_raw is not None else None
+    except Exception:
+        km_carro = None
+
+    try:
+        km_moto = float(km_moto_raw) if km_moto_raw is not None else None
+    except Exception:
+        km_moto = None
+
+    tipo_codigo = ""
+    try:
+        tipo_obj = (getattr(vinculo, "tipo_servico", None) if vinculo else None) or getattr(acompanhamento, "tipo_servico", None)
+        tipo_codigo = (getattr(tipo_obj, "codigo", "") or "").upper()
+    except Exception:
+        tipo_codigo = ""
+
+    if "MOTO" in tipo_codigo and km_moto is not None:
+        return km_moto, "moto"
+    if "CARRO" in tipo_codigo and km_carro is not None:
+        return km_carro, "carro"
+
+    if km_moto is not None and km_carro is None:
+        return km_moto, "moto"
+    if km_carro is not None and km_moto is None:
+        return km_carro, "carro"
+    if km_carro is not None and km_moto is not None:
+        return max(km_carro, km_moto), "fallback_max"
+
+    return None, None
+
+
 
 def _update_django_km(acompanhamento, photo_type: str, odo_raw, ts_iso, photo_id: str, confidence: float):
     """
@@ -301,14 +364,14 @@ def _update_django_plate(acompanhamento, photo_type: str, plate_number: str, ts_
     }
 
 
-def _update_django_datetime_inicio_fim(acompanhamento, tipo: str):
+def _update_django_datetime_inicio_fim(acompanhamento, tipo: str, ts_iso=None):
     """
     Grava data/horário de início ou finalização no agente principal.
     
     tipo: "inicio" → data_inicio + horario_inicio
           "finalizacao" → data_finalizacao + horario_finalizacao
     
-    Usa o horário atual (timezone SP / UTC) como referência.
+    Usa o timestamp informado quando disponível; caso contrário, usa o horário atual.
     """
     if not acompanhamento:
         return
@@ -321,15 +384,22 @@ def _update_django_datetime_inicio_fim(acompanhamento, tipo: str):
         return
 
     from django.utils import timezone as dj_tz
-    agora = dj_tz.localtime(dj_tz.now())  # converte para timezone local (settings.TIME_ZONE)
+    agora = _parse_ts_to_dt(ts_iso)
+    if agora is None:
+        agora = dj_tz.now()
+    agora = dj_tz.localtime(agora)  # converte para timezone local (settings.TIME_ZONE)
 
     update_fields = []
 
     if tipo == "inicio":
+        if vinculo.data_inicio and vinculo.horario_inicio:
+            return
         vinculo.data_inicio = agora.date()
         vinculo.horario_inicio = agora.time()
         update_fields = ["data_inicio", "horario_inicio"]
     elif tipo == "finalizacao":
+        if vinculo.data_finalizacao and vinculo.horario_finalizacao:
+            return
         vinculo.data_finalizacao = agora.date()
         vinculo.horario_finalizacao = agora.time()
         update_fields = ["data_finalizacao", "horario_finalizacao"]
@@ -405,7 +475,7 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
         _supabase_update_status(sb, mission_id, STATUS_PLACA_INICIO_OK)
         _sync_django_status(mission_id, STATUS_PLACA_INICIO_OK)
 
-        # 2) grava PLACA + data_inicio/horario_inicio no Django
+        # 2) grava PLACA no Django
         with transaction.atomic():
             if not acompanhamento:
                 acompanhamento = _find_acompanhamento_by_supabase_mission_id(mission_id)
@@ -417,8 +487,9 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
                 photo_id=photo_id,
                 confidence=confidence,
             )
-            # Gravar data_inicio e horario_inicio no agente principal
-            _update_django_datetime_inicio_fim(acompanhamento, "inicio")
+            # Para serviços que não são pronta_resposta, mantém início no momento inicial do fluxo.
+            if not _is_pronta_resposta(acompanhamento):
+                _update_django_datetime_inicio_fim(acompanhamento, "inicio", ts_iso=ts)
 
         return {
             "updated": True,
@@ -456,6 +527,9 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
                 photo_id=photo_id,
                 confidence=confidence,
             )
+            # Para pronta_resposta, início só é gravado ao receber odômetro inicial.
+            if _is_pronta_resposta(acompanhamento):
+                _update_django_datetime_inicio_fim(acompanhamento, "inicio", ts_iso=ts)
 
         return {
             "updated": True,
@@ -478,13 +552,110 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
                 "valid": is_valid,
             }
 
+        acompanhamento = _find_acompanhamento_by_supabase_mission_id(mission_id)
+        vinculo = _get_principal_vinculo(acompanhamento)
+
+        km_inicio = getattr(vinculo, "km_inicio", None) if vinculo else None
+        try:
+            km_final = int(odo_raw)
+        except Exception:
+            km_final = None
+
+        if km_inicio is None or km_final is None:
+            vr["valid"] = False
+            vr["issues"] = vr.get("issues", []) + ["km_validacao_indisponivel(km_inicio_ou_km_final_ausente)"]
+            sb.table("mission_photos").update({"validation_result": vr}).eq("id", photo_id).execute()
+            return {
+                "updated": False,
+                "reason": "km_validation_unavailable",
+                "current_status": current_status,
+                "km_inicio": km_inicio,
+                "km_final": km_final,
+            }
+
+        km_total = km_final - int(km_inicio)
+        if km_total < 0:
+            vr["valid"] = False
+            vr["issues"] = vr.get("issues", []) + ["km_total_negativo(km_final_menor_que_km_inicio)"]
+            vr["km_total_calculado"] = km_total
+            sb.table("mission_photos").update({"validation_result": vr}).eq("id", photo_id).execute()
+            return {
+                "updated": False,
+                "reason": "km_total_negative",
+                "current_status": current_status,
+                "km_inicio": km_inicio,
+                "km_final": km_final,
+                "km_total": km_total,
+            }
+
+        km_estimado_ref, km_estimado_source = _resolve_km_estimado_referencia(acompanhamento, vinculo)
+        if km_estimado_ref is None:
+            vr["valid"] = False
+            vr["issues"] = vr.get("issues", []) + ["km_estimado_ausente_para_validacao"]
+            vr["km_total_calculado"] = km_total
+            sb.table("mission_photos").update({"validation_result": vr}).eq("id", photo_id).execute()
+            return {
+                "updated": False,
+                "reason": "km_estimado_missing",
+                "current_status": current_status,
+                "km_total": km_total,
+            }
+
+        tolerancia_km = 25
+        km_maximo_aprovado = float(km_estimado_ref) + tolerancia_km
+
+        vr["km_inicio"] = int(km_inicio)
+        vr["km_final"] = km_final
+        vr["km_total_calculado"] = km_total
+        vr["km_estimado_referencia"] = float(km_estimado_ref)
+        vr["km_estimado_source"] = km_estimado_source
+        vr["km_tolerancia"] = tolerancia_km
+        vr["km_maximo_aprovado"] = km_maximo_aprovado
+
+        # Regra: só bloqueia quando passou do estimado + 5km.
+        if km_total > km_maximo_aprovado:
+            excedente = km_total - km_maximo_aprovado
+            mensagem_rejeicao = (
+                f"A foto foi rejeitada: ultrapassou {excedente:.2f} km do limite permitido "
+                f"(total={km_total}, esperado={float(km_estimado_ref):.2f}, tolerancia={tolerancia_km})."
+            )
+
+            logger.warning(
+                "[KM_REJEITADO] mission_id=%s photo_id=%s total=%s estimado=%.2f tolerancia=%s limite=%.2f excedente=%.2f",
+                mission_id,
+                photo_id,
+                km_total,
+                float(km_estimado_ref),
+                tolerancia_km,
+                km_maximo_aprovado,
+                excedente,
+            )
+
+            vr["valid"] = False
+            vr["issues"] = vr.get("issues", []) + [
+                f"km_excedido(total={km_total}, estimado={float(km_estimado_ref):.2f}, limite={km_maximo_aprovado:.2f})"
+            ]
+            vr["message"] = mensagem_rejeicao
+            vr["km_excedente_tolerancia"] = round(excedente, 2)
+            sb.table("mission_photos").update({"validation_result": vr}).eq("id", photo_id).execute()
+            return {
+                "updated": False,
+                "reason": "km_total_above_estimated_tolerance",
+                "message": mensagem_rejeicao,
+                "current_status": current_status,
+                "km_total": km_total,
+                "km_estimado": float(km_estimado_ref),
+                "km_tolerancia": tolerancia_km,
+                "km_maximo_aprovado": km_maximo_aprovado,
+                "km_excedente_tolerancia": round(excedente, 2),
+            }
+
         # 1) atualiza status no Supabase
         _supabase_update_status(sb, mission_id, STATUS_ODO_FINAL_OK)
         _sync_django_status(mission_id, STATUS_ODO_FINAL_OK)
 
         # 2) grava KM no Django
         with transaction.atomic():
-            acompanhamento = _find_acompanhamento_by_supabase_mission_id(mission_id)
             django_info = _update_django_km(
                 acompanhamento=acompanhamento,
                 photo_type="odometro_final",

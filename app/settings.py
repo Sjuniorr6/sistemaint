@@ -231,6 +231,9 @@ DEFAULT_FROM_EMAIL = 'sysggoldensat@gmail.com'
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_ODOMETER_MODEL = os.getenv("OPENAI_ODOMETER_MODEL", "")
 
+# Google Maps / Routes API
+GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")
+
 # AssetsControls (Nestle battery lookup for prefixes 8373/8375/8303/8304)
 # ASSETSCONTROLS_FGUIDS: comma-separated GUID list accepted by QueryLBSMonitorListByFGUIDs
 _assetscontrols_seed_path = BASE_DIR / "Nestle" / "assetscontrols_fguids_seed.txt"

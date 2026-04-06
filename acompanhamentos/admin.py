@@ -126,8 +126,10 @@ class RegistroAcompanhamentoAdmin(admin.ModelAdmin):
         "requisicao_solicitacao",
         "cliente",
         "tipo_servico",
+        "status_requisicao",
         "status",
         "status_acompanhamento",
+        "cancelado_em",
         "valor_contrato",
         "lucro_total",
         "validar_acompanhamento",
@@ -140,6 +142,7 @@ class RegistroAcompanhamentoAdmin(admin.ModelAdmin):
 
     list_filter = (
         "status",
+        "status_requisicao",
         "status_acompanhamento",
         "validar_acompanhamento",
         "validado_cliente",
@@ -166,6 +169,14 @@ class RegistroAcompanhamentoAdmin(admin.ModelAdmin):
         "tipo_servico",
         "tempo_criacao_desde_requisicao",
         "tempo_criacao_desde_requisicao_fmt",
+        "status_requisicao",
+        "taxa_cancelamento_percentual",
+        "valor_cancelamento",
+        "aceitou_termos_cancelamento",
+        "usuario_aceitou_termos_cancelamento",
+        "justificativa_cancelamento",
+        "motivos_cancelamento",
+        "cancelado_em",
     )
 
     fieldsets = (
@@ -180,8 +191,27 @@ class RegistroAcompanhamentoAdmin(admin.ModelAdmin):
                 "longitude_origem",
                 "raio_cerca",
                 "destino",
+                "latitude_destino",
+                "longitude_destino",
+                "km_estimado_carro",
+                "km_estimado_moto",
+                "origem_2",
+                "latitude_origem2",
+                "longitude_origem2",
+                "raio_cerca_2",
+                "destino_2",
+                "latitude_destino_2",
+                "longitude_destino_2",
+                "origem_3",
+                "latitude_origem3",
+                "longitude_origem3",
+                "raio_cerca_3",
+                "destino_3",
+                "latitude_destino_3",
+                "longitude_destino_3",
             )
         }),
+
 
         ("Financeiro", {
             "fields": (
@@ -205,6 +235,19 @@ class RegistroAcompanhamentoAdmin(admin.ModelAdmin):
                 "validado_cliente",
                 "validar_pagamento",
                 "is_reuso",
+            )
+        }),
+
+        ("Cancelamento (GS)", {
+            "fields": (
+                "status_requisicao",
+                "taxa_cancelamento_percentual",
+                "valor_cancelamento",
+                "aceitou_termos_cancelamento",
+                "usuario_aceitou_termos_cancelamento",
+                "justificativa_cancelamento",
+                "motivos_cancelamento",
+                "cancelado_em",
             )
         }),
 
@@ -489,7 +532,9 @@ class RequisicaoSolicitacaoAdmin(admin.ModelAdmin):
         'origem', 'origem_2', 'origem_3',
         'destino', 'destino_2', 'destino_3',
         'motorista', 'numero_motorista', 'placa', 'comboio', 'quantidade_veiculos_comboio', 'data_agendamento', 'horario_agendamento',
-        'nome_user', 'sincronizado_em', 'criado_em'
+        'nome_user', 'sincronizado_em', 'criado_em',
+        'status_requisicao', 'taxa_cancelamento_percentual', 'valor_cancelamento', 'aceitou_termos_cancelamento',
+        'usuario_aceitou_termos_cancelamento', 'justificativa_cancelamento', 'motivos_cancelamento', 'cancelado_em', 'cancelamento_aprovado'
     ]
     
     # ocorrencia e atualizado_em podem ser editados
@@ -502,11 +547,13 @@ class RequisicaoSolicitacaoAdmin(admin.ModelAdmin):
                 'motorista', 'numero_motorista', 'placa', 'comboio', 'quantidade_veiculos_comboio', 'data_agendamento', 'horario_agendamento',
                 'campo_personalizado_titulo', 'campo_personalizado_valor',
 
-                'is_reuso', 'agente_nome_reuso', 'agente_placa_reuso',
+                'is_reuso', 'agente_nome_reuso', 'agente_placa_reuso', 'status_requisicao',
+
+                'taxa_cancelamento_percentual', 'valor_cancelamento', 'aceitou_termos_cancelamento', 'usuario_aceitou_termos_cancelamento', 'justificativa_cancelamento', 'motivos_cancelamento', 'cancelado_em', 'cancelamento_aprovado'
             )
         }),
         ('Campos Editáveis', {
-            'fields': ('ocorrencia', 'solicitado', 'latitude_origem', 'longitude_origem', 'latitude_origem_2', 'longitude_origem_2', 'latitude_origem_3', 'longitude_origem_3', 'latitude_destino', 'longitude_destino', 'latitude_destino_2', 'longitude_destino_2', 'latitude_destino_3', 'longitude_destino_3')
+            'fields': ('ocorrencia', 'solicitado', 'latitude_origem', 'longitude_origem', 'latitude_origem_2', 'longitude_origem_2', 'latitude_origem_3', 'longitude_origem_3', 'latitude_destino', 'longitude_destino', 'latitude_destino_2', 'longitude_destino_2', 'latitude_destino_3', 'longitude_destino_3', 'km_estimado_carro', 'km_estimado_moto'),
         }),
         ('Metadados', {
             'fields': ('sincronizado_em', 'criado_em'),

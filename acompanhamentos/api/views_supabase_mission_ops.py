@@ -31,6 +31,7 @@ import time
 import logging
 from .supabase_client import get_supabase, reset_supabase
 from datetime import datetime, timezone as dt_timezone
+from django.utils import timezone as dj_tz
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,21 @@ def _err(msg, status=400, details=None):
 
 def _now_iso():
     return datetime.now(dt_timezone.utc).isoformat()
+
+
+def _extract_origin_geofences(agent_data):
+    """Normaliza cercas de origem vindas do agent_data em diferentes formatos."""
+    data = agent_data or {}
+
+    geofences = data.get("geofences") or []
+    if not geofences and data.get("geofence"):
+        geofences = [data.get("geofence")]
+
+    # Compatibilidade: algumas missões gravam as origens em `origens`.
+    if not geofences:
+        geofences = data.get("origens") or []
+
+    return geofences if isinstance(geofences, list) else []
 
 def _actor_from_request(request):
     try:
@@ -222,6 +238,70 @@ def _get_django_acompanhamento(mission_id):
         supabase_mission_id=mission_uuid
     ).first()
 
+
+def _is_pronta_resposta(acomp, vinculo=None) -> bool:
+    """Retorna True quando o tipo de atendimento é pronta_resposta."""
+    try:
+        tipo_obj = (getattr(vinculo, "tipo_servico", None) if vinculo else None) or getattr(acomp, "tipo_servico", None)
+        tipo_cadastro = (getattr(tipo_obj, "tipo_cadastro", "") or "").strip().lower()
+        return tipo_cadastro == "pronta_resposta"
+    except Exception:
+        return False
+
+
+def _set_django_inicio_if_missing(mission_id, ts_iso=None) -> bool:
+    """
+    Grava data_inicio/horario_inicio no agente principal apenas na primeira
+    entrada em no_local, sem sobrescrever valor já salvo.
+
+    Regra de negócio:
+    - Se pingar no_local antes do horário agendado, início = horário agendado.
+    - Se pingar no_local após o horário agendado, início = horário do ping.
+    """
+    acomp = _get_django_acompanhamento(mission_id)
+    if not acomp:
+        return False
+
+    vinculo = (
+        acomp.agentes.filter(tipo_agente="principal").first()
+        or acomp.agentes.first()
+    )
+    if not vinculo:
+        return False
+
+    # Para pronta_resposta, o início é gravado apenas no odômetro inicial.
+    if _is_pronta_resposta(acomp, vinculo):
+        return False
+
+    if vinculo.data_inicio and vinculo.horario_inicio:
+        return False
+
+    dt_ref = None
+    if isinstance(ts_iso, str) and ts_iso:
+        try:
+            dt_ref = datetime.fromisoformat(ts_iso.replace("Z", "+00:00"))
+            if dt_ref.tzinfo is None:
+                dt_ref = dt_ref.replace(tzinfo=dt_timezone.utc)
+        except Exception:
+            dt_ref = None
+
+    if dt_ref is None:
+        dt_ref = dj_tz.now()
+
+    dt_ref_local = dj_tz.localtime(dt_ref)
+
+    dt_inicio_escolhido = dt_ref_local
+    if vinculo.data_solicitada and vinculo.horario_solicitado:
+        dt_agendado_local = datetime.combine(vinculo.data_solicitada, vinculo.horario_solicitado)
+        dt_agendado_local = dj_tz.make_aware(dt_agendado_local, dj_tz.get_current_timezone())
+        if dt_ref_local < dt_agendado_local:
+            dt_inicio_escolhido = dt_agendado_local
+
+    vinculo.data_inicio = dt_inicio_escolhido.date()
+    vinculo.horario_inicio = dt_inicio_escolhido.time().replace(microsecond=0)
+    vinculo.save(update_fields=["data_inicio", "horario_inicio"])
+    return True
+
 def _update_django_botao_panico(mission_id, value: bool) -> bool:
     try:
         mission_uuid = uuid.UUID(mission_id)
@@ -333,9 +413,7 @@ def sb_mission_location(request, mission_id):
         new_status = None
 
         agent_data = mission.get("agent_data") or {}
-        geofences = agent_data.get("geofences") or []
-        if not geofences and agent_data.get("geofence"):
-            geofences = [agent_data.get("geofence")]
+        geofences = _extract_origin_geofences(agent_data)
 
         # fallback: se ainda não tiver geofence no Supabase, usa Django (compatibilidade)
         if not geofences and current_status == STATUS_MISSAO_ACEITA:
@@ -398,6 +476,7 @@ def sb_mission_location(request, mission_id):
             if current_status == STATUS_MISSAO_ACEITA and inside_any:
                 _update_supabase_status(sb, mission_id, STATUS_NO_LOCAL)
                 _sync_django_status(mission_id, STATUS_NO_LOCAL)
+                _set_django_inicio_if_missing(mission_id, tracking_payload["timestamp"])
                 new_status = STATUS_NO_LOCAL
                 status_changed = True
 
@@ -880,9 +959,7 @@ def sb_mission_geofence_check(request, mission_id):
 
         current_status = (mission.get("status") or "").strip()
         agent_data = mission.get("agent_data") or {}
-        geofences = agent_data.get("geofences") or []
-        if not geofences and agent_data.get("geofence"):
-            geofences = [agent_data.get("geofence")]
+        geofences = _extract_origin_geofences(agent_data)
 
         if not geofences:
             return _err(
@@ -948,6 +1025,7 @@ def sb_mission_geofence_check(request, mission_id):
         if inside and current_status == STATUS_MISSAO_ACEITA:
             _update_supabase_status(sb, mission_id, STATUS_NO_LOCAL)
             _sync_django_status(mission_id, STATUS_NO_LOCAL)  # se existir vínculo no Django, sincroniza
+            _set_django_inicio_if_missing(mission_id, last.get("timestamp") or last.get("created_at"))
             changed = True
             new_status = STATUS_NO_LOCAL
 

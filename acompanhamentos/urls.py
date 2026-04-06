@@ -18,6 +18,7 @@ urlpatterns = [
 
     # Responsável Agentes Acompanhamento URLs
     path("ajax/novo-responsavel-agente/",views.criar_responsavel_agente_ajax,name="criar_responsavel_agente_ajax"),
+    path("ajax/estimativa-km/", views.ajax_estimativa_km, name="ajax_estimativa_km"),
     path("listResponsavelAgente/",views.ResponsavelAgenteAcompanhamentoListView.as_view(),name="responsavelagenteAcompanhamentoList",),
     path("ajax/editar-responsavel-agente/<int:pk>/",views.editar_responsavel_agente_ajax,name="editar_responsavel_agente_ajax"),
     

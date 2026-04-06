@@ -197,11 +197,15 @@
             <div class="col-12">
                 <div class="content-main">
                      <div class="table-responsive table-excel">
-                        <div class="header-tablee mb-2" style="display: flex; justify-content: end; align-items: center;">
+                        <div class="header-tablee mb-2" style="display: flex; justify-content: end; align-items: center; gap: 8px;">
                             <!-- <a href="{% url 'AcompanhamentosCreate' %}" class="btn btn-primary"> + Acompanhamento</a> -->
 
-                            <a href="?{% for key, value in request.GET.items %}{% if key != 'pendente' %}{{ key }}={{ value }}&{% endif %}{% endfor %}pendente=true" class="badge bg-warning text-dark fs-6 mt-1 mt-md-0" style="text-decoration: none;">
+                            <a href="?{% for key, value in request.GET.items %}{% if key != 'pendente' and key != 'canceladas' %}{{ key }}={{ value }}&{% endif %}{% endfor %}pendente=true" class="badge {% if not mostrando_canceladas %}bg-warning text-dark{% else %}bg-secondary text-light{% endif %} fs-6 mt-1 mt-md-0" style="text-decoration: none;">
                                 Pendentes: {{ pendentes_count }}
+                            </a>
+
+                            <a href="?{% for key, value in request.GET.items %}{% if key != 'pendente' and key != 'canceladas' %}{{ key }}={{ value }}&{% endif %}{% endfor %}canceladas=true" class="badge {% if mostrando_canceladas %}bg-danger text-light{% else %}bg-secondary text-light{% endif %} fs-6 mt-1 mt-md-0" style="text-decoration: none;">
+                                Cancelados: {{ cancelados_count }}
                             </a>
 
                         </div>
@@ -245,36 +249,63 @@
                                 {% for item in itens %}
                                 <tr>
                                     <td>
-                                        {% if item.validar_acompanhamento == 0 %}
-                                            {% if item.status_acompanhamento == "pendente" or item.status_acompanhamento == "missao_aceita" or item.status_acompanhamento == "agendada" %}
-                                                <a href="{% url 'acompanhamentosUpdate' item.pk %}" class="btn btn-warning btn-sm">
-                                                    <i class="bi bi-pencil"></i>
-                                                </a>
-                                            {% elif item.status_acompanhamento == "concluido" %}
+                                        {% with status=item.status_requisicao|default:''|lower %}
+                                            {% if status != "cancelado" and status != "cancelada" and status != "canceladas" %}
+
+                                                {% if item.validar_acompanhamento == 0 %}
+                                                    {% if item.status_acompanhamento == "pendente" or item.status_acompanhamento == "missao_aceita" or item.status_acompanhamento == "agendada" %}
+                                                        <a href="{% url 'acompanhamentosUpdate' item.pk %}" class="btn btn-warning btn-sm">
+                                                            <i class="bi bi-pencil"></i>
+                                                        </a>
+                                                    {% elif item.status_acompanhamento == "concluido" %}
+                                                        <button
+                                                            type="button"
+                                                            class="btn btn-success btn-sm btn-pedagio"
+                                                            data-bs-toggle="modal"
+                                                            data-bs-target="#modalPedagio"
+                                                            data-id="{{ item.id }}"
+                                                            data-url="{% url 'acompanhamentosUpdatePedagio' item.id %}"
+                                                            >
+                                                            <i class="bi bi-cash-coin"></i>
+                                                        </button>
+                                                    {% endif %}
+                                                {% else %}
+                                                    {% if item.validar_pagamento == 0 %}
+                                                        {% if user|has_group:"DiretoriaFinanceiro" %}
+                                                            <a href="{% url 'acompanhamentosUpdate' item.pk %}" class="btn btn-warning btn-sm">
+                                                                <i class="bi bi-pencil"></i>
+                                                            </a>
+                                                        {% else %}
+                                                            Validado Diretoria
+                                                        {% endif %}
+                                                    {% else %}
+                                                        Pago
+                                                    {% endif %}
+                                                {% endif %}
+
+                                            {% endif %}
+
+                                            {# BOTÃO DE CANCELAMENTO (sempre aparece se estiver cancelado) #}
+                                            {% if status == "cancelado" or status == "cancelada" or status == "canceladas" %}
                                                 <button
                                                     type="button"
-                                                    class="btn btn-success btn-sm btn-pedagio"
+                                                    class="btn btn-outline-danger btn-sm btn-cancelamento-acomp"
+                                                    title="Ver detalhes do cancelamento"
                                                     data-bs-toggle="modal"
-                                                    data-bs-target="#modalPedagio"
-                                                    data-id="{{ item.id }}"
-                                                    data-url="{% url 'acompanhamentosUpdatePedagio' item.id %}"
-                                                    >
-                                                    <i class="bi bi-cash-coin"></i>
+                                                    data-bs-target="#modalCancelamentoAcomp"
+                                                    data-cancel-status="{{ item.status_requisicao|default:'-' }}"
+                                                    data-cancel-taxa="{{ item.taxa_cancelamento_percentual|default:'-' }}"
+                                                    data-cancel-valor="{{ item.valor_cancelamento|default:'-' }}"
+                                                    data-cancel-aceitou="{% if item.aceitou_termos_cancelamento %}Sim{% else %}Não{% endif %}"
+                                                    data-cancel-usuario="{{ item.usuario_aceitou_termos_cancelamento|default:'-' }}"
+                                                    data-cancel-justificativa="{{ item.justificativa_cancelamento|default:'-' }}"
+                                                    data-cancel-motivos="{{ item.motivos_cancelamento|join:', '|default:'-' }}"
+                                                    data-cancelado-em="{{ item.cancelado_em|date:'d/m/Y H:i'|default:'-' }}"
+                                                >
+                                                    <i class="bi bi-x-octagon"></i>
                                                 </button>
                                             {% endif %}
-                                        {% else %}
-                                            {% if item.validar_pagamento == 0 %}
-                                                {% if user|has_group:"DiretoriaFinanceiro" %}
-                                                <a href="{% url 'acompanhamentosUpdate' item.pk %}" class="btn btn-warning btn-sm">
-                                                    <i class="bi bi-pencil"></i>
-                                                </a>
-                                                {% else %}
-                                                    Validado Diretoria
-                                                {% endif %}
-                                            {% else %}
-                                                Pago
-                                            {% endif %}
-                                        {% endif %}
+                                        {% endwith %}
                                     </td>
                                     <td>
                                         {% if item.tipo_servico and item.tipo_servico.tipo_cadastro == "acompanhamento" %}
@@ -587,6 +618,55 @@
         </div>
     </div>
 
+    <div class="modal fade" id="modalCancelamentoAcomp" tabindex="-1" aria-labelledby="modalCancelamentoAcompLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalCancelamentoAcompLabel">
+                        <i class="bi bi-x-octagon-fill text-danger me-2"></i>Detalhes do Cancelamento
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Status</small>
+                            <strong id="acomp-cancel-status">-</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Taxa de cancelamento (%)</small>
+                            <strong id="acomp-cancel-taxa">-</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Valor cancelamento (R$)</small>
+                            <strong id="acomp-cancel-valor">-</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Aceitou termos</small>
+                            <strong id="acomp-cancel-aceitou">-</strong>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">Usuário que aceitou termos</small>
+                            <strong id="acomp-cancel-usuario">-</strong>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">Cancelado em</small>
+                            <strong id="acomp-cancelado-em">-</strong>
+                        </div>
+                        <div class="col-12">
+                            <small class="text-muted d-block">Justificativa</small>
+                            <div id="acomp-cancel-justificativa">-</div>
+                        </div>
+                        <div class="col-12">
+                            <small class="text-muted d-block">Motivos</small>
+                            <div id="acomp-cancel-motivos">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         $(document).ready(function () {
 
@@ -608,6 +688,12 @@
   $(document).ready(function () {
     const modalEl = document.getElementById("modalPedagio");
     const $form = $("#formPedagio");
+
+            function firstValue(v) {
+                if (v === undefined || v === null) return "-";
+                const s = String(v).trim();
+                return s ? s : "-";
+            }
 
     // 1) Quando abrir o modal, define action/id
     $("#modalPedagio").on("show.bs.modal", function (event) {
@@ -651,6 +737,18 @@
         alert(err.message || "Falha ao comunicar com o servidor.");
       });
     });
+
+        $(document).on("click", ".btn-cancelamento-acomp", function () {
+            const $btn = $(this);
+            $("#acomp-cancel-status").text(firstValue($btn.data("cancel-status")));
+            $("#acomp-cancel-taxa").text(firstValue($btn.data("cancel-taxa")));
+            $("#acomp-cancel-valor").text(firstValue($btn.data("cancel-valor")));
+            $("#acomp-cancel-aceitou").text(firstValue($btn.data("cancel-aceitou")));
+            $("#acomp-cancel-usuario").text(firstValue($btn.data("cancel-usuario")));
+            $("#acomp-cancel-justificativa").text(firstValue($btn.data("cancel-justificativa")));
+            $("#acomp-cancel-motivos").text(firstValue($btn.data("cancel-motivos")));
+            $("#acomp-cancelado-em").text(firstValue($btn.data("cancelado-em")));
+        });
   });
 </script>
 

@@ -74,12 +74,12 @@ class TipoServico(models.Model):
         ('MOTO_1', 'Moto | 1 Agente(s) - MOTO MONITORAMENTO ATIVO'),
         ('CARRO_1', 'Carro | 1 Agente(s) - CARRO MONITORAMENTO ATIVO'),
         ('CARRO_2', 'Carro | 2 Agente(s) - CARRO MONITORAMENTO ATIVO'),
-        ('CARRO_1_1G', 'Carro | 1 Agente(s) - CARRO MONITORAMENTO ATIVO - 1G'),
-        ('CARRO_2_1S1G', 'Carro | 2 Agente(s) - CARRO MONITORAMENTO ATIVO - 1S/1G'),
-        ('CARRO_2_2G', 'Carro | 2 Agente(s) - CARRO MONITORAMENTO ATIVO - 2G'),
+        ('CARRO_1_1P+', 'Carro | 1 Agente(s) - CARRO MONITORAMENTO ATIVO - 1P+'),
+        ('CARRO_2_1P-1P+', 'Carro | 2 Agente(s) - CARRO MONITORAMENTO ATIVO - 1P-/1P+'),
+        ('CARRO_2_2P+', 'Carro | 2 Agente(s) - CARRO MONITORAMENTO ATIVO - 2P+'),
 
-        ('Pronta_Resposta_G', 'Pronta Resposta - 1 Agente(s) - G'),
-        ('Pronta_Resposta_S', 'Pronta Resposta - 1 Agente(s) - S'),
+        ('Pronta_Resposta_P+', 'Pronta Resposta - 1 Agente(s) - P+'),
+        ('Pronta_Resposta_P-', 'Pronta Resposta - 1 Agente(s) - P-'),
         ('Antenista', 'Antenista'),
     ]
 
@@ -242,6 +242,9 @@ class RequisicaoSolicitacao(models.Model):
     latitude_destino_3 = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
     longitude_destino_3 = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
 
+    km_estimado_carro = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    km_estimado_moto = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
     motorista = models.CharField(max_length=255)
     numero_motorista = models.CharField(max_length=255)
     placa = models.CharField(max_length=10)
@@ -278,6 +281,16 @@ class RequisicaoSolicitacao(models.Model):
     nome_user = models.CharField(max_length=150, blank=True, null=True)
 
     solicitado = models.BooleanField(default=False)
+
+    status_requisicao = models.CharField(max_length=50, blank=True, null=True)
+    taxa_cancelamento_percentual = models.PositiveSmallIntegerField(null=True, blank=True)
+    valor_cancelamento = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    aceitou_termos_cancelamento = models.BooleanField(default=False)
+    usuario_aceitou_termos_cancelamento = models.CharField(max_length=150, blank=True, null=True)
+    justificativa_cancelamento = models.TextField(blank=True)
+    motivos_cancelamento = models.JSONField(default=list, blank=True)
+    cancelado_em = models.DateTimeField(null=True, blank=True)
+    cancelamento_aprovado = models.BooleanField(default=False)
 
     sincronizado_em = models.DateTimeField(null=True, blank=True)
     criado_em = models.DateTimeField(auto_now_add=True)
@@ -637,6 +650,9 @@ class registroacompanhamento(models.Model):
         verbose_name="Longitude do Destino"
     )
 
+    km_estimado_carro = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    km_estimado_moto = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
     valor_contrato = models.DecimalField(
         max_digits=12,
         decimal_places=2,
@@ -687,6 +703,15 @@ class registroacompanhamento(models.Model):
         verbose_name="É reuso de agente",
         help_text="Acompanhamentos de reuso não têm custo para o cliente."
     )
+
+    status_requisicao = models.CharField(max_length=50, blank=True, null=True)
+    taxa_cancelamento_percentual = models.PositiveSmallIntegerField(null=True, blank=True)
+    valor_cancelamento = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    aceitou_termos_cancelamento = models.BooleanField(default=False)
+    usuario_aceitou_termos_cancelamento = models.CharField(max_length=150, blank=True, null=True)
+    justificativa_cancelamento = models.TextField(blank=True)
+    motivos_cancelamento = models.JSONField(default=list, blank=True)
+    cancelado_em = models.DateTimeField(null=True, blank=True)
 
     ocorrencia = models.TextField(blank=True, null=True)
     nome_user = models.CharField(max_length=150, blank=True, null=True)
@@ -1018,9 +1043,31 @@ class registroacompanhamentoagente(models.Model):
     def __str__(self):
         return f"{self.agente}"
 
+    def _get_inicio_real_para_calculo(self):
+        """
+        Início real da jornada: prioriza data_inicio/horario_inicio (no_local).
+        Fallback para data_solicitada/horario_solicitado para legado.
+        """
+        if self.data_inicio and self.horario_inicio:
+            return datetime.combine(self.data_inicio, self.horario_inicio)
+
+        if self.data_solicitada and self.horario_solicitado:
+            return datetime.combine(self.data_solicitada, self.horario_solicitado)
+
+        return None
+
+    def _get_fim_para_calculo(self):
+        if self.data_finalizacao and self.horario_finalizacao:
+            return datetime.combine(self.data_finalizacao, self.horario_finalizacao)
+
+        return None
+
     def calcular_horario_total(self):
-        inicio = datetime.combine(self.data_solicitada, self.horario_solicitado)
-        fim = datetime.combine(self.data_finalizacao, self.horario_finalizacao)
+        inicio = self._get_inicio_real_para_calculo()
+        fim = self._get_fim_para_calculo()
+
+        if not inicio or not fim:
+            return None
 
         if fim < inicio:
             fim += timedelta(days=1)
@@ -1105,19 +1152,7 @@ class registroacompanhamentoagente(models.Model):
         else:
             self.km_total = None
 
-        if (
-            self.data_solicitada and self.horario_solicitado and
-            self.data_finalizacao and self.horario_finalizacao
-        ):
-            inicio = datetime.combine(self.data_solicitada, self.horario_solicitado)
-            fim = datetime.combine(self.data_finalizacao, self.horario_finalizacao)
-
-            if fim < inicio:
-                fim += timedelta(days=1)
-
-            self.horario_total = fim - inicio
-        else:
-            self.horario_total = None
+        self.horario_total = self.calcular_horario_total()
 
         # ✅ REUSO: zera todos os valores R$ (reuso não tem custo)
         if self.acompanhamento and self.acompanhamento.is_reuso:

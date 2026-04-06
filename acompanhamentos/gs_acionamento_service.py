@@ -41,6 +41,11 @@ class GSAcionamentoService:
             logger.error(f"Erro ao notificar GS Acionamento: {e}")
             return None
 
+    def _is_status_cancelado(self, status_requisicao):
+        if not status_requisicao:
+            return False
+        return str(status_requisicao).strip().lower() in {"cancelado", "cancelada", "canceladas"}
+
     def notificar_acompanhamento_criado(self, requisicao_solicitacao, agente_principal):
         """
         Notifica o GS Acionamento que um acompanhamento foi criado.
@@ -102,6 +107,16 @@ class GSAcionamentoService:
             "agente": agente_nome,
             "placa_agente": placa_agente,
         }
+
+        if self._is_status_cancelado(status_requisicao):
+            valor_cancelamento = getattr(requisicao_solicitacao, "valor_cancelamento", None)
+            taxa_cancelamento_percentual = getattr(requisicao_solicitacao, "taxa_cancelamento_percentual", None)
+
+            if valor_cancelamento is not None:
+                payload["valor_cancelamento"] = str(valor_cancelamento)
+
+            if taxa_cancelamento_percentual is not None:
+                payload["taxa_cancelamento_percentual"] = int(taxa_cancelamento_percentual)
 
         if extra_payload:
             payload.update(extra_payload)

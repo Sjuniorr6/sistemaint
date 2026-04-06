@@ -12,9 +12,11 @@ from django.db.models import Count, Sum, F
 from django.db.models.functions import Coalesce
 from django.db.models.functions import TruncDate
 from decimal import Decimal
-from django.utils.dateparse import parse_date, parse_time
+from django.utils.dateparse import parse_date, parse_time, parse_datetime
 from django.db.models import Q
+import json
 from .models import Cliente, TipoServico, RequisicaoSolicitacao, FranquiaAgente, Missao, registroacompanhamento, registroacompanhamentoagente
+from .gs_acionamento_service import gs_acionamento
 
 def _to_bool(value):
     if isinstance(value, bool):
@@ -48,6 +50,61 @@ def _to_decimal(value, default=None):
         return Decimal(str(value))
     except Exception:
         return default
+
+
+def _to_list(value, default=None):
+    if default is None:
+        default = []
+
+    if value in (None, "", "None", "null"):
+        return default
+
+    if isinstance(value, list):
+        return value
+
+    if isinstance(value, tuple):
+        return list(value)
+
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return default
+        try:
+            parsed = json.loads(raw)
+            return parsed if isinstance(parsed, list) else default
+        except Exception:
+            return default
+
+    return default
+
+
+def _to_datetime(value, default=None):
+    if value in (None, "", "None", "null"):
+        return default
+
+    dt = parse_datetime(str(value).strip())
+    if not dt:
+        return default
+
+    if timezone.is_naive(dt):
+        return timezone.make_aware(dt, timezone.get_current_timezone())
+
+    return dt
+
+
+def _calcular_valor_cancelamento(valor_acionamento, taxa_percentual):
+    if valor_acionamento in (None, "", "None", "null"):
+        return None
+
+    if taxa_percentual in (None, "", "None", "null"):
+        return None
+
+    try:
+        base = Decimal(str(valor_acionamento))
+        taxa = Decimal(str(taxa_percentual))
+        return (base * taxa / Decimal("100")).quantize(Decimal("0.01"))
+    except Exception:
+        return None
 
 
 def _resolve_tipo_servico_for_franquia(data):
@@ -280,6 +337,43 @@ def sync_requisicao(request):
                 "error": "comboio=True exige quantidade_veiculos_comboio >= 1"
             }, status=status.HTTP_400_BAD_REQUEST)
 
+        status_requisicao = (data.get('status_requisicao', '') or '').strip().lower()
+        is_cancelada = status_requisicao in {'cancelado', 'cancelada', 'canceladas'}
+
+        valor_cancelamento = None
+        if is_cancelada:
+            valor_cancelamento = _calcular_valor_cancelamento(
+                getattr(tipo_servico, "valor_acionamento", None),
+                _to_int(data.get('taxa_cancelamento_percentual'), default=None, min_value=0),
+            )
+
+        cancelamento_defaults = {
+            'status_requisicao': (data.get('status_requisicao', '') or ''),
+            'taxa_cancelamento_percentual': _to_int(
+                data.get('taxa_cancelamento_percentual'),
+                default=None,
+                min_value=0,
+            ),
+            'valor_cancelamento': valor_cancelamento,
+            'aceitou_termos_cancelamento': _to_bool(
+                data.get('aceitou_termos_cancelamento', False)
+            ),
+            'usuario_aceitou_termos_cancelamento': (
+                data.get('usuario_aceitou_termos_cancelamento', '') or ''
+            ),
+            'justificativa_cancelamento': (
+                data.get('justificativa_cancelamento', '') or ''
+            ),
+            'motivos_cancelamento': _to_list(
+                data.get('motivos_cancelamento'),
+                default=[],
+            ),
+            'cancelado_em': _to_datetime(
+                data.get('cancelado_em'),
+                default=None,
+            ),
+        }
+
         requisicao, created = RequisicaoSolicitacao.objects.update_or_create(
             id_externo=data.get('id_externo'),  # PK do AgenteVeiculo
             defaults={
@@ -308,6 +402,8 @@ def sync_requisicao(request):
                 'destino_3': data.get('destino_3', ''),
                 'latitude_destino_3': _to_decimal(data.get('latitude_destino_3'), default=None),
                 'longitude_destino_3': _to_decimal(data.get('longitude_destino_3'), default=None),
+                'km_estimado_carro': _to_decimal(data.get('km_estimado_carro'), default=None),
+                'km_estimado_moto': _to_decimal(data.get('km_estimado_moto'), default=None),
                 'motorista': data.get('motorista') or '',
                 'numero_motorista': data.get('numero_motorista') or '',
                 'placa': data.get('placa') or '',
@@ -323,8 +419,25 @@ def sync_requisicao(request):
                 'is_reuso': _to_bool(data.get('is_reuso', False)),
                 'agente_nome_reuso': data.get('agente_nome_reuso', '') or '',
                 'agente_placa_reuso': data.get('agente_placa_reuso', '') or '',
+                'cancelamento_aprovado': _to_bool(data.get('cancelamento_aprovado', False)),
+                **cancelamento_defaults,
             }
         )
+
+        # Se o acompanhamento já foi criado a partir desta requisição, espelha também os campos de cancelamento.
+        registroacompanhamento.objects.filter(
+            requisicao_solicitacao_id=requisicao.pk
+        ).update(**cancelamento_defaults)
+
+        if is_cancelada and requisicao.id_externo:
+            gs_acionamento.notificar_status_requisicao(
+                requisicao,
+                status_requisicao=(data.get('status_requisicao', '') or 'cancelado'),
+                agente_principal=None,
+                extra_payload={
+                    'valor_cancelamento': str(valor_cancelamento) if valor_cancelamento is not None else None,
+                },
+            )
 
         return Response({
             'success': True,

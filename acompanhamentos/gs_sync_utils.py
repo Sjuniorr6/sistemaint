@@ -172,7 +172,11 @@ def _garantir_horario_total_se_der(ag):
     if ag.horario_total:
         return
 
-    if not (ag.data_solicitada and ag.horario_solicitado and ag.data_finalizacao and ag.horario_finalizacao):
+    tem_inicio_real = ag.data_inicio and ag.horario_inicio
+    tem_inicio_legado = ag.data_solicitada and ag.horario_solicitado
+    tem_fim = ag.data_finalizacao and ag.horario_finalizacao
+
+    if not ((tem_inicio_real or tem_inicio_legado) and tem_fim):
         return
 
     try:

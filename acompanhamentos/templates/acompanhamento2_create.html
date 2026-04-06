@@ -18,6 +18,8 @@
 
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
     <style>
         body {
@@ -111,6 +113,20 @@
             background-color: #e9ecef !important;
         }
 
+        input[name$="-numero_motorista"] {
+            height: 38px;
+            border: 1px solid #ced4da;
+            border-radius: 0.375rem;
+            box-shadow: none;
+        }
+
+        #originPickerMap {
+            width: 100%;
+            height: 420px;
+            border: 1px solid #ced4da;
+            border-radius: 8px;
+        }
+
     </style>
 
     {% load static %}
@@ -189,7 +205,8 @@
                                 <label class="form-label">Cliente</label>
                                 {{ form.cliente }}
                                 {{ form.status_acompanhamento }}
-                                <input type="text" class="form-control bg-light input-hid" value="{{ requisicao.cliente.nome }}" readonly>
+                                <input type="hidden" id="id_km_estimado_carro" name="km_estimado_carro" value="{{ object.km_estimado_carro|default:requisicao.km_estimado_carro|default:'' }}">
+                                <input type="hidden" id="id_km_estimado_moto" name="km_estimado_moto" value="{{ object.km_estimado_moto|default:requisicao.km_estimado_moto|default:'' }}">
                             </div>
                         </div>
 
@@ -197,6 +214,9 @@
                             <div class="col-md-6">
                                 <label for="origem" class="form-label">Origem</label>
                                 {{ form.origem }}
+                                <button type="button" class="btn btn-outline-secondary btn-sm mt-2 js-origin-map-btn" onclick="openOriginPicker()">
+                                    <i class="bi bi-map"></i> Selecionar origem no mapa
+                                </button>
                             </div>
                             <div class="col-md-2">
                                 <label for="latitude_origem" class="form-label">Latitude Origem</label>
@@ -206,7 +226,7 @@
                                 <label for="longitude_origem" class="form-label">Longitude Origem</label>
                                 <div class="input-group">
                                     {{ form.longitude_origem }}
-                                    <button type="button" class="btn btn-outline-primary" title="Ver no mapa" onclick="openLatLngMap('id_latitude_origem', 'id_longitude_origem')">
+                                    <button type="button" class="btn btn-outline-primary js-origin-map-btn" title="Ver no mapa" onclick="openLatLngMap('id_latitude_origem', 'id_longitude_origem')">
                                         <i class="bi bi-geo-alt-fill"></i>
                                     </button>
                                 </div>
@@ -236,6 +256,12 @@
                                 </div>
                             </div>
                         </div>
+
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <small id="kmEstimadoHint" class="text-muted"></small>
+                            </div>
+                        </div>
                         
                         {% if form.origem_2.value or form.destino_2.value %}
                         <hr>
@@ -253,7 +279,7 @@
                                 <label for="longitude_origem2" class="form-label">Longitude Origem 2</label>
                                 <div class="input-group">
                                     {{ form.longitude_origem2 }}
-                                    <button type="button" class="btn btn-outline-primary" title="Ver no mapa" onclick="openLatLngMap('id_latitude_origem2', 'id_longitude_origem2')">
+                                    <button type="button" class="btn btn-outline-primary js-origin-map-btn" title="Ver no mapa" onclick="openLatLngMap('id_latitude_origem2', 'id_longitude_origem2')">
                                         <i class="bi bi-geo-alt-fill"></i>
                                     </button>
                                 </div>
@@ -302,7 +328,7 @@
                                 <label for="longitude_origem3" class="form-label">Longitude Origem 3</label>
                                 <div class="input-group">
                                     {{ form.longitude_origem3 }}
-                                    <button type="button" class="btn btn-outline-primary" title="Ver no mapa" onclick="openLatLngMap('id_latitude_origem3', 'id_longitude_origem3')">
+                                    <button type="button" class="btn btn-outline-primary js-origin-map-btn" title="Ver no mapa" onclick="openLatLngMap('id_latitude_origem3', 'id_longitude_origem3')">
                                         <i class="bi bi-geo-alt-fill"></i>
                                     </button>
                                 </div>
@@ -590,6 +616,41 @@
     </div>
     <!-- /Form Novo Acompanhamento -->
 
+    <div class="modal fade" id="originPickerModal" tabindex="-1" aria-labelledby="originPickerModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="originPickerModalLabel">Selecionar Origem no Mapa</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-9">
+                            <input type="text" class="form-control" id="originAddressSearch" placeholder="Digite um endereço para buscar...">
+                        </div>
+                        <div class="col-md-3 d-grid">
+                            <button type="button" class="btn btn-primary" onclick="searchOriginAddress()">
+                                <i class="bi bi-search"></i> Buscar Endereço
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="originPickerMap"></div>
+
+                    <small class="text-muted d-block mt-2">
+                        Dica: você pode clicar no mapa para definir a origem ou buscar por endereço.
+                    </small>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-success" onclick="applyOriginFromMap()">
+                        <i class="bi bi-check2-circle"></i> Usar esta localização
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 <script>
   $(function () {
     const $form = $("#acomp-form");
@@ -870,6 +931,357 @@
         });
 
     });
+</script>
+
+<script>
+    (function lockOriginForAcompanhamento() {
+        const tipoCadastroReq = '{{ requisicao.tipo_servico.tipo_cadastro|default_if_none:"" }}'.trim().toLowerCase();
+        const tipoCadastroObj = '{{ object.tipo_servico.tipo_cadastro|default_if_none:"" }}'.trim().toLowerCase();
+
+        let isProntaResposta = (tipoCadastroReq === 'pronta_resposta' || tipoCadastroObj === 'pronta_resposta');
+
+        if (!isProntaResposta) {
+            const tipoServicoSelect = document.getElementById('id_tipo_servico') || document.querySelector('select[name="tipo_servico"]');
+            if (tipoServicoSelect && tipoServicoSelect.options && tipoServicoSelect.selectedIndex >= 0) {
+                const selectedText = (tipoServicoSelect.options[tipoServicoSelect.selectedIndex].text || '').toLowerCase();
+                if (selectedText.indexOf('pronta resposta') >= 0 || selectedText.indexOf('pronta_resposta') >= 0) {
+                    isProntaResposta = true;
+                }
+            }
+        }
+
+        if (isProntaResposta) return;
+
+        const originFieldIds = [
+            'id_origem',
+            'id_latitude_origem',
+            'id_longitude_origem',
+            'id_origem_2',
+            'id_latitude_origem2',
+            'id_longitude_origem2',
+            'id_origem_3',
+            'id_latitude_origem3',
+            'id_longitude_origem3'
+        ];
+
+        originFieldIds.forEach(function (fieldId) {
+            const field = document.getElementById(fieldId);
+            if (!field) return;
+            field.setAttribute('readonly', 'readonly');
+            field.classList.add('bg-light');
+            field.style.pointerEvents = 'none';
+        });
+
+        document.querySelectorAll('.js-origin-map-btn').forEach(function (btn) {
+            btn.style.display = 'none';
+        });
+    })();
+</script>
+
+<script>
+    (function prontaRespostaKmEstimado() {
+        const endpoint = "{% url 'ajax_estimativa_km' %}";
+
+        function toFloat(value) {
+            const normalized = String(value || '').trim().replace(',', '.');
+            const n = Number(normalized);
+            return Number.isFinite(n) ? n : null;
+        }
+
+        function isProntaResposta() {
+            const tipoCadastroReq = '{{ requisicao.tipo_servico.tipo_cadastro|default_if_none:"" }}'.trim().toLowerCase();
+            const tipoCadastroObj = '{{ object.tipo_servico.tipo_cadastro|default_if_none:"" }}'.trim().toLowerCase();
+
+            if (tipoCadastroReq === 'pronta_resposta' || tipoCadastroObj === 'pronta_resposta') {
+                return true;
+            }
+
+            const tipoServicoSelect = document.getElementById('id_tipo_servico') || document.querySelector('select[name="tipo_servico"]');
+            if (!tipoServicoSelect || !tipoServicoSelect.options || tipoServicoSelect.selectedIndex < 0) {
+                return false;
+            }
+
+            const selectedText = (tipoServicoSelect.options[tipoServicoSelect.selectedIndex].text || '').toLowerCase();
+            return selectedText.indexOf('pronta resposta') >= 0 || selectedText.indexOf('pronta_resposta') >= 0;
+        }
+
+        const origemLatInput = document.getElementById('id_latitude_origem');
+        const origemLngInput = document.getElementById('id_longitude_origem');
+        const destinoLatInput = document.getElementById('id_latitude_destino');
+        const destinoLngInput = document.getElementById('id_longitude_destino');
+        const kmCarroInput = document.getElementById('id_km_estimado_carro');
+        const kmMotoInput = document.getElementById('id_km_estimado_moto');
+        const hint = document.getElementById('kmEstimadoHint');
+
+        if (!origemLatInput || !origemLngInput || !destinoLatInput || !destinoLngInput || !kmCarroInput || !kmMotoInput || !hint) {
+            return;
+        }
+
+        let debounceId = null;
+        let requestCounter = 0;
+
+        function setHint(msg, isError) {
+            hint.textContent = msg || '';
+            hint.classList.toggle('text-danger', !!isError);
+            hint.classList.toggle('text-muted', !isError);
+        }
+
+        function renderCurrentKm() {
+            const kmCarro = (kmCarroInput.value || '').trim();
+            const kmMoto = (kmMotoInput.value || '').trim();
+            if (!kmCarro && !kmMoto) {
+                setHint('');
+                return;
+            }
+            setHint(`KM estimado pronta_resposta: carro ${kmCarro || '-'} | moto ${kmMoto || '-'}`, false);
+        }
+
+        async function calcularKmEstimado() {
+            if (!isProntaResposta()) {
+                return;
+            }
+
+            const origemLat = toFloat(origemLatInput.value);
+            const origemLng = toFloat(origemLngInput.value);
+            const destinoLat = toFloat(destinoLatInput.value);
+            const destinoLng = toFloat(destinoLngInput.value);
+
+            if ([origemLat, origemLng, destinoLat, destinoLng].some(v => v === null)) {
+                return;
+            }
+
+            const reqId = ++requestCounter;
+            setHint('Calculando KM estimado...', false);
+
+            try {
+                const params = new URLSearchParams({
+                    origem_lat: String(origemLat),
+                    origem_lng: String(origemLng),
+                    destino_lat: String(destinoLat),
+                    destino_lng: String(destinoLng),
+                });
+
+                const resp = await fetch(`${endpoint}?${params.toString()}`, {
+                    method: 'GET',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                });
+
+                const data = await resp.json();
+
+                if (reqId !== requestCounter) {
+                    return;
+                }
+
+                if (!resp.ok || !data.success) {
+                    setHint((data && data.error) ? `Falha ao calcular KM: ${data.error}` : 'Falha ao calcular KM estimado.', true);
+                    return;
+                }
+
+                kmCarroInput.value = data.carro && data.carro.km != null ? Number(data.carro.km).toFixed(2) : '';
+                kmMotoInput.value = data.moto && data.moto.km != null ? Number(data.moto.km).toFixed(2) : '';
+                renderCurrentKm();
+            } catch (err) {
+                if (reqId !== requestCounter) {
+                    return;
+                }
+                setHint('Erro de rede ao calcular KM estimado.', true);
+            }
+        }
+
+        function scheduleCalculo() {
+            if (debounceId) {
+                window.clearTimeout(debounceId);
+            }
+            debounceId = window.setTimeout(calcularKmEstimado, 500);
+        }
+
+        [origemLatInput, origemLngInput, destinoLatInput, destinoLngInput].forEach(function (el) {
+            el.addEventListener('input', scheduleCalculo);
+            el.addEventListener('change', scheduleCalculo);
+        });
+
+        renderCurrentKm();
+        scheduleCalculo();
+    })();
+</script>
+
+<script>
+    let originPickerMap = null;
+    let originPickerMarker = null;
+    let originPickerSelected = null;
+    const ORIGEM_MAX_LEN = 100;
+
+    function buildShortAddress(addressObj, fallbackText) {
+        const address = addressObj || {};
+        const road = (address.road || address.pedestrian || address.footway || '').trim();
+        const number = (address.house_number || '').trim();
+        const bairro = (
+            address.neighbourhood ||
+            address.suburb ||
+            address.city_district ||
+            address.quarter ||
+            ''
+        ).trim();
+
+        const principal = [road, number].filter(Boolean).join(', ');
+        let shortText = [principal, bairro].filter(Boolean).join(' - ');
+
+        if (!shortText) {
+            shortText = (fallbackText || '').trim();
+        }
+
+        if (shortText.length > ORIGEM_MAX_LEN) {
+            shortText = shortText.slice(0, ORIGEM_MAX_LEN).trim();
+        }
+
+        return shortText;
+    }
+
+    function getOriginFields() {
+        return {
+            origem: document.getElementById('id_origem'),
+            lat: document.getElementById('id_latitude_origem'),
+            lng: document.getElementById('id_longitude_origem')
+        };
+    }
+
+    function setOriginMarker(lat, lng) {
+        if (!originPickerMap) return;
+
+        if (originPickerMarker) {
+            originPickerMarker.setLatLng([lat, lng]);
+        } else {
+            originPickerMarker = L.marker([lat, lng]).addTo(originPickerMap);
+        }
+
+        originPickerMap.setView([lat, lng], 16);
+        originPickerSelected = { lat, lng };
+    }
+
+    async function reverseGeocodeOrigin(lat, lng) {
+        try {
+            const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}`;
+            const resp = await fetch(url);
+            if (!resp.ok) return null;
+            const data = await resp.json();
+            return {
+                shortText: buildShortAddress(data.address, data.display_name || ''),
+                displayName: data.display_name || null,
+                address: data.address || {}
+            };
+        } catch (err) {
+            return null;
+        }
+    }
+
+    function initOriginPickerMap() {
+        if (originPickerMap) return;
+
+        originPickerMap = L.map('originPickerMap').setView([-23.55052, -46.633308], 12);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(originPickerMap);
+
+        originPickerMap.on('click', async function (event) {
+            const lat = Number(event.latlng.lat.toFixed(7));
+            const lng = Number(event.latlng.lng.toFixed(7));
+            setOriginMarker(lat, lng);
+
+            const addressInput = document.getElementById('originAddressSearch');
+            const address = await reverseGeocodeOrigin(lat, lng);
+            if (address && addressInput) {
+                addressInput.value = address.shortText || '';
+            }
+        });
+    }
+
+    function openOriginPicker() {
+        const modalEl = document.getElementById('originPickerModal');
+        if (!modalEl) return;
+
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+
+        setTimeout(() => {
+            initOriginPickerMap();
+            originPickerMap.invalidateSize();
+
+            const fields = getOriginFields();
+            const lat = fields.lat ? Number((fields.lat.value || '').replace(',', '.')) : NaN;
+            const lng = fields.lng ? Number((fields.lng.value || '').replace(',', '.')) : NaN;
+
+            if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                setOriginMarker(lat, lng);
+            }
+        }, 250);
+    }
+
+    async function searchOriginAddress() {
+        const input = document.getElementById('originAddressSearch');
+        if (!input) return;
+
+        const query = (input.value || '').trim();
+        if (!query) {
+            alert('Digite um endereço para buscar.');
+            return;
+        }
+
+        try {
+            const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=1&q=${encodeURIComponent(query)}`;
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error('Falha na busca');
+
+            const data = await resp.json();
+            if (!Array.isArray(data) || !data.length) {
+                alert('Endereço não encontrado.');
+                return;
+            }
+
+            const first = data[0];
+            const lat = Number(first.lat);
+            const lng = Number(first.lon);
+
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+                alert('Coordenadas inválidas retornadas para este endereço.');
+                return;
+            }
+
+            setOriginMarker(Number(lat.toFixed(7)), Number(lng.toFixed(7)));
+            input.value = buildShortAddress(first.address, first.display_name || query);
+        } catch (err) {
+            alert('Não foi possível buscar o endereço agora. Tente novamente.');
+        }
+    }
+
+    function applyOriginFromMap() {
+        if (!originPickerSelected) {
+            alert('Selecione um ponto no mapa ou busque um endereço antes de confirmar.');
+            return;
+        }
+
+        const fields = getOriginFields();
+        if (!fields.lat || !fields.lng) {
+            alert('Campos de latitude/longitude da origem não foram encontrados no formulário.');
+            return;
+        }
+
+        fields.lat.value = originPickerSelected.lat.toFixed(7);
+        fields.lng.value = originPickerSelected.lng.toFixed(7);
+        fields.lat.dispatchEvent(new Event('change', { bubbles: true }));
+        fields.lng.dispatchEvent(new Event('change', { bubbles: true }));
+
+        const addressInput = document.getElementById('originAddressSearch');
+        if (fields.origem && addressInput && (addressInput.value || '').trim()) {
+            fields.origem.value = (addressInput.value || '').trim().slice(0, ORIGEM_MAX_LEN);
+        }
+
+        const modalEl = document.getElementById('originPickerModal');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+    }
 </script>
 
 <script>

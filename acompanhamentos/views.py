@@ -23,6 +23,8 @@ import json
 from django.http import JsonResponse, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from decimal import Decimal, InvalidOperation
+import requests
+from django.conf import settings
 from openpyxl.styles import Alignment
 from django.views.decorators.http import require_POST
 from django.views.generic import TemplateView
@@ -194,6 +196,8 @@ def _build_clone_acompanhamento(base, *, tipo_servico, nome_user):
         longitude_destino_2=base.longitude_destino_2,
         latitude_destino_3=base.latitude_destino_3,
         longitude_destino_3=base.longitude_destino_3,
+        km_estimado_carro=base.km_estimado_carro,
+        km_estimado_moto=base.km_estimado_moto,
         raio_cerca=base.raio_cerca if base.raio_cerca is not None else 60,
         raio_cerca_2=base.raio_cerca_2 if base.raio_cerca_2 is not None else 60,
         raio_cerca_3=base.raio_cerca_3 if base.raio_cerca_3 is not None else 60,
@@ -435,6 +439,155 @@ def editar_responsavel_agente_ajax(request, pk):
 def join_values(values):
     return "\n".join(str(v) for v in values if v)
 
+
+def _is_pronta_resposta_tipo(tipo_servico) -> bool:
+    """Identifica se o tipo de servico eh pronta_resposta."""
+    try:
+        return (getattr(tipo_servico, "tipo_cadastro", "") or "").strip().lower() == "pronta_resposta"
+    except Exception:
+        return False
+
+
+def _parse_km_post(value):
+    """Converte valor recebido do form para Decimal(2), aceitando virgula ou ponto."""
+    raw = (value or "").strip()
+    if not raw:
+        return None
+
+    normalized = raw.replace(",", ".")
+    try:
+        return Decimal(normalized).quantize(Decimal("0.01"))
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _resolve_km_estimado_from_post(request, tipo_servico):
+    """Le KM estimado enviado pelo front apenas para pronta_resposta."""
+    if not _is_pronta_resposta_tipo(tipo_servico):
+        return None, None
+
+    km_carro = _parse_km_post(request.POST.get("km_estimado_carro"))
+    km_moto = _parse_km_post(request.POST.get("km_estimado_moto"))
+    return km_carro, km_moto
+
+
+def _calcular_rota_google(origem_lat, origem_lng, destino_lat, destino_lng, travel_mode):
+    google_maps_api_key = getattr(settings, "GOOGLE_MAPS_API_KEY", "")
+    if not google_maps_api_key:
+        raise RuntimeError("Google API key nao configurada")
+
+    response = requests.post(
+        "https://routes.googleapis.com/directions/v2:computeRoutes",
+        headers={
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": google_maps_api_key,
+            "X-Goog-FieldMask": "routes.distanceMeters,routes.duration",
+        },
+        json={
+            "origin": {
+                "location": {
+                    "latLng": {
+                        "latitude": origem_lat,
+                        "longitude": origem_lng,
+                    }
+                }
+            },
+            "destination": {
+                "location": {
+                    "latLng": {
+                        "latitude": destino_lat,
+                        "longitude": destino_lng,
+                    }
+                }
+            },
+            "travelMode": travel_mode,
+            "routingPreference": "TRAFFIC_UNAWARE",
+        },
+        timeout=15,
+    )
+    response.raise_for_status()
+
+    payload = response.json()
+    routes = payload.get("routes") or []
+    if not routes:
+        return None
+
+    first_route = routes[0]
+    distance_meters = first_route.get("distanceMeters")
+    if distance_meters is None:
+        return None
+
+    return {
+        "distance_meters": distance_meters,
+        "km": round(float(distance_meters) / 1000, 2),
+        "duration": first_route.get("duration"),
+    }
+
+
+def _calcular_estimativa_km_google(origem_lat, origem_lng, destino_lat, destino_lng):
+    try:
+        carro = _calcular_rota_google(origem_lat, origem_lng, destino_lat, destino_lng, "DRIVE")
+    except RuntimeError as exc:
+        return {"success": False, "error": str(exc)}
+    except requests.RequestException:
+        carro = None
+
+    try:
+        moto = _calcular_rota_google(origem_lat, origem_lng, destino_lat, destino_lng, "TWO_WHEELER")
+    except RuntimeError as exc:
+        return {"success": False, "error": str(exc)}
+    except requests.RequestException:
+        moto = None
+
+    if carro is None and moto is None:
+        return {
+            "success": False,
+            "error": "Falha ao consultar Google Routes API. Verifique chave, faturamento e permissoes da API.",
+        }
+
+    return {
+        "success": True,
+        "carro": carro,
+        "moto": moto,
+    }
+
+
+@require_GET
+@login_required
+def ajax_estimativa_km(request):
+    """
+    Calcula estimativa de distancia (KM) para carro e moto usando
+    a Google Routes API com base nas coordenadas informadas.
+    """
+    origem_lat = request.GET.get("origem_lat")
+    origem_lng = request.GET.get("origem_lng")
+    destino_lat = request.GET.get("destino_lat")
+    destino_lng = request.GET.get("destino_lng")
+
+    if not all([origem_lat, origem_lng, destino_lat, destino_lng]):
+        return JsonResponse({"success": False, "error": "Coordenadas incompletas"}, status=400)
+
+    try:
+        origem_lat = float(origem_lat)
+        origem_lng = float(origem_lng)
+        destino_lat = float(destino_lat)
+        destino_lng = float(destino_lng)
+    except (TypeError, ValueError):
+        return JsonResponse({"success": False, "error": "Coordenadas invalidas"}, status=400)
+
+    resultado = _calcular_estimativa_km_google(
+        origem_lat=origem_lat,
+        origem_lng=origem_lng,
+        destino_lat=destino_lat,
+        destino_lng=destino_lng,
+    )
+
+    if not resultado.get("success"):
+        status_code = 503 if "API key" in str(resultado.get("error", "")) else 502
+        return JsonResponse(resultado, status=status_code)
+
+    return JsonResponse(resultado)
+
 def moeda(valor):
     if valor is None:
         return ""
@@ -550,45 +703,14 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
         ("pronta_resposta", "Pronta Resposta"),
     ]
 
-    def get_pendentes_queryset(self):
-        return registroacompanhamento.objects.filter(
-            Q(tipo_servico__isnull=True) |
-
-            Q(agentes__responsavel_agente__isnull=True) |
-            Q(agentes__responsavel_agente__isnull=True) |
-
-            Q(agentes__agente__isnull=True) |
-
-            Q(agentes__data_solicitada__isnull=True) |
-            Q(agentes__horario_solicitado__isnull=True) |
-
-            Q(agentes__data_inicio__isnull=True) |
-            Q(agentes__horario_inicio__isnull=True) |
-
-            Q(agentes__data_finalizacao__isnull=True) |
-            Q(agentes__horario_finalizacao__isnull=True) |
-
-            Q(agentes__km_inicio__isnull=True) |
-            Q(agentes__km_final__isnull=True) |
-
-            Q(agentes__franquia__isnull=True)
-        ).distinct()
-
-    def get_queryset(self):
-        qs = (
-            registroacompanhamento.objects
-            .prefetch_related(
-                "agentes",
-                "agentes__agente",
-                "agentes__franquia"
-            )
-            .select_related("cliente")
+    def _is_cancelado(self, queryset):
+        return queryset.filter(
+            Q(status_requisicao__iexact="cancelado") |
+            Q(status_requisicao__iexact="cancelada") |
+            Q(status_requisicao__iexact="canceladas")
         )
 
-        pendente = self.request.GET.get("pendente")
-        if pendente == "true":
-            return self.get_pendentes_queryset().order_by("-criado_em")
-
+    def _apply_common_filters(self, qs):
         data = self.request.GET.get("data")
         data2 = self.request.GET.get("data2")
         agente = self.request.GET.get("agente")
@@ -612,12 +734,69 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
             qs = qs.filter(cliente__nome__icontains=cliente)
 
         if responsavel:
-            queryset = queryset.filter(
-                agentes__responsavel_agente_id=responsavel
-            )
-        
+            qs = qs.filter(agentes__responsavel_agente_id=responsavel)
+
         if tipo_cadastro in {"acompanhamento", "pronta_resposta"}:
             qs = qs.filter(tipo_servico__tipo_cadastro=tipo_cadastro)
+
+        return qs
+
+    def get_pendentes_queryset(self):
+        qs = registroacompanhamento.objects.filter(
+            Q(tipo_servico__isnull=True) |
+
+            Q(agentes__responsavel_agente__isnull=True) |
+            Q(agentes__responsavel_agente__isnull=True) |
+
+            Q(agentes__agente__isnull=True) |
+
+            Q(agentes__data_solicitada__isnull=True) |
+            Q(agentes__horario_solicitado__isnull=True) |
+
+            Q(agentes__data_inicio__isnull=True) |
+            Q(agentes__horario_inicio__isnull=True) |
+
+            Q(agentes__data_finalizacao__isnull=True) |
+            Q(agentes__horario_finalizacao__isnull=True) |
+
+            Q(agentes__km_inicio__isnull=True) |
+            Q(agentes__km_final__isnull=True) |
+
+            Q(agentes__franquia__isnull=True)
+        ).distinct()
+
+        return qs.exclude(
+            Q(status_requisicao__iexact="cancelado") |
+            Q(status_requisicao__iexact="cancelada") |
+            Q(status_requisicao__iexact="canceladas")
+        )
+
+    def get_queryset(self):
+        qs = (
+            registroacompanhamento.objects
+            .prefetch_related(
+                "agentes",
+                "agentes__agente",
+                "agentes__franquia"
+            )
+            .select_related("cliente")
+        )
+
+        qs = self._apply_common_filters(qs)
+
+        canceladas = self.request.GET.get("canceladas")
+        if canceladas == "true":
+            return self._is_cancelado(qs).distinct().order_by("-criado_em")
+
+        qs = qs.exclude(
+            Q(status_requisicao__iexact="cancelado") |
+            Q(status_requisicao__iexact="cancelada") |
+            Q(status_requisicao__iexact="canceladas")
+        )
+
+        pendente = self.request.GET.get("pendente")
+        if pendente == "true":
+            return self._apply_common_filters(self.get_pendentes_queryset()).distinct().order_by("-criado_em")
 
         return qs.distinct().order_by("-criado_em")
 
@@ -876,7 +1055,13 @@ class AcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, ListVi
 
         context["franquias"] = FranquiaAgente.objects.all().order_by("nome")
 
-        context["pendentes_count"] = self.get_pendentes_queryset().count()
+        context["pendentes_count"] = self._apply_common_filters(self.get_pendentes_queryset()).distinct().count()
+
+        cancelados_base = self._apply_common_filters(
+            registroacompanhamento.objects.all()
+        )
+        context["cancelados_count"] = self._is_cancelado(cancelados_base).distinct().count()
+        context["mostrando_canceladas"] = self.request.GET.get("canceladas") == "true"
 
         context["data"] = self.request.GET.get("data", "")
         context["data2"] = self.request.GET.get("data2", "")
@@ -2185,13 +2370,14 @@ class RequisicaoSolicitacaoListView(LoginRequiredMixin, ListView):
     context_object_name = "requisicoes_raw"
     paginate_by = None
 
-    def get_queryset(self):
-        queryset = (
-            RequisicaoSolicitacao.objects
-            .select_related("cliente", "tipo_servico", "missao")
-            .filter(solicitado=False)
+    def _is_cancelado(self, queryset):
+        return queryset.filter(
+            Q(status_requisicao__iexact="cancelado") |
+            Q(status_requisicao__iexact="cancelada") |
+            Q(status_requisicao__iexact="canceladas")
         )
 
+    def _apply_common_filters(self, queryset):
         cliente = self.request.GET.get("cliente")
         placa = self.request.GET.get("placa")
         motorista = self.request.GET.get("motorista")
@@ -2221,9 +2407,45 @@ class RequisicaoSolicitacaoListView(LoginRequiredMixin, ListView):
                 Q(nome_user__icontains=busca)
             )
 
-        # Filtro por tipo de atendimento do tipo de servico
         if tipo_cadastro in {"acompanhamento", "pronta_resposta"}:
             queryset = queryset.filter(tipo_servico__tipo_cadastro=tipo_cadastro)
+
+        return queryset
+
+    def _count_grupos(self, queryset):
+        total = 0
+        vistos = set()
+
+        for req in queryset:
+            key = req.requisicao_id_externo or f"solo_{req.pk}"
+            if key in vistos:
+                continue
+            vistos.add(key)
+            total += 1
+
+        return total
+
+    def get_queryset(self):
+        base_qs = (
+            RequisicaoSolicitacao.objects
+            .select_related("cliente", "tipo_servico", "missao")
+            .filter(solicitado=False)
+        )
+
+        queryset = self._apply_common_filters(base_qs)
+
+        mostrar_canceladas = str(self.request.GET.get("canceladas", "")).strip().lower() in {
+            "1", "true", "t", "yes", "y", "sim"
+        }
+
+        if mostrar_canceladas:
+            queryset = self._is_cancelado(queryset)
+        else:
+            queryset = queryset.exclude(
+                Q(status_requisicao__iexact="cancelado") |
+                Q(status_requisicao__iexact="cancelada") |
+                Q(status_requisicao__iexact="canceladas")
+            )
 
         return queryset.order_by("-criado_em")
 
@@ -2284,6 +2506,25 @@ class RequisicaoSolicitacaoListView(LoginRequiredMixin, ListView):
 
         context["grupos"] = list(agrupado.values())
         context["total_grupos"] = len(agrupado)
+
+        base_qs = self._apply_common_filters(
+            RequisicaoSolicitacao.objects
+            .select_related("cliente", "tipo_servico", "missao")
+            .filter(solicitado=False)
+        ).order_by("-criado_em")
+
+        pendentes_qs = base_qs.exclude(
+            Q(status_requisicao__iexact="cancelado") |
+            Q(status_requisicao__iexact="cancelada") |
+            Q(status_requisicao__iexact="canceladas")
+        )
+        canceladas_qs = self._is_cancelado(base_qs)
+
+        context["total_grupos_pendentes"] = self._count_grupos(pendentes_qs)
+        context["total_grupos_cancelados"] = self._count_grupos(canceladas_qs)
+        context["mostrando_canceladas"] = str(self.request.GET.get("canceladas", "")).strip().lower() in {
+            "1", "true", "t", "yes", "y", "sim"
+        }
 
         return context
 
@@ -2427,6 +2668,9 @@ class AcompanhamentoFromRequisicaoCreateView(LoginRequiredMixin, PermissionRequi
         # força dados da requisição
         base.cliente = requisicao.cliente
         base.tipo_servico = requisicao.tipo_servico
+        km_carro_post, km_moto_post = _resolve_km_estimado_from_post(self.request, requisicao.tipo_servico)
+        base.km_estimado_carro = km_carro_post if km_carro_post is not None else requisicao.km_estimado_carro
+        base.km_estimado_moto = km_moto_post if km_moto_post is not None else requisicao.km_estimado_moto
         base.nome_user = nome_user
         # ✅ Copia flag is_reuso da requisição
         base.is_reuso = requisicao.is_reuso
@@ -2443,6 +2687,16 @@ class AcompanhamentoFromRequisicaoCreateView(LoginRequiredMixin, PermissionRequi
             novo_acomp = _build_clone_acompanhamento(base, tipo_servico=tipo_serv, nome_user=nome_user)
 
             novo_acomp.requisicao_solicitacao = requisicao
+            novo_acomp.km_estimado_carro = base.km_estimado_carro
+            novo_acomp.km_estimado_moto = base.km_estimado_moto
+            novo_acomp.status_requisicao = requisicao.status_requisicao
+            novo_acomp.taxa_cancelamento_percentual = requisicao.taxa_cancelamento_percentual
+            novo_acomp.valor_cancelamento = requisicao.valor_cancelamento
+            novo_acomp.aceitou_termos_cancelamento = requisicao.aceitou_termos_cancelamento
+            novo_acomp.usuario_aceitou_termos_cancelamento = requisicao.usuario_aceitou_termos_cancelamento
+            novo_acomp.justificativa_cancelamento = requisicao.justificativa_cancelamento
+            novo_acomp.motivos_cancelamento = requisicao.motivos_cancelamento
+            novo_acomp.cancelado_em = requisicao.cancelado_em
 
             novo_acomp.save()
 
@@ -2667,6 +2921,8 @@ class AcompanhamentoFromGrupoCreateView(LoginRequiredMixin, PermissionRequiredMi
         # dados comuns (do “principal”)
         req_principal = requisicoes[0]
         base.cliente = req_principal.cliente
+        base.km_estimado_carro = req_principal.km_estimado_carro
+        base.km_estimado_moto = req_principal.km_estimado_moto
         base.nome_user = nome_user
         # ✅ Copia is_reuso da requisição principal
         base.is_reuso = req_principal.is_reuso
@@ -2695,6 +2951,16 @@ class AcompanhamentoFromGrupoCreateView(LoginRequiredMixin, PermissionRequiredMi
             novo_acomp = _build_clone_acompanhamento(base, tipo_servico=tipo_serv, nome_user=nome_user)
 
             novo_acomp.requisicao_solicitacao = req
+            novo_acomp.km_estimado_carro = req.km_estimado_carro
+            novo_acomp.km_estimado_moto = req.km_estimado_moto
+            novo_acomp.status_requisicao = req.status_requisicao
+            novo_acomp.taxa_cancelamento_percentual = req.taxa_cancelamento_percentual
+            novo_acomp.valor_cancelamento = req.valor_cancelamento
+            novo_acomp.aceitou_termos_cancelamento = req.aceitou_termos_cancelamento
+            novo_acomp.usuario_aceitou_termos_cancelamento = req.usuario_aceitou_termos_cancelamento
+            novo_acomp.justificativa_cancelamento = req.justificativa_cancelamento
+            novo_acomp.motivos_cancelamento = req.motivos_cancelamento
+            novo_acomp.cancelado_em = req.cancelado_em
 
             novo_acomp.save()
 
