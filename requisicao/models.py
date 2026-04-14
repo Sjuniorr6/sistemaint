@@ -295,6 +295,7 @@ class Requisicoes(models.Model):
     id = models.AutoField(primary_key=True)
     nome = models.ForeignKey(Clientes, on_delete=models.CASCADE, related_name='requisicoes_nome')
     endereco = models.CharField(max_length=255, blank=True, null=True)
+    email = models.EmailField(max_length=254)
     contrato = models.CharField(choices=contrato_tipo, null=True, blank=True, max_length=50)
     cnpj = models.CharField(max_length=25, blank=True, null=True)
     numero_de_equipamentos = models.CharField(max_length=14, blank=True, null=True)
@@ -325,7 +326,9 @@ class Requisicoes(models.Model):
     id_equipamentos= models.TextField(max_length=180000, null=True, blank=True, default='')
     faturamento= models.CharField(choices=statusfat ,max_length=1200, blank=True, default='Pendente')
     iccid = models.CharField(max_length=600000,null=True, blank=True, default='')
-    
+    tipo_entrega = models.CharField(max_length=100, null=True, blank=True, default='')
+    codigo_rastreio = models.CharField(max_length=100, null=True, blank=True)
+
     # Campos para o Kanban Board
     KANBAN_STATUS_CHOICES = [
         ('a_fazer', 'A Fazer'),
@@ -591,6 +594,7 @@ class ControleModel(models.Model):
     id_equipamento10 = models.CharField(max_length=50, null=True, blank=True)
     data = models.DateField(auto_now_add=True, null=True)
     quantidade = models.PositiveIntegerField(default=0)
+
 
     def __str__(self):
         return f"Controle {self.id} - Cliente {self.cliente}"

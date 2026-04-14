@@ -484,6 +484,16 @@
               <span class="label">Status</span>
               <span class="status-badge">{{ registro.status }}</span>
             </div>
+
+            <div class="info-compact-item">
+              <span class="label">Tipo Entrega</span>
+              <span class="value">{{ registro.tipo_entrega }}</span>
+            </div>
+
+            <div class="info-compact-item">
+              <span class="label">Código de Rastreio</span>
+              <span class="value">{{ registro.codigo_rastreio }}</span>
+            </div>
           </div>
 
           {% if registro.observacoes %}
@@ -507,7 +517,7 @@
             </a>
             
             {% if perms.nestle.delete_gridinternacional %}
-              {% if user|has_group:"INTENCLIGENCIA" %}
+              {% if user|has_group:"INTENCLIGENCIA" or user|has_group:"ENTRADA" %}
                 <a href="{% url 'requisicao_update' registro.id %}" class="btn-exp edit" title="Editar">
                   <i class="bi bi-pencil-square"></i>
                   Editar

@@ -7,15 +7,16 @@ class RequisicaoForm(forms.ModelForm):
     class Meta:
         model = Requisicoes
         fields = [
-            'nome', 'endereco', 'data_entrega', 'contrato', 'cnpj', 'inicio_de_contrato', 
+            'nome', 'endereco', 'email', 'data_entrega', 'contrato', 'cnpj', 'inicio_de_contrato', 
             'vigencia', 'motivo', 'antenista', 'envio', 'comercial', 'tipo_produto', 
             'aos_cuidados', 'carregador', 'cabo', 'tipo_fatura', 'valor_unitario', 
             'valor_total', 'forma_pagamento', 'tipo_customizacao', 'numero_de_equipamentos', 
-            'observacoes', 'status', 'TP', 'taxa_envio', 'status_faturamento','id_equipamentos', 'iccid',
+            'observacoes', 'status', 'TP', 'taxa_envio', 'status_faturamento','id_equipamentos', 'iccid', 'tipo_entrega', 'codigo_rastreio'
         ]
         widgets = {
             'nome': forms.Select(attrs={'class': 'form-control'}),
             'endereco': forms.Textarea(attrs={'class': 'form-control', 'rows': 1}),
+            'email': forms.EmailInput(attrs={'class': 'form-control'}),
             'numero_de_equipamentos': forms.TextInput(attrs={'class': 'form-control'}),
             'contrato': forms.Select(attrs={'class': 'form-control'}),
             'cnpj': forms.TextInput(attrs={'class': 'form-control'}),
@@ -42,6 +43,8 @@ class RequisicaoForm(forms.ModelForm):
             'status_faturamento': forms.Select(attrs={'class': 'form-control'}),
             'id_equipamentos': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'placeholder': 'Cole os IDs dos equipamentos separados por espaços'}),    
             'iccid': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'placeholder': 'Cole os ICCIDs separados por espaços'}),
+            'tipo_entrega': forms.TextInput(attrs={'class': 'form-control'}),
+            'codigo_rastreio': forms.TextInput(attrs={'class': 'form-control'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -60,13 +63,14 @@ class RequisicaoForm(forms.ModelForm):
 class requisicaoFormup(forms.ModelForm):
     class Meta:
         model = Requisicoes
-        fields = ['nome', 'endereco', 'contrato', 'cnpj', 'inicio_de_contrato', 'vigencia', 
+        fields = ['nome', 'endereco', 'email', 'contrato', 'cnpj', 'inicio_de_contrato', 'vigencia', 
                   'motivo', 'envio', 'comercial', 'tipo_produto', 
                   'carregador', 'cabo', 'tipo_fatura', 'valor_unitario', 'valor_total',
-                  'forma_pagamento','tipo_customizacao', 'numero_de_equipamentos', 'observacoes', 'status', 'TP', 'taxa_envio','id_equipamentos', 'iccid']
+                  'forma_pagamento','tipo_customizacao', 'numero_de_equipamentos', 'observacoes', 'status', 'TP', 'taxa_envio','id_equipamentos', 'iccid', 'tipo_entrega', 'codigo_rastreio']
         widgets = {
             'nome': forms.Select(attrs={'class': 'form-control'}),
             'endereco': forms.Textarea(attrs={'class': 'form-control', 'rows': 1}),
+            'email': forms.EmailInput(attrs={'class': 'form-control'}),
             'numero_de_equipamentos': forms.Textarea(attrs={'class': 'form-control', 'rows': 1}),
             'contrato': forms.Select(attrs={'class': 'form-control'}),
             'cnpj': forms.TextInput(attrs={'class': 'form-control'}),
@@ -90,7 +94,8 @@ class requisicaoFormup(forms.ModelForm):
             'TP': forms.Select(attrs={'class': 'form-control'}),
             'id_equipamentos': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'placeholder': 'Cole os IDs dos equipamentos separados por espaços'}),
             'iccid': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'placeholder': 'Cole os ICCIDs separados por espaços'}),
-            
+            'tipo_entrega': forms.TextInput(attrs={'class': 'form-control'}),
+            'codigo_rastreio': forms.TextInput(attrs={'class': 'form-control'}),
         }
         permissions = [
             ("view_requisicoes", "Can view requisicoes"),
