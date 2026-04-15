@@ -892,6 +892,86 @@ Golden Sat
     return redirect("expedicaoListViews")
 
 
+@login_required
+@require_POST
+def atualizar_entrega_rastreio(request, id):
+    """
+    Permite que o grupo ENTRADA altere apenas os campos de
+    tipo de entrega e codigo de rastreio na tela de expedição.
+    """
+    if not request.user.groups.filter(name="ENTRADA").exists():
+        messages.error(
+            request, "Você não tem permissão para editar dados de entrega."
+        )
+        return redirect("expedicaoListViews")
+
+    registro = get_object_or_404(Requisicoes, id=id)
+
+    tipo_entrega_novo = (request.POST.get("tipo_entrega") or "").strip()
+    codigo_rastreio_novo = (request.POST.get("codigo_rastreio") or "").strip()
+
+    # Validação de tamanho baseada no modelo.
+    if len(tipo_entrega_novo) > 100 or len(codigo_rastreio_novo) > 100:
+        messages.error(
+            request,
+            "Tipo de entrega e código de rastreio devem ter no máximo 100 caracteres.",
+        )
+        return redirect("expedicaoListViews")
+
+    campos_alterados = []
+
+    if (registro.tipo_entrega or "") != tipo_entrega_novo:
+        campos_alterados.append(
+            {
+                "campo": "tipo_entrega",
+                "anterior": registro.tipo_entrega,
+                "novo": tipo_entrega_novo,
+            }
+        )
+
+    if (registro.codigo_rastreio or "") != codigo_rastreio_novo:
+        campos_alterados.append(
+            {
+                "campo": "codigo_rastreio",
+                "anterior": registro.codigo_rastreio,
+                "novo": codigo_rastreio_novo,
+            }
+        )
+
+    if not campos_alterados:
+        messages.info(request, "Nenhuma alteração foi realizada.")
+        return redirect("expedicaoListViews")
+
+    registro.tipo_entrega = tipo_entrega_novo
+    registro.codigo_rastreio = codigo_rastreio_novo
+    registro.data_alteracao = timezone.now()
+    registro.save(update_fields=["tipo_entrega", "codigo_rastreio", "data_alteracao"])
+
+    # Registrar log de auditoria com os campos permitidos para o grupo ENTRADA.
+    log = AuditLog.registrar(
+        objeto=registro,
+        acao="edicao",
+        usuario=request.user,
+        detalhes={
+            "total_campos_alterados": len(campos_alterados),
+            "campos_permitidos": ["tipo_entrega", "codigo_rastreio"],
+        },
+        observacao="Atualização de entrega/rastreio pelo grupo ENTRADA",
+        request=request,
+    )
+
+    for campo in campos_alterados:
+        CampoAlterado.objects.create(
+            audit_log=log,
+            nome_campo=campo["campo"],
+            valor_anterior=str(campo.get("anterior", "")),
+            valor_novo=str(campo.get("novo", "")),
+        )
+
+    messages.success(request, "Dados de entrega atualizados com sucesso.")
+    return redirect("expedicaoListViews")
+
+
 def expedicao_expedido2(request, id):
     registro = get_object_or_404(registrodemanutencao, id=id)
     status_anterior = registro.status

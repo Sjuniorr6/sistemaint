@@ -807,6 +807,7 @@
                                 
                                 <th>Liberacao</th>
                                 <th>GoldenSat</th>
+                                <th>Anexo</th>
                                 <th>SLA Liberação</th>
                                 <th>Observação</th>
                                 <th class="text-end">Ações</th>
@@ -865,6 +866,15 @@
                                     <td class="editable-cell" data-field="data_brasil" data-pk="{{ grid.pk }}">{{ grid.data_brasil|date:"d/m/Y" }}</td>
                                     <td class="editable-cell" data-field="liberacao" data-pk="{{ grid.pk }}">{{ grid.liberacao|date:"d/m/Y" }}</td>
                                     <td class="editable-cell" data-field="golden_sat" data-pk="{{ grid.pk }}">{{ grid.golden_sat|date:"d/m/Y" }}</td>
+                                    <td>
+                                        {% if grid.anexo %}
+                                            <a href="{{ grid.anexo.url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-paperclip"></i> Abrir
+                                            </a>
+                                        {% else %}
+                                            <span class="text-muted">Sem anexo</span>
+                                        {% endif %}
+                                    </td>
                                     <td>
                                         {{ grid.liberacao|dias_entre:grid.data_brasil }}
                                     </td>
@@ -984,7 +994,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
             <div class="modal-body">
-                <form id="quickEditForm" method="post">
+                <form id="quickEditForm" method="post" enctype="multipart/form-data">
                     {% csrf_token %}
                     <input type="hidden" id="editField" name="field">
                     <input type="hidden" id="editPk" name="pk">
@@ -1006,6 +1016,17 @@
                             <option value="Fora de Operação">Fora de Operação</option>
                         </select>
                     </div>
+                    <div class="mb-3" id="anexoFieldWrapper" style="display: none;">
+                        <label for="anexoFile" class="form-label">Anexo (PDF ou Excel)</label>
+                        <input
+                            type="file"
+                            class="form-control"
+                            id="anexoFile"
+                            name="anexo_file"
+                            accept=".pdf,.xls,.xlsx,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        >
+                        <small class="text-muted">Obrigatório ao salvar a data de GoldenSat.</small>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -1026,6 +1047,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const editValue = document.getElementById('editValue');
     const statusSelect = document.getElementById('statusSelect');
     const saveQuickEdit = document.getElementById('saveQuickEdit');
+    const anexoFieldWrapper = document.getElementById('anexoFieldWrapper');
+    const anexoFile = document.getElementById('anexoFile');
 
     // Adicionar evento de clique nas células editáveis
     document.querySelectorAll('.editable-cell').forEach(cell => {
@@ -1046,6 +1069,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 editValue.style.display = 'none';
                 statusSelect.style.display = 'block';
                 statusSelect.value = value;
+                anexoFieldWrapper.style.display = 'none';
+                anexoFile.required = false;
+                anexoFile.value = '';
             } else {
                 editValue.style.display = 'block';
                 statusSelect.style.display = 'none';
@@ -1066,6 +1092,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     editValue.type = 'text';
                     editValue.value = value;
                 }
+
+                if (field === 'golden_sat') {
+                    anexoFieldWrapper.style.display = 'block';
+                    anexoFile.required = true;
+                } else {
+                    anexoFieldWrapper.style.display = 'none';
+                    anexoFile.required = false;
+                    anexoFile.value = '';
+                }
             }
 
             quickEditModal.show();
@@ -1076,6 +1111,14 @@ document.addEventListener('DOMContentLoaded', function() {
     saveQuickEdit.addEventListener('click', function() {
         const formData = new FormData(quickEditForm);
         const field = formData.get('field');
+
+        if (field === 'golden_sat') {
+            const selectedFile = anexoFile.files && anexoFile.files.length > 0;
+            if (!selectedFile) {
+                alert('Para salvar GoldenSat, selecione um anexo PDF ou Excel.');
+                return;
+            }
+        }
 
         // Se for campo de status, pegar o valor do select
         if (field === 'status_operacao') {
@@ -1162,6 +1205,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Atualizar a soma total após a edição
                 atualizarSomaTotal();
                 quickEditModal.hide();
+            } else if (data.error) {
+                alert(data.error);
             }
         });
     });

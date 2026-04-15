@@ -5,6 +5,14 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
 
+    # Compatibilidade com bancos que já aplicaram o histórico antigo
+    # em 3 migrations separadas (0088/0089/0090).
+    replaces = [
+        ('requisicao', '0088_requisicoes_email'),
+        ('requisicao', '0089_requisicoes_codigo_rastreio'),
+        ('requisicao', '0090_requisicoes_tipo_entrega'),
+    ]
+
     dependencies = [
         ('requisicao', '0087_alter_requisicoes_responsavel_manutencao'),
     ]

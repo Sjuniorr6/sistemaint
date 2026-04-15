@@ -77,6 +77,7 @@ urlpatterns = [
   path('requisicao/expedir/<int:id>/', views.configurado_expedicao, name='configurado_expedicao'),
 #---------------------------------------------------------------------------------------------------------------
 path('requisicao/expedido/<int:id>/', views.expedicao_expedido, name='expedicao_expedido'),
+path('requisicao/<int:id>/atualizar-entrega-rastreio/', views.atualizar_entrega_rastreio, name='atualizar_entrega_rastreio'),
 path('manutencao/expedido/<int:id>/', views.expedicao_expedido2, name='expedicao_expedido2'),
 path('expedir_requisicao/<int:id>/', views.expedir_requisicao, name='expedir_requisicao'),
 path('expedir_requisicao_tec/<int:id>/', views.expedir_requisicaotec, name='expedir_requisicaotec'),

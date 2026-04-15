@@ -20,6 +20,7 @@ import math
 from django.views import View
 import requests
 import time
+import os
 # Create your views here.
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -70,9 +71,7 @@ class GridInternacional(ListView):
         print(f"DEBUG: Registros antes do filtro: {registros_antes_filtro}")
         print(f"DEBUG: Registros com liberacao antes do filtro: {registros_com_liberacao_antes}")
         
-        # Excluir registros com golden_sat preenchido e com status 'Reversa Finalizada' do grid principal
-        # Mas manter os registros com status 'Danificado'
-        queryset = [obj for obj in queryset if (not obj.golden_sat and obj.get_status_automatico() != 'Reversa Finalizada') or obj.get_status_automatico() == 'Danificado']
+        # Inclui todos os status no grid principal, inclusive "Reversa Finalizada".
         
         # DEBUG: Contar registros após o filtro
         registros_apos_filtro = len(queryset)
@@ -350,11 +349,32 @@ def grid_internacional_quick_edit(request):
         field = request.POST.get('field')
         value = request.POST.get('value')
         pk = request.POST.get('pk')
+        anexo_file = request.FILES.get('anexo_file')
 
         if not all([field, pk]):
             return JsonResponse({'success': False, 'error': 'Dados incompletos'})
 
         obj = GridInternacionalModel.objects.get(pk=pk)
+
+        if not hasattr(obj, field):
+            return JsonResponse({'success': False, 'error': 'Campo inválido'})
+
+        if field == 'golden_sat' and value:
+            if not anexo_file:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Para salvar GoldenSat, envie um anexo PDF ou Excel.'
+                })
+
+            ext = os.path.splitext(anexo_file.name or '')[1].lower()
+            extensoes_permitidas = {'.pdf', '.xls', '.xlsx'}
+            if ext not in extensoes_permitidas:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Anexo inválido. Envie apenas PDF ou Excel (.xls/.xlsx).'
+                })
+
+            obj.anexo = anexo_file
 
         # Se for campo de data, converta para o formato correto
         if field.startswith('data_') or field in ['liberacao', 'coleta', 'golden_sat', 'data_envoice']:
@@ -491,11 +511,6 @@ def _get_grid_queryset_filtrado(cliente=None, container=None, status_operacao=No
         queryset = queryset.filter(container__icontains=container)
 
     queryset = list(queryset)
-    queryset = [
-        obj for obj in queryset
-        if (not obj.golden_sat and obj.get_status_automatico() != 'Reversa Finalizada')
-        or obj.get_status_automatico() == 'Danificado'
-    ]
 
     if status_operacao:
         queryset = [obj for obj in queryset if obj.get_status_automatico() == status_operacao]

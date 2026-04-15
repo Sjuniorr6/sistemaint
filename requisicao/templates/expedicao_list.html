@@ -329,6 +329,16 @@
       transform: translateY(-1px);
     }
 
+    .btn-exp.edit-entrada {
+      background: #0ea5e9;
+      color: white;
+    }
+
+    .btn-exp.edit-entrada:hover {
+      background: #0284c7;
+      transform: translateY(-1px);
+    }
+
     .btn-exp.delete {
       background: #ef4444;
       color: white;
@@ -516,13 +526,20 @@
               Requisição Pdf
             </a>
             
+            
+            {% if user|has_group:"INTENCLIGENCIA" %}
+              <a href="{% url 'requisicao_update' registro.id %}" class="btn-exp edit" title="Editar">
+                <i class="bi bi-pencil-square"></i>
+                Editar
+              </a>
+            {% endif %}
+            {% if user|has_group:"ENTRADA" %}
+              <button type="button" class="btn-exp edit-entrada" data-bs-toggle="modal" data-bs-target="#editarEntregaModal{{ registro.id }}" title="Editar entrega e rastreio">
+                <i class="bi bi-truck"></i>
+                Editar Entrega
+              </button>
+            {% endif %}
             {% if perms.nestle.delete_gridinternacional %}
-              {% if user|has_group:"INTENCLIGENCIA" or user|has_group:"ENTRADA" %}
-                <a href="{% url 'requisicao_update' registro.id %}" class="btn-exp edit" title="Editar">
-                  <i class="bi bi-pencil-square"></i>
-                  Editar
-                </a>
-              {% endif %}
               <a href="{% url 'requisicoesdeleteview' registro.id %}" class="btn-exp delete" title="Excluir">
                 <i class="bi bi-trash-fill"></i>
                 Excluir
@@ -536,6 +553,52 @@
           </div>
         </div>
       </div>
+
+      {% if user|has_group:"ENTRADA" %}
+      <div class="modal fade" id="editarEntregaModal{{ registro.id }}" tabindex="-1" aria-labelledby="editarEntregaModalLabel{{ registro.id }}" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content" data-bs-theme="light">
+            <form method="post" action="{% url 'atualizar_entrega_rastreio' registro.id %}">
+              {% csrf_token %}
+              <div class="modal-header">
+                <h5 class="modal-title" id="editarEntregaModalLabel{{ registro.id }}">
+                  Editar entrega - Requisição #{{ registro.id }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+              </div>
+              <div class="modal-body">
+                <div class="mb-3">
+                  <label for="tipoEntrega{{ registro.id }}" class="form-label">Tipo de entrega</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="tipoEntrega{{ registro.id }}"
+                    name="tipo_entrega"
+                    value="{{ registro.tipo_entrega|default_if_none:'' }}"
+                    maxlength="100"
+                  >
+                </div>
+                <div class="mb-3">
+                  <label for="codigoRastreio{{ registro.id }}" class="form-label">Código de rastreio</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="codigoRastreio{{ registro.id }}"
+                    name="codigo_rastreio"
+                    value="{{ registro.codigo_rastreio|default_if_none:'' }}"
+                    maxlength="100"
+                  >
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Salvar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% endif %}
       {% endfor %}
     </div>
   </div>
