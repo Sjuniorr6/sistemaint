@@ -10,7 +10,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>{% block title %} | Listagem de Franquias | {% endblock %}</title>
+    <title>{% block title %} | Grid da Nestle | {% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
@@ -1017,7 +1017,7 @@
                         </select>
                     </div>
                     <div class="mb-3" id="anexoFieldWrapper" style="display: none;">
-                        <label for="anexoFile" class="form-label">Anexo (PDF ou Excel)</label>
+                        <label for="anexoFile" class="form-label" id="anexoFieldLabel">Anexo (PDF ou Excel)</label>
                         <input
                             type="file"
                             class="form-control"
@@ -1025,7 +1025,7 @@
                             name="anexo_file"
                             accept=".pdf,.xls,.xlsx,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         >
-                        <small class="text-muted">Obrigatório ao salvar a data de GoldenSat.</small>
+                        <small class="text-muted" id="anexoFieldHelp">Obrigatório ao salvar a data de GoldenSat.</small>
                     </div>
                 </form>
             </div>
@@ -1049,6 +1049,34 @@ document.addEventListener('DOMContentLoaded', function() {
     const saveQuickEdit = document.getElementById('saveQuickEdit');
     const anexoFieldWrapper = document.getElementById('anexoFieldWrapper');
     const anexoFile = document.getElementById('anexoFile');
+    const anexoFieldLabel = document.getElementById('anexoFieldLabel');
+    const anexoFieldHelp = document.getElementById('anexoFieldHelp');
+
+    function configurarCampoAnexo(field) {
+        const statusSelecionado = statusSelect.value;
+        const exigeAnexoGolden = field === 'golden_sat';
+        const exibeAnexoDanificado = field === 'status_operacao' && statusSelecionado === 'Danificado';
+
+        if (exigeAnexoGolden) {
+            anexoFieldWrapper.style.display = 'block';
+            anexoFile.required = true;
+            anexoFieldLabel.textContent = 'Anexo (PDF ou Excel)';
+            anexoFieldHelp.textContent = 'Obrigatório ao salvar a data de GoldenSat.';
+            return;
+        }
+
+        if (exibeAnexoDanificado) {
+            anexoFieldWrapper.style.display = 'block';
+            anexoFile.required = false;
+            anexoFieldLabel.textContent = 'Anexo Danificado (PDF ou Excel)';
+            anexoFieldHelp.textContent = 'Para status Danificado, envie um anexo. Se já houver anexo anterior, não é necessário reenviar.';
+            return;
+        }
+
+        anexoFieldWrapper.style.display = 'none';
+        anexoFile.required = false;
+        anexoFile.value = '';
+    }
 
     // Adicionar evento de clique nas células editáveis
     document.querySelectorAll('.editable-cell').forEach(cell => {
@@ -1069,9 +1097,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 editValue.style.display = 'none';
                 statusSelect.style.display = 'block';
                 statusSelect.value = value;
-                anexoFieldWrapper.style.display = 'none';
-                anexoFile.required = false;
-                anexoFile.value = '';
+                configurarCampoAnexo(field);
             } else {
                 editValue.style.display = 'block';
                 statusSelect.style.display = 'none';
@@ -1093,18 +1119,17 @@ document.addEventListener('DOMContentLoaded', function() {
                     editValue.value = value;
                 }
 
-                if (field === 'golden_sat') {
-                    anexoFieldWrapper.style.display = 'block';
-                    anexoFile.required = true;
-                } else {
-                    anexoFieldWrapper.style.display = 'none';
-                    anexoFile.required = false;
-                    anexoFile.value = '';
-                }
+                configurarCampoAnexo(field);
             }
 
             quickEditModal.show();
         });
+    });
+
+    statusSelect.addEventListener('change', function() {
+        if (editField.value === 'status_operacao') {
+            configurarCampoAnexo('status_operacao');
+        }
     });
 
     // Salvar edição rápida

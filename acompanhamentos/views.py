@@ -2003,6 +2003,11 @@ class AcompanhamentoPanicoListView(LoginRequiredMixin, PermissionRequiredMixin, 
 
         return context
 
+
+class MonitoramentoAoVivoView(LoginRequiredMixin, PermissionRequiredMixin, TemplateView):
+    template_name = "acompanhamento_monitoramento_ao_vivo.html"
+    permission_required = "acompanhamentos.view_registroacompanhamento"
+
 @login_required
 def acompanhamento_missao(request, pk):
     acompanhamento = get_object_or_404(registroacompanhamento, pk=pk)

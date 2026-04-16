@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="pt-br" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Monitoramento Ao Vivo</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <style>
+        body {
+            max-width: 100%;
+            overflow-x: hidden;
+            background: #45494E;
+        }
+
+        .page-title {
+            font-weight: 700;
+            color: white;
+        }
+
+        .page-title i {
+            color: #bfa16c;
+        }
+
+        .content-main {
+            background: #ffffff;
+            border: 2px solid #bfa16c;
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 20px rgba(191, 161, 108, 0.15);
+        }
+
+        .panic-central-box {
+            background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+            color: #e5e7eb;
+            border: 1px solid rgba(185, 28, 28, 0.4);
+        }
+
+        .panic-client-group {
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            border-radius: 12px;
+            padding: 12px;
+            background: rgba(15, 23, 42, 0.6);
+            margin-bottom: 12px;
+        }
+
+        .panic-client-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .panic-client-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin: 0;
+            color: #f8fafc;
+        }
+
+        .panic-missions-inline {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .panic-mission-chip {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            color: #e2e8f0;
+            border-radius: 999px;
+            padding: 2px 10px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+        }
+
+        .panic-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 10px;
+        }
+
+        .panic-card {
+            border-radius: 12px;
+            padding: 12px;
+            background: rgba(239, 68, 68, 0.15);
+            border: 2px solid rgba(239, 68, 68, 0.9);
+            box-shadow: 0 0 18px rgba(239, 68, 68, 0.35);
+            animation: panicPulse 1s infinite;
+            backdrop-filter: blur(6px);
+            color: #f8fafc;
+        }
+
+        .panic-card.test {
+            background: rgba(245, 158, 11, 0.15);
+            border: 2px solid rgba(245, 158, 11, 0.95);
+            box-shadow: 0 0 18px rgba(245, 158, 11, 0.35);
+        }
+
+        .panic-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .panic-title {
+            font-weight: 800;
+            letter-spacing: 0.3px;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0;
+        }
+
+        .panic-card.test .panic-title {
+            color: #fde68a;
+        }
+
+        .panic-blink-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #fff;
+            display: inline-block;
+            animation: blinkDot 0.6s infinite;
+        }
+
+        @keyframes blinkDot {
+            0%, 100% { opacity: .2; }
+            50% { opacity: 1; }
+        }
+
+        @keyframes panicPulse {
+            0% { box-shadow: 0 0 12px rgba(239,68,68,.25); transform: scale(1); }
+            50% { box-shadow: 0 0 26px rgba(239,68,68,.65); transform: scale(1.01); }
+            100% { box-shadow: 0 0 12px rgba(239,68,68,.25); transform: scale(1); }
+        }
+
+        .panic-body {
+            display: grid;
+            gap: 6px;
+            font-size: 0.88rem;
+        }
+
+        .panic-actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .panic-empty {
+            border-radius: 10px;
+            border: 1px dashed rgba(148, 163, 184, 0.5);
+            padding: 14px;
+            text-align: center;
+            color: #cbd5e1;
+            background: rgba(15, 23, 42, 0.35);
+        }
+    </style>
+
+    {% load static %}
+    {% load user_groups %}
+</head>
+<body>
+    {% include 'components/_header.html' %}
+
+    <div class="container mt-3 mb-5 text-center">
+        <div class="row">
+            <div class="col-12 mb-2">
+                <h1 class="page-title">
+                    <i class="bi bi-broadcast"></i>
+                    Monitoramento Ao Vivo
+                </h1>
+            </div>
+        </div>
+
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="content-main text-start panic-central-box">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <h2 class="fs-5 mb-0">
+                            Central de Pânico em Tempo Real
+                        </h2>
+                        <small class="text-light" id="panic-central-last-update">Última atualização: -</small>
+                    </div>
+                    <div class="small text-light mt-2">
+                        Todos os pânicos ativos agrupados por cliente e missão, com resolução individual.
+                    </div>
+
+                    <!-- <div class="small text-warning mt-2">
+                        IA de fotos e geofence agora rodam em worker de backend. Esta tela ficou só para exibir e resolver pânicos.
+                    </div> -->
+
+                    <div class="small text-light mt-2" id="panic-central-status">Carregando pânicos...</div>
+                    <div class="mt-3" id="panic-central-groups"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const POLL_MS = 5000;
+            const API_LIST = '/api/supabase/panic_alerts/?open_only=true&include_meta=true&limit=500';
+            const groupsEl = document.getElementById('panic-central-groups');
+            const statusEl = document.getElementById('panic-central-status');
+            const lastUpdateEl = document.getElementById('panic-central-last-update');
+
+            if (!groupsEl || !statusEl || !lastUpdateEl) {
+                return;
+            }
+
+            let inFlight = false;
+
+            function formatDateSP(iso) {
+                if (!iso) return '-';
+                const d = new Date(iso);
+                if (Number.isNaN(d.getTime())) return String(iso);
+                return d.toLocaleString('pt-BR', {
+                    timeZone: 'America/Sao_Paulo',
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+            }
+
+            function escapeHtml(value) {
+                return String(value ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            }
+
+            function panicResolveUrl(missionId) {
+                return `/api/supabase/mission/${encodeURIComponent(missionId)}/panic-resolve/`;
+            }
+
+            function panicAckUrl(panicId) {
+                return `/api/supabase/panic_alerts/${encodeURIComponent(panicId)}/ack/`;
+            }
+
+            async function fetchJsonOrThrow(url, options = {}) {
+                const resp = await fetch(url, {
+                    cache: 'no-store',
+                    ...options,
+                });
+
+                const raw = await resp.text();
+                let data = null;
+                try {
+                    data = raw ? JSON.parse(raw) : null;
+                } catch (_) {
+                    data = null;
+                }
+
+                if (!resp.ok) {
+                    const err = new Error(data?.error || `HTTP ${resp.status}`);
+                    err.httpStatus = resp.status;
+                    err.data = data;
+                    throw err;
+                }
+
+                return data || {};
+            }
+
+            function buildGroups(rows) {
+                const grouped = new Map();
+
+                for (const p of rows) {
+                    const meta = p.meta || {};
+                    const clientName = (meta.cliente_nome || 'Sem cliente').trim() || 'Sem cliente';
+                    const missionId = p.mission_id ? String(p.mission_id) : '';
+                    const missionName = meta.missao_nome || (missionId ? `Missão ${missionId.slice(0, 8)}` : 'Missão');
+
+                    if (!grouped.has(clientName)) {
+                        grouped.set(clientName, {
+                            clientName,
+                            missions: new Map(),
+                            panics: [],
+                        });
+                    }
+
+                    const bucket = grouped.get(clientName);
+                    if (missionId) {
+                        bucket.missions.set(missionId, missionName);
+                    } else {
+                        bucket.missions.set(missionName, missionName);
+                    }
+
+                    bucket.panics.push(p);
+                }
+
+                return Array.from(grouped.values()).sort((a, b) => a.clientName.localeCompare(b.clientName, 'pt-BR'));
+            }
+
+            function toSortableTime(panic) {
+                const raw = panic?.timestamp || panic?.created_at || '';
+                const dt = new Date(raw);
+                if (!Number.isNaN(dt.getTime())) {
+                    return dt.getTime();
+                }
+                return Number.MAX_SAFE_INTEGER;
+            }
+
+            function selectOneOpenPanicPerMission(rows) {
+                const byMission = new Map();
+                const noMissionRows = [];
+
+                for (const row of rows) {
+                    const missionId = String(row?.mission_id || '').trim();
+
+                    if (!missionId) {
+                        noMissionRows.push(row);
+                        continue;
+                    }
+
+                    const current = byMission.get(missionId);
+                    if (!current) {
+                        byMission.set(missionId, row);
+                        continue;
+                    }
+
+                    // Mantém o pânico mais antigo aberto da missão.
+                    const currentTime = toSortableTime(current);
+                    const candidateTime = toSortableTime(row);
+
+                    if (candidateTime < currentTime) {
+                        byMission.set(missionId, row);
+                    }
+                }
+
+                return [...byMission.values(), ...noMissionRows];
+            }
+
+            function renderGroups(rows) {
+                const groups = buildGroups(rows);
+
+                if (!groups.length) {
+                    groupsEl.innerHTML = '<div class="panic-empty">Nenhum pânico ativo no momento.</div>';
+                    statusEl.textContent = 'Sem pânicos ativos.';
+                    return;
+                }
+
+                const totalMissions = new Set(
+                    rows
+                        .map(r => String(r.mission_id || ''))
+                        .filter(Boolean)
+                ).size;
+
+                statusEl.textContent = `${rows.length} pânico(s) ativo(s) em ${groups.length} cliente(s) e ${totalMissions} missão(ões).`;
+
+                groupsEl.innerHTML = groups.map(group => {
+                    const missions = Array.from(group.missions.values());
+
+                    const cards = group.panics.map(p => {
+                        const meta = p.meta || {};
+                        const isTest = p.test_mode === true;
+                        const panicLabel = isTest ? '🧪 TESTE DE PÂNICO' : '🚨 PÂNICO ATIVO';
+                        const panicBtnLabel = isTest ? 'Confirmar teste de pânico' : 'Resolver pânico';
+                        const panicBtnClass = isTest ? 'btn-warning' : 'btn-danger';
+
+                        const latLng = (p.lat != null && p.lng != null)
+                            ? `${Number(p.lat).toFixed(6)}, ${Number(p.lng).toFixed(6)}`
+                            : '-';
+
+                        const missionId = p.mission_id ? String(p.mission_id) : '';
+                        const mapUrl = meta.map_url || '#';
+                        const missionName = meta.missao_nome || (missionId ? `Missão ${missionId.slice(0, 8)}` : 'Missão');
+                        const agentName = meta.agente_nome || '-';
+
+                        return `
+                            <div class="panic-card ${isTest ? 'test' : ''}">
+                                <div class="panic-card-header">
+                                    <h3 class="panic-title">
+                                        ${panicLabel}
+                                        <span class="panic-blink-dot"></span>
+                                    </h3>
+                                </div>
+                                <div class="panic-body">
+                                    <div><strong>Missão:</strong> ${escapeHtml(missionName)}</div>
+                                    <div><strong>Agente:</strong> ${escapeHtml(agentName)}</div>
+                                    <div><strong>Horário:</strong> ${escapeHtml(formatDateSP(p.timestamp || p.created_at))}</div>
+                                    <div><strong>Lat/Lng:</strong> ${escapeHtml(latLng)}</div>
+                                    <div><strong>ID:</strong> ${escapeHtml(p.id || '-')}</div>
+                                </div>
+                                <div class="panic-actions">
+                                    <a href="${escapeHtml(mapUrl)}" target="_blank" rel="noopener" class="btn btn-outline-light btn-sm flex-fill">
+                                        Abrir mapa
+                                    </a>
+                                    <button
+                                        type="button"
+                                        class="btn ${panicBtnClass} btn-sm flex-fill js-panic-resolve"
+                                        data-panic-id="${escapeHtml(p.id || '')}"
+                                        data-mission-id="${escapeHtml(missionId)}"
+                                        data-test-mode="${isTest ? '1' : '0'}"
+                                    >
+                                        ${panicBtnLabel}
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
+                    return `
+                        <section class="panic-client-group">
+                            <div class="panic-client-header">
+                                <h4 class="panic-client-title">${escapeHtml(group.clientName)}</h4>
+                                <span class="badge text-bg-danger">${group.panics.length} pânico(s)</span>
+                            </div>
+                            <div class="panic-missions-inline">
+                                ${missions.map(m => `<span class="panic-mission-chip">${escapeHtml(m)}</span>`).join('')}
+                            </div>
+                            <div class="panic-grid mt-2">
+                                ${cards}
+                            </div>
+                        </section>
+                    `;
+                }).join('');
+            }
+
+            async function refreshPanics() {
+                if (inFlight || document.hidden) return;
+                inFlight = true;
+                try {
+                    const data = await fetchJsonOrThrow(API_LIST);
+                    const openRows = (data.rows || []).filter(r => r.acknowledged === false);
+                    const rows = selectOneOpenPanicPerMission(openRows);
+                    renderGroups(rows);
+                    lastUpdateEl.textContent = `Última atualização: ${formatDateSP(new Date().toISOString())}`;
+                } catch (err) {
+                    statusEl.textContent = 'Falha ao atualizar pânicos da central.';
+                    console.warn('[central-panico] erro', err);
+                } finally {
+                    inFlight = false;
+                }
+            }
+
+            async function resolvePanic(button) {
+                const panicId = button.getAttribute('data-panic-id') || '';
+                const missionId = button.getAttribute('data-mission-id') || '';
+                const isTestMode = button.getAttribute('data-test-mode') === '1';
+
+                if (!panicId) return;
+
+                const originalLabel = button.textContent;
+                button.disabled = true;
+                button.textContent = 'Resolvendo...';
+
+                try {
+                    await fetchJsonOrThrow(panicAckUrl(panicId), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                    });
+
+                    if (isTestMode && missionId) {
+                        try {
+                            await fetchJsonOrThrow(panicResolveUrl(missionId), {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                            });
+                        } catch (err) {
+                            if (err.httpStatus !== 409) {
+                                throw err;
+                            }
+                        }
+                    }
+
+                    await refreshPanics();
+                } catch (err) {
+                    alert(err?.data?.error || 'Não foi possível resolver o pânico.');
+                    console.warn('[central-panico] resolve erro', err);
+                } finally {
+                    button.disabled = false;
+                    button.textContent = originalLabel;
+                }
+            }
+
+            groupsEl.addEventListener('click', function(e) {
+                const btn = e.target.closest('.js-panic-resolve');
+                if (!btn) return;
+                resolvePanic(btn);
+            });
+
+            refreshPanics();
+            setInterval(refreshPanics, POLL_MS);
+
+            function kickAllNow() {
+                refreshPanics();
+            }
+
+            window.addEventListener('focus', kickAllNow);
+            window.addEventListener('pageshow', kickAllNow);
+            document.addEventListener('visibilitychange', function() {
+                if (!document.hidden) {
+                    kickAllNow();
+                }
+            });
+        })();
+    </script>
+
+    <script>
+        // Sync automatico de status Supabase -> Django (e callback GS) a cada 30s.
+        (function() {
+            async function syncStatus() {
+                try {
+                    const resp = await fetch('/acompanhamentos/api/sync-status-supabase/', {
+                        cache: 'no-store'
+                    });
+                    if (!resp.ok) {
+                        return;
+                    }
+
+                    const data = await resp.json();
+                    if ((data && data.updated) > 0) {
+                        console.log('[Sync monitoramento] status atualizados:', data.updated);
+                    }
+                } catch (err) {
+                    console.warn('[Sync monitoramento] erro:', err);
+                }
+            }
+
+            syncStatus();
+            setInterval(syncStatus, 30000);
+        })();
+    </script>
+</body>
+</html>

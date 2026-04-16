@@ -45,6 +45,12 @@ urlpatterns = [
         name="acompanhamentosPanicoList",
     ),
 
+    path(
+        "monitoramento-ao-vivo/",
+        views.MonitoramentoAoVivoView.as_view(),
+        name="monitoramentoAoVivo",
+    ),
+
     # =========================
     # MISSÃO (AGENTE)
     # =========================

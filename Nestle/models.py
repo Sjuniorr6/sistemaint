@@ -87,6 +87,7 @@ class GridInternacional(models.Model):
     liberacao                  = models.DateField("Liberacao", null=True, blank=True)
     golden_sat                  = models.DateField("GoldenSat", null=True, blank=True)
     anexo                       = models.FileField("Anexo", upload_to="nestle/grid_anexos/", null=True, blank=True)
+    anexo_danificado            = models.FileField("Anexo Danificado", upload_to="nestle/grid_anexos_danificado/", null=True, blank=True)
     sla_destino                 = models.CharField("SLA Destino", max_length=255, null=True, blank=True)
     bateria_insercao            = models.PositiveSmallIntegerField("Bateria na Inserção (%)", null=True, blank=True)
     bateria_chegada_destino     = models.PositiveSmallIntegerField("Bateria na Chegada no Destino (%)", null=True, blank=True)

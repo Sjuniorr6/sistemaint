@@ -13,7 +13,7 @@ from django.views.decorators.http import require_POST
 from .odometer_ai import validate_odometer_with_ai
 from .plate_ai import validate_plate_with_ai
 from .supabase_client import get_supabase
-from acompanhamentos.models import registroacompanhamento
+from acompanhamentos.models import registroacompanhamento, registroacompanhamentoagente
 from django.views.decorators.http import require_POST, require_GET
 import json
 import logging
@@ -174,6 +174,26 @@ def _find_acompanhamento_by_supabase_mission_id(mission_id: str):
     ).first()
 
 
+def _get_vinculo_by_mission_id(mission_id: str, for_update: bool = False):
+    """
+    Busca o vínculo (agente principal) da missão de forma determinística.
+    Quando for_update=True, aplica lock transacional no registro do vínculo.
+    """
+    try:
+        mission_uuid = uuid.UUID(mission_id)
+    except Exception:
+        return None
+
+    qs = registroacompanhamentoagente.objects.filter(
+        acompanhamento__supabase_mission_id=mission_uuid
+    )
+
+    if for_update:
+        qs = qs.select_for_update()
+
+    return qs.filter(tipo_agente="principal").first() or qs.order_by("id").first()
+
+
 def _get_principal_vinculo(acompanhamento):
     if not acompanhamento:
         return None
@@ -238,7 +258,7 @@ def _resolve_km_estimado_referencia(acompanhamento, vinculo=None):
 
 
 
-def _update_django_km(acompanhamento, photo_type: str, odo_raw, ts_iso, photo_id: str, confidence: float):
+def _update_django_km(acompanhamento, photo_type: str, odo_raw, ts_iso, photo_id: str, confidence: float, mission_id: str = None):
     """
     Salva KM no SEU BANCO (Django), preferencialmente no agente principal (registroacompanhamentoagente).
     Não salva no Supabase.
@@ -248,14 +268,34 @@ def _update_django_km(acompanhamento, photo_type: str, odo_raw, ts_iso, photo_id
     
     photo_type: "odometro_inicio" ou "odometro_final"
     """
-    if not acompanhamento:
-        return {"updated": False, "reason": "acompanhamento_not_found_in_django"}
+    if mission_id:
+        vinculo = _get_vinculo_by_mission_id(mission_id, for_update=True)
+        if not vinculo:
+            return {
+                "updated": False,
+                "reason": "no_agente_vinculado_for_mission",
+                "mission_id": mission_id,
+            }
 
-    # Pega agente principal (ou primeiro)
-    vinculo = (
-        acompanhamento.agentes.filter(tipo_agente="principal").first()
-        or acompanhamento.agentes.first()
-    )
+        acompanhamento = vinculo.acompanhamento
+    else:
+        if not acompanhamento:
+            return {"updated": False, "reason": "acompanhamento_not_found_in_django"}
+
+        vinculo = (
+            acompanhamento.agentes.select_for_update().filter(tipo_agente="principal").first()
+            or acompanhamento.agentes.select_for_update().order_by("id").first()
+        )
+
+    if mission_id and str(getattr(acompanhamento, "supabase_mission_id", "")) != str(mission_id):
+        return {
+            "updated": False,
+            "reason": "mission_mismatch_on_update",
+            "mission_id": mission_id,
+            "acompanhamento_id": getattr(acompanhamento, "id", None),
+            "acompanhamento_mission_id": str(getattr(acompanhamento, "supabase_mission_id", "")),
+        }
+
     if not vinculo:
         return {"updated": False, "reason": "no_agente_vinculado"}
 
@@ -292,8 +332,20 @@ def _update_django_km(acompanhamento, photo_type: str, odo_raw, ts_iso, photo_id
 
     vinculo.save(update_fields=update_fields)
 
+    logger.info(
+        "[KM_SAVE] mission_id=%s acompanhamento_id=%s vinculo_id=%s photo_type=%s odometer_raw=%s photo_id=%s",
+        mission_id or str(getattr(acompanhamento, "supabase_mission_id", "")),
+        getattr(acompanhamento, "id", None),
+        getattr(vinculo, "id", None),
+        photo_type,
+        odo_int,
+        photo_id,
+    )
+
     return {
         "updated": True,
+        "mission_id": mission_id or str(getattr(acompanhamento, "supabase_mission_id", "")),
+        "acompanhamento_id": getattr(acompanhamento, "id", None),
         "vinculo_id": getattr(vinculo, "id", None),
         "photo_type": photo_type,
         "odometer_raw": odo_int,
@@ -526,6 +578,7 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
                 ts_iso=ts,
                 photo_id=photo_id,
                 confidence=confidence,
+                mission_id=mission_id,
             )
             # Para pronta_resposta, início só é gravado ao receber odômetro inicial.
             if _is_pronta_resposta(acompanhamento):
@@ -663,6 +716,7 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
                 ts_iso=ts,
                 photo_id=photo_id,
                 confidence=confidence,
+                mission_id=mission_id,
             )
 
         return {

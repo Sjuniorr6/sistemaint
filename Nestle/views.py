@@ -359,6 +359,12 @@ def grid_internacional_quick_edit(request):
         if not hasattr(obj, field):
             return JsonResponse({'success': False, 'error': 'Campo inválido'})
 
+        def _validar_anexo(uploaded_file):
+            if not uploaded_file:
+                return False
+            ext = os.path.splitext(uploaded_file.name or '')[1].lower()
+            return ext in {'.pdf', '.xls', '.xlsx'}
+
         if field == 'golden_sat' and value:
             if not anexo_file:
                 return JsonResponse({
@@ -366,15 +372,29 @@ def grid_internacional_quick_edit(request):
                     'error': 'Para salvar GoldenSat, envie um anexo PDF ou Excel.'
                 })
 
-            ext = os.path.splitext(anexo_file.name or '')[1].lower()
-            extensoes_permitidas = {'.pdf', '.xls', '.xlsx'}
-            if ext not in extensoes_permitidas:
+            if not _validar_anexo(anexo_file):
                 return JsonResponse({
                     'success': False,
                     'error': 'Anexo inválido. Envie apenas PDF ou Excel (.xls/.xlsx).'
                 })
 
             obj.anexo = anexo_file
+
+        if field == 'status_operacao':
+            value = (value or '').strip()
+            if value == 'Danificado':
+                if anexo_file:
+                    if not _validar_anexo(anexo_file):
+                        return JsonResponse({
+                            'success': False,
+                            'error': 'Anexo inválido para Danificado. Envie apenas PDF ou Excel (.xls/.xlsx).'
+                        })
+                    obj.anexo_danificado = anexo_file
+                elif obj.status_operacao != 'Danificado' and not obj.anexo_danificado:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Para alterar o status para Danificado, envie um anexo PDF ou Excel.'
+                    })
 
         # Se for campo de data, converta para o formato correto
         if field.startswith('data_') or field in ['liberacao', 'coleta', 'golden_sat', 'data_envoice']:

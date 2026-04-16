@@ -2,6 +2,7 @@ from pathlib import Path
 import os.path
 import os
 import json
+from decimal import Decimal, InvalidOperation
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -264,3 +265,41 @@ LOGOUT_REDIRECT_URL = 'login'  # Nome da URL para redirecionar após logout
 LOGIN_URL = 'login'
 # Verifique se 'login' está corretamente configurado e inclui a URL para login.
 ROLESPERMISSIONS_MODULE = 'app.roles'  # Certifique-se de que o caminho está correto
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_decimal(name: str, default: str) -> float:
+    raw = os.getenv(name, default)
+    try:
+        return float(Decimal(raw))
+    except (TypeError, InvalidOperation, ValueError):
+        return float(default)
+
+
+# Celery
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://127.0.0.1:6379/0")
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)
+CELERY_TASK_TIME_LIMIT = _env_int("CELERY_TASK_TIME_LIMIT", 120)
+CELERY_TASK_SOFT_TIME_LIMIT = _env_int("CELERY_TASK_SOFT_TIME_LIMIT", 90)
+CELERY_WORKER_PREFETCH_MULTIPLIER = _env_int("CELERY_WORKER_PREFETCH_MULTIPLIER", 1)
+CELERY_TASK_ACKS_LATE = os.getenv("CELERY_TASK_ACKS_LATE", "true").lower() == "true"
+CELERY_TIMEZONE = os.getenv("CELERY_TIMEZONE", "America/Sao_Paulo")
+CELERY_TASK_DEFAULT_QUEUE = "monitoramento.orquestrador"
+CELERY_TASK_ROUTES = {
+    "acompanhamentos.tasks.processar_fotos_pendentes_task": {"queue": "monitoramento.photos"},
+    "acompanhamentos.tasks.processar_geofence_task": {"queue": "monitoramento.geofence"},
+    "acompanhamentos.tasks.ciclo_monitoramento_task": {"queue": "monitoramento.orquestrador"},
+}
+CELERY_BEAT_SCHEDULE = {
+    "ciclo-monitoramento": {
+        "task": "acompanhamentos.tasks.ciclo_monitoramento_task",
+        "schedule": _env_decimal("CELERY_MONITORAMENTO_INTERVAL_SECONDS", "15"),
+        "options": {"queue": "monitoramento.orquestrador"},
+    },
+}

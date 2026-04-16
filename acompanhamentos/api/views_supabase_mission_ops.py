@@ -939,38 +939,68 @@ def sb_mission_status(request, mission_id):
         return _err("Falha ao buscar status da missão", status=500, details=str(e))
 
 
-@csrf_exempt
-@require_GET
-def sb_mission_geofence_check(request, mission_id):
+def run_geofence_check_for_mission(mission_id, sb=None):
     """
-    Observa a última localização (mission_tracking) e, se estiver dentro do raio,
-    atualiza missions_control.status para no_local.
+    Executa a validação de geofence para uma missão.
 
-    IMPORTANTE:
-    - Não depende do banco Django.
-    - Usa geofence salvo em missions_control.agent_data.geofence.
+    Retorna um dict com a chave `_http_status` para que a mesma lógica possa ser
+    usada tanto pela view HTTP quanto pelo worker em backend.
     """
 
-    def _do(sb):
+    def _do(supabase_client):
+        supabase_client = sb or supabase_client
+
         # 1) Buscar missão (status + geofence)
-        mission = _get_mission(sb, mission_id)
+        mission = _get_mission(supabase_client, mission_id)
         if not mission:
-            return _err("Missão não encontrada no Supabase", status=404)
+            return {
+                "success": False,
+                "_http_status": 404,
+                "error": "Missão não encontrada no Supabase",
+            }
 
         current_status = (mission.get("status") or "").strip()
         agent_data = mission.get("agent_data") or {}
         geofences = _extract_origin_geofences(agent_data)
 
+        # fallback: se a missão ainda não refletiu geofence no Supabase,
+        # usa os dados do Django para manter o monitoramento independente do mapa.
         if not geofences:
-            return _err(
-                "Geofence não configurado em agent_data.geofence(s)",
-                status=409,
-                details={"agent_data": agent_data},
-            )
+            acomp = _get_django_acompanhamento(mission_id)
+            if acomp:
+                if acomp.latitude_origem is not None and acomp.longitude_origem is not None:
+                    geofences.append({
+                        "latitude": float(acomp.latitude_origem),
+                        "longitude": float(acomp.longitude_origem),
+                        "raio": int(acomp.raio_cerca or 60),
+                        "origem_index": 1,
+                    })
+                if acomp.latitude_origem2 is not None and acomp.longitude_origem2 is not None:
+                    geofences.append({
+                        "latitude": float(acomp.latitude_origem2),
+                        "longitude": float(acomp.longitude_origem2),
+                        "raio": int((acomp.raio_cerca_2 if acomp.raio_cerca_2 is not None else 60) or 60),
+                        "origem_index": 2,
+                    })
+                if acomp.latitude_origem3 is not None and acomp.longitude_origem3 is not None:
+                    geofences.append({
+                        "latitude": float(acomp.latitude_origem3),
+                        "longitude": float(acomp.longitude_origem3),
+                        "raio": int((acomp.raio_cerca_3 if acomp.raio_cerca_3 is not None else 60) or 60),
+                        "origem_index": 3,
+                    })
+
+        if not geofences:
+            return {
+                "success": False,
+                "_http_status": 409,
+                "error": "Geofence não configurado em agent_data.geofence(s)",
+                "details": {"agent_data": agent_data},
+            }
 
         # 2) Buscar último ponto do tracking
         last_res = (
-            sb.table("mission_tracking")
+            supabase_client.table("mission_tracking")
             .select("id,lat,lng,timestamp,created_at")
             .eq("mission_id", mission_id)
             .order("timestamp", desc=True)
@@ -979,13 +1009,22 @@ def sb_mission_geofence_check(request, mission_id):
         )
         last_rows = last_res.data or []
         if not last_rows:
-            return _err("Ainda não há tracking para esta missão", status=409)
+            return {
+                "success": False,
+                "_http_status": 409,
+                "error": "Ainda não há tracking para esta missão",
+            }
 
         last = last_rows[0]
         lat = last.get("lat")
         lng = last.get("lng")
         if lat is None or lng is None:
-            return _err("Último tracking está sem lat/lng", status=409, details={"last": last})
+            return {
+                "success": False,
+                "_http_status": 409,
+                "error": "Último tracking está sem lat/lng",
+                "details": {"last": last},
+            }
 
         lat = float(lat)
         lng = float(lng)
@@ -1013,7 +1052,11 @@ def sb_mission_geofence_check(request, mission_id):
             })
 
         if not checks:
-            return _err("Geofence inválido: nenhum ponto latitude/longitude", status=409)
+            return {
+                "success": False,
+                "_http_status": 409,
+                "error": "Geofence inválido: nenhum ponto latitude/longitude",
+            }
 
         best = min(checks, key=lambda item: item["distance_meters"])
         inside = any(item["inside"] for item in checks)
@@ -1023,13 +1066,15 @@ def sb_mission_geofence_check(request, mission_id):
 
         # Regra: só sobe para no_local se estiver missao_aceita
         if inside and current_status == STATUS_MISSAO_ACEITA:
-            _update_supabase_status(sb, mission_id, STATUS_NO_LOCAL)
+            _update_supabase_status(supabase_client, mission_id, STATUS_NO_LOCAL)
             _sync_django_status(mission_id, STATUS_NO_LOCAL)  # se existir vínculo no Django, sincroniza
             _set_django_inicio_if_missing(mission_id, last.get("timestamp") or last.get("created_at"))
             changed = True
             new_status = STATUS_NO_LOCAL
 
-        return _ok({
+        return {
+            "success": True,
+            "_http_status": 200,
             "mission_id": mission_id,
             "current_status": current_status,
             "new_status": new_status,
@@ -1050,9 +1095,26 @@ def sb_mission_geofence_check(request, mission_id):
             "distance_meters": best["distance_meters"],
             "inside": inside,
             "checked_at": _now_iso(),
-        })
+        }
+
+    return _sb_execute(_do)
+
+
+@csrf_exempt
+@require_GET
+def sb_mission_geofence_check(request, mission_id):
+    """
+    Observa a última localização (mission_tracking) e, se estiver dentro do raio,
+    atualiza missions_control.status para no_local.
+
+    IMPORTANTE:
+    - Não depende do banco Django.
+    - Usa geofence salvo em missions_control.agent_data.geofence.
+    """
 
     try:
-        return _sb_execute(_do)
+        result = run_geofence_check_for_mission(mission_id)
+        status_code = int(result.pop("_http_status", 200))
+        return JsonResponse(result, status=status_code)
     except Exception as e:
         return _err("Falha ao executar geofence-check", status=500, details=str(e))

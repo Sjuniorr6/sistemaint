@@ -3,6 +3,7 @@ import logging
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from .supabase_client import get_supabase, reset_supabase
+from ..models import registroacompanhamento
 
 import time
 import logging
@@ -98,6 +99,12 @@ def _to_int(value, default=200, min_value=1, max_value=5000):
         v = min(v, max_value)
 
     return v
+
+
+def _to_bool(value, default=False):
+    if value is None:
+        return default
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
 # ==========================================================
@@ -377,6 +384,8 @@ def sb_panic_alerts_list(request):
     def _do(sb):
         limit = _to_int(request.GET.get("limit"), default=500, min_value=1, max_value=5000)
         mission_id = request.GET.get("mission_id")
+        open_only = _to_bool(request.GET.get("open_only"), default=False)
+        include_meta = _to_bool(request.GET.get("include_meta"), default=False)
 
         q = (
             sb.table("panic_alerts")
@@ -388,8 +397,86 @@ def sb_panic_alerts_list(request):
         if mission_id:
             q = q.eq("mission_id", mission_id)
 
+        if open_only:
+            q = q.eq("acknowledged", False)
+
         res = q.execute()
         rows = res.data or []
+
+        if include_meta and rows:
+            mission_ids = list({str(r.get("mission_id")) for r in rows if r.get("mission_id")})
+
+            django_rows = (
+                registroacompanhamento.objects
+                .filter(supabase_mission_id__in=mission_ids)
+                .select_related("cliente", "requisicao_solicitacao__missao")
+                .prefetch_related("agentes__agente")
+            )
+
+            django_map = {}
+            for acomp in django_rows:
+                mission_key = str(acomp.supabase_mission_id)
+                principal = acomp.agentes.filter(tipo_agente="principal").first() or acomp.agentes.first()
+
+                agente_nome = "-"
+                if principal and principal.agente:
+                    agente_nome = principal.agente.nome or "-"
+
+                missao_nome = None
+                if (
+                    getattr(acomp, "requisicao_solicitacao", None)
+                    and acomp.requisicao_solicitacao.missao
+                    and acomp.requisicao_solicitacao.missao.nome
+                ):
+                    missao_nome = acomp.requisicao_solicitacao.missao.nome
+                else:
+                    missao_nome = f"Missão #{acomp.id}"
+
+                django_map[mission_key] = {
+                    "acompanhamento_id": acomp.id,
+                    "cliente_nome": acomp.cliente.nome if acomp.cliente else "Sem cliente",
+                    "agente_nome": agente_nome,
+                    "missao_nome": missao_nome,
+                    "map_url": f"/acompanhamentos/missao/{mission_key}/mapa/",
+                }
+
+            fallback_map = {}
+            missing_missions = [m for m in mission_ids if m not in django_map]
+            if missing_missions:
+                try:
+                    fallback_res = (
+                        sb.table("missions_control")
+                        .select("id,agente,cliente,nome")
+                        .in_("id", missing_missions)
+                        .execute()
+                    )
+                    for m in (fallback_res.data or []):
+                        m_id = str(m.get("id") or "")
+                        if not m_id:
+                            continue
+                        fallback_map[m_id] = {
+                            "acompanhamento_id": None,
+                            "cliente_nome": m.get("cliente") or "Sem cliente",
+                            "agente_nome": m.get("agente") or "-",
+                            "missao_nome": m.get("nome") or f"Missão {m_id[:8]}",
+                            "map_url": f"/acompanhamentos/missao/{m_id}/mapa/",
+                        }
+                except Exception:
+                    fallback_map = {}
+
+            for row in rows:
+                m_id = str(row.get("mission_id") or "")
+                row["meta"] = (
+                    django_map.get(m_id)
+                    or fallback_map.get(m_id)
+                    or {
+                        "acompanhamento_id": None,
+                        "cliente_nome": "Sem cliente",
+                        "agente_nome": "-",
+                        "missao_nome": f"Missão {m_id[:8]}" if m_id else "Missão",
+                        "map_url": f"/acompanhamentos/missao/{m_id}/mapa/" if m_id else "#",
+                    }
+                )
 
         panic_active = any((r.get("acknowledged") is False) for r in rows)
         open_panic = next((r for r in rows if r.get("acknowledged") is False), None)

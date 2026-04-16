@@ -533,6 +533,13 @@
                                         {% endif %}
                                     </ul>
                                 </li>
+                                {% if perms.acompanhamentos.view_registroacompanhamento %}
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'monitoramentoAoVivo' %}">
+                                            Monitoramento Ao Vivo
+                                        </a>
+                                    </li>
+                                {% endif %}
                                 {% if perms.acompanhamentos.view_listfranquia %}
                                     <li>
                                         <a class="dropdown-item" href="{% url 'franquiaList' %}">
