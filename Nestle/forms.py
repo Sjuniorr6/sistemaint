@@ -4,6 +4,15 @@ from .models import GridInternacional, clientesNestle, ValorMensalCliente, Carga
 from django.utils import timezone
 
 class GridInternacionalForm(forms.ModelForm):
+    MODELO_CHOICES = [
+        ("", "Selecione"),
+        ("Tetis Dry", "Tetis Dry"),
+        ("Guardian", "Guardian"),
+        ("GG LL", "GG LL"),
+    ]
+
+    modelo = forms.ChoiceField(choices=MODELO_CHOICES, required=False)
+
     class Meta:
         model = GridInternacional
         fields = [
@@ -13,6 +22,7 @@ class GridInternacionalForm(forms.ModelForm):
             "local_de_entrega",
             "modelo",
             "id_planilha",
+            "id2",
             "ccid",
             "sla_insercao",
             "data_insercao",
@@ -51,10 +61,13 @@ class GridInternacionalForm(forms.ModelForm):
             "coleta",
             "liberacao",
             "golden_sat",
+            "sla_destino",
         ]
         widgets = {
             "data_envio": forms.DateInput(attrs={"type": "date"}),
             "requisicao": forms.TextInput(attrs={"type": "text"}),
+            "id_planilha": forms.TextInput(attrs={"type": "text"}),
+            "id2": forms.TextInput(attrs={"type": "text"}),
             "data_insercao": forms.DateInput(attrs={"type": "date"}),
             "data_chegada_destino": forms.DateInput(attrs={"type": "date"}),
             "data_retirada": forms.DateInput(attrs={"type": "date"}),
@@ -72,7 +85,32 @@ class GridInternacionalForm(forms.ModelForm):
             "coleta": forms.DateInput(attrs={"type": "date"}),
             "liberacao": forms.DateInput(attrs={"type": "date"}),
             "golden_sat": forms.DateInput(attrs={"type": "date"}),
-        }   
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        modelo_atual = getattr(self.instance, "modelo", None)
+        opcoes = [valor for valor, _label in self.MODELO_CHOICES if valor]
+        if modelo_atual and modelo_atual not in opcoes:
+            self.fields["modelo"].choices = self.MODELO_CHOICES + [(modelo_atual, f"{modelo_atual} (atual)")]
+
+    def clean(self):
+        cleaned_data = super().clean()
+        modelo = (cleaned_data.get("modelo") or "").strip()
+        id_planilha = (cleaned_data.get("id_planilha") or "").strip()
+        id2 = (cleaned_data.get("id2") or "").strip()
+
+        cleaned_data["id_planilha"] = id_planilha
+        cleaned_data["id2"] = id2
+
+        if modelo == "Guardian":
+            if len(id_planilha) != 12:
+                self.add_error("id_planilha", "Para o modelo Guardian, o ID deve ter exatamente 12 caracteres.")
+            if not id2:
+                self.add_error("id2", "Para o modelo Guardian, o ID 2 é obrigatório.")
+
+        return cleaned_data
 
 
 

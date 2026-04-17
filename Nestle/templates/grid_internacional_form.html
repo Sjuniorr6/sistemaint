@@ -158,6 +158,13 @@
                 {{ form.id_planilha.errors }}
               </div>
             </div>
+            <div class="col-md-4" id="id2-wrapper" style="display:none;">
+              <div class="form-floating">
+                {{ form.id2 }}
+                <label for="{{ form.id2.id_for_label }}">{{ form.id2.label }}</label>
+                {{ form.id2.errors }}
+              </div>
+            </div>
             <div class="col-md-4">
               <div class="form-floating">
                 {{ form.container }}
@@ -465,6 +472,69 @@
     document.querySelectorAll('input, select, textarea').forEach(function (el) {
       el.classList.add('form-control');
     });
+
+    var modeloInput = document.getElementById('{{ form.modelo.id_for_label }}');
+    var idPlanilhaInput = document.getElementById('{{ form.id_planilha.id_for_label }}');
+    var id2Input = document.getElementById('{{ form.id2.id_for_label }}');
+    var id2Wrapper = document.getElementById('id2-wrapper');
+
+    function validarIdGuardian() {
+      if (!modeloInput || !idPlanilhaInput) {
+        return;
+      }
+
+      if (modeloInput.value === 'Guardian') {
+        if (idPlanilhaInput.value.length !== 12) {
+          idPlanilhaInput.setCustomValidity('Para o modelo Guardian, o ID deve ter exatamente 12 caracteres.');
+        } else {
+          idPlanilhaInput.setCustomValidity('');
+        }
+      } else {
+        idPlanilhaInput.setCustomValidity('');
+      }
+    }
+
+    function atualizarCamposGuardian() {
+      if (!modeloInput) {
+        return;
+      }
+
+      var guardianSelecionado = modeloInput.value === 'Guardian';
+
+      if (id2Wrapper) {
+        id2Wrapper.style.display = guardianSelecionado ? '' : 'none';
+      }
+
+      if (id2Input) {
+        id2Input.required = guardianSelecionado;
+      }
+
+      if (idPlanilhaInput) {
+        if (guardianSelecionado) {
+          idPlanilhaInput.required = true;
+          idPlanilhaInput.setAttribute('minlength', '12');
+          idPlanilhaInput.setAttribute('maxlength', '12');
+          idPlanilhaInput.setAttribute('pattern', '.{12}');
+        } else {
+          idPlanilhaInput.removeAttribute('minlength');
+          idPlanilhaInput.removeAttribute('maxlength');
+          idPlanilhaInput.removeAttribute('pattern');
+        }
+      }
+
+      validarIdGuardian();
+    }
+
+    if (modeloInput) {
+      modeloInput.addEventListener('change', atualizarCamposGuardian);
+    }
+
+    if (idPlanilhaInput) {
+      idPlanilhaInput.addEventListener('input', validarIdGuardian);
+    }
+
+    atualizarCamposGuardian();
+
     var forms = document.querySelectorAll('.needs-validation');
     Array.prototype.slice.call(forms).forEach(function (form) {
       form.addEventListener(

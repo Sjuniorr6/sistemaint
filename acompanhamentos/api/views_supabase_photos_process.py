@@ -654,7 +654,7 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
                 "km_total": km_total,
             }
 
-        tolerancia_km = 25
+        tolerancia_km = 1000
         km_maximo_aprovado = float(km_estimado_ref) + tolerancia_km
 
         vr["km_inicio"] = int(km_inicio)

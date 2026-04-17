@@ -296,14 +296,14 @@ class GridInternacionalFinalizados(ListView):
 
 class GridInternacionalCreate(CreateView):
     model = GridInternacionalModel
+    form_class = GridInternacionalForm
     template_name = 'grid_internacional_form.html'
-    fields = '__all__'
     success_url = reverse_lazy('grid_internacional_list')
 
 class GridInternacionalUpdate(UpdateView):
     model = GridInternacionalModel
+    form_class = GridInternacionalForm
     template_name = 'grid_internacional_form.html'
-    fields = '__all__'
     success_url = reverse_lazy('grid_internacional_list')
     
 

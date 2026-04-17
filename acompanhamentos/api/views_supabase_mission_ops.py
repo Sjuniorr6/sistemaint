@@ -302,6 +302,53 @@ def _set_django_inicio_if_missing(mission_id, ts_iso=None) -> bool:
     vinculo.save(update_fields=["data_inicio", "horario_inicio"])
     return True
 
+
+def _set_django_finalizacao_if_missing(mission_id, ts_iso=None) -> bool:
+    """
+    Grava data_finalizacao/horario_finalizacao nos agentes do acompanhamento sem
+    sobrescrever valores já preenchidos.
+    """
+    acomp = _get_django_acompanhamento(mission_id)
+    if not acomp:
+        return False
+
+    vinculos = list(acomp.agentes.all())
+    if not vinculos:
+        return False
+
+    dt_ref = None
+    if isinstance(ts_iso, str) and ts_iso:
+        try:
+            dt_ref = datetime.fromisoformat(ts_iso.replace("Z", "+00:00"))
+            if dt_ref.tzinfo is None:
+                dt_ref = dt_ref.replace(tzinfo=dt_timezone.utc)
+        except Exception:
+            dt_ref = None
+
+    if dt_ref is None:
+        dt_ref = dj_tz.now()
+
+    dt_ref_local = dj_tz.localtime(dt_ref)
+
+    updated_any = False
+
+    for vinculo in vinculos:
+        update_fields = []
+
+        if not vinculo.data_finalizacao:
+            vinculo.data_finalizacao = dt_ref_local.date()
+            update_fields.append("data_finalizacao")
+
+        if not vinculo.horario_finalizacao:
+            vinculo.horario_finalizacao = dt_ref_local.time().replace(microsecond=0)
+            update_fields.append("horario_finalizacao")
+
+        if update_fields:
+            vinculo.save(update_fields=update_fields)
+            updated_any = True
+
+    return updated_any
+
 def _update_django_botao_panico(mission_id, value: bool) -> bool:
     try:
         mission_uuid = uuid.UUID(mission_id)
@@ -762,7 +809,45 @@ def sb_mission_start(request, mission_id):
 @csrf_exempt
 @require_POST
 def sb_mission_finish(request, mission_id):
-    return _transition(mission_id, STATUS_ODO_FINAL_OK, STATUS_CONCLUIDO)
+    try:
+        body = json.loads(request.body) if request.body else {}
+    except json.JSONDecodeError:
+        body = {}
+
+    ts_iso = body.get("timestamp") or body.get("finished_at") or body.get("completed_at")
+
+    def _do(sb):
+        mission = _get_mission(sb, mission_id)
+        if not mission:
+            return _err("Missão não encontrada no Supabase", status=404)
+
+        current = (mission.get("status") or "").strip()
+
+        if current != STATUS_ODO_FINAL_OK:
+            return _err(
+                f"Transição inválida: status atual é '{current}', esperado '{STATUS_ODO_FINAL_OK}'",
+                status=409,
+                details={
+                    "current_status": current,
+                    "expected_status": STATUS_ODO_FINAL_OK,
+                    "requested_status": STATUS_CONCLUIDO,
+                }
+            )
+
+        _update_supabase_status(sb, mission_id, STATUS_CONCLUIDO)
+        django_synced = _sync_django_status(mission_id, STATUS_CONCLUIDO)
+        django_finalizacao_set = _set_django_finalizacao_if_missing(mission_id, ts_iso=ts_iso)
+
+        return _ok({
+            "mission_id": mission_id,
+            "previous_status": current,
+            "new_status": STATUS_CONCLUIDO,
+            "django_synced": django_synced,
+            "django_finalizacao_set": django_finalizacao_set,
+            "updated_at": _now_iso(),
+        })
+
+    return _sb_execute(_do)
 
 
 # ══════════════════════════════════════════════════════════

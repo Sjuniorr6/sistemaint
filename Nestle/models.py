@@ -48,6 +48,7 @@ class GridInternacional(models.Model):
     local_de_entrega            = models.CharField("Local de Entrega", max_length=255, null=True, blank=True)
     modelo                      = models.CharField("Modelo", max_length=255, null=True, blank=True)
     id_planilha                 = models.CharField("ID", max_length=255, null=True, blank=True)
+    id2                         = models.CharField("ID 2", max_length=255, null=True, blank=True)
     ccid                        = models.CharField("CCID", max_length=255, null=True, blank=True)
     sla_insercao                = models.CharField("SLA de Inserção", max_length=255, null=True, blank=True)
     data_insercao               = models.DateField("Data / Inserção", null=True, blank=True)

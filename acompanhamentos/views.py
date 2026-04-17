@@ -89,6 +89,49 @@ from django.utils import timezone as tz
 from .utils import sync_acompanhamento_to_supabase, delete_supabase_mission
 from .gs_sync_utils import notificar_gs_verificado
 
+
+def _set_finalizacao_agentes_if_missing(acomp, ts_iso=None):
+    """Preenche data/hora de finalização nos agentes sem sobrescrever valores existentes."""
+    agentes = list(acomp.agentes.all())
+    if not agentes:
+        return False
+
+    dt_ref = None
+    if isinstance(ts_iso, str) and ts_iso:
+        try:
+            dt_ref = datetime.fromisoformat(ts_iso.replace("Z", "+00:00"))
+        except Exception:
+            dt_ref = None
+
+    if dt_ref is None:
+        dt_ref = tz.now()
+
+    if tz.is_naive(dt_ref):
+        try:
+            dt_ref = tz.make_aware(dt_ref, tz.get_current_timezone())
+        except Exception:
+            pass
+
+    dt_ref_local = tz.localtime(dt_ref) if tz.is_aware(dt_ref) else dt_ref
+
+    updated_any = False
+    for agente in agentes:
+        update_fields = []
+
+        if not agente.data_finalizacao:
+            agente.data_finalizacao = dt_ref_local.date()
+            update_fields.append("data_finalizacao")
+
+        if not agente.horario_finalizacao:
+            agente.horario_finalizacao = dt_ref_local.time().replace(microsecond=0)
+            update_fields.append("horario_finalizacao")
+
+        if update_fields:
+            agente.save(update_fields=update_fields)
+            updated_any = True
+
+    return updated_any
+
 @csrf_exempt
 @require_GET
 def sync_status_from_supabase(request):
@@ -124,7 +167,7 @@ def sync_status_from_supabase(request):
         try:
             res = (
                 sb.table("missions_control")
-                .select("id, status")
+                .select("id, status, updated_at")
                 .in_("id", batch)
                 .execute()
             )
@@ -150,6 +193,13 @@ def sync_status_from_supabase(request):
                     acomp = registroacompanhamento.objects.get(pk=django_info["id"])
                     acomp.status_acompanhamento = sb_status
                     acomp.save(update_fields=["status_acompanhamento"])
+
+                    if sb_status == "concluido":
+                        _set_finalizacao_agentes_if_missing(
+                            acomp,
+                            ts_iso=mission.get("updated_at"),
+                        )
+
                     updated += 1
 
                     # ✅ Notificar GS se status relevante (em_andamento, concluido)

@@ -778,6 +778,7 @@
                         <thead class="table-light">
                             <tr>
                                 <th>ID</th>
+                                <th>ID2</th>
                                 <th>Requisição</th>
                                 <th>Cliente</th>
                                 <th>Local Entrega</th>
@@ -817,6 +818,7 @@
                             {% for grid in object_list %}
                                 <tr>
                                     <td>{{ grid.id_planilha }}</td>
+                                    <td>{{ grid.id2 }}</td>
                                     <td class="editable-cell" data-field="requisicao" data-pk="{{ grid.pk }}">{{ grid.requisicao }}</td>
                                     <td class="editable-cell" data-field="cliente" data-pk="{{ grid.pk }}">{{ grid.cliente }}</td>
                                     <td class="editable-cell" data-field="local_de_entrega" data-pk="{{ grid.pk }}">{{ grid.local_de_entrega }}</td>
