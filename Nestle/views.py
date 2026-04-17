@@ -403,7 +403,7 @@ def grid_internacional_quick_edit(request):
             except Exception as e:
                 return JsonResponse({'success': False, 'error': 'Data inválida'})
 
-        if field == 'porta_aberta':
+        if field in ['porta_aberta', 'quarentena']:
             value = 1 if str(value).strip() in ['1', 'true', 'True', 'on', 'sim', 'SIM'] else 0
 
         setattr(obj, field, value)
@@ -416,7 +416,7 @@ def grid_internacional_quick_edit(request):
         # Formatar valor para exibição
         if field.startswith('data_') or field in ['liberacao', 'coleta', 'golden_sat', 'data_envoice']:
             display_value = value.strftime('%d/%m/%Y')
-        elif field == 'porta_aberta':
+        elif field in ['porta_aberta', 'quarentena']:
             display_value = value
         else:
             display_value = value
@@ -458,6 +458,7 @@ def grid_internacional_quick_edit(request):
             'bateria_chegada_destino': obj.bateria_chegada_destino,
             'media_bateria_viagem': float(obj.media_bateria_viagem) if obj.media_bateria_viagem is not None else None,
             'porta_aberta': obj.porta_aberta,
+            'quarentena': obj.quarentena,
         }
         return JsonResponse({'success': True, 'value': display_value, 'badge_class': badge_class, **sla_data, **battery_data})
 
@@ -693,6 +694,10 @@ def grid_internacional_api(request):
     try:
         # Get all objects from GridInternacional model
         queryset = GridInternacionalModel.objects.all()
+
+        somente_quarentena = (request.GET.get('quarentena') or request.GET.get('somente_quarentena') or '').strip().lower()
+        if somente_quarentena in ['1', 'true', 'sim', 'yes', 'on']:
+            queryset = queryset.filter(quarentena=1)
         
         # Convert queryset to list of dictionaries with all fields
         data = []
@@ -745,12 +750,16 @@ def grid_internacional_api(request):
                 'bateria_chegada_destino': obj.bateria_chegada_destino,
                 'media_bateria_viagem': float(obj.media_bateria_viagem) if obj.media_bateria_viagem is not None else None,
                 'porta_aberta': obj.porta_aberta,
+                'quarentena': obj.quarentena,
                 'status_automatico': obj.get_status_automatico()
             }
             data.append(item)
         
         return JsonResponse({
             'status': 'success',
+            'filters': {
+                'somente_quarentena': somente_quarentena in ['1', 'true', 'sim', 'yes', 'on']
+            },
             'data': data
         })
     except Exception as e:

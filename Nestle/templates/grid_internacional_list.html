@@ -796,6 +796,7 @@
                                 <th>Desembarque Marítimo</th>
                                 <th>Chegada Destino</th>
                                 <th>Porta Aberta</th>
+                                <th>Quarentena</th>
                                 <th>Retirada</th>
                                 
                                 <th>Invoice</th>
@@ -853,10 +854,19 @@
                                     <td data-field="porta_aberta" data-pk="{{ grid.pk }}" class="text-center">
                                         <input
                                             type="checkbox"
-                                            class="form-check-input porta-checkbox"
+                                            class="form-check-input status-checkbox"
                                             data-field="porta_aberta"
                                             data-pk="{{ grid.pk }}"
                                             {% if grid.porta_aberta == 1 %}checked{% endif %}
+                                        >
+                                    </td>
+                                    <td data-field="quarentena" data-pk="{{ grid.pk }}" class="text-center">
+                                        <input
+                                            type="checkbox"
+                                            class="form-check-input status-checkbox"
+                                            data-field="quarentena"
+                                            data-pk="{{ grid.pk }}"
+                                            {% if grid.quarentena == 1 %}checked{% endif %}
                                         >
                                     </td>
                                     <td class="editable-cell" data-field="data_retirada" data-pk="{{ grid.pk }}">{{ grid.data_retirada|date:"d/m/Y" }}</td>
@@ -1222,9 +1232,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
 
                     if (typeof data.porta_aberta !== 'undefined') {
-                        const doorCheckbox = document.querySelector(`.porta-checkbox[data-pk="${pk}"]`);
+                        const doorCheckbox = document.querySelector(`.status-checkbox[data-field="porta_aberta"][data-pk="${pk}"]`);
                         if (doorCheckbox) {
                             doorCheckbox.checked = Number(data.porta_aberta) === 1;
+                        }
+                    }
+
+                    if (typeof data.quarentena !== 'undefined') {
+                        const quarantineCheckbox = document.querySelector(`.status-checkbox[data-field="quarentena"][data-pk="${pk}"]`);
+                        if (quarantineCheckbox) {
+                            quarantineCheckbox.checked = Number(data.quarentena) === 1;
                         }
                     }
                 }
@@ -1257,7 +1274,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Chamar a função inicialmente
     atualizarSomaTotal();
 
-    document.querySelectorAll('.porta-checkbox').forEach(checkbox => {
+    document.querySelectorAll('.status-checkbox').forEach(checkbox => {
         checkbox.addEventListener('change', function() {
             const formData = new FormData();
             formData.append('field', this.dataset.field);

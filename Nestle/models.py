@@ -94,6 +94,7 @@ class GridInternacional(models.Model):
     bateria_chegada_destino     = models.PositiveSmallIntegerField("Bateria na Chegada no Destino (%)", null=True, blank=True)
     media_bateria_viagem        = models.DecimalField("Média de Bateria da Viagem (%)", max_digits=5, decimal_places=2, null=True, blank=True)
     porta_aberta                = models.PositiveSmallIntegerField("Porta Aberta", null=True, blank=True)
+    quarentena                  = models.PositiveSmallIntegerField("Quarentena", null=True, blank=True)
    
 
     def __str__(self):
