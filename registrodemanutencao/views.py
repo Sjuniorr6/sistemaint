@@ -509,7 +509,6 @@ def download_protocolo_entrada(request, pk):
     fields = [
         [P("Nº REGISTRO:", True), P(registro.id), P("DATA:", True), P(registro.data_criacao.strftime("%d/%m/%Y"))],
         [P("NOME:", True), P(registro.nome), P("TIPO ENTRADA:", True), P(registro.tipo_entrada)],
-        [P("MOTIVO:", True), P(registro.motivo), P("TIPO PRODUTO:", True), P(registro.tipo_produto)],
         [P("CUSTOMIZAÇÃO:", True), P(registro.customizacaoo), P("ENTREGUE POR:", True), P(registro.entregue_por_retirado_por)],
         [P("QUANTIDADE:", True), P(registro.quantidade), P("TIPO DE CONTRATO:", True), P(registro.tipo_contrato)],
     ]
@@ -736,7 +735,6 @@ def download_pdf(request, pk):
         ["Tipo de Entrada", Paragraph(registro.tipo_entrada or "Não informado", body_style)],
         ["Tipo de Produto", Paragraph(str(registro.tipo_produto or "Não informado"), body_style)],
         ["Tipo de Contrato", Paragraph(str(registro.tipo_contrato or "Não informado"), body_style)],
-        ["Motivo", Paragraph(registro.motivo or "Não informado", body_style)],
         ["Customização", Paragraph(registro.customizacaoo or "Não informado", body_style)],
         ["Número Equipamento", Paragraph(registro.numero_equipamento or "Não informado", body_style)],
         ["Observações", Paragraph(registro.observacoes or "Não informado", body_style)],
@@ -1152,7 +1150,6 @@ def aprovar_manutencao(request, id):
         ["Nome", Paragraph(str(registro.nome or "Não informado"), body_style)],
         ["Tipo de Entrada", Paragraph(registro.tipo_entrada or "Não informado", body_style)],
         ["Tipo de Produto", Paragraph(str(registro.tipo_produto or "Não informado"), body_style)],
-        ["Motivo", Paragraph(registro.motivo or "Não informado", body_style)],
         ["Customização", Paragraph(registro.customizacaoo or "Não informado", body_style)],
         ["Número Equipamento", Paragraph(registro.numero_equipamento or "Não informado", body_style)],
         ["Observações", Paragraph(registro.observacoes or "Não informado", body_style)],
@@ -1354,7 +1351,6 @@ def aprovar_manutencao_comercial(request, id):
         ["Nome", Paragraph(str(registro.nome or "Não informado"), body_style)],
         ["Tipo de Entrada", Paragraph(registro.tipo_entrada or "Não informado", body_style)],
         ["Tipo de Produto", Paragraph(str(registro.tipo_produto or "Não informado"), body_style)],
-        ["Motivo", Paragraph(registro.motivo or "Não informado", body_style)],
         ["Customização", Paragraph(registro.customizacaoo or "Não informado", body_style)],
         ["Número Equipamento", Paragraph(registro.numero_equipamento or "Não informado", body_style)],
         ["Observações", Paragraph(registro.observacoes or "Não informado", body_style)],
