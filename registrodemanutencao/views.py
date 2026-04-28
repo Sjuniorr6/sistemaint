@@ -22,7 +22,7 @@ from django.contrib.auth.mixins import  PermissionRequiredMixin,LoginRequiredMix
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-import json 
+import json
 # Importações dos modelos e formulários
 from .models import registrodemanutencao, ImagemRegistro,retorno
 from requisicao.models import Requisicoes

@@ -120,9 +120,8 @@
                         <label for="{{ form.tipo_produto.id_for_label }}">Modelo:</label>
                         {{ form.tipo_produto }}
                         {% if form.tipo_produto.errors %}
-                                <div class="text-danger">{{ form.tipo_produto.errors }}</div>
-                                {% endif %}
-                            </div>
+                            <div class="text-danger">{{ form.tipo_produto.errors }}</div>
+                        {% endif %}
                     </div>
                 </div>
 
