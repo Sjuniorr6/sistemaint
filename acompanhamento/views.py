@@ -29,6 +29,7 @@ class ClienteCreateView(PermissionRequiredMixin, LoginRequiredMixin, CreateView)
 class ClienteDetailView(PermissionRequiredMixin, LoginRequiredMixin, DetailView):
     model = models.Clientes
     template_name = 'cliente_detail.html'
+    context_object_name = 'cliente'
     permission_required = "acompanhamento.view_clientes"
 
 class ClienteUpdateView(PermissionRequiredMixin, LoginRequiredMixin, UpdateView):
