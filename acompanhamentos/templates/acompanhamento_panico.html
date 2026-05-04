@@ -398,12 +398,12 @@
                                 <tr>
                                     <td>
                                         {% if item.status_acompanhamento != "concluido" %}
-                                               <a href="{{ item.link_app }}"
+                                            <button type="button"
                                                     class="btn btn-success btn-sm"
-                                                    title="Abrir missão no App">
-                                                    <i class="bi bi-phone-fill"></i>
-                                                </a>
-
+                                                    title="Copiar link da missão"
+                                                    onclick="copiarLink('{{ item.link_app|escapejs }}')">
+                                                <i class="bi bi-clipboard"></i>
+                                            </button>
                                         {% else %}
                                             <span class="badge bg-success">Concluído</span>
                                         {% endif %}
@@ -604,6 +604,18 @@
             setInterval(syncStatus, 10000);
         })();
     </script>
+
+<script>
+    function copiarLink(link) {
+        navigator.clipboard.writeText(link)
+            .then(() => {
+                alert("Link copiado!");
+            })
+            .catch(() => {
+                alert("Erro ao copiar o link.");
+            });
+    }
+</script>
 
 <script>
 // ═══════════════════════════════════════════════════════════════
