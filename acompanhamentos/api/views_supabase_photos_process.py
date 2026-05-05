@@ -81,6 +81,29 @@ def _parse_ts_to_dt(ts_value):
     return None
 
 
+def _normalize_issues_list(raw_issues):
+    """
+    Garante que o campo `issues` seja sempre uma lista serializável.
+    Evita erro de concatenação quando a origem grava `issues=None`.
+    """
+    if raw_issues is None:
+        return []
+
+    if isinstance(raw_issues, list):
+        return [str(item) for item in raw_issues if item is not None]
+
+    if isinstance(raw_issues, tuple):
+        return [str(item) for item in raw_issues if item is not None]
+
+    return [str(raw_issues)]
+
+
+def _append_issue(vr: dict, issue: str) -> None:
+    issues = _normalize_issues_list(vr.get("issues"))
+    issues.append(issue)
+    vr["issues"] = issues
+
+
 # ==========================================================
 # Storage / Temp file
 # ==========================================================
@@ -255,6 +278,73 @@ def _resolve_km_estimado_referencia(acompanhamento, vinculo=None):
         return max(km_carro, km_moto), "fallback_max"
 
     return None, None
+
+
+def _parse_int_or_none(value):
+    try:
+        return int(value)
+    except Exception:
+        return None
+
+
+def _get_km_inicio_from_mission_photos(sb, mission_id: str):
+    """
+    Fallback: lê o odômetro inicial já validado em mission_photos quando
+    km_inicio não foi persistido no Django por qualquer inconsistência.
+    """
+    try:
+        rows = (
+            sb.table("mission_photos")
+            .select("id,created_at,validation_result")
+            .eq("mission_id", mission_id)
+            .eq("type", "odometro_inicio")
+            .eq("processed", True)
+            .order("created_at", desc=True)
+            .limit(5)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        return None, None
+
+    for row in rows:
+        vr = row.get("validation_result") or {}
+        if not isinstance(vr, dict):
+            continue
+
+        km_inicio = _parse_int_or_none(vr.get("odometer_raw"))
+        if km_inicio is not None:
+            return km_inicio, row.get("id")
+
+    return None, None
+
+
+def _maybe_backfill_km_inicio_django(mission_id: str, km_inicio: int, ts_iso, photo_id: str, confidence: float):
+    """
+    Tenta gravar km_inicio no Django via caminho oficial.
+    Não bloqueia o fluxo principal se falhar.
+    """
+    try:
+        acompanhamento = _find_acompanhamento_by_supabase_mission_id(mission_id)
+        return _update_django_km(
+            acompanhamento=acompanhamento,
+            photo_type="odometro_inicio",
+            odo_raw=km_inicio,
+            ts_iso=ts_iso,
+            photo_id=photo_id,
+            confidence=confidence,
+            mission_id=mission_id,
+        )
+    except Exception as exc:
+        logger.warning(
+            "[KM_BACKFILL] mission_id=%s photo_id=%s km_inicio=%s erro=%s",
+            mission_id,
+            photo_id,
+            km_inicio,
+            str(exc),
+        )
+        return {"updated": False, "reason": f"km_inicio_backfill_failed({exc})"}
 
 
 
@@ -508,9 +598,10 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
 
             if placa_cadastrada and placa_detectada and placa_detectada != placa_cadastrada:
                 vr["valid"] = False
-                vr["issues"] = vr.get("issues", []) + [
-                    f"placa_divergente(detectada={placa_detectada}, cadastrada={placa_cadastrada})"
-                ]
+                _append_issue(
+                    vr,
+                    f"placa_divergente(detectada={placa_detectada}, cadastrada={placa_cadastrada})",
+                )
                 sb.table("mission_photos").update({
                     "validation_result": vr
                 }).eq("id", photo_id).execute()
@@ -614,9 +705,25 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
         except Exception:
             km_final = None
 
+        if km_inicio is None:
+            km_inicio_fallback, km_inicio_fallback_photo_id = _get_km_inicio_from_mission_photos(sb, mission_id)
+            if km_inicio_fallback is not None:
+                km_inicio = km_inicio_fallback
+                vr["km_inicio_fallback_from_photo_id"] = km_inicio_fallback_photo_id
+                vr["km_inicio_fallback_source"] = "mission_photos.odometro_inicio.validation_result.odometer_raw"
+
+                # Tenta reconciliar persistência no Django para não falhar em fluxos futuros.
+                _maybe_backfill_km_inicio_django(
+                    mission_id=mission_id,
+                    km_inicio=km_inicio_fallback,
+                    ts_iso=ts,
+                    photo_id=photo_id,
+                    confidence=confidence,
+                )
+
         if km_inicio is None or km_final is None:
             vr["valid"] = False
-            vr["issues"] = vr.get("issues", []) + ["km_validacao_indisponivel(km_inicio_ou_km_final_ausente)"]
+            _append_issue(vr, "km_validacao_indisponivel(km_inicio_ou_km_final_ausente)")
             sb.table("mission_photos").update({"validation_result": vr}).eq("id", photo_id).execute()
             return {
                 "updated": False,
@@ -629,7 +736,7 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
         km_total = km_final - int(km_inicio)
         if km_total < 0:
             vr["valid"] = False
-            vr["issues"] = vr.get("issues", []) + ["km_total_negativo(km_final_menor_que_km_inicio)"]
+            _append_issue(vr, "km_total_negativo(km_final_menor_que_km_inicio)")
             vr["km_total_calculado"] = km_total
             sb.table("mission_photos").update({"validation_result": vr}).eq("id", photo_id).execute()
             return {
@@ -642,66 +749,68 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
             }
 
         km_estimado_ref, km_estimado_source = _resolve_km_estimado_referencia(acompanhamento, vinculo)
-        if km_estimado_ref is None:
-            vr["valid"] = False
-            vr["issues"] = vr.get("issues", []) + ["km_estimado_ausente_para_validacao"]
-            vr["km_total_calculado"] = km_total
-            sb.table("mission_photos").update({"validation_result": vr}).eq("id", photo_id).execute()
-            return {
-                "updated": False,
-                "reason": "km_estimado_missing",
-                "current_status": current_status,
-                "km_total": km_total,
-            }
-
-        tolerancia_km = 1000
-        km_maximo_aprovado = float(km_estimado_ref) + tolerancia_km
-
         vr["km_inicio"] = int(km_inicio)
         vr["km_final"] = km_final
         vr["km_total_calculado"] = km_total
-        vr["km_estimado_referencia"] = float(km_estimado_ref)
-        vr["km_estimado_source"] = km_estimado_source
-        vr["km_tolerancia"] = tolerancia_km
-        vr["km_maximo_aprovado"] = km_maximo_aprovado
-
-        # Regra: só bloqueia quando passou do estimado + 5km.
-        if km_total > km_maximo_aprovado:
-            excedente = km_total - km_maximo_aprovado
-            mensagem_rejeicao = (
-                f"A foto foi rejeitada: ultrapassou {excedente:.2f} km do limite permitido "
-                f"(total={km_total}, esperado={float(km_estimado_ref):.2f}, tolerancia={tolerancia_km})."
-            )
-
-            logger.warning(
-                "[KM_REJEITADO] mission_id=%s photo_id=%s total=%s estimado=%.2f tolerancia=%s limite=%.2f excedente=%.2f",
+        if km_estimado_ref is None:
+            # Sem km estimado cadastrado: mantém validação por consistência
+            # (km_total >= 0) e apenas anota warning, sem bloquear o fluxo.
+            _append_issue(vr, "km_estimado_ausente_para_validacao")
+            vr["km_validacao_estimado_aplicada"] = False
+            logger.info(
+                "[KM_VALIDACAO] mission_id=%s photo_id=%s total=%s sem_km_estimado (fluxo permitido)",
                 mission_id,
                 photo_id,
                 km_total,
-                float(km_estimado_ref),
-                tolerancia_km,
-                km_maximo_aprovado,
-                excedente,
             )
+        else:
+            tolerancia_km = 1000
+            km_maximo_aprovado = float(km_estimado_ref) + tolerancia_km
 
-            vr["valid"] = False
-            vr["issues"] = vr.get("issues", []) + [
-                f"km_excedido(total={km_total}, estimado={float(km_estimado_ref):.2f}, limite={km_maximo_aprovado:.2f})"
-            ]
-            vr["message"] = mensagem_rejeicao
-            vr["km_excedente_tolerancia"] = round(excedente, 2)
-            sb.table("mission_photos").update({"validation_result": vr}).eq("id", photo_id).execute()
-            return {
-                "updated": False,
-                "reason": "km_total_above_estimated_tolerance",
-                "message": mensagem_rejeicao,
-                "current_status": current_status,
-                "km_total": km_total,
-                "km_estimado": float(km_estimado_ref),
-                "km_tolerancia": tolerancia_km,
-                "km_maximo_aprovado": km_maximo_aprovado,
-                "km_excedente_tolerancia": round(excedente, 2),
-            }
+            vr["km_estimado_referencia"] = float(km_estimado_ref)
+            vr["km_estimado_source"] = km_estimado_source
+            vr["km_tolerancia"] = tolerancia_km
+            vr["km_maximo_aprovado"] = km_maximo_aprovado
+            vr["km_validacao_estimado_aplicada"] = True
+
+            # Regra: bloqueia quando passou do estimado + tolerância.
+            if km_total > km_maximo_aprovado:
+                excedente = km_total - km_maximo_aprovado
+                mensagem_rejeicao = (
+                    f"A foto foi rejeitada: ultrapassou {excedente:.2f} km do limite permitido "
+                    f"(total={km_total}, esperado={float(km_estimado_ref):.2f}, tolerancia={tolerancia_km})."
+                )
+
+                logger.warning(
+                    "[KM_REJEITADO] mission_id=%s photo_id=%s total=%s estimado=%.2f tolerancia=%s limite=%.2f excedente=%.2f",
+                    mission_id,
+                    photo_id,
+                    km_total,
+                    float(km_estimado_ref),
+                    tolerancia_km,
+                    km_maximo_aprovado,
+                    excedente,
+                )
+
+                vr["valid"] = False
+                _append_issue(
+                    vr,
+                    f"km_excedido(total={km_total}, estimado={float(km_estimado_ref):.2f}, limite={km_maximo_aprovado:.2f})",
+                )
+                vr["message"] = mensagem_rejeicao
+                vr["km_excedente_tolerancia"] = round(excedente, 2)
+                sb.table("mission_photos").update({"validation_result": vr}).eq("id", photo_id).execute()
+                return {
+                    "updated": False,
+                    "reason": "km_total_above_estimated_tolerance",
+                    "message": mensagem_rejeicao,
+                    "current_status": current_status,
+                    "km_total": km_total,
+                    "km_estimado": float(km_estimado_ref),
+                    "km_tolerancia": tolerancia_km,
+                    "km_maximo_aprovado": km_maximo_aprovado,
+                    "km_excedente_tolerancia": round(excedente, 2),
+                }
 
         # 1) atualiza status no Supabase
         _supabase_update_status(sb, mission_id, STATUS_ODO_FINAL_OK)
@@ -752,9 +861,10 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
 
             if placa_cadastrada and placa_detectada and placa_detectada != placa_cadastrada:
                 vr["valid"] = False
-                vr["issues"] = vr.get("issues", []) + [
-                    f"placa_divergente(detectada={placa_detectada}, cadastrada={placa_cadastrada})"
-                ]
+                _append_issue(
+                    vr,
+                    f"placa_divergente(detectada={placa_detectada}, cadastrada={placa_cadastrada})",
+                )
                 sb.table("mission_photos").update({
                     "validation_result": vr
                 }).eq("id", photo_id).execute()
@@ -799,7 +909,7 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
 # Lock leve (anti-loop) + marcação de erro (anti-pendente infinito)
 # ==========================================================
 
-PROCESSING_LOCK_TTL_SECONDS = 180  # 3 min
+PROCESSING_LOCK_TTL_SECONDS = 600  # 10 min (evita duplicar processamento durante picos de latência da IA)
 
 
 def _is_processing_locked(vr: dict) -> bool:
@@ -852,7 +962,7 @@ def _mark_failed(sb, photo_id: str, mission_id, photo_type, storage_path, err: s
     }
 
 
-def process_one_photo_id(photo_id: str):
+def process_one_photo_id(photo_id: str, force: bool = False):
     """
     Processa uma foto por ID (sem depender de request).
     Retorna: (payload_dict, http_status)
@@ -882,8 +992,23 @@ def process_one_photo_id(photo_id: str):
         storage_path = photo.get("storage_path")
 
         # 2) Idempotência: já processou
-        if photo.get("processed") is True and photo.get("validation_result"):
+        existing_vr = photo.get("validation_result") or {}
+        has_previous_error = isinstance(existing_vr, dict) and bool(existing_vr.get("error"))
+        if (
+            not force
+            and photo.get("processed") is True
+            and photo.get("validation_result")
+            and not has_previous_error
+        ):
             return ({"success": True, "message": "Foto já processada", "photo": photo}, 200)
+        if has_previous_error:
+            logger.info(
+                "[PHOTO_REPROCESS] Reprocessando foto com falha anterior photo_id=%s mission_id=%s type=%s error=%s",
+                photo_id,
+                mission_id,
+                photo_type,
+                existing_vr.get("error"),
+            )
 
         # 3) Lock leve (se já está processando)
         current_vr = photo.get("validation_result") or {}
@@ -932,7 +1057,7 @@ def process_one_photo_id(photo_id: str):
                 "plate_format": ai_result.get("plate_format", "unknown"),
                 "plate_color": ai_result.get("plate_color", "unknown"),
                 "plate_location": ai_result.get("plate_location", "unknown"),
-                "issues": ai_result.get("issues", []),
+                "issues": _normalize_issues_list(ai_result.get("issues")),
                 "raw_response": ai_result.get("raw_response"),
                 "processed_at": _now_iso(),
                 "processing": False,
@@ -956,7 +1081,7 @@ def process_one_photo_id(photo_id: str):
                 "display_type": ai_result.get("display_type", "unknown"),
                 "trip_meter": ai_result.get("trip_meter"),
                 "unit": ai_result.get("unit", "km"),
-                "issues": ai_result.get("issues", []),
+                "issues": _normalize_issues_list(ai_result.get("issues")),
                 "raw_response": ai_result.get("raw_response"),
                 "processed_at": _now_iso(),
                 "processing": False,
@@ -993,7 +1118,8 @@ def process_one_photo_id(photo_id: str):
 @csrf_exempt
 @require_POST
 def sb_process_one_photo(request, photo_id: str):
-    payload, status_code = process_one_photo_id(photo_id)
+    force = str(request.GET.get("force") or "").strip().lower() in {"1", "true", "yes"}
+    payload, status_code = process_one_photo_id(photo_id, force=force)
     return JsonResponse(payload, status=status_code)
 
 @csrf_exempt
@@ -1027,11 +1153,44 @@ def sb_process_pending_photos(request):
         photos_res = q.execute()
         pending = photos_res.data or []
 
+        # Além das pendentes, tenta reprocessar fotos já "processed=true"
+        # que ficaram com erro de processamento (casos legados travados).
+        errored = []
+        if mission_id:
+            recent_q = (
+                sb.table("mission_photos")
+                .select("*")
+                .eq("mission_id", mission_id)
+                .order("created_at", desc=True)
+                .limit(limit)
+            )
+            if photo_type:
+                recent_q = recent_q.eq("type", photo_type)
+
+            recent_rows = recent_q.execute().data or []
+            errored = [
+                row
+                for row in recent_rows
+                if row.get("processed") is True
+                and isinstance(row.get("validation_result"), dict)
+                and row.get("validation_result", {}).get("error")
+            ]
+
+        # Deduplica mantendo ordem: pendentes primeiro, depois errored.
+        all_candidates = []
+        seen_ids = set()
+        for row in (pending + errored):
+            pid = row.get("id")
+            if not pid or pid in seen_ids:
+                continue
+            seen_ids.add(pid)
+            all_candidates.append(row)
+
         results = []
         ok_count = 0
         fail_count = 0
 
-        for p in pending:
+        for p in all_candidates:
             pid = p.get("id")
             if not pid:
                 continue
@@ -1049,6 +1208,8 @@ def sb_process_pending_photos(request):
             "message": "Polling completado",
             "filters": {"mission_id": mission_id, "type": photo_type, "limit": limit},
             "total_pending_found": len(pending),
+            "total_errored_found": len(errored),
+            "total_candidates": len(all_candidates),
             "processed_ok": ok_count,
             "processed_fail": fail_count,
             "results": results,

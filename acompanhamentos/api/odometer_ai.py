@@ -39,6 +39,16 @@ SUSPICIOUS_TRIP_MAX = 10000        # Trips raramente passam de 10k km
 VERY_LOW_ODOMETER_WARN = 500       # Motos ou carros muito novos
 VERY_LOW_ODOMETER_HARD_MIN = 10    # Abaixo disso é quase certamente erro (blocking)
 
+# Configuração da chamada de IA (focada em latência estável)
+ODOMETER_AI_MODEL = getattr(settings, "ODOMETER_AI_MODEL", "gpt-4o-mini")
+ODOMETER_AI_TIMEOUT_SECONDS = float(getattr(settings, "ODOMETER_AI_TIMEOUT_SECONDS", 45))
+ODOMETER_AI_MAX_RETRIES = int(getattr(settings, "ODOMETER_AI_MAX_RETRIES", 1))
+ODOMETER_AI_MAX_COMPLETION_TOKENS = int(getattr(settings, "ODOMETER_AI_MAX_COMPLETION_TOKENS", 280))
+
+# Reduz tamanho da imagem para acelerar upload/processamento sem perder leitura útil
+ODOMETER_AI_MAX_IMAGE_SIDE = int(getattr(settings, "ODOMETER_AI_MAX_IMAGE_SIDE", 1600))
+ODOMETER_AI_JPEG_QUALITY = int(getattr(settings, "ODOMETER_AI_JPEG_QUALITY", 82))
+
 # ======================================================
 # DEBUG MODE - SALVA IMAGENS E LOGS
 # ======================================================
@@ -111,10 +121,27 @@ def _preprocess_image(pil_img: Image.Image) -> Image.Image:
     return pil_img
 
 
+def _resize_for_vision(pil_img: Image.Image, max_side: int) -> Image.Image:
+    """Reduz proporcionalmente a imagem para limitar custo/latência na IA."""
+    if max_side <= 0:
+        return pil_img
+
+    w, h = pil_img.size
+    longest_side = max(w, h)
+    if longest_side <= max_side:
+        return pil_img
+
+    scale = max_side / float(longest_side)
+    new_size = (max(1, int(w * scale)), max(1, int(h * scale)))
+    resampling = getattr(Image, "Resampling", Image)
+    return pil_img.resize(new_size, resampling.LANCZOS)
+
+
 def _to_data_url_from_pil(pil_img: Image.Image) -> str:
     """Converte PIL em data URL base64 (jpeg)."""
+    quality = max(40, min(95, ODOMETER_AI_JPEG_QUALITY))
     out = io.BytesIO()
-    pil_img.save(out, format="JPEG", quality=95, optimize=True)
+    pil_img.save(out, format="JPEG", quality=quality, optimize=True)
     b64 = base64.b64encode(out.getvalue()).decode("utf-8")
     return f"data:image/jpeg;base64,{b64}"
 
@@ -386,13 +413,21 @@ def _call_openai_vision(data_url: str, data_url_crop: Optional[str] = None, time
     Chama GPT-4 Vision para ler o odômetro.
     Envia imagem original + crop (se disponível) para melhor precisão.
     """
-    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    client = OpenAI(
+        api_key=settings.OPENAI_API_KEY,
+        timeout=ODOMETER_AI_TIMEOUT_SECONDS,
+        max_retries=ODOMETER_AI_MAX_RETRIES,
+    )
+
+    # Quando existe crop, a imagem completa pode ser em baixa definição;
+    # os dígitos ficam na imagem ampliada, que segue em high.
+    full_image_detail = "low" if data_url_crop else "high"
 
     content: List[Dict[str, Any]] = [
         {"type": "text", "text": _build_prompt()},
         {
             "type": "image_url",
-            "image_url": {"url": data_url, "detail": "high"},
+            "image_url": {"url": data_url, "detail": full_image_detail},
         },
     ]
 
@@ -411,18 +446,20 @@ def _call_openai_vision(data_url: str, data_url_crop: Optional[str] = None, time
     if DEBUG_MODE and timestamp:
         debug_request = {
             "timestamp": timestamp,
-            "model": "gpt-4o-mini",
+            "model": ODOMETER_AI_MODEL,
             "has_crop": data_url_crop is not None,
             "image_size_full": len(data_url),
             "image_size_crop": len(data_url_crop) if data_url_crop else 0,
+            "full_image_detail": full_image_detail,
         }
         _debug_log(f"{timestamp}_request", debug_request)
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=ODOMETER_AI_MODEL,
             messages=[{"role": "user", "content": content}],
-            max_completion_tokens=600,
+            max_completion_tokens=ODOMETER_AI_MAX_COMPLETION_TOKENS,
+            temperature=0,
         )
 
         raw_text = response.choices[0].message.content.strip() if response.choices[0].message.content else ""
@@ -570,8 +607,8 @@ def _validate_result(result: Dict[str, Any], sanity_issues: List[str]) -> Dict[s
         "display_type": result.get("display_type"),
         "reasoning": reasoning,
         "all_numbers_visible": result.get("all_numbers_visible", []),
-        "issues": issues if issues else None,
-        "blocking_issues": blocking_issues if blocking_issues else None,
+        "issues": issues,
+        "blocking_issues": blocking_issues,
         "raw_response": result,
     }
 
@@ -609,20 +646,22 @@ def read_odometer(image_bytes: bytes) -> Dict[str, Any]:
     # DEBUG: Salva imagem processada
     if DEBUG_MODE:
         _debug_save_image(processed, "02_processed", timestamp)
-    
-    data_url_full = _to_data_url_from_pil(processed)
+
+    processed_for_vision = _resize_for_vision(processed, ODOMETER_AI_MAX_IMAGE_SIDE)
+    data_url_full = _to_data_url_from_pil(processed_for_vision)
 
     # 3) Tenta crop automático do display digital
     crop = _auto_crop_display(pil_img)
     data_url_crop = None
     if crop is not None:
         crop_processed = _preprocess_image(crop)
+        crop_for_vision = _resize_for_vision(crop_processed, ODOMETER_AI_MAX_IMAGE_SIDE)
         
         # DEBUG: Salva crop processado
         if DEBUG_MODE:
             _debug_save_image(crop_processed, "03_crop", timestamp)
         
-        data_url_crop = _to_data_url_from_pil(crop_processed)
+        data_url_crop = _to_data_url_from_pil(crop_for_vision)
     else:
         # DEBUG: Marca que não houve crop
         if DEBUG_MODE:
@@ -633,10 +672,13 @@ def read_odometer(image_bytes: bytes) -> Dict[str, Any]:
     if DEBUG_MODE:
         debug_info = {
             "timestamp": timestamp,
-            "image_size": pil_img.size,
+            "image_size_original": pil_img.size,
+            "image_size_full_for_vision": processed_for_vision.size,
             "sanity_issues": sanity_issues,
             "crop_success": crop is not None,
         }
+        if crop is not None:
+            debug_info["image_size_crop_for_vision"] = crop_for_vision.size
         _debug_log(f"{timestamp}_info", debug_info)
 
     # 4) Chama GPT-4 Vision (imagem completa + crop se disponível)
