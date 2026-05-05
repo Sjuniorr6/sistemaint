@@ -636,10 +636,8 @@
         el.classList.remove("d-none");
 
         const TYPE_LABELS = {
-            "placa_inicio":     "Início Placa",
             "odometro_inicio":  "Início KM",
             "odometro_final":   "Final KM",
-            "placa_final":      "Final Placa",
         };
 
         let html = "";
@@ -653,12 +651,7 @@
             if (!p.processed) {
                 html += ` <span class="photo-badge pending">⏳ ${label}: Aguardando</span>`;
             } else if (isPlaca) {
-                if (vr.valid) {
-                    const plateNum = vr.plate_number || "?";
-                    html += ` <span class="photo-badge valid">✅ ${label}: ${plateNum}</span>`;
-                } else {
-                    html += ` <span class="photo-badge invalid">❌ ${label}: Rejeitada</span>`;
-                }
+                html += ` <span class="photo-badge pending">ℹ️ ${label}: Ignorada</span>`;
             } else if (isOdometro) {
                 if (vr.valid) {
                     const odo = vr.odometer_value || vr.odometer_raw || "?";

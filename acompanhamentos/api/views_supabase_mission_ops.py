@@ -42,13 +42,11 @@ logger = logging.getLogger(__name__)
 STATUS_PENDENTE = "pendente"
 STATUS_MISSAO_ACEITA = "missao_aceita"
 STATUS_NO_LOCAL = "no_local"
-STATUS_PLACA_INICIO_OK = "placa_inicio_verificada"       # NOVO v2.6.0
 STATUS_ODO_INICIO_OK = "odometro_inicio_verificado"
 STATUS_TESTE_PANICO = "teste_panico"
 STATUS_TESTE_PANICO_VERIFICADO = "teste_panico_verificado"
 STATUS_EM_ANDAMENTO = "em_andamento"
 STATUS_ODO_FINAL_OK = "odometro_final_verificado"
-STATUS_PLACA_FINAL_OK = "placa_final_verificada"         # NOVO v2.6.0
 STATUS_CONCLUIDO = "concluido"
 
 

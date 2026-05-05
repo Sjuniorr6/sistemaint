@@ -11,7 +11,6 @@ from django.utils.timezone import is_naive, make_aware
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from .odometer_ai import validate_odometer_with_ai
-from .plate_ai import validate_plate_with_ai
 from .supabase_client import get_supabase
 from acompanhamentos.models import registroacompanhamento, registroacompanhamentoagente
 from django.views.decorators.http import require_POST, require_GET
@@ -139,20 +138,15 @@ def _remove_file_silent(abs_path: str):
 STATUS_PENDENTE = "pendente"
 STATUS_MISSAO_ACEITA = "missao_aceita"
 STATUS_NO_LOCAL = "no_local"
-STATUS_PLACA_INICIO_OK = "placa_inicio_verificada"  # NOVO v2.6.0
+STATUS_PLACA_INICIO_OK_LEGACY = "placa_inicio_verificada"
 STATUS_ODO_INICIO_OK = "odometro_inicio_verificado"
 STATUS_TESTE_PANICO = "teste_panico"
 STATUS_TESTE_PANICO_OK = "teste_panico_verificado"
 STATUS_EM_ANDAMENTO = "em_andamento"
 STATUS_ODO_FINAL_OK = "odometro_final_verificado"
-STATUS_PLACA_FINAL_OK = "placa_final_verificada"  # NOVO v2.6.0
 STATUS_CONCLUIDO = "concluido"
 
 # Regras de transição atualizadas (v2.6.0)
-_ALLOWED_START_STATUSES_FOR_PLACA_INICIO = {STATUS_NO_LOCAL}
-_ALLOWED_START_STATUSES_FOR_ODO_INICIO = {STATUS_PLACA_INICIO_OK}
-_ALLOWED_START_STATUSES_FOR_ODO_FINAL = {STATUS_EM_ANDAMENTO}
-_ALLOWED_START_STATUSES_FOR_PLACA_FINAL = {STATUS_ODO_FINAL_OK}
 
 
 def _get_mission(sb, mission_id: str) -> dict:
@@ -556,11 +550,10 @@ def _update_django_datetime_inicio_fim(acompanhamento, tipo: str, ts_iso=None):
 # ==========================================================
 def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
     """
-    Regras finais atualizadas para v2.6.0:
-    - placa_inicio: status atual precisa ser NO_LOCAL e valid=True -> status=PLACA_INICIO_OK + salva placa no Django
-    - odometro_inicio: status atual precisa ser PLACA_INICIO_OK e valid=True -> status=ODO_INICIO_OK + salva km no Django
+    Regras finais:
+    - odometro_inicio: status atual precisa ser NO_LOCAL e valid=True -> status=ODO_INICIO_OK + salva km no Django
     - odometro_final: status atual precisa ser EM_ANDAMENTO e valid=True -> status=ODO_FINAL_OK + salva km no Django
-    - placa_final: status atual precisa ser ODO_FINAL_OK e valid=True -> status=PLACA_FINAL_OK + salva placa no Django
+    - placa_inicio/placa_final: validação desabilitada (compatibilidade sem travar fluxo)
     """
     mission = _get_mission(sb, mission_id)
     if not mission:
@@ -576,69 +569,10 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
     # PLACA INÍCIO (NOVO v2.6.0)
     # ==================================================
     if photo_type == "placa_inicio":
-        plate_number = vr.get("plate_number")
-        
-        if current_status != STATUS_NO_LOCAL or not is_valid:
-            return {
-                "updated": False,
-                "reason": "placa_inicio_requires_status_no_local_and_valid_true",
-                "current_status": current_status,
-                "valid": is_valid,
-            }
-
-        # ── Comparar placa da IA com placa_motorista cadastrada no Django ──
-        acompanhamento = _find_acompanhamento_by_supabase_mission_id(mission_id)
-        if acompanhamento and plate_number:
-            vinculo = (
-                acompanhamento.agentes.filter(tipo_agente="principal").first()
-                or acompanhamento.agentes.first()
-            )
-            placa_cadastrada = (getattr(vinculo, "placa_motorista", None) or "").strip().upper() if vinculo else ""
-            placa_detectada = (plate_number or "").strip().upper()
-
-            if placa_cadastrada and placa_detectada and placa_detectada != placa_cadastrada:
-                vr["valid"] = False
-                _append_issue(
-                    vr,
-                    f"placa_divergente(detectada={placa_detectada}, cadastrada={placa_cadastrada})",
-                )
-                sb.table("mission_photos").update({
-                    "validation_result": vr
-                }).eq("id", photo_id).execute()
-
-                return {
-                    "updated": False,
-                    "reason": "placa_divergente",
-                    "placa_detectada": placa_detectada,
-                    "placa_cadastrada": placa_cadastrada,
-                    "current_status": current_status,
-                }
-
-        # 1) atualiza status no Supabase
-        _supabase_update_status(sb, mission_id, STATUS_PLACA_INICIO_OK)
-        _sync_django_status(mission_id, STATUS_PLACA_INICIO_OK)
-
-        # 2) grava PLACA no Django
-        with transaction.atomic():
-            if not acompanhamento:
-                acompanhamento = _find_acompanhamento_by_supabase_mission_id(mission_id)
-            django_info = _update_django_plate(
-                acompanhamento=acompanhamento,
-                photo_type="placa_inicio",
-                plate_number=plate_number,
-                ts_iso=ts,
-                photo_id=photo_id,
-                confidence=confidence,
-            )
-            # Para serviços que não são pronta_resposta, mantém início no momento inicial do fluxo.
-            if not _is_pronta_resposta(acompanhamento):
-                _update_django_datetime_inicio_fim(acompanhamento, "inicio", ts_iso=ts)
-
         return {
-            "updated": True,
-            "previous_status": current_status,
-            "new_status": STATUS_PLACA_INICIO_OK,
-            "django_plate_update": django_info,
+            "updated": False,
+            "reason": "plate_validation_disabled",
+            "current_status": current_status,
         }
 
     # ==================================================
@@ -647,10 +581,11 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
     elif photo_type == "odometro_inicio":
         odo_raw = vr.get("odometer_raw")
         
-        if current_status != STATUS_PLACA_INICIO_OK or not is_valid:
+        allowed_start_statuses_for_odo_inicio = {STATUS_NO_LOCAL, STATUS_PLACA_INICIO_OK_LEGACY}
+        if current_status not in allowed_start_statuses_for_odo_inicio or not is_valid:
             return {
                 "updated": False,
-                "reason": "odometro_inicio_requires_status_placa_inicio_verificada_and_valid_true",
+                "reason": "odometro_inicio_requires_status_no_local_or_placa_inicio_verificada_and_valid_true",
                 "current_status": current_status,
                 "valid": is_valid,
             }
@@ -672,8 +607,7 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
                 mission_id=mission_id,
             )
             # Para pronta_resposta, início só é gravado ao receber odômetro inicial.
-            if _is_pronta_resposta(acompanhamento):
-                _update_django_datetime_inicio_fim(acompanhamento, "inicio", ts_iso=ts)
+            _update_django_datetime_inicio_fim(acompanhamento, "inicio", ts_iso=ts)
 
         return {
             "updated": True,
@@ -839,68 +773,10 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
     # PLACA FINAL (NOVO v2.6.0)
     # ==================================================
     elif photo_type == "placa_final":
-        plate_number = vr.get("plate_number")
-        
-        if current_status != STATUS_ODO_FINAL_OK or not is_valid:
-            return {
-                "updated": False,
-                "reason": "placa_final_requires_status_odometro_final_verificado_and_valid_true",
-                "current_status": current_status,
-                "valid": is_valid,
-            }
-
-        # ── Comparar placa da IA com placa_motorista cadastrada no Django ──
-        acompanhamento = _find_acompanhamento_by_supabase_mission_id(mission_id)
-        if acompanhamento and plate_number:
-            vinculo = (
-                acompanhamento.agentes.filter(tipo_agente="principal").first()
-                or acompanhamento.agentes.first()
-            )
-            placa_cadastrada = (getattr(vinculo, "placa_motorista", None) or "").strip().upper() if vinculo else ""
-            placa_detectada = (plate_number or "").strip().upper()
-
-            if placa_cadastrada and placa_detectada and placa_detectada != placa_cadastrada:
-                vr["valid"] = False
-                _append_issue(
-                    vr,
-                    f"placa_divergente(detectada={placa_detectada}, cadastrada={placa_cadastrada})",
-                )
-                sb.table("mission_photos").update({
-                    "validation_result": vr
-                }).eq("id", photo_id).execute()
-
-                return {
-                    "updated": False,
-                    "reason": "placa_divergente",
-                    "placa_detectada": placa_detectada,
-                    "placa_cadastrada": placa_cadastrada,
-                    "current_status": current_status,
-                }
-
-        # 1) atualiza status no Supabase
-        _supabase_update_status(sb, mission_id, STATUS_PLACA_FINAL_OK)
-        _sync_django_status(mission_id, STATUS_PLACA_FINAL_OK)
-
-        # 2) grava PLACA + data_finalizacao/horario_finalizacao no Django
-        with transaction.atomic():
-            if not acompanhamento:
-                acompanhamento = _find_acompanhamento_by_supabase_mission_id(mission_id)
-            django_info = _update_django_plate(
-                acompanhamento=acompanhamento,
-                photo_type="placa_final",
-                plate_number=plate_number,
-                ts_iso=ts,
-                photo_id=photo_id,
-                confidence=confidence,
-            )
-            # Gravar data_finalizacao e horario_finalizacao no agente principal
-            _update_django_datetime_inicio_fim(acompanhamento, "finalizacao")
-
         return {
-            "updated": True,
-            "previous_status": current_status,
-            "new_status": STATUS_PLACA_FINAL_OK,
-            "django_plate_update": django_info,
+            "updated": False,
+            "reason": "plate_validation_disabled",
+            "current_status": current_status,
         }
 
     return {"updated": False, "reason": f"invalid_photo_type({photo_type})"}
@@ -1039,26 +915,20 @@ def process_one_photo_id(photo_id: str, force: bool = False):
         # 7) Salvar temporário (opcional)
         tmp_path = _save_tmp_file(storage_path, img_bytes)
 
-        # 8) IA - roteia para odometer_ai ou plate_ai conforme o tipo
+        # 8) IA - valida odômetro; placa fica marcada como ignorada
         if photo_type in ("placa_inicio", "placa_final"):
             # Validação de PLACA
-            ai_result = validate_plate_with_ai(img_bytes)
-            is_valid = bool(ai_result.get("success", False))
             
             # Monta validation_result para PLACA
             metadata = photo.get("metadata") or {}
             vr = {
-                "valid": bool(is_valid),
-                "plate_number": ai_result.get("plate_number"),
-                "confidence": float(ai_result.get("confidence", 0.0) or 0.0),
+                "valid": True,
+                "skipped": True,
+                "reason": "plate_validation_disabled",
                 "timestamp": metadata.get("timestamp") or photo.get("uploaded_at") or photo.get("created_at"),
                 "latitude": metadata.get("latitude"),
                 "longitude": metadata.get("longitude"),
-                "plate_format": ai_result.get("plate_format", "unknown"),
-                "plate_color": ai_result.get("plate_color", "unknown"),
-                "plate_location": ai_result.get("plate_location", "unknown"),
-                "issues": _normalize_issues_list(ai_result.get("issues")),
-                "raw_response": ai_result.get("raw_response"),
+                "issues": [],
                 "processed_at": _now_iso(),
                 "processing": False,
                 "_photo_id": photo_id,
