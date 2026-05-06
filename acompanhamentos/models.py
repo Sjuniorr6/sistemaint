@@ -402,6 +402,13 @@ class registrodeagenteacompanhamento(models.Model):
         verbose_name="Tipo de Conta"
     )
 
+    clientes_vinculados = models.ManyToManyField(
+        Cliente,
+        blank=True,
+        related_name="agentes_vinculados",
+        verbose_name="Clientes vinculados"
+    )
+
     # =========================
     # CONTROLE
     # =========================

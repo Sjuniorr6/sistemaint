@@ -248,12 +248,18 @@ class RegistroAcompanhamentoAgenteForm(forms.ModelForm):
         for name in obrigatorios:
             if name in self.fields:
                 self.fields[name].required = True
-                # ajuda o HTML5/UX também
                 self.fields[name].widget.attrs["required"] = "required"
+
+        cliente_id = self._resolve_cliente_id()
+
+        if "agente" in self.fields:
+            qs_agente = registrodeagenteacompanhamento.objects.all()
+            if cliente_id:
+                qs_agente = qs_agente.filter(clientes_vinculados__id=cliente_id)
+            self.fields["agente"].queryset = qs_agente.distinct().order_by("nome")
 
         if "franquia" in self.fields:
             tipo_servico_id = self._resolve_tipo_servico_id()
-            cliente_id = self._resolve_cliente_id()
             qs_franquia = FranquiaAgente.objects.all()
 
             if cliente_id:
@@ -641,10 +647,16 @@ class RegistroAcompanhamentoAgenteEditForm(forms.ModelForm):
         for field in self.fields.values():
             field.required = False
 
+        tipo_servico_id = getattr(self.instance, "tipo_servico_id", None)
+        cliente_id = None
+        if getattr(self.instance, "tipo_servico", None):
+            cliente_id = self.instance.tipo_servico.cliente_id
+
         if "agente" in self.fields:
-            self.fields["agente"].queryset = (
-                registrodeagenteacompanhamento.objects.all().order_by("nome")
-            )
+            qs_agente = registrodeagenteacompanhamento.objects.all()
+            if cliente_id:
+                qs_agente = qs_agente.filter(clientes_vinculados__id=cliente_id)
+            self.fields["agente"].queryset = qs_agente.distinct().order_by("nome")
 
         if "responsavel_agente" in self.fields:
             self.fields["responsavel_agente"].queryset = (
@@ -652,11 +664,6 @@ class RegistroAcompanhamentoAgenteEditForm(forms.ModelForm):
             )
 
         if "franquia" in self.fields:
-            tipo_servico_id = getattr(self.instance, "tipo_servico_id", None)
-            cliente_id = None
-            if getattr(self.instance, "tipo_servico", None):
-                cliente_id = self.instance.tipo_servico.cliente_id
-
             qs_franquia = FranquiaAgente.objects.all()
 
             if cliente_id:

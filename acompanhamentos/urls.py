@@ -15,6 +15,7 @@ urlpatterns = [
     path("novoAgente/",views.AgenteAcompanhamentoCreateView.as_view(),name="agenteAcompanhamentoCreate",),
     path("listAgente/",views.AgenteAcompanhamentoListView.as_view(),name="agenteAcompanhamentoList",),
     path('<int:pk>/editarAgente/',views.RegistroAgenteAcompanhamentoUpdateView.as_view(),name='agenteAcompanhamentoUpdate'),
+    path("agente/<int:pk>/vincular-clientes/", views.vincular_clientes_agente, name="vincular_clientes_agente"),
 
     # Responsável Agentes Acompanhamento URLs
     path("ajax/novo-responsavel-agente/",views.criar_responsavel_agente_ajax,name="criar_responsavel_agente_ajax"),

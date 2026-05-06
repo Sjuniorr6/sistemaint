@@ -392,14 +392,26 @@ class AgenteAcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, 
     permission_required = "acompanhamentos.view_registrodeagenteacompanhamento"
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = super().get_queryset().prefetch_related("clientes_vinculados")
 
         nome = self.request.GET.get("nome")
 
         if nome:
             queryset = queryset.filter(nome__icontains=nome)
 
-        return queryset.order_by("-criado_em")
+        queryset = queryset.order_by("-criado_em")
+
+        for agente in queryset:
+            clientes = list(agente.clientes_vinculados.all())
+            agente.clientes_vinculados_ids_str = ",".join(str(c.id) for c in clientes)
+            agente.clientes_vinculados_nomes = ", ".join(c.nome for c in clientes)
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["clientes_disponiveis"] = Cliente.objects.all().order_by("nome")
+        return context
 
 class RegistroAgenteAcompanhamentoUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
 
@@ -411,6 +423,23 @@ class RegistroAgenteAcompanhamentoUpdateView(LoginRequiredMixin, PermissionRequi
 
     def form_valid(self, form):
         return super().form_valid(form)
+
+
+@login_required
+@permission_required("acompanhamentos.change_registrodeagenteacompanhamento", raise_exception=True)
+@require_POST
+def vincular_clientes_agente(request, pk):
+    agente = get_object_or_404(registrodeagenteacompanhamento, pk=pk)
+    clientes_ids = request.POST.getlist("clientes")
+
+    clientes = Cliente.objects.filter(pk__in=clientes_ids) if clientes_ids else Cliente.objects.none()
+    agente.clientes_vinculados.set(clientes)
+
+    agente.nome_user = request.user.get_full_name() or request.user.username
+    agente.save(update_fields=["nome_user", "atualizado_em"])
+
+    messages.success(request, f"Vínculos do agente {agente.nome} atualizados com sucesso.")
+    return redirect("agenteAcompanhamentoList")
 
 # ------------------------------------------------------
 #             Responsável Agente Acompanhamento
@@ -2618,9 +2647,10 @@ class AcompanhamentoFromRequisicaoCreateView(LoginRequiredMixin, PermissionRequi
         context["requisicao"] = requisicao
 
         # Lista de agentes cadastrados (para selects/autocomplete no template)
-        context["agentes_cadastrados"] = (
-            registrodeagenteacompanhamento.objects.all().order_by("nome")
-        )
+        agentes_cadastrados = registrodeagenteacompanhamento.objects.all()
+        if requisicao.cliente_id:
+            agentes_cadastrados = agentes_cadastrados.filter(clientes_vinculados__id=requisicao.cliente_id)
+        context["agentes_cadastrados"] = agentes_cadastrados.distinct().order_by("nome")
 
         # Formset: se POST, mantém dados enviados; se GET, cria vazio e injeta initial no 1º form
         if self.request.POST:
@@ -2917,13 +2947,15 @@ class AcompanhamentoFromGrupoCreateView(LoginRequiredMixin, PermissionRequiredMi
 
         context["requisicao"] = req_principal
         context["requisicoes_grupo"] = requisicoes
-        context["agentes_cadastrados"] = (
-            registrodeagenteacompanhamento.objects.all().order_by("nome")
-        )
+        agentes_cadastrados = registrodeagenteacompanhamento.objects.all()
+        if req_principal.cliente_id:
+            agentes_cadastrados = agentes_cadastrados.filter(clientes_vinculados__id=req_principal.cliente_id)
+        context["agentes_cadastrados"] = agentes_cadastrados.distinct().order_by("nome")
 
         if self.request.POST:
             context["agentes_formset"] = RegistroAcompanhamentoAgenteCreateFormSet(
-                self.request.POST
+                self.request.POST,
+                form_kwargs={"cliente_id": req_principal.cliente_id},
             )
         else:
             # Cria formset com N forms = N serviços do grupo

@@ -159,6 +159,15 @@
                                         <a href="{% url 'agenteAcompanhamentoUpdate' item.pk %}" class="btn btn-warning btn-sm">
                                             <i class="bi bi-pencil"></i>
                                         </a>
+                                        <button
+                                            type="button"
+                                            class="btn btn-info btn-sm btn-vincular-clientes"
+                                            data-agente-nome="{{ item.nome|escapejs }}"
+                                            data-clientes="{{ item.clientes_vinculados_ids_str }}"
+                                            data-url="{% url 'vincular_clientes_agente' item.pk %}"
+                                            title="Vincular clientes">
+                                            <i class="bi bi-people"></i>
+                                        </button>
                                     </td>
                                     <td>{{ item.nome }}</td>
                                     <td>{{ item.cpf}}</td>
@@ -178,6 +187,47 @@
         </div>
     </div>
 
+    <div class="modal fade" id="modalVincularClientes" tabindex="-1" aria-labelledby="modalVincularClientesLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <form method="post" id="formVincularClientes">
+                    {% csrf_token %}
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalVincularClientesLabel">Vincular Clientes ao Agente</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-2"><strong id="nomeAgenteModal"></strong></p>
+                        <p class="text-muted mb-3">Selecione um ou mais clientes para este agente.</p>
+
+                        {% if clientes_disponiveis %}
+                            <div class="row">
+                                {% for cliente in clientes_disponiveis %}
+                                    <div class="col-12 col-md-6 mb-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input cliente-checkbox" type="checkbox" name="clientes" value="{{ cliente.id }}" id="cliente_{{ cliente.id }}">
+                                            <label class="form-check-label" for="cliente_{{ cliente.id }}">
+                                                {{ cliente.nome }}
+                                            </label>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="alert alert-warning mb-0">
+                                Nenhum cliente cadastrado para vincular.
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Salvar vínculos</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script>
         $(document).ready(function () {
             $('#tabela-agente').DataTable({
@@ -192,6 +242,28 @@
                 pageLength: 10,
                 lengthMenu: [10, 25, 50, 100],
                 order: [[1, 'desc']]
+            });
+
+            $(document).on('click', '.btn-vincular-clientes', function () {
+                const nomeAgente = $(this).data('agente-nome') || '';
+                const clientesRaw = ($(this).data('clientes') || '').toString();
+                const actionUrl = $(this).data('url');
+
+                $('#nomeAgenteModal').text(nomeAgente ? `Agente: ${nomeAgente}` : '');
+                $('#formVincularClientes').attr('action', actionUrl);
+                $('.cliente-checkbox').prop('checked', false);
+
+                if (clientesRaw) {
+                    clientesRaw.split(',').forEach(function (idCliente) {
+                        const idLimpo = idCliente.trim();
+                        if (idLimpo) {
+                            $(`.cliente-checkbox[value="${idLimpo}"]`).prop('checked', true);
+                        }
+                    });
+                }
+
+                const modal = new bootstrap.Modal(document.getElementById('modalVincularClientes'));
+                modal.show();
             });
         });
     </script>
