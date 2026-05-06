@@ -410,7 +410,7 @@ class AgenteAcompanhamentoListView(LoginRequiredMixin, PermissionRequiredMixin, 
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["clientes_disponiveis"] = Cliente.objects.all().order_by("nome")
+        context["clientes_disponiveis"] = Cliente.objects.filter(ativo=True).order_by("nome")
         return context
 
 class RegistroAgenteAcompanhamentoUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
