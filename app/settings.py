@@ -232,6 +232,7 @@ DEFAULT_FROM_EMAIL = 'sysggoldensat@gmail.com'
 # OpenAI
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_ODOMETER_MODEL = os.getenv("OPENAI_ODOMETER_MODEL", "")
+ODOMETER_AI_MODEL = os.getenv("ODOMETER_AI_MODEL", OPENAI_ODOMETER_MODEL or "gpt-4o-mini")
 
 # Google Maps / Routes API
 GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")
@@ -256,6 +257,7 @@ except json.JSONDecodeError:
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 SUPABASE_STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "mission_evidence")
+SUPABASE_WEBHOOK_SECRET = os.getenv("SUPABASE_WEBHOOK_SECRET", "").strip()
 
 MISSION_PHOTOS_TMP_DIR = os.getenv("MISSION_PHOTOS_TMP_DIR", "static/tmp_mission_photos")
 MISSION_PHOTOS_TMP_ABS = os.path.join(BASE_DIR, MISSION_PHOTOS_TMP_DIR)
@@ -293,6 +295,7 @@ CELERY_TASK_ACKS_LATE = os.getenv("CELERY_TASK_ACKS_LATE", "true").lower() == "t
 CELERY_TIMEZONE = os.getenv("CELERY_TIMEZONE", "America/Sao_Paulo")
 CELERY_TASK_DEFAULT_QUEUE = "monitoramento.orquestrador"
 CELERY_TASK_ROUTES = {
+    "acompanhamentos.tasks.processar_foto_task": {"queue": "monitoramento.photos"},
     "acompanhamentos.tasks.processar_fotos_pendentes_task": {"queue": "monitoramento.photos"},
     "acompanhamentos.tasks.processar_geofence_task": {"queue": "monitoramento.geofence"},
     "acompanhamentos.tasks.ciclo_monitoramento_task": {"queue": "monitoramento.orquestrador"},
@@ -304,3 +307,9 @@ CELERY_BEAT_SCHEDULE = {
         "options": {"queue": "monitoramento.orquestrador"},
     },
 }
+
+# Mission photos / IA de odometro
+MISSION_PHOTO_PROCESSING_LOCK_TTL_SECONDS = _env_int("MISSION_PHOTO_PROCESSING_LOCK_TTL_SECONDS", 120)
+MISSION_PHOTO_QUEUE_DISPATCH_TIMEOUT_SECONDS = _env_decimal("MISSION_PHOTO_QUEUE_DISPATCH_TIMEOUT_SECONDS", "2.0")
+ODOMETER_AI_TIMEOUT_SECONDS = _env_decimal("ODOMETER_AI_TIMEOUT_SECONDS", "30")
+ODOMETER_AI_MAX_RETRIES = _env_int("ODOMETER_AI_MAX_RETRIES", 0)

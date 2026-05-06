@@ -1,5 +1,6 @@
 # api/views_supabase_photos_process.py
 import os
+import threading
 import uuid
 from datetime import datetime, timezone as dt_timezone
 from django.conf import settings
@@ -785,7 +786,93 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
 # Lock leve (anti-loop) + marcação de erro (anti-pendente infinito)
 # ==========================================================
 
-PROCESSING_LOCK_TTL_SECONDS = 600  # 10 min (evita duplicar processamento durante picos de latência da IA)
+PROCESSING_LOCK_TTL_SECONDS = max(
+    30,
+    int(getattr(settings, "MISSION_PHOTO_PROCESSING_LOCK_TTL_SECONDS", 120)),
+)
+_DISPATCH_COOLDOWN_SECONDS = 30
+_last_dispatch_failure_ts = None
+_DISPATCH_TIMEOUT_SECONDS = max(
+    0.2,
+    float(getattr(settings, "MISSION_PHOTO_QUEUE_DISPATCH_TIMEOUT_SECONDS", 2.0)),
+)
+
+
+def dispatch_photo_processing(photo_id: str, force: bool = False, timeout_seconds: float = None) -> dict:
+    """
+    Dispara o processamento assíncrono da foto via Celery.
+    Não executa IA dentro do request HTTP.
+    """
+    global _last_dispatch_failure_ts
+
+    now_ts = datetime.now(dt_timezone.utc).timestamp()
+    if _last_dispatch_failure_ts and (now_ts - _last_dispatch_failure_ts) < _DISPATCH_COOLDOWN_SECONDS:
+        remaining = round(_DISPATCH_COOLDOWN_SECONDS - (now_ts - _last_dispatch_failure_ts), 2)
+        return {
+            "enqueued": False,
+            "task_id": None,
+            "photo_id": photo_id,
+            "force": bool(force),
+            "error": f"queue_dispatch_cooldown({remaining}s)",
+        }
+
+    result_holder = {}
+
+    def _dispatch():
+        try:
+            from acompanhamentos.tasks import processar_foto_task
+
+            async_result = processar_foto_task.delay(photo_id=photo_id, force=force)
+            result_holder["value"] = {
+                "enqueued": True,
+                "task_id": async_result.id,
+                "photo_id": photo_id,
+                "force": bool(force),
+            }
+        except Exception as exc:
+            logger.exception(
+                "Falha ao enfileirar processamento de foto photo_id=%s force=%s",
+                photo_id,
+                force,
+            )
+            result_holder["value"] = {
+                "enqueued": False,
+                "task_id": None,
+                "photo_id": photo_id,
+                "force": bool(force),
+                "error": str(exc),
+            }
+
+    dispatch_thread = threading.Thread(
+        target=_dispatch,
+        name="mission-photo-dispatch",
+        daemon=True,
+    )
+    dispatch_thread.start()
+    dispatch_thread.join(timeout=max(0.2, float(timeout_seconds or _DISPATCH_TIMEOUT_SECONDS)))
+
+    if dispatch_thread.is_alive():
+        _last_dispatch_failure_ts = now_ts
+        return {
+            "enqueued": False,
+            "task_id": None,
+            "photo_id": photo_id,
+            "force": bool(force),
+            "error": "queue_dispatch_timeout",
+        }
+
+    result = result_holder.get("value") or {
+        "enqueued": False,
+        "task_id": None,
+        "photo_id": photo_id,
+        "force": bool(force),
+        "error": "queue_dispatch_unknown_error",
+    }
+    if result.get("enqueued"):
+        _last_dispatch_failure_ts = None
+    else:
+        _last_dispatch_failure_ts = now_ts
+    return result
 
 
 def _is_processing_locked(vr: dict) -> bool:
@@ -989,6 +1076,20 @@ def process_one_photo_id(photo_id: str, force: bool = False):
 @require_POST
 def sb_process_one_photo(request, photo_id: str):
     force = str(request.GET.get("force") or "").strip().lower() in {"1", "true", "yes"}
+    mode = (request.GET.get("mode") or "sync").strip().lower()
+    if mode == "async":
+        dispatch_info = dispatch_photo_processing(photo_id, force=force)
+        status_code = 202 if dispatch_info.get("enqueued") else 503
+        payload = {
+            "success": bool(dispatch_info.get("enqueued")),
+            "message": "Foto enfileirada para processamento assíncrono"
+            if dispatch_info.get("enqueued")
+            else "Falha ao enfileirar foto para processamento",
+            "photo_id": photo_id,
+            "dispatch": dispatch_info,
+        }
+        return JsonResponse(payload, status=status_code)
+
     payload, status_code = process_one_photo_id(photo_id, force=force)
     return JsonResponse(payload, status=status_code)
 
@@ -998,12 +1099,20 @@ def sb_process_pending_photos(request):
     """
     Fallback para DEV/local + redundância em produção.
 
-    GET /api/supabase/mission_photos/process-pending/?mission_id=...&type=final&limit=5
+    GET /api/supabase/mission_photos/process-pending/?mission_id=...&type=final&limit=5&mode=auto
+
+    mode:
+    - auto  (padrão): tenta fila assíncrona; se falhar, processa 1 foto em modo síncrono como fallback.
+    - async: apenas enfileira (não processa IA no request).
+    - sync: processa síncrono (legado/debug).
     """
     sb = get_supabase()
 
     mission_id = (request.GET.get("mission_id") or "").strip() or None
     photo_type = (request.GET.get("type") or "").strip() or None
+    mode = (request.GET.get("mode") or "auto").strip().lower()
+    if mode not in {"auto", "async", "sync"}:
+        mode = "auto"
 
     try:
         limit = int(request.GET.get("limit") or 10)
@@ -1059,14 +1168,106 @@ def sb_process_pending_photos(request):
         results = []
         ok_count = 0
         fail_count = 0
+        enqueued_count = 0
+        enqueue_fail_count = 0
+        locked_count = 0
+        sync_fallback_used = False
 
         for p in all_candidates:
             pid = p.get("id")
             if not pid:
                 continue
 
-            payload, st = process_one_photo_id(pid)
-            results.append({"photo_id": pid, "status": st, "result": payload})
+            vr = p.get("validation_result") if isinstance(p.get("validation_result"), dict) else {}
+            force = bool(vr.get("error"))
+
+            if _is_processing_locked(vr):
+                locked_count += 1
+                results.append(
+                    {
+                        "photo_id": pid,
+                        "mode": mode,
+                        "status": 202,
+                        "result": {
+                            "success": True,
+                            "message": "Foto já está em processamento",
+                            "photo_id": pid,
+                            "locked": True,
+                        },
+                    }
+                )
+                continue
+
+            if mode == "sync":
+                payload, st = process_one_photo_id(pid, force=force)
+                results.append(
+                    {"photo_id": pid, "mode": "sync", "force": force, "status": st, "result": payload}
+                )
+
+                if payload.get("success") is True:
+                    ok_count += 1
+                else:
+                    fail_count += 1
+                continue
+
+            dispatch_info = dispatch_photo_processing(pid, force=force)
+            if dispatch_info.get("enqueued"):
+                enqueued_count += 1
+                results.append(
+                    {
+                        "photo_id": pid,
+                        "mode": "async",
+                        "force": force,
+                        "status": 202,
+                        "result": {
+                            "success": True,
+                            "message": "Foto enfileirada para processamento assíncrono",
+                            **dispatch_info,
+                        },
+                    }
+                )
+                continue
+
+            enqueue_fail_count += 1
+            if mode == "async":
+                fail_count += 1
+                results.append(
+                    {
+                        "photo_id": pid,
+                        "mode": "async",
+                        "force": force,
+                        "status": 503,
+                        "result": {
+                            "success": False,
+                            "message": "Falha ao enfileirar foto para processamento",
+                            **dispatch_info,
+                        },
+                    }
+                )
+                continue
+
+            if sync_fallback_used:
+                fail_count += 1
+                results.append(
+                    {
+                        "photo_id": pid,
+                        "mode": "auto",
+                        "force": force,
+                        "status": 503,
+                        "result": {
+                            "success": False,
+                            "message": "Fila indisponível; fallback síncrono já usado nesta rodada",
+                            **dispatch_info,
+                        },
+                    }
+                )
+                continue
+
+            payload, st = process_one_photo_id(pid, force=force)
+            sync_fallback_used = True
+            results.append(
+                {"photo_id": pid, "mode": "auto-sync-fallback", "force": force, "status": st, "result": payload}
+            )
 
             if payload.get("success") is True:
                 ok_count += 1
@@ -1076,12 +1277,16 @@ def sb_process_pending_photos(request):
         return JsonResponse({
             "success": True,
             "message": "Polling completado",
-            "filters": {"mission_id": mission_id, "type": photo_type, "limit": limit},
+            "filters": {"mission_id": mission_id, "type": photo_type, "limit": limit, "mode": mode},
             "total_pending_found": len(pending),
             "total_errored_found": len(errored),
             "total_candidates": len(all_candidates),
+            "processing_locked_skipped": locked_count,
+            "enqueued_async": enqueued_count,
+            "enqueue_fail": enqueue_fail_count,
             "processed_ok": ok_count,
             "processed_fail": fail_count,
+            "sync_fallback_used": sync_fallback_used,
             "results": results,
         }, status=200)
 

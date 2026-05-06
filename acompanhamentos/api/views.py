@@ -591,91 +591,79 @@ def api_missao_panic_status(request, id):
 def mission_photo_webhook(request):
     """
     Webhook para receber notificações do Supabase quando uma foto é enviada.
-    ✅ VERSÃO ATUALIZADA: Usa IA para validar odômetro via views_supabase_photos_process
+    O processamento da IA é disparado de forma assíncrona para evitar timeout no request.
     """
     import logging
     logger = logging.getLogger(__name__)
-    
+
     try:
-        # Validar autenticação
         auth_header = request.headers.get('Authorization', '')
-        expected_auth = f'Bearer {settings.SUPABASE_WEBHOOK_SECRET}'
-        
-        if auth_header != expected_auth:
-            logger.warning(f"Webhook: autenticação falhou. Header: {auth_header[:20]}...")
+        webhook_secret = (getattr(settings, 'SUPABASE_WEBHOOK_SECRET', '') or '').strip()
+        if not webhook_secret:
+            logger.error('Webhook mission-photo recusado: SUPABASE_WEBHOOK_SECRET não configurado.')
             return JsonResponse({
                 'success': False,
-                'error': 'Unauthorized'
-            }, status=401)
+                'error': 'Webhook misconfigured: SUPABASE_WEBHOOK_SECRET ausente'
+            }, status=503)
 
-        # Parse do payload
+        expected_auth = f'Bearer {webhook_secret}'
+        if auth_header != expected_auth:
+            logger.warning('Webhook: autenticação falhou. Header: %s...', auth_header[:20])
+            return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=401)
+
         data = json.loads(request.body)
         event_type = data.get('type')
-        
         if event_type != 'INSERT':
-            logger.info(f"Webhook: evento ignorado (type={event_type})")
-            return JsonResponse({
-                'success': True,
-                'message': 'Event type ignored'
-            }, status=200)
+            logger.info('Webhook: evento ignorado (type=%s)', event_type)
+            return JsonResponse({'success': True, 'message': 'Event type ignored'}, status=200)
 
-        # Extrair dados
         record = data.get('record', {})
         photo_id = record.get('id')
         mission_id = record.get('mission_id')
-        photo_type = record.get('type')  # 'inicio' ou 'final'
+        photo_type = record.get('type')
         storage_path = record.get('storage_path')
 
         if not all([photo_id, mission_id, photo_type, storage_path]):
-            logger.error(f"Webhook: campos obrigatórios faltando. photo_id={photo_id}, mission_id={mission_id}, type={photo_type}")
+            logger.error(
+                'Webhook: campos obrigatórios faltando. photo_id=%s, mission_id=%s, type=%s',
+                photo_id,
+                mission_id,
+                photo_type,
+            )
+            return JsonResponse({'success': False, 'error': 'Missing required fields'}, status=400)
+
+        logger.info('Webhook recebeu photo_id=%s, mission_id=%s, type=%s', photo_id, mission_id, photo_type)
+
+        from .views_supabase_photos_process import dispatch_photo_processing
+
+        dispatch_info = dispatch_photo_processing(photo_id, force=False)
+        if dispatch_info.get('enqueued'):
             return JsonResponse({
-                'success': False,
-                'error': 'Missing required fields'
-            }, status=400)
+                'success': True,
+                'message': 'Foto recebida e enfileirada para validação',
+                'photo_id': photo_id,
+                'mission_id': mission_id,
+                'photo_type': photo_type,
+                'dispatch': dispatch_info,
+            }, status=202)
 
-        logger.info(f"🔔 Webhook recebeu photo_id={photo_id}, mission_id={mission_id}, type={photo_type}")
-
-        # ═════════════════════════════════════════════════════════
-        # CHAMAR O NOVO ENDPOINT DE PROCESSAMENTO COM IA
-        # ═════════════════════════════════════════════════════════
-        from .views_supabase_photos_process import process_one_photo_id as process_photo_with_ai
-
-        payload, status_code = process_photo_with_ai(photo_id)
-        return JsonResponse(payload, status=status_code)
-
-        
-        try:
-            # Chamada interna à função de processamento
-            class FakeRequest:
-                method = 'POST'
-                
-            fake_req = FakeRequest()
-            result = process_photo_with_ai(fake_req, photo_id)
-            
-            # Extrai dados da resposta JSON
-            result_json = json.loads(result.content.decode('utf-8')) if hasattr(result, 'content') else result.data
-            
-            logger.info(f"✅ Foto processada: {result_json.get('success', False)}")
-            
-            return JsonResponse(result_json, status=result.status_code if hasattr(result, 'status_code') else 200)
-            
-        except Exception as e_process:
-            logger.error(f"❌ Erro ao processar foto com IA: {str(e_process)}", exc_info=True)
-            return JsonResponse({
-                'success': False,
-                'error': f'Erro ao processar: {str(e_process)}',
-                'photo_id': photo_id
-            }, status=500)
+        logger.error(
+            'Webhook: falha ao enfileirar processamento photo_id=%s mission_id=%s erro=%s',
+            photo_id,
+            mission_id,
+            dispatch_info.get('error'),
+        )
+        return JsonResponse({
+            'success': True,
+            'message': 'Foto recebida; fila indisponível, aguardando processamento por worker de pendências',
+            'photo_id': photo_id,
+            'mission_id': mission_id,
+            'dispatch': dispatch_info,
+        }, status=202)
 
     except json.JSONDecodeError as e:
-        logger.error(f"Webhook: JSON inválido: {str(e)}")
-        return JsonResponse({
-            'success': False,
-            'error': 'Invalid JSON'
-        }, status=400)
+        logger.error('Webhook: JSON inválido: %s', str(e))
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
     except Exception as e:
-        logger.error(f"Webhook: erro inesperado: {str(e)}", exc_info=True)
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        }, status=500)
+        logger.error('Webhook: erro inesperado: %s', str(e), exc_info=True)
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)

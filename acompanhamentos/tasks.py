@@ -9,6 +9,7 @@ from acompanhamentos.services.monitoramento_service import (
     processar_fotos_pendentes,
     processar_geofence,
 )
+from acompanhamentos.api.views_supabase_photos_process import process_one_photo_id
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,49 @@ def _env_int(name: str, default: int) -> int:
         return int(os.getenv(name, str(default)))
     except (TypeError, ValueError):
         return default
+
+
+@shared_task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True,
+    retry_kwargs={"max_retries": 3},
+    rate_limit=os.getenv("CELERY_PHOTO_SINGLE_RATE_LIMIT", "120/m"),
+)
+def processar_foto_task(self, photo_id: str, force: bool = False):
+    started = time.monotonic()
+    payload, status_code = process_one_photo_id(photo_id, force=force)
+
+    result = {
+        "task_id": self.request.id,
+        "queue": "monitoramento.photos",
+        "photo_id": photo_id,
+        "force": bool(force),
+        "status_code": status_code,
+        "success": bool(payload.get("success")),
+        "message": payload.get("message") or payload.get("error") or "",
+        "duration_seconds": round(time.monotonic() - started, 3),
+    }
+    if not result["success"]:
+        logger.warning(
+            "task=processar_foto_task task_id=%s status=fail photo_id=%s http_status=%s error=%s duration=%s",
+            result["task_id"],
+            photo_id,
+            status_code,
+            result["message"],
+            result["duration_seconds"],
+        )
+    else:
+        logger.info(
+            "task=processar_foto_task task_id=%s status=ok photo_id=%s http_status=%s duration=%s",
+            result["task_id"],
+            photo_id,
+            status_code,
+            result["duration_seconds"],
+        )
+
+    return {**result, "payload": payload}
 
 
 @shared_task(

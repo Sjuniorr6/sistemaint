@@ -452,7 +452,7 @@
 
     // ✅ Fallback: processa fotos pendentes automaticamente (DEV/local + redundância)
     const PHOTOS_PROCESS_PENDING_URL =
-    `/api/supabase/mission_photos/process-pending/?mission_id=${encodeURIComponent(MISSION_ID)}&limit=5`;
+    `/api/supabase/mission_photos/process-pending/?mission_id=${encodeURIComponent(MISSION_ID)}&limit=5&mode=auto`;
 
     const PHOTO_KICK_THROTTLE_MS = 8000;
     let __lastPhotoKickAt = 0;
@@ -649,7 +649,11 @@
             const isOdometro = photoType.startsWith("odometro_");
 
             if (!p.processed) {
-                html += ` <span class="photo-badge pending">⏳ ${label}: Aguardando</span>`;
+                if (vr.processing === true) {
+                    html += ` <span class="photo-badge pending">⏳ ${label}: Validando...</span>`;
+                } else {
+                    html += ` <span class="photo-badge pending">⏳ ${label}: Aguardando</span>`;
+                }
             } else if (isPlaca) {
                 html += ` <span class="photo-badge pending">ℹ️ ${label}: Ignorada</span>`;
             } else if (isOdometro) {
