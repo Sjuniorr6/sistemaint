@@ -22,26 +22,27 @@ M1 → M2 → M3 → M7 → M4 → M5 → M6 → M8 → M9
 
 ---
 
-## 🔄 MÓDULO 2 — Models e banco de dados
-> Em andamento
+## ✅ MÓDULO 2 — Models e banco de dados
+> Concluído em 2026-05-13
 
-- [ ] Escrever todos os models em `models.py`
-  - [ ] `FuncionarioAdministrativo`
-  - [ ] `CategoriaTarefaAdministrativa`
-  - [ ] `TarefaModeloAdministrativa`
-  - [ ] `ExecucaoTarefaAdministrativa`
-  - [ ] `BlocoSemanal`
-  - [ ] `ItemBlocoSemanal`
-- [ ] Registrar todos no `admin.py`
-- [ ] Rodar `makemigrations`
-- [ ] Revisar o arquivo de migration gerado
-- [ ] Rodar `migrate`
-- [ ] Confirmar que o servidor sobe sem erros
-- [ ] Commit: `feat(sca): models e migrations`
+- [x] Escrever todos os models em `models.py`
+  - [x] `FuncionarioAdministrativo`
+  - [x] `CategoriaTarefaAdministrativa`
+  - [x] `TarefaModeloAdministrativa`
+  - [x] `ExecucaoTarefaAdministrativa`
+  - [x] `BlocoSemanal`
+  - [x] `ItemBlocoSemanal`
+- [x] Registrar todos no `admin.py`
+- [x] Rodar `makemigrations`
+- [x] Revisar o arquivo de migration gerado
+- [x] Rodar `migrate`
+- [x] Confirmar que o servidor sobe sem erros
+- [x] Commit: `feat(sca): models e migrations`
 
 ---
 
-## ⏳ MÓDULO 3 — Painel principal (semana atual)
+## 🔄 MÓDULO 3 — Painel principal (semana atual)
+> Em andamento
 
 - [ ] View do painel com a semana atual
 - [ ] Layout: coluna lateral + 5 colunas de dias
