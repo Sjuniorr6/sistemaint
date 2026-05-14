@@ -4,6 +4,7 @@ from .models import (
     CategoriaTarefaAdministrativa,
     TarefaModeloAdministrativa,
     ExecucaoTarefaAdministrativa,
+    ComentarioTarefa,
     BlocoSemanal,
     ItemBlocoSemanal,
 )
@@ -31,12 +32,28 @@ class TarefaModeloAdministrativaAdmin(admin.ModelAdmin):
     ordering      = ['dia_da_semana', 'periodo', 'ordem']
 
 
+class ComentarioTarefaInline(admin.TabularInline):
+    model   = ComentarioTarefa
+    extra   = 1
+    fields  = ['autor', 'conteudo', 'is_done']
+    readonly_fields = ['criado_em']
+
+
 @admin.register(ExecucaoTarefaAdministrativa)
 class ExecucaoTarefaAdministrativaAdmin(admin.ModelAdmin):
-    list_display  = ['tarefa_modelo', 'semana_iso', 'ano', 'status', 'is_done']
-    list_filter   = ['status', 'ano', 'semana_iso']
-    search_fields = ['tarefa_modelo__titulo']
-    readonly_fields = ['atualizado_em', 'atualizado_por']
+    list_display    = ['tarefa_modelo', 'semana_iso', 'ano', 'status', 'is_done']
+    list_filter     = ['status', 'ano', 'semana_iso']
+    search_fields   = ['tarefa_modelo__titulo']
+    readonly_fields = ['atualizado_em', 'atualizado_por', 'concluido_em']
+    inlines         = [ComentarioTarefaInline]
+
+
+@admin.register(ComentarioTarefa)
+class ComentarioTarefaAdmin(admin.ModelAdmin):
+    list_display  = ['autor', 'execucao', 'conteudo', 'criado_em', 'is_done']
+    list_filter   = ['is_done', 'autor']
+    search_fields = ['conteudo']
+    readonly_fields = ['criado_em']
 
 
 class ItemBlocoSemanalInline(admin.TabularInline):

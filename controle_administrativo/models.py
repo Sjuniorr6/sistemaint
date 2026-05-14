@@ -101,6 +101,7 @@ class CategoriaTarefaAdministrativa(models.Model):
 
 class TarefaModeloAdministrativa(models.Model):
     titulo = models.CharField(max_length=200, verbose_name='Título')
+    descricao = models.TextField(blank=True, verbose_name='Descrição')
     dia_da_semana = models.CharField(
         max_length=10,
         choices=DiaDaSemana.choices,
@@ -166,8 +167,17 @@ class ExecucaoTarefaAdministrativa(models.Model):
         default=StatusExecucao.PENDENTE,
         verbose_name='Status'
     )
-    is_done    = models.BooleanField(default=False, verbose_name='Concluída')
-    comentario = models.TextField(blank=True, verbose_name='Comentário')
+    is_done = models.BooleanField(default=False, verbose_name='Concluída')
+    prazo   = models.DateField(null=True, blank=True, verbose_name='Prazo')
+    concluido_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='execucoes_concluidas',
+        verbose_name='Concluído por'
+    )
+    concluido_em  = models.DateTimeField(null=True, blank=True, verbose_name='Concluído em')
     atualizado_em = models.DateTimeField(auto_now=True)
     atualizado_por = models.ForeignKey(
         User,
@@ -182,7 +192,6 @@ class ExecucaoTarefaAdministrativa(models.Model):
         verbose_name = 'Execução de Tarefa'
         verbose_name_plural = 'Execuções de Tarefas'
         ordering = ['tarefa_modelo__dia_da_semana', 'tarefa_modelo__periodo']
-        # Garante que não existe duplicata: mesma tarefa, mesma semana, mesmo ano
         unique_together = [['tarefa_modelo', 'semana_iso', 'ano']]
 
     def __str__(self):
@@ -190,11 +199,6 @@ class ExecucaoTarefaAdministrativa(models.Model):
 
     @property
     def completion_pct(self):
-        """
-        Calcula o percentual de conclusão.
-        - Tipo checkbox: 0 ou 100
-        - Tipo percentual: baseado nas subtarefas concluídas
-        """
         if self.tarefa_modelo.tipo_controle == TipoControle.CHECKBOX:
             return 100 if self.is_done else 0
         subtarefas = self.execucoes_subtarefa.all()
@@ -203,6 +207,38 @@ class ExecucaoTarefaAdministrativa(models.Model):
             return 0
         concluidas = subtarefas.filter(is_done=True).count()
         return round((concluidas / total) * 100)
+
+
+# ─────────────────────────────────────────
+# COMENTÁRIO — comentários por execução
+# ─────────────────────────────────────────
+
+class ComentarioTarefa(models.Model):
+    execucao = models.ForeignKey(
+        ExecucaoTarefaAdministrativa,
+        on_delete=models.CASCADE,
+        related_name='comentarios',
+        verbose_name='Execução'
+    )
+    autor = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='comentarios_tarefas',
+        verbose_name='Autor'
+    )
+    conteudo  = models.TextField(verbose_name='Comentário')
+    criado_em = models.DateTimeField(auto_now_add=True)
+    is_done   = models.BooleanField(default=False, verbose_name='Visto')
+
+    class Meta:
+        verbose_name = 'Comentário'
+        verbose_name_plural = 'Comentários'
+        ordering = ['criado_em']
+
+    def __str__(self):
+        return f"{self.autor} — {self.conteudo[:50]}"
 
 
 # ─────────────────────────────────────────
