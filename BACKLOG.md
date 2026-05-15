@@ -53,19 +53,23 @@ M1 → M2 → M3 → M7 → M4 → M5 → M6 → M8 → M9
 - [x] Barra de progresso geral no topo
 - [x] Dia atual destacado com acento dourado
 - [x] Divisão de tarefas André e Rafa na linha inferior
-- [ ] Modo dark/light com alternância por botão
 - [x] Visual: identidade do INT
 - [x] Botão adicionar tarefa em cada dia/período
 - [x] Botão excluir tarefa nos cards
-- [ ] Edição de tarefa pelo modal (título, descrição, prazo)
-- [ ] Botões adicionar/excluir nos blocos laterais (Não Esquecer, Diário, Observação)
-- [ ] Botões adicionar/excluir na divisão de tarefas do André e da Rafa
-- [x] Commit: `feat(sca): painel principal com layout, modal e progresso`
+- [ ] Modo dark/light com alternância por botão
+- [x] Commit: `feat(sca): painel principal com layout, modal e progresso`,
 
 ---
 
 ## 🔄 MÓDULO 4 — Blocos especiais
 > Em andamento
+- [ ] Adicionar/excluir itens no bloco Não Esquecer
+- [ ] Adicionar/excluir itens no bloco Diário
+- [ ] Adicionar/excluir itens no bloco Observação
+- [ ] Checkbox por item nos blocos
+- [ ] Adicionar/excluir tarefas na divisão do André
+- [ ] Adicionar/excluir tarefas na divisão da Rafa
+- [ ] Conteúdo isolado por semana
 - [ ] Bloco "Importantes / Não Esquecer"
 - [ ] Bloco "Diário"
 - [ ] Bloco "Outros / Observação"
