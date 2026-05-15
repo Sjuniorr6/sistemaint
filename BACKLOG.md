@@ -1,12 +1,12 @@
 # Backlog — SCA (Sistema de Controle Administrativo)
 **Grupo Golden Sat — Sistema INT**
 
-> Última atualização: 2026-05-13
+> Última atualização: 2026-05-15
 
 ---
 
 ## 🗺️ Ordem de execução
-M1 → M2 → M3 → M7 → M4 → M5 → M6 → M8 → M9
+M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → M10
 
 ---
 
@@ -56,8 +56,8 @@ M1 → M2 → M3 → M7 → M4 → M5 → M6 → M8 → M9
 - [x] Visual: identidade do INT
 - [x] Botão adicionar tarefa em cada dia/período
 - [x] Botão excluir tarefa nos cards
-- [ ] Modo dark/light com alternância por botão
-- [x] Commit: `feat(sca): painel principal com layout, modal e progresso`,
+- [x] Commit: `feat(sca): painel principal com layout, modal e progresso`, 
+- [x] Commit: `docs: atualiza BACKLOG — Módulo 3 quase completo, Módulo 4 iniciando`
 
 ---
 
@@ -133,6 +133,7 @@ M1 → M2 → M3 → M7 → M4 → M5 → M6 → M8 → M9
 
 ## ⏳ MÓDULO 10 — Melhorias pós-feedback
 
+- [ ] Modo dark/light com alternância por botão
 - [ ] Itens fixos que carregam entre semanas
 - [ ] Filtros no painel por responsável
 - [ ] Indicadores individuais por funcionário
