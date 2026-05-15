@@ -1,0 +1,13 @@
+<div class="sca-tarefa {% if execucao.is_done %}concluida{% endif %}"
+     onclick="abrirModal({{ execucao.id }})">
+
+  <div class="sca-check {% if execucao.is_done %}checked{% endif %}"
+       onclick="toggleTarefa({{ execucao.id }}, this)">
+    <i class="bi bi-check"></i>
+  </div>
+
+  <span class="sca-tarefa-titulo">
+    {{ execucao.tarefa_modelo.titulo }}
+  </span>
+
+</div>
