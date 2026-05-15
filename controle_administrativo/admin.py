@@ -5,6 +5,7 @@ from .models import (
     TarefaModeloAdministrativa,
     ExecucaoTarefaAdministrativa,
     ComentarioTarefa,
+    LeituraComentario,
     BlocoSemanal,
     ItemBlocoSemanal,
 )
@@ -33,27 +34,34 @@ class TarefaModeloAdministrativaAdmin(admin.ModelAdmin):
 
 
 class ComentarioTarefaInline(admin.TabularInline):
-    model   = ComentarioTarefa
-    extra   = 1
-    fields  = ['autor', 'conteudo', 'is_done']
+    model       = ComentarioTarefa
+    extra       = 1
+    fields      = ['autor', 'conteudo', 'is_done']
     readonly_fields = ['criado_em']
 
 
 @admin.register(ExecucaoTarefaAdministrativa)
 class ExecucaoTarefaAdministrativaAdmin(admin.ModelAdmin):
-    list_display    = ['tarefa_modelo', 'semana_iso', 'ano', 'status', 'is_done']
-    list_filter     = ['status', 'ano', 'semana_iso']
-    search_fields   = ['tarefa_modelo__titulo']
+    list_display    = ['titulo_display', 'semana_iso', 'ano', 'status', 'is_done', 'is_avulsa']
+    list_filter     = ['status', 'ano', 'semana_iso', 'is_avulsa']
+    search_fields   = ['tarefa_modelo__titulo', 'titulo_avulso']
     readonly_fields = ['atualizado_em', 'atualizado_por', 'concluido_em']
     inlines         = [ComentarioTarefaInline]
 
 
 @admin.register(ComentarioTarefa)
 class ComentarioTarefaAdmin(admin.ModelAdmin):
-    list_display  = ['autor', 'execucao', 'conteudo', 'criado_em', 'is_done']
-    list_filter   = ['is_done', 'autor']
-    search_fields = ['conteudo']
+    list_display    = ['autor', 'execucao', 'conteudo', 'criado_em', 'is_done']
+    list_filter     = ['is_done', 'autor']
+    search_fields   = ['conteudo']
     readonly_fields = ['criado_em']
+
+
+@admin.register(LeituraComentario)
+class LeituraComentarioAdmin(admin.ModelAdmin):
+    list_display = ['usuario', 'comentario', 'lido_em']
+    list_filter  = ['usuario']
+    readonly_fields = ['lido_em']
 
 
 class ItemBlocoSemanalInline(admin.TabularInline):

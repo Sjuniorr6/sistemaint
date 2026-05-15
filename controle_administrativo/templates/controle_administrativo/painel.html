@@ -17,10 +17,8 @@
     --radius:     10px;
   }
 
-  /* Força o painel a ocupar toda a largura disponível */
-  .container { max-width: 100% !important; padding: 0 !important; }
-
   body { background: var(--bg-panel) !important; }
+  .container { max-width: 100% !important; padding: 0 !important; }
 
   .sca-wrapper {
     display: flex;
@@ -32,7 +30,6 @@
     margin-top: -2rem;
   }
 
-  /* ─── HEADER ─── */
   .sca-header {
     background: linear-gradient(135deg, #1e1e2e, #2a2a3e);
     border: 2px solid var(--gold-dark);
@@ -51,17 +48,16 @@
   .progress-bar-sca { height: 7px; border-radius: 10px; background: var(--gold); transition: width 0.4s ease; }
   .progress-label { color: var(--gold); font-weight: 700; font-size: 0.9rem; }
 
-  /* ─── ÁREA PRINCIPAL ─── */
   .sca-main {
     display: grid;
     grid-template-columns: 160px 1fr;
     gap: 0.5rem;
     flex: 1;
     min-height: 0;
+    overflow: hidden;
     align-items: stretch;
   }
 
-  /* ─── SIDEBAR ─── */
   .sca-sidebar {
     display: flex;
     flex-direction: column;
@@ -71,16 +67,13 @@
   }
 
   .sca-bloco {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-  }
-
-  .sca-bloco {
     background: var(--bg-card);
     border: 2px solid var(--border);
     border-radius: var(--radius);
     padding: 0.45rem;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
   }
 
   .sca-bloco-titulo {
@@ -107,7 +100,6 @@
 
   .sca-bloco-item:last-child { border-bottom: none; }
 
-  /* ─── COLUNA DIREITA ─── */
   .sca-right {
     display: flex;
     flex-direction: column;
@@ -122,7 +114,6 @@
     overflow: hidden;
   }
 
-  /* ─── DIAS ─── */
   .sca-dias {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
@@ -171,7 +162,6 @@
     flex-shrink: 0;
   }
 
-  /* ─── CARD TAREFA ─── */
   .sca-tarefa {
     background: #25253a;
     border: 1px solid var(--border);
@@ -187,10 +177,8 @@
   }
 
   .sca-tarefa:hover { border-color: var(--gold-dark); background: #2a2a40; }
-
   .sca-tarefa.concluida { opacity: 0.5; border-color: var(--green); }
   .sca-tarefa.concluida .sca-tarefa-titulo { text-decoration: line-through; color: var(--text-muted); }
-
   .sca-tarefa-titulo { color: var(--text-light); font-size: 0.67rem; flex: 1; line-height: 1.3; }
 
   .sca-check {
@@ -206,7 +194,6 @@
   .sca-check i { font-size: 8px; color: white; display: none; }
   .sca-check.checked i { display: block; }
 
-  /* ─── DIVISÃO DE TAREFAS ─── */
   .sca-divisao-wrapper {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -246,6 +233,102 @@
   .sca-divisao-item:last-child { border-bottom: none; }
   .sca-divisao-secao { color: var(--gold-dark); font-size: 0.58rem; font-weight: 700; text-transform: uppercase; margin: 0.3rem 0 0.15rem; }
 
+  /* ─── BADGE COMENTÁRIO ─── */
+  .badge-comentario {
+    background: var(--gold);
+    color: #1e1e2e;
+    font-size: 0.58rem;
+    font-weight: 800;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  /* ─── BOTÃO EXCLUIR ─── */
+  .sca-excluir {
+    width: 16px; height: 16px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 3px;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    opacity: 0;
+  }
+
+  .sca-tarefa:hover .sca-excluir { opacity: 1; }
+  .sca-excluir:hover { color: #ef5350; background: rgba(239,83,80,0.15); }
+
+  /* ─── BOTÃO + TAREFA ─── */
+  .btn-add-tarefa {
+    width: 100%;
+    background: transparent;
+    border: 1px dashed var(--border);
+    border-radius: 5px;
+    color: var(--text-muted);
+    font-size: 0.65rem;
+    padding: 0.25rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    margin-top: 0.25rem;
+    flex-shrink: 0;
+  }
+
+  .btn-add-tarefa:hover {
+    border-color: var(--gold-dark);
+    color: var(--gold);
+    background: rgba(255,215,0,0.05);
+  }
+
+  /* ─── FORMULÁRIO MODAL ─── */
+  .form-control-sca {
+    background: #25253a;
+    border: 1px solid var(--border);
+    color: var(--text-light);
+    font-size: 0.82rem;
+    border-radius: 6px;
+  }
+
+  .form-control-sca:focus {
+    background: #2a2a40;
+    border-color: var(--gold-dark);
+    color: var(--text-light);
+    box-shadow: none;
+  }
+
+  .form-label-sca {
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.25rem;
+  }
+
+  .tipo-tarefa-btn {
+    flex: 1;
+    background: #25253a;
+    border: 2px solid var(--border);
+    color: var(--text-muted);
+    border-radius: 6px;
+    padding: 0.5rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+
+  .tipo-tarefa-btn.active {
+    border-color: var(--gold);
+    color: var(--gold);
+    background: rgba(255,215,0,0.08);
+  }
+
   /* ─── MODAL ─── */
   .modal-content { background: #1e1e2e; border: 2px solid var(--gold-dark); border-radius: var(--radius); color: var(--text-light); }
   .modal-header { border-bottom: 1px solid var(--border); padding: 0.75rem 1rem; }
@@ -254,9 +337,7 @@
   .modal-body { padding: 1rem; }
 
   .modal-descricao { background: #25253a; border-radius: 8px; padding: 0.6rem 0.75rem; font-size: 0.82rem; color: var(--text-light); margin-bottom: 0.75rem; line-height: 1.6; }
-
   .modal-secao-titulo { color: var(--gold); font-weight: 700; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin: 0.75rem 0 0.4rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--border); }
-
   .modal-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin-bottom: 0.75rem; }
   .modal-meta-item label { color: var(--text-muted); font-size: 0.65rem; text-transform: uppercase; display: block; }
   .modal-meta-item span { color: var(--text-light); font-size: 0.82rem; font-weight: 600; }
@@ -344,12 +425,20 @@
           {% elif dia_key == 'quinta' %}{% for execucao in execucoes.quinta.manha %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
           {% elif dia_key == 'sexta' %}{% for execucao in execucoes.sexta.manha %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}{% endif %}
 
+          <button class="btn-add-tarefa" onclick="abrirModalCriar('{{ dia_key }}', 'manha')">
+            <i class="bi bi-plus"></i> tarefa
+          </button>
+
           <div class="sca-periodo-titulo"><i class="bi bi-moon-stars"></i> Tarde</div>
           {% if dia_key == 'segunda' %}{% for execucao in execucoes.segunda.tarde %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
           {% elif dia_key == 'terca' %}{% for execucao in execucoes.terca.tarde %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
           {% elif dia_key == 'quarta' %}{% for execucao in execucoes.quarta.tarde %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
           {% elif dia_key == 'quinta' %}{% for execucao in execucoes.quinta.tarde %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
           {% elif dia_key == 'sexta' %}{% for execucao in execucoes.sexta.tarde %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}{% endif %}
+
+          <button class="btn-add-tarefa" onclick="abrirModalCriar('{{ dia_key }}', 'tarde')">
+            <i class="bi bi-plus"></i> tarefa
+          </button>
 
         </div>
         {% endfor %}
@@ -379,7 +468,80 @@
   </div>
 </div>
 
-<!-- ─── MODAL ─── -->
+<!-- ─── MODAL DE CRIAÇÃO DE TAREFA ─── -->
+<div class="modal fade" id="modalCriarTarefa" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-plus-circle me-2"></i>Nova Tarefa
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label-sca">Tipo da tarefa</label>
+          <div class="d-flex gap-2">
+            <div class="tipo-tarefa-btn active" id="btn-tipo-avulsa" onclick="selecionarTipo('avulsa')">
+              <i class="bi bi-calendar-x me-1"></i>Somente esta semana
+            </div>
+            <div class="tipo-tarefa-btn" id="btn-tipo-recorrente" onclick="selecionarTipo('recorrente')">
+              <i class="bi bi-arrow-repeat me-1"></i>Recorrente (toda semana)
+            </div>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label-sca">Título *</label>
+          <input type="text" id="criar-titulo" class="form-control form-control-sca" placeholder="Nome da tarefa">
+        </div>
+        <div class="mb-3">
+          <label class="form-label-sca">Descrição</label>
+          <textarea id="criar-descricao" class="form-control form-control-sca" rows="2" placeholder="Detalhes (opcional)"></textarea>
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col">
+            <label class="form-label-sca">Dia *</label>
+            <select id="criar-dia" class="form-control form-control-sca">
+              <option value="segunda">Segunda-feira</option>
+              <option value="terca">Terça-feira</option>
+              <option value="quarta">Quarta-feira</option>
+              <option value="quinta">Quinta-feira</option>
+              <option value="sexta">Sexta-feira</option>
+            </select>
+          </div>
+          <div class="col">
+            <label class="form-label-sca">Período *</label>
+            <select id="criar-periodo" class="form-control form-control-sca">
+              <option value="manha">Manhã</option>
+              <option value="tarde">Tarde</option>
+            </select>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label-sca">Responsável *</label>
+          <select id="criar-responsavel" class="form-control form-control-sca">
+            {% for funcionario in funcionarios %}
+            <option value="{{ funcionario.id }}">{{ funcionario.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div id="criar-erro" class="text-danger" style="font-size:0.75rem;display:none;"></div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid var(--border);">
+        <button type="button" class="btn btn-sm"
+          style="background:transparent;color:var(--text-muted);border:1px solid var(--border);"
+          data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-sm"
+          style="background:var(--gold-dark);color:var(--gold);font-weight:700;"
+          onclick="confirmarCriarTarefa()">
+          <i class="bi bi-check2 me-1"></i>Criar Tarefa
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── MODAL DE DETALHES ─── -->
 <div class="modal fade" id="modalTarefa" tabindex="-1">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
@@ -403,9 +565,8 @@
         <div class="modal-secao-titulo">Comentários</div>
         <div id="modal-comentarios"></div>
         <div class="mt-2">
-          <textarea class="form-control" id="novo-comentario" rows="2"
-            placeholder="Adicionar comentário..."
-            style="background:#25253a;border-color:var(--border);color:var(--text-light);font-size:0.82rem;"></textarea>
+          <textarea class="form-control form-control-sca" id="novo-comentario" rows="2"
+            placeholder="Adicionar comentário..."></textarea>
           <button class="btn btn-sm mt-2"
             style="background:var(--gold-dark);color:var(--gold);font-weight:700;"
             onclick="enviarComentario()">
@@ -420,7 +581,9 @@
 <script>
   const CSRF = '{{ csrf_token }}';
   let execucaoAtualId = null;
+  let tipoTarefaSelecionado = 'avulsa';
 
+  // ── Modal de detalhes ──
   function abrirModal(execucaoId) {
     execucaoAtualId = execucaoId;
     document.getElementById('modal-titulo').textContent = 'Carregando...';
@@ -442,6 +605,14 @@
         document.getElementById('modal-atualizado').textContent   = data.atualizado_por ? `${data.atualizado_por} · ${data.atualizado_em}` : '—';
         renderizarComentarios(data.comentarios);
         document.getElementById('novo-comentario').value = '';
+
+        // Remove badge de não lidos do card
+        const card = document.querySelector(`.sca-tarefa[data-id="${execucaoId}"]`);
+        if (card) {
+          const badge = card.querySelector('.badge-comentario');
+          if (badge) badge.remove();
+        }
+
         new bootstrap.Modal(document.getElementById('modalTarefa')).show();
       });
   }
@@ -487,6 +658,78 @@
       const card  = check.closest('.sca-tarefa');
       check.classList.toggle('checked', data.is_done);
       card.classList.toggle('concluida', data.is_done);
+      document.getElementById('progress-bar').style.width = data.percentual + '%';
+      document.getElementById('pct-label').textContent    = data.percentual + '%';
+      document.getElementById('pct-detalhe').textContent  = `(${data.concluidas}/${data.total})`;
+    });
+  }
+
+  // ── Modal de criação ──
+  function selecionarTipo(tipo) {
+    tipoTarefaSelecionado = tipo;
+    document.getElementById('btn-tipo-avulsa').classList.toggle('active', tipo === 'avulsa');
+    document.getElementById('btn-tipo-recorrente').classList.toggle('active', tipo === 'recorrente');
+  }
+
+  function abrirModalCriar(dia, periodo) {
+    document.getElementById('criar-titulo').value    = '';
+    document.getElementById('criar-descricao').value = '';
+    document.getElementById('criar-dia').value       = dia;
+    document.getElementById('criar-periodo').value   = periodo;
+    document.getElementById('criar-erro').style.display = 'none';
+    selecionarTipo('avulsa');
+    new bootstrap.Modal(document.getElementById('modalCriarTarefa')).show();
+  }
+
+  function confirmarCriarTarefa() {
+    const titulo        = document.getElementById('criar-titulo').value.trim();
+    const descricao     = document.getElementById('criar-descricao').value.trim();
+    const dia           = document.getElementById('criar-dia').value;
+    const periodo       = document.getElementById('criar-periodo').value;
+    const responsavelId = document.getElementById('criar-responsavel').value;
+    const erroEl        = document.getElementById('criar-erro');
+
+    if (!titulo) {
+      erroEl.textContent   = 'O título é obrigatório.';
+      erroEl.style.display = 'block';
+      return;
+    }
+
+    erroEl.style.display = 'none';
+
+    const body = new URLSearchParams({
+      titulo, descricao, dia, periodo,
+      responsavel_id: responsavelId,
+      tipo: tipoTarefaSelecionado,
+    });
+
+    fetch('/controle-administrativo/execucao/criar/', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    }).then(r => r.json()).then(data => {
+      if (!data.success) {
+        erroEl.textContent   = data.error;
+        erroEl.style.display = 'block';
+        return;
+      }
+      bootstrap.Modal.getInstance(document.getElementById('modalCriarTarefa')).hide();
+      window.location.reload();
+    });
+  }
+
+  // ── Excluir tarefa ──
+  function excluirTarefa(execucaoId, el) {
+    event.stopPropagation();
+    if (!confirm('Excluir esta tarefa?')) return;
+
+    fetch(`/controle-administrativo/execucao/${execucaoId}/excluir/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF },
+    }).then(r => r.json()).then(data => {
+      if (!data.success) { alert(data.error); return; }
+      const card = el.closest('.sca-tarefa');
+      card.remove();
       document.getElementById('progress-bar').style.width = data.percentual + '%';
       document.getElementById('pct-label').textContent    = data.percentual + '%';
       document.getElementById('pct-detalhe').textContent  = `(${data.concluidas}/${data.total})`;

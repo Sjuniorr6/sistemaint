@@ -53,8 +53,13 @@ M1 → M2 → M3 → M7 → M4 → M5 → M6 → M8 → M9
 - [x] Barra de progresso geral no topo
 - [x] Dia atual destacado com acento dourado
 - [x] Divisão de tarefas André e Rafa na linha inferior
-- [x] Modo dark/light com alternância por botão
+- [ ] Modo dark/light com alternância por botão
 - [x] Visual: identidade do INT
+- [x] Botão adicionar tarefa em cada dia/período
+- [x] Botão excluir tarefa nos cards
+- [ ] Edição de tarefa pelo modal (título, descrição, prazo)
+- [ ] Botões adicionar/excluir nos blocos laterais (Não Esquecer, Diário, Observação)
+- [ ] Botões adicionar/excluir na divisão de tarefas do André e da Rafa
 - [x] Commit: `feat(sca): painel principal com layout, modal e progresso`
 
 ---

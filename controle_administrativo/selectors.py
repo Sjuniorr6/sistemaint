@@ -1,18 +1,14 @@
-# selectors.py
-# Queries otimizadas para leitura — sem lógica de negócio.
-# Views buscam dados daqui, nunca diretamente dos models.
-
 from django.utils import timezone
 from .models import (
     TarefaModeloAdministrativa,
     ExecucaoTarefaAdministrativa,
+    LeituraComentario,
     BlocoSemanal,
     FuncionarioAdministrativo,
 )
 
 
 def get_semana_atual():
-    """Retorna a semana ISO e ano atuais."""
     hoje = timezone.now().date()
     semana_iso = hoje.isocalendar()[1]
     ano = hoje.year
@@ -20,7 +16,6 @@ def get_semana_atual():
 
 
 def get_dia_atual():
-    """Retorna o dia da semana atual no formato dos choices."""
     hoje = timezone.now().date()
     mapa = {
         0: 'segunda',
@@ -28,21 +23,16 @@ def get_dia_atual():
         2: 'quarta',
         3: 'quinta',
         4: 'sexta',
-        5: 'segunda',  # sábado → mostra segunda (próximo dia útil)
-        6: 'segunda',  # domingo → mostra segunda (próximo dia útil)
+        5: 'segunda',
+        6: 'segunda',
     }
     return mapa[hoje.weekday()]
 
 
-def get_execucoes_da_semana(semana_iso, ano):
+def get_execucoes_da_semana(semana_iso, ano, user=None):
     """
     Retorna todas as execuções da semana agrupadas por dia e período.
-    Estrutura retornada:
-    {
-        'segunda': {'manha': [...], 'tarde': [...]},
-        'terca':   {'manha': [...], 'tarde': [...]},
-        ...
-    }
+    Se user informado, anota quantos comentários não lidos cada execução tem.
     """
     execucoes = ExecucaoTarefaAdministrativa.objects.filter(
         semana_iso=semana_iso,
@@ -51,14 +41,14 @@ def get_execucoes_da_semana(semana_iso, ano):
         'tarefa_modelo',
         'tarefa_modelo__responsavel',
         'tarefa_modelo__categoria',
+        'responsavel_avulso',
         'concluido_por',
         'atualizado_por',
     ).prefetch_related(
         'comentarios',
         'comentarios__autor',
-    ).order_by(
-        'tarefa_modelo__ordem'
-    )
+        'comentarios__leituras',
+    ).order_by('tarefa_modelo__ordem')
 
     dias = ['segunda', 'terca', 'quarta', 'quinta', 'sexta']
     periodos = ['manha', 'tarde']
@@ -69,8 +59,20 @@ def get_execucoes_da_semana(semana_iso, ano):
     }
 
     for execucao in execucoes:
-        dia = execucao.tarefa_modelo.dia_da_semana
-        periodo = execucao.tarefa_modelo.periodo
+        dia     = execucao.dia_key
+        periodo = execucao.periodo_key
+
+        # Anota comentários não lidos
+        if user:
+            lidos_ids = execucao.comentarios.filter(
+                leituras__usuario=user
+            ).values_list('id', flat=True)
+            execucao.nao_lidos = execucao.comentarios.exclude(
+                id__in=lidos_ids
+            ).exclude(autor=user).count()
+        else:
+            execucao.nao_lidos = 0
+
         if dia in resultado and periodo in resultado[dia]:
             resultado[dia][periodo].append(execucao)
 
@@ -78,7 +80,6 @@ def get_execucoes_da_semana(semana_iso, ano):
 
 
 def get_blocos_da_semana(semana_iso, ano):
-    """Retorna os blocos especiais da semana com seus itens."""
     return BlocoSemanal.objects.filter(
         semana_iso=semana_iso,
         ano=ano,
@@ -86,21 +87,17 @@ def get_blocos_da_semana(semana_iso, ano):
 
 
 def get_funcionarios_ativos():
-    """Retorna todos os funcionários ativos."""
     return FuncionarioAdministrativo.objects.filter(
         ativo=True
     ).select_related('usuario').order_by('nome')
 
 
 def get_resumo_semana(semana_iso, ano):
-    """
-    Calcula o percentual geral de conclusão da semana.
-    Retorna dict com total, concluidas e percentual.
-    """
     execucoes = ExecucaoTarefaAdministrativa.objects.filter(
         semana_iso=semana_iso,
         ano=ano,
-    )
+    ).exclude(status='cancelada')
+
     total = execucoes.count()
     if total == 0:
         return {'total': 0, 'concluidas': 0, 'percentual': 0}
@@ -109,7 +106,7 @@ def get_resumo_semana(semana_iso, ano):
     percentual = round((concluidas / total) * 100)
 
     return {
-        'total': total,
+        'total':      total,
         'concluidas': concluidas,
         'percentual': percentual,
     }

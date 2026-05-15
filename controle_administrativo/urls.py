@@ -8,4 +8,6 @@ urlpatterns = [
     path('execucao/<int:execucao_id>/toggle/', views.toggle_execucao, name='toggle_execucao'),
     path('execucao/<int:execucao_id>/comentario/', views.adicionar_comentario, name='adicionar_comentario'),
     path('execucao/<int:execucao_id>/detalhe/', views.detalhe_execucao, name='detalhe_execucao'),
+    path('execucao/criar/', views.criar_tarefa, name='criar_tarefa'),
+    path('execucao/<int:execucao_id>/excluir/', views.excluir_tarefa, name='excluir_tarefa'),
 ]

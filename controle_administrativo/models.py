@@ -4,7 +4,7 @@ from django.utils import timezone
 
 
 # ─────────────────────────────────────────
-# CHOICES — opções fixas usadas nos campos
+# CHOICES
 # ─────────────────────────────────────────
 
 class DiaDaSemana(models.TextChoices):
@@ -45,7 +45,7 @@ class PerfilFuncionario(models.TextChoices):
 
 
 # ─────────────────────────────────────────
-# FUNCIONÁRIO — perfil do usuário no SCA
+# FUNCIONÁRIO
 # ─────────────────────────────────────────
 
 class FuncionarioAdministrativo(models.Model):
@@ -74,16 +74,12 @@ class FuncionarioAdministrativo(models.Model):
 
 
 # ─────────────────────────────────────────
-# CATEGORIA — agrupamento de tarefas
+# CATEGORIA
 # ─────────────────────────────────────────
 
 class CategoriaTarefaAdministrativa(models.Model):
     nome = models.CharField(max_length=100, verbose_name='Nome')
-    cor  = models.CharField(
-        max_length=20,
-        default='#665b1d',
-        verbose_name='Cor (hex)'
-    )
+    cor  = models.CharField(max_length=20, default='#665b1d', verbose_name='Cor (hex)')
     ativo = models.BooleanField(default=True, verbose_name='Ativo')
 
     class Meta:
@@ -96,7 +92,7 @@ class CategoriaTarefaAdministrativa(models.Model):
 
 
 # ─────────────────────────────────────────
-# TAREFA MODELO — o "molde" recorrente
+# TAREFA MODELO — recorrente
 # ─────────────────────────────────────────
 
 class TarefaModeloAdministrativa(models.Model):
@@ -127,15 +123,11 @@ class TarefaModeloAdministrativa(models.Model):
     categoria = models.ForeignKey(
         CategoriaTarefaAdministrativa,
         on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        null=True, blank=True,
         related_name='tarefas_modelo',
         verbose_name='Categoria'
     )
-    ordem = models.PositiveIntegerField(
-        default=0,
-        verbose_name='Ordem de exibição'
-    )
+    ordem = models.PositiveIntegerField(default=0, verbose_name='Ordem de exibição')
     ativo = models.BooleanField(default=True, verbose_name='Ativo')
     criado_em = models.DateTimeField(auto_now_add=True)
 
@@ -149,16 +141,44 @@ class TarefaModeloAdministrativa(models.Model):
 
 
 # ─────────────────────────────────────────
-# EXECUÇÃO — a tarefa numa semana específica
+# EXECUÇÃO — tarefa numa semana específica
 # ─────────────────────────────────────────
 
 class ExecucaoTarefaAdministrativa(models.Model):
+    # Tarefa modelo — opcional para tarefas avulsas
     tarefa_modelo = models.ForeignKey(
         TarefaModeloAdministrativa,
         on_delete=models.PROTECT,
         related_name='execucoes',
-        verbose_name='Tarefa Modelo'
+        verbose_name='Tarefa Modelo',
+        null=True, blank=True
     )
+
+    # Campos para tarefas avulsas (sem tarefa_modelo)
+    titulo_avulso    = models.CharField(max_length=200, blank=True, verbose_name='Título (avulso)')
+    descricao_avulsa = models.TextField(blank=True, verbose_name='Descrição (avulso)')
+    dia_avulso       = models.CharField(
+        max_length=10,
+        choices=DiaDaSemana.choices,
+        blank=True,
+        verbose_name='Dia (avulso)'
+    )
+    periodo_avulso   = models.CharField(
+        max_length=10,
+        choices=Periodo.choices,
+        blank=True,
+        verbose_name='Período (avulso)'
+    )
+    responsavel_avulso = models.ForeignKey(
+        FuncionarioAdministrativo,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='execucoes_avulsas',
+        verbose_name='Responsável (avulso)'
+    )
+    is_avulsa = models.BooleanField(default=False, verbose_name='Tarefa avulsa')
+
+    # Campos comuns
     semana_iso = models.PositiveIntegerField(verbose_name='Semana ISO')
     ano        = models.PositiveIntegerField(verbose_name='Ano')
     status = models.CharField(
@@ -167,23 +187,21 @@ class ExecucaoTarefaAdministrativa(models.Model):
         default=StatusExecucao.PENDENTE,
         verbose_name='Status'
     )
-    is_done = models.BooleanField(default=False, verbose_name='Concluída')
-    prazo   = models.DateField(null=True, blank=True, verbose_name='Prazo')
+    is_done       = models.BooleanField(default=False, verbose_name='Concluída')
+    prazo         = models.DateField(null=True, blank=True, verbose_name='Prazo')
     concluido_por = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        null=True, blank=True,
         related_name='execucoes_concluidas',
         verbose_name='Concluído por'
     )
-    concluido_em  = models.DateTimeField(null=True, blank=True, verbose_name='Concluído em')
-    atualizado_em = models.DateTimeField(auto_now=True)
+    concluido_em   = models.DateTimeField(null=True, blank=True, verbose_name='Concluído em')
+    atualizado_em  = models.DateTimeField(auto_now=True)
     atualizado_por = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        null=True, blank=True,
         related_name='execucoes_atualizadas',
         verbose_name='Atualizado por'
     )
@@ -192,29 +210,75 @@ class ExecucaoTarefaAdministrativa(models.Model):
         verbose_name = 'Execução de Tarefa'
         verbose_name_plural = 'Execuções de Tarefas'
         ordering = ['tarefa_modelo__dia_da_semana', 'tarefa_modelo__periodo']
-        unique_together = [['tarefa_modelo', 'semana_iso', 'ano']]
 
     def __str__(self):
-        return f"{self.tarefa_modelo.titulo} — Semana {self.semana_iso}/{self.ano}"
+        return f"{self.titulo_display} — Semana {self.semana_iso}/{self.ano}"
+
+    # ── Propriedades que unificam modelo e avulso ──
+
+    @property
+    def titulo_display(self):
+        if self.tarefa_modelo:
+            return self.tarefa_modelo.titulo
+        return self.titulo_avulso or '(sem título)'
+
+    @property
+    def descricao_display(self):
+        if self.tarefa_modelo:
+            return self.tarefa_modelo.descricao
+        return self.descricao_avulsa
+
+    @property
+    def dia_display(self):
+        if self.tarefa_modelo:
+            return self.tarefa_modelo.get_dia_da_semana_display()
+        return self.get_dia_avulso_display() if self.dia_avulso else '—'
+
+    @property
+    def dia_key(self):
+        if self.tarefa_modelo:
+            return self.tarefa_modelo.dia_da_semana
+        return self.dia_avulso
+
+    @property
+    def periodo_display(self):
+        if self.tarefa_modelo:
+            return self.tarefa_modelo.get_periodo_display()
+        return self.get_periodo_avulso_display() if self.periodo_avulso else '—'
+
+    @property
+    def periodo_key(self):
+        if self.tarefa_modelo:
+            return self.tarefa_modelo.periodo
+        return self.periodo_avulso
+
+    @property
+    def responsavel_display(self):
+        if self.tarefa_modelo:
+            return self.tarefa_modelo.responsavel.nome
+        return self.responsavel_avulso.nome if self.responsavel_avulso else '—'
 
     @property
     def completion_pct(self):
-        if self.tarefa_modelo.tipo_controle == TipoControle.CHECKBOX:
+        if self.tarefa_modelo and self.tarefa_modelo.tipo_controle == TipoControle.CHECKBOX:
             return 100 if self.is_done else 0
-        subtarefas = self.execucoes_subtarefa.all()
-        total = subtarefas.count()
-        if total == 0:
-            return 0
-        concluidas = subtarefas.filter(is_done=True).count()
-        return round((concluidas / total) * 100)
+        return 100 if self.is_done else 0
+
+    def comentarios_nao_lidos(self, user):
+        """Retorna quantidade de comentários não lidos pelo user."""
+        lidos = LeituraComentario.objects.filter(
+            comentario__execucao=self,
+            usuario=user
+        ).values_list('comentario_id', flat=True)
+        return self.comentarios.exclude(id__in=lidos).exclude(autor=user).count()
 
 
 # ─────────────────────────────────────────
-# COMENTÁRIO — comentários por execução
+# COMENTÁRIO
 # ─────────────────────────────────────────
 
 class ComentarioTarefa(models.Model):
-    execucao = models.ForeignKey(
+    execucao  = models.ForeignKey(
         ExecucaoTarefaAdministrativa,
         on_delete=models.CASCADE,
         related_name='comentarios',
@@ -223,8 +287,7 @@ class ComentarioTarefa(models.Model):
     autor = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        null=True, blank=True,
         related_name='comentarios_tarefas',
         verbose_name='Autor'
     )
@@ -242,7 +305,35 @@ class ComentarioTarefa(models.Model):
 
 
 # ─────────────────────────────────────────
-# BLOCO SEMANAL — coluna lateral do painel
+# LEITURA DE COMENTÁRIO — quem leu o quê
+# ─────────────────────────────────────────
+
+class LeituraComentario(models.Model):
+    comentario = models.ForeignKey(
+        ComentarioTarefa,
+        on_delete=models.CASCADE,
+        related_name='leituras',
+        verbose_name='Comentário'
+    )
+    usuario   = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='leituras_comentarios',
+        verbose_name='Usuário'
+    )
+    lido_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Leitura de Comentário'
+        verbose_name_plural = 'Leituras de Comentários'
+        unique_together = [['comentario', 'usuario']]
+
+    def __str__(self):
+        return f"{self.usuario} leu comentário #{self.comentario.id}"
+
+
+# ─────────────────────────────────────────
+# BLOCO SEMANAL
 # ─────────────────────────────────────────
 
 class BlocoSemanal(models.Model):
@@ -256,8 +347,7 @@ class BlocoSemanal(models.Model):
     criado_por = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        null=True, blank=True,
         verbose_name='Criado por'
     )
 
@@ -271,7 +361,7 @@ class BlocoSemanal(models.Model):
 
 
 # ─────────────────────────────────────────
-# ITEM DO BLOCO — cada linha do bloco
+# ITEM DO BLOCO
 # ─────────────────────────────────────────
 
 class ItemBlocoSemanal(models.Model):
