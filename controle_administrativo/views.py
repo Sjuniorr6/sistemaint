@@ -46,6 +46,12 @@ def _pode_editar(request):
         return func.perfil == 'operador'
     except FuncionarioAdministrativo.DoesNotExist:
         return False
+    
+def _semana_atual_check(semana_iso, ano):
+    """Retorna True se a semana informada é a semana atual."""
+    from .selectors import get_semana_atual
+    semana_atual, ano_atual = get_semana_atual()
+    return semana_iso == semana_atual and ano == ano_atual
 
 @login_required
 def painel(request):
@@ -108,7 +114,8 @@ def toggle_execucao(request, execucao_id):
     if not _pode_editar(request):
         return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
     execucao = get_object_or_404(ExecucaoTarefaAdministrativa, id=execucao_id)
-    execucao.is_done = not execucao.is_done
+    if not request.user.is_superuser and not _semana_atual_check(execucao.semana_iso, execucao.ano):
+        return JsonResponse({'success': False, 'error': 'Semanas passadas não podem ser editadas.'}, status=403)
 
     if execucao.is_done:
         execucao.status        = StatusExecucao.CONCLUIDA
@@ -141,6 +148,8 @@ def adicionar_comentario(request, execucao_id):
     if not _pode_editar(request):
         return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
     execucao = get_object_or_404(ExecucaoTarefaAdministrativa, id=execucao_id)
+    if not request.user.is_superuser and not _semana_atual_check(execucao.semana_iso, execucao.ano):
+        return JsonResponse({'success': False, 'error': 'Semanas passadas não podem ser editadas.'}, status=403)
     conteudo = request.POST.get('conteudo', '').strip()
 
     if not conteudo:
@@ -249,6 +258,9 @@ def criar_tarefa(request):
 def excluir_tarefa(request, execucao_id):
     if not _pode_editar(request):
         return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
+    execucao = get_object_or_404(ExecucaoTarefaAdministrativa, id=execucao_id)
+    if not request.user.is_superuser and not _semana_atual_check(execucao.semana_iso, execucao.ano):
+        return JsonResponse({'success': False, 'error': 'Semanas passadas não podem ser editadas.'}, status=403)
     try:
         excluir_execucao(execucao_id, request.user)
         semana_iso, ano = get_semana_atual()

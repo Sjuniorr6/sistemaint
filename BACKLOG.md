@@ -83,10 +83,10 @@ M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → M10
 > Em andamento (iniciado em 2026-05-19)
 
 - [x] `@login_required` em todas as views
-- [ ] Perfil `operador` — Rafa e André — edita semana atual
-- [ ] Perfil `gestor` — Jefferson — somente leitura
+- [x] Perfil `operador` — Rafa e André — edita semana atual
+- [x] Perfil `gestor` — Jefferson — somente leitura
 - [ ] Operador não edita semanas passadas
-- [ ] Commit: `feat(sca): permissões e segurança`
+- [x] Commit: `feat(sca): permissões e segurança`
 
 ---
 
