@@ -50,7 +50,7 @@
 
   .sca-main {
     display: grid;
-    grid-template-columns: 160px 1fr;
+    grid-template-columns: 220px 1fr;
     gap: 0.5rem;
     flex: 1;
     min-height: 0;
@@ -74,6 +74,8 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
   }
 
   .sca-bloco-titulo {
@@ -85,7 +87,24 @@
     margin-bottom: 0.35rem;
     padding-bottom: 0.25rem;
     border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
   }
+
+  .btn-add-bloco {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.75rem;
+    padding: 0;
+    transition: color 0.2s;
+    line-height: 1;
+  }
+
+  .btn-add-bloco:hover { color: var(--gold); }
 
   .sca-bloco-item {
     display: flex;
@@ -100,6 +119,49 @@
 
   .sca-bloco-item:last-child { border-bottom: none; }
 
+  .sca-bloco-item .sca-item-excluir {
+    margin-left: auto;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.7rem;
+    opacity: 0;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .sca-bloco-item:hover .sca-item-excluir { opacity: 1; }
+  .sca-bloco-item:hover .sca-item-excluir:hover { color: #ef5350; }
+
+  .sca-bloco-input {
+    display: none;
+    margin-top: 0.35rem;
+    flex-shrink: 0;
+  }
+
+  .sca-bloco-input.ativo { display: flex; gap: 0.3rem; }
+
+  .sca-bloco-input input {
+    flex: 1;
+    background: #25253a;
+    border: 1px solid var(--border);
+    color: var(--text-light);
+    font-size: 0.65rem;
+    border-radius: 4px;
+    padding: 0.2rem 0.4rem;
+  }
+
+  .sca-bloco-input input:focus { outline: none; border-color: var(--gold-dark); }
+
+  .sca-bloco-input button {
+    background: var(--gold-dark);
+    border: none;
+    color: var(--gold);
+    font-size: 0.65rem;
+    border-radius: 4px;
+    padding: 0.2rem 0.4rem;
+    cursor: pointer;
+  }
+
   .sca-right {
     display: flex;
     flex-direction: column;
@@ -108,11 +170,7 @@
     overflow: hidden;
   }
 
-  .sca-dias-wrapper {
-    flex: 0 0 55%;
-    min-height: 0;
-    overflow: hidden;
-  }
+  .sca-dias-wrapper { flex: 0 0 55%; min-height: 0; overflow: hidden; }
 
   .sca-dias {
     display: grid;
@@ -133,10 +191,7 @@
     flex-direction: column;
   }
 
-  .sca-dia-col.dia-atual {
-    border-color: var(--gold);
-    box-shadow: 0 0 10px rgba(255,215,0,0.12);
-  }
+  .sca-dia-col.dia-atual { border-color: var(--gold); box-shadow: 0 0 10px rgba(255,215,0,0.12); }
 
   .sca-dia-titulo {
     color: var(--gold);
@@ -209,6 +264,8 @@
     padding: 0.45rem;
     height: 100%;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
   }
 
   .sca-divisao-titulo {
@@ -221,6 +278,7 @@
     border-radius: 4px;
     margin-bottom: 0.4rem;
     text-align: center;
+    flex-shrink: 0;
   }
 
   .sca-divisao-item {
@@ -228,108 +286,58 @@
     color: var(--text-light);
     padding: 0.15rem 0;
     border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
   }
 
   .sca-divisao-item:last-child { border-bottom: none; }
-  .sca-divisao-secao { color: var(--gold-dark); font-size: 0.58rem; font-weight: 700; text-transform: uppercase; margin: 0.3rem 0 0.15rem; }
+  .sca-divisao-secao { color: var(--gold-dark); font-size: 0.58rem; font-weight: 700; text-transform: uppercase; margin: 0.3rem 0 0.15rem; flex-shrink: 0; }
 
-  /* ─── BADGE COMENTÁRIO ─── */
   .badge-comentario {
-    background: var(--gold);
-    color: #1e1e2e;
-    font-size: 0.58rem;
-    font-weight: 800;
-    border-radius: 50%;
-    width: 16px;
-    height: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
+    background: var(--gold); color: #1e1e2e;
+    font-size: 0.58rem; font-weight: 800;
+    border-radius: 50%; width: 16px; height: 16px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   }
 
-  /* ─── BOTÃO EXCLUIR ─── */
   .sca-excluir {
     width: 16px; height: 16px;
     display: flex; align-items: center; justify-content: center;
-    border-radius: 3px;
-    color: var(--text-muted);
-    font-size: 0.75rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    flex-shrink: 0;
-    opacity: 0;
+    border-radius: 3px; color: var(--text-muted);
+    font-size: 0.75rem; cursor: pointer; transition: all 0.2s;
+    flex-shrink: 0; opacity: 0;
   }
 
   .sca-tarefa:hover .sca-excluir { opacity: 1; }
   .sca-excluir:hover { color: #ef5350; background: rgba(239,83,80,0.15); }
 
-  /* ─── BOTÃO + TAREFA ─── */
   .btn-add-tarefa {
-    width: 100%;
-    background: transparent;
-    border: 1px dashed var(--border);
-    border-radius: 5px;
-    color: var(--text-muted);
-    font-size: 0.65rem;
-    padding: 0.25rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    text-align: center;
-    margin-top: 0.25rem;
-    flex-shrink: 0;
+    width: 100%; background: transparent;
+    border: 1px dashed var(--border); border-radius: 5px;
+    color: var(--text-muted); font-size: 0.65rem; padding: 0.25rem;
+    cursor: pointer; transition: all 0.2s; text-align: center;
+    margin-top: 0.25rem; flex-shrink: 0;
   }
 
-  .btn-add-tarefa:hover {
-    border-color: var(--gold-dark);
-    color: var(--gold);
-    background: rgba(255,215,0,0.05);
-  }
+  .btn-add-tarefa:hover { border-color: var(--gold-dark); color: var(--gold); background: rgba(255,215,0,0.05); }
 
-  /* ─── FORMULÁRIO MODAL ─── */
   .form-control-sca {
-    background: #25253a;
-    border: 1px solid var(--border);
-    color: var(--text-light);
-    font-size: 0.82rem;
-    border-radius: 6px;
+    background: #25253a; border: 1px solid var(--border);
+    color: var(--text-light); font-size: 0.82rem; border-radius: 6px;
   }
 
-  .form-control-sca:focus {
-    background: #2a2a40;
-    border-color: var(--gold-dark);
-    color: var(--text-light);
-    box-shadow: none;
-  }
-
-  .form-label-sca {
-    color: var(--text-muted);
-    font-size: 0.68rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 0.25rem;
-  }
+  .form-control-sca:focus { background: #2a2a40; border-color: var(--gold-dark); color: var(--text-light); box-shadow: none; }
+  .form-label-sca { color: var(--text-muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem; }
 
   .tipo-tarefa-btn {
-    flex: 1;
-    background: #25253a;
-    border: 2px solid var(--border);
-    color: var(--text-muted);
-    border-radius: 6px;
-    padding: 0.5rem;
-    font-size: 0.75rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    text-align: center;
+    flex: 1; background: #25253a; border: 2px solid var(--border);
+    color: var(--text-muted); border-radius: 6px; padding: 0.5rem;
+    font-size: 0.75rem; cursor: pointer; transition: all 0.2s; text-align: center;
   }
 
-  .tipo-tarefa-btn.active {
-    border-color: var(--gold);
-    color: var(--gold);
-    background: rgba(255,215,0,0.08);
-  }
+  .tipo-tarefa-btn.active { border-color: var(--gold); color: var(--gold); background: rgba(255,215,0,0.08); }
 
-  /* ─── MODAL ─── */
   .modal-content { background: #1e1e2e; border: 2px solid var(--gold-dark); border-radius: var(--radius); color: var(--text-light); }
   .modal-header { border-bottom: 1px solid var(--border); padding: 0.75rem 1rem; }
   .modal-title { color: var(--gold); font-weight: 700; font-size: 0.95rem; }
@@ -378,32 +386,45 @@
 
     <!-- ─── SIDEBAR ─── -->
     <div class="sca-sidebar">
-      {% if not blocos %}
-        <div class="sca-bloco">
-          <div class="sca-bloco-titulo"><i class="bi bi-bell-fill me-1"></i>Não Esquecer</div>
-          <small class="text-muted" style="font-size:0.62rem;">Nenhum item.</small>
+      {% for bloco in blocos %}
+      <div class="sca-bloco" id="bloco-{{ bloco.id }}">
+        <div class="sca-bloco-titulo">
+          <span>
+            {% if bloco.tipo == 'nao_esquecer' %}<i class="bi bi-bell-fill me-1"></i>Não Esquecer
+            {% elif bloco.tipo == 'diario' %}<i class="bi bi-journal-text me-1"></i>Diário
+            {% else %}<i class="bi bi-chat-left-text me-1"></i>Observação{% endif %}
+          </span>
+          <button class="btn-add-bloco" onclick="toggleInputBloco({{ bloco.id }})" title="Adicionar item">
+            <i class="bi bi-plus-lg"></i>
+          </button>
         </div>
-        <div class="sca-bloco">
-          <div class="sca-bloco-titulo"><i class="bi bi-journal-text me-1"></i>Diário</div>
-          <small class="text-muted" style="font-size:0.62rem;">Nenhum item.</small>
-        </div>
-        <div class="sca-bloco">
-          <div class="sca-bloco-titulo"><i class="bi bi-chat-left-text me-1"></i>Observação</div>
-          <small class="text-muted" style="font-size:0.62rem;">Nenhum item.</small>
-        </div>
-      {% else %}
-        {% for bloco in blocos %}
-        <div class="sca-bloco">
-          <div class="sca-bloco-titulo">{{ bloco.get_tipo_display }}</div>
+
+        <div id="itens-bloco-{{ bloco.id }}">
           {% for item in bloco.itens.all %}
-          <div class="sca-bloco-item">
-            <div class="sca-check {% if item.is_done %}checked{% endif %}"><i class="bi bi-check"></i></div>
-            <span {% if item.is_done %}style="text-decoration:line-through;color:var(--text-muted)"{% endif %}>{{ item.conteudo }}</span>
+          <div class="sca-bloco-item" id="item-bloco-{{ item.id }}">
+            <div class="sca-check {% if item.is_done %}checked{% endif %}"
+                 onclick="toggleItemBloco({{ item.id }}, this)">
+              <i class="bi bi-check"></i>
+            </div>
+            <span id="texto-item-{{ item.id }}"
+                  style="cursor:pointer;{% if item.is_done %}text-decoration:line-through;color:var(--text-muted){% endif %}"
+                  onclick="abrirModalItem({{ item.id }})">
+              {{ item.conteudo }}
+            </span>
+            <i class="bi bi-x sca-item-excluir" onclick="excluirItemBloco({{ item.id }})"></i>
           </div>
+          {% empty %}
+          <small class="text-muted" style="font-size:0.62rem;" id="vazio-bloco-{{ bloco.id }}">Nenhum item.</small>
           {% endfor %}
         </div>
-        {% endfor %}
-      {% endif %}
+
+        <div class="sca-bloco-input" id="input-bloco-{{ bloco.id }}">
+          <input type="text" placeholder="Novo item..." id="texto-novo-{{ bloco.id }}"
+                 onkeydown="if(event.key==='Enter') salvarItemBloco({{ bloco.id }})">
+          <button onclick="salvarItemBloco({{ bloco.id }})"><i class="bi bi-check"></i></button>
+        </div>
+      </div>
+      {% endfor %}
     </div>
 
     <!-- ─── COLUNA DIREITA ─── -->
@@ -454,7 +475,10 @@
           <div class="sca-divisao-secao">Tarefas de hoje</div>
           {% for tarefa in funcionario.tarefas_modelo.all %}
             {% if tarefa.ativo and tarefa.dia_da_semana == dia_atual %}
-            <div class="sca-divisao-item">{{ tarefa.titulo }}</div>
+            <div class="sca-divisao-item">
+              <i class="bi bi-circle" style="font-size:0.5rem;color:var(--gold-dark);flex-shrink:0;margin-top:2px;"></i>
+              {{ tarefa.titulo }}
+            </div>
             {% endif %}
           {% empty %}
             <small class="text-muted">Nenhuma tarefa hoje.</small>
@@ -468,14 +492,72 @@
   </div>
 </div>
 
+<!-- ─── MODAL DE ITEM DO BLOCO ─── -->
+<div class="modal fade" id="modalItemBloco" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modal-item-titulo">Carregando...</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-secao-titulo">Detalhes</div>
+        <div class="mb-3">
+          <label class="form-label-sca">Conteúdo</label>
+          <textarea id="modal-item-conteudo" class="form-control form-control-sca" rows="2"></textarea>
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col">
+            <label class="form-label-sca">Responsável</label>
+            <select id="modal-item-responsavel" class="form-control form-control-sca">
+              <option value="">— Nenhum —</option>
+              {% for funcionario in funcionarios %}
+              <option value="{{ funcionario.id }}">{{ funcionario.nome }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col">
+            <label class="form-label-sca">Prazo</label>
+            <input type="date" id="modal-item-prazo" class="form-control form-control-sca">
+          </div>
+        </div>
+        <div class="mb-3 d-flex align-items-center gap-2">
+          <input type="checkbox" id="modal-item-fixo" style="accent-color:var(--gold);width:14px;height:14px;">
+          <label class="form-label-sca mb-0" for="modal-item-fixo">Item fixo — carregar para a semana seguinte</label>
+        </div>
+        <div class="modal-meta">
+          <div class="modal-meta-item"><label>Criado por</label><span id="modal-item-criado-por">—</span></div>
+          <div class="modal-meta-item"><label>Criado em</label><span id="modal-item-criado-em">—</span></div>
+        </div>
+        <div class="d-flex justify-content-end mb-3">
+          <button class="btn btn-sm"
+            style="background:var(--gold-dark);color:var(--gold);font-weight:700;"
+            onclick="salvarItemModal()">
+            <i class="bi bi-floppy me-1"></i>Salvar alterações
+          </button>
+        </div>
+        <div class="modal-secao-titulo">Comentários</div>
+        <div id="modal-item-comentarios"></div>
+        <div class="mt-2">
+          <textarea class="form-control form-control-sca" id="modal-item-novo-comentario"
+            rows="2" placeholder="Adicionar comentário..."></textarea>
+          <button class="btn btn-sm mt-2"
+            style="background:var(--gold-dark);color:var(--gold);font-weight:700;"
+            onclick="enviarComentarioItem()">
+            <i class="bi bi-send me-1"></i>Adicionar Comentário
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ─── MODAL DE CRIAÇÃO DE TAREFA ─── -->
 <div class="modal fade" id="modalCriarTarefa" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">
-          <i class="bi bi-plus-circle me-2"></i>Nova Tarefa
-        </h5>
+        <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Nova Tarefa</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
@@ -541,7 +623,7 @@
   </div>
 </div>
 
-<!-- ─── MODAL DE DETALHES ─── -->
+<!-- ─── MODAL DE DETALHES DA TAREFA ─── -->
 <div class="modal fade" id="modalTarefa" tabindex="-1">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
@@ -581,9 +663,10 @@
 <script>
   const CSRF = '{{ csrf_token }}';
   let execucaoAtualId = null;
+  let itemAtualId = null;
   let tipoTarefaSelecionado = 'avulsa';
 
-  // ── Modal de detalhes ──
+  // ── Modal de detalhes da tarefa ──
   function abrirModal(execucaoId) {
     execucaoAtualId = execucaoId;
     document.getElementById('modal-titulo').textContent = 'Carregando...';
@@ -596,23 +679,17 @@
         if (data.descricao) { descEl.textContent = data.descricao; descEl.style.display = 'block'; }
         else { descEl.style.display = 'none'; }
         document.getElementById('modal-status').innerHTML = `<span class="badge-status badge-${data.status.toLowerCase()}">${data.status}</span>`;
-        document.getElementById('modal-dia').textContent          = data.dia;
-        document.getElementById('modal-responsavel').textContent   = data.responsavel;
-        document.getElementById('modal-periodo').textContent      = data.periodo;
-        document.getElementById('modal-prazo').textContent        = data.prazo || '—';
-        document.getElementById('modal-concluido-por').textContent = data.concluido_por || '—';
-        document.getElementById('modal-concluido-em').textContent  = data.concluido_em  || '—';
-        document.getElementById('modal-atualizado').textContent   = data.atualizado_por ? `${data.atualizado_por} · ${data.atualizado_em}` : '—';
+        document.getElementById('modal-dia').textContent           = data.dia;
+        document.getElementById('modal-responsavel').textContent    = data.responsavel;
+        document.getElementById('modal-periodo').textContent       = data.periodo;
+        document.getElementById('modal-prazo').textContent         = data.prazo || '—';
+        document.getElementById('modal-concluido-por').textContent  = data.concluido_por || '—';
+        document.getElementById('modal-concluido-em').textContent   = data.concluido_em  || '—';
+        document.getElementById('modal-atualizado').textContent    = data.atualizado_por ? `${data.atualizado_por} · ${data.atualizado_em}` : '—';
         renderizarComentarios(data.comentarios);
         document.getElementById('novo-comentario').value = '';
-
-        // Remove badge de não lidos do card
         const card = document.querySelector(`.sca-tarefa[data-id="${execucaoId}"]`);
-        if (card) {
-          const badge = card.querySelector('.badge-comentario');
-          if (badge) badge.remove();
-        }
-
+        if (card) { const badge = card.querySelector('.badge-comentario'); if (badge) badge.remove(); }
         new bootstrap.Modal(document.getElementById('modalTarefa')).show();
       });
   }
@@ -650,21 +727,32 @@
   function toggleTarefa(execucaoId, el) {
     event.stopPropagation();
     fetch(`/controle-administrativo/execucao/${execucaoId}/toggle/`, {
-      method: 'POST',
-      headers: { 'X-CSRFToken': CSRF },
+      method: 'POST', headers: { 'X-CSRFToken': CSRF },
     }).then(r => r.json()).then(data => {
       if (!data.success) return;
-      const check = el;
-      const card  = check.closest('.sca-tarefa');
-      check.classList.toggle('checked', data.is_done);
-      card.classList.toggle('concluida', data.is_done);
+      el.classList.toggle('checked', data.is_done);
+      el.closest('.sca-tarefa').classList.toggle('concluida', data.is_done);
       document.getElementById('progress-bar').style.width = data.percentual + '%';
       document.getElementById('pct-label').textContent    = data.percentual + '%';
       document.getElementById('pct-detalhe').textContent  = `(${data.concluidas}/${data.total})`;
     });
   }
 
-  // ── Modal de criação ──
+  function excluirTarefa(execucaoId, el) {
+    event.stopPropagation();
+    if (!confirm('Excluir esta tarefa?')) return;
+    fetch(`/controle-administrativo/execucao/${execucaoId}/excluir/`, {
+      method: 'POST', headers: { 'X-CSRFToken': CSRF },
+    }).then(r => r.json()).then(data => {
+      if (!data.success) { alert(data.error); return; }
+      el.closest('.sca-tarefa').remove();
+      document.getElementById('progress-bar').style.width = data.percentual + '%';
+      document.getElementById('pct-label').textContent    = data.percentual + '%';
+      document.getElementById('pct-detalhe').textContent  = `(${data.concluidas}/${data.total})`;
+    });
+  }
+
+  // ── Modal de criação de tarefa ──
   function selecionarTipo(tipo) {
     tipoTarefaSelecionado = tipo;
     document.getElementById('btn-tipo-avulsa').classList.toggle('active', tipo === 'avulsa');
@@ -688,51 +776,143 @@
     const periodo       = document.getElementById('criar-periodo').value;
     const responsavelId = document.getElementById('criar-responsavel').value;
     const erroEl        = document.getElementById('criar-erro');
-
-    if (!titulo) {
-      erroEl.textContent   = 'O título é obrigatório.';
-      erroEl.style.display = 'block';
-      return;
-    }
-
+    if (!titulo) { erroEl.textContent = 'O título é obrigatório.'; erroEl.style.display = 'block'; return; }
     erroEl.style.display = 'none';
-
-    const body = new URLSearchParams({
-      titulo, descricao, dia, periodo,
-      responsavel_id: responsavelId,
-      tipo: tipoTarefaSelecionado,
-    });
-
+    const body = new URLSearchParams({ titulo, descricao, dia, periodo, responsavel_id: responsavelId, tipo: tipoTarefaSelecionado });
     fetch('/controle-administrativo/execucao/criar/', {
       method: 'POST',
       headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),
     }).then(r => r.json()).then(data => {
-      if (!data.success) {
-        erroEl.textContent   = data.error;
-        erroEl.style.display = 'block';
-        return;
-      }
+      if (!data.success) { erroEl.textContent = data.error; erroEl.style.display = 'block'; return; }
       bootstrap.Modal.getInstance(document.getElementById('modalCriarTarefa')).hide();
       window.location.reload();
     });
   }
 
-  // ── Excluir tarefa ──
-  function excluirTarefa(execucaoId, el) {
-    event.stopPropagation();
-    if (!confirm('Excluir esta tarefa?')) return;
+  // ── Blocos especiais ──
+  function toggleInputBloco(blocoId) {
+    const el = document.getElementById(`input-bloco-${blocoId}`);
+    el.classList.toggle('ativo');
+    if (el.classList.contains('ativo')) {
+      document.getElementById(`texto-novo-${blocoId}`).focus();
+    }
+  }
 
-    fetch(`/controle-administrativo/execucao/${execucaoId}/excluir/`, {
+  function salvarItemBloco(blocoId) {
+    const input    = document.getElementById(`texto-novo-${blocoId}`);
+    const conteudo = input.value.trim();
+    if (!conteudo) return;
+    fetch(`/controle-administrativo/bloco/${blocoId}/item/adicionar/`, {
       method: 'POST',
-      headers: { 'X-CSRFToken': CSRF },
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `conteudo=${encodeURIComponent(conteudo)}`
     }).then(r => r.json()).then(data => {
       if (!data.success) { alert(data.error); return; }
-      const card = el.closest('.sca-tarefa');
-      card.remove();
-      document.getElementById('progress-bar').style.width = data.percentual + '%';
-      document.getElementById('pct-label').textContent    = data.percentual + '%';
-      document.getElementById('pct-detalhe').textContent  = `(${data.concluidas}/${data.total})`;
+      const container = document.getElementById(`itens-bloco-${blocoId}`);
+      const vazio     = document.getElementById(`vazio-bloco-${blocoId}`);
+      if (vazio) vazio.remove();
+      container.innerHTML += `
+        <div class="sca-bloco-item" id="item-bloco-${data.id}">
+          <div class="sca-check" onclick="toggleItemBloco(${data.id}, this)">
+            <i class="bi bi-check"></i>
+          </div>
+          <span id="texto-item-${data.id}" style="cursor:pointer;" onclick="abrirModalItem(${data.id})">${data.conteudo}</span>
+          <i class="bi bi-x sca-item-excluir" onclick="excluirItemBloco(${data.id})"></i>
+        </div>`;
+      input.value = '';
+      document.getElementById(`input-bloco-${blocoId}`).classList.remove('ativo');
+    });
+  }
+
+  function toggleItemBloco(itemId, el) {
+    fetch(`/controle-administrativo/bloco/item/${itemId}/toggle/`, {
+      method: 'POST', headers: { 'X-CSRFToken': CSRF },
+    }).then(r => r.json()).then(data => {
+      if (!data.success) return;
+      el.classList.toggle('checked', data.is_done);
+      const texto = document.getElementById(`texto-item-${itemId}`);
+      texto.style.textDecoration = data.is_done ? 'line-through' : '';
+      texto.style.color          = data.is_done ? 'var(--text-muted)' : '';
+    });
+  }
+
+  function excluirItemBloco(itemId) {
+    fetch(`/controle-administrativo/bloco/item/${itemId}/excluir/`, {
+      method: 'POST', headers: { 'X-CSRFToken': CSRF },
+    }).then(r => r.json()).then(data => {
+      if (!data.success) { alert(data.error); return; }
+      document.getElementById(`item-bloco-${itemId}`).remove();
+    });
+  }
+
+  // ── Modal do item do bloco ──
+  function abrirModalItem(itemId) {
+    itemAtualId = itemId;
+    document.getElementById('modal-item-titulo').textContent = 'Carregando...';
+    fetch(`/controle-administrativo/bloco/item/${itemId}/detalhe/`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.success) return;
+        document.getElementById('modal-item-titulo').textContent     = data.conteudo;
+        document.getElementById('modal-item-conteudo').value         = data.conteudo;
+        document.getElementById('modal-item-prazo').value            = data.prazo;
+        document.getElementById('modal-item-responsavel').value      = data.responsavel_id;
+        document.getElementById('modal-item-fixo').checked           = data.is_fixo;
+        document.getElementById('modal-item-criado-por').textContent = data.criado_por;
+        document.getElementById('modal-item-criado-em').textContent  = data.criado_em;
+        document.getElementById('modal-item-novo-comentario').value  = '';
+        renderizarComentariosItem(data.comentarios);
+        new bootstrap.Modal(document.getElementById('modalItemBloco')).show();
+      });
+  }
+
+  function renderizarComentariosItem(comentarios) {
+    const el = document.getElementById('modal-item-comentarios');
+    if (!comentarios.length) { el.innerHTML = '<small class="text-muted">Nenhum comentário ainda.</small>'; return; }
+    el.innerHTML = comentarios.map(c => `
+      <div class="comentario-item">
+        <div class="d-flex justify-content-between">
+          <span class="comentario-autor">${c.autor}</span>
+          <span class="comentario-data">${c.criado_em}</span>
+        </div>
+        <div class="comentario-texto">${c.conteudo}</div>
+      </div>`).join('');
+  }
+
+  function salvarItemModal() {
+    const conteudo      = document.getElementById('modal-item-conteudo').value.trim();
+    const responsavelId = document.getElementById('modal-item-responsavel').value;
+    const prazo         = document.getElementById('modal-item-prazo').value;
+    const isFixo        = document.getElementById('modal-item-fixo').checked;
+    const body = new URLSearchParams({ conteudo, responsavel_id: responsavelId, prazo, is_fixo: isFixo.toString() });
+    fetch(`/controle-administrativo/bloco/item/${itemAtualId}/atualizar/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    }).then(r => r.json()).then(data => {
+      if (!data.success) { alert(data.error); return; }
+      document.getElementById('modal-item-titulo').textContent = data.conteudo;
+      const textoEl = document.getElementById(`texto-item-${itemAtualId}`);
+      if (textoEl) textoEl.textContent = data.conteudo;
+      bootstrap.Modal.getInstance(document.getElementById('modalItemBloco')).hide();
+    });
+  }
+
+  function enviarComentarioItem() {
+    const conteudo = document.getElementById('modal-item-novo-comentario').value.trim();
+    if (!conteudo) return;
+    fetch(`/controle-administrativo/bloco/item/${itemAtualId}/comentario/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `conteudo=${encodeURIComponent(conteudo)}`
+    }).then(r => r.json()).then(data => {
+      if (!data.success) return;
+      document.getElementById('modal-item-novo-comentario').value = '';
+      const el  = document.getElementById('modal-item-comentarios');
+      const novo = `<div class="comentario-item"><div class="d-flex justify-content-between"><span class="comentario-autor">${data.autor}</span><span class="comentario-data">${data.criado_em}</span></div><div class="comentario-texto">${data.conteudo}</div></div>`;
+      if (el.querySelector('small')) el.innerHTML = '';
+      el.innerHTML += novo;
     });
   }
 </script>

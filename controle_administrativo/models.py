@@ -377,8 +377,24 @@ class ItemBlocoSemanal(models.Model):
         verbose_name='Item fixo',
         help_text='Itens fixos são copiados automaticamente para a semana seguinte'
     )
-    is_done  = models.BooleanField(default=False, verbose_name='Concluído')
-    ordem    = models.PositiveIntegerField(default=0, verbose_name='Ordem')
+    is_done      = models.BooleanField(default=False, verbose_name='Concluído')
+    ordem        = models.PositiveIntegerField(default=0, verbose_name='Ordem')
+    responsavel  = models.ForeignKey(
+        FuncionarioAdministrativo,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='itens_bloco',
+        verbose_name='Responsável'
+    )
+    prazo        = models.DateField(null=True, blank=True, verbose_name='Prazo')
+    criado_em    = models.DateTimeField(auto_now_add=True)
+    criado_por   = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='itens_bloco_criados',
+        verbose_name='Criado por'
+    )
 
     class Meta:
         verbose_name = 'Item do Bloco'
@@ -387,3 +403,33 @@ class ItemBlocoSemanal(models.Model):
 
     def __str__(self):
         return f"{self.conteudo[:50]}"
+    
+
+# ─────────────────────────────────────────
+# COMENTÁRIO DO ITEM DO BLOCO
+# ─────────────────────────────────────────
+
+class ComentarioItemBloco(models.Model):
+    item = models.ForeignKey(
+        ItemBlocoSemanal,
+        on_delete=models.CASCADE,
+        related_name='comentarios',
+        verbose_name='Item'
+    )
+    autor = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='comentarios_itens_bloco',
+        verbose_name='Autor'
+    )
+    conteudo  = models.TextField(verbose_name='Comentário')
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Comentário de Item'
+        verbose_name_plural = 'Comentários de Itens'
+        ordering = ['criado_em']
+
+    def __str__(self):
+        return f"{self.autor} — {self.conteudo[:50]}"

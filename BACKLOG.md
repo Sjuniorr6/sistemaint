@@ -26,12 +26,12 @@ M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → M10
 > Concluído em 2026-05-13
 
 - [x] Escrever todos os models em `models.py`
-  - [x] `FuncionarioAdministrativo`
-  - [x] `CategoriaTarefaAdministrativa`
-  - [x] `TarefaModeloAdministrativa`
-  - [x] `ExecucaoTarefaAdministrativa`
-  - [x] `BlocoSemanal`
-  - [x] `ItemBlocoSemanal`
+- [x] `FuncionarioAdministrativo`
+- [x] `CategoriaTarefaAdministrativa`
+- [x] `TarefaModeloAdministrativa`
+- [x] `ExecucaoTarefaAdministrativa`
+- [x] `BlocoSemanal`
+- [x] `ItemBlocoSemanal`
 - [x] Registrar todos no `admin.py`
 - [x] Rodar `makemigrations`
 - [x] Revisar o arquivo de migration gerado
@@ -63,12 +63,12 @@ M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → M10
 
 ## 🔄 MÓDULO 4 — Blocos especiais
 > Em andamento
-- [ ] Adicionar/excluir itens no bloco Não Esquecer
-- [ ] Adicionar/excluir itens no bloco Diário
-- [ ] Adicionar/excluir itens no bloco Observação
+- [ ] Botão de Adicionar/excluir itens no bloco Não Esquecer
+- [ ] Botão de Adicionar/excluir itens no bloco Diário
+- [ ] Botão de Adicionar/excluir itens no bloco Observação
 - [ ] Checkbox por item nos blocos
-- [ ] Adicionar/excluir tarefas na divisão do André
-- [ ] Adicionar/excluir tarefas na divisão da Rafa
+- [ ] Botão de Adicionar/excluir tarefas na divisão do André
+- [ ] Botão de Adicionar/excluir tarefas na divisão da Rafa
 - [ ] Conteúdo isolado por semana
 - [ ] Bloco "Importantes / Não Esquecer"
 - [ ] Bloco "Diário"

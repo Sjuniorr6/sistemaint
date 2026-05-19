@@ -8,6 +8,7 @@ from .models import (
     LeituraComentario,
     BlocoSemanal,
     ItemBlocoSemanal,
+    ComentarioItemBloco,
 )
 
 
@@ -82,3 +83,11 @@ class ItemBlocoSemanalAdmin(admin.ModelAdmin):
     list_display  = ['conteudo', 'bloco', 'is_fixo', 'is_done', 'ordem']
     list_filter   = ['is_fixo', 'is_done']
     search_fields = ['conteudo']
+
+
+@admin.register(ComentarioItemBloco)
+class ComentarioItemBlocoAdmin(admin.ModelAdmin):
+    list_display    = ['autor', 'item', 'conteudo', 'criado_em']
+    list_filter     = ['autor']
+    search_fields   = ['conteudo']
+    readonly_fields = ['criado_em']

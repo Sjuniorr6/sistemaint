@@ -132,3 +132,120 @@ def excluir_execucao(execucao_id, user):
         execucao.status = StatusExecucao.CANCELADA
         execucao.atualizado_por = user
         execucao.save()
+
+def gerar_blocos_semana(semana_iso, ano, user):
+    """
+    Garante que os 3 blocos da semana existem.
+    Idempotente — se já existem, não cria novamente.
+    """
+    from .models import BlocoSemanal, TipoBloco
+
+    for tipo in [TipoBloco.NAO_ESQUECER, TipoBloco.DIARIO, TipoBloco.OBSERVACAO]:
+        BlocoSemanal.objects.get_or_create(
+            tipo=tipo,
+            semana_iso=semana_iso,
+            ano=ano,
+            defaults={'criado_por': user}
+        )
+
+
+def adicionar_item_bloco(bloco_id, conteudo, is_fixo=False, user=None):
+    """Adiciona um item a um bloco semanal."""
+    from .models import BlocoSemanal, ItemBlocoSemanal
+
+    try:
+        bloco = BlocoSemanal.objects.get(id=bloco_id)
+    except BlocoSemanal.DoesNotExist:
+        raise ValueError('Bloco não encontrado.')
+
+    if not conteudo.strip():
+        raise ValueError('O conteúdo não pode ser vazio.')
+
+    ultimo = bloco.itens.order_by('-ordem').first()
+    ordem  = (ultimo.ordem + 1) if ultimo else 0
+
+    item = ItemBlocoSemanal.objects.create(
+        bloco    = bloco,
+        conteudo = conteudo.strip(),
+        is_fixo  = is_fixo,
+        is_done  = False,
+        ordem    = ordem,
+        criado_por = user,
+    )
+    return item
+
+
+def toggle_item_bloco(item_id):
+    """Marca ou desmarca um item do bloco como concluído."""
+    from .models import ItemBlocoSemanal
+
+    try:
+        item = ItemBlocoSemanal.objects.get(id=item_id)
+    except ItemBlocoSemanal.DoesNotExist:
+        raise ValueError('Item não encontrado.')
+
+    item.is_done = not item.is_done
+    item.save()
+    return item
+
+
+def excluir_item_bloco(item_id):
+    """Exclui um item de um bloco semanal."""
+    from .models import ItemBlocoSemanal
+
+    try:
+        item = ItemBlocoSemanal.objects.get(id=item_id)
+    except ItemBlocoSemanal.DoesNotExist:
+        raise ValueError('Item não encontrado.')
+
+    item.delete()
+
+def adicionar_comentario_item_bloco(item_id, conteudo, user):
+    """Adiciona comentário a um item do bloco."""
+    from .models import ItemBlocoSemanal, ComentarioItemBloco
+
+    try:
+        item = ItemBlocoSemanal.objects.get(id=item_id)
+    except ItemBlocoSemanal.DoesNotExist:
+        raise ValueError('Item não encontrado.')
+
+    if not conteudo.strip():
+        raise ValueError('Comentário não pode ser vazio.')
+
+    comentario = ComentarioItemBloco.objects.create(
+        item=item,
+        autor=user,
+        conteudo=conteudo.strip(),
+    )
+    return comentario
+
+
+def atualizar_item_bloco(item_id, conteudo=None, responsavel_id=None, prazo=None, is_fixo=None):
+    """Atualiza dados de um item do bloco."""
+    from .models import ItemBlocoSemanal, FuncionarioAdministrativo
+
+    try:
+        item = ItemBlocoSemanal.objects.get(id=item_id)
+    except ItemBlocoSemanal.DoesNotExist:
+        raise ValueError('Item não encontrado.')
+
+    if conteudo is not None:
+        item.conteudo = conteudo.strip()
+
+    if responsavel_id is not None:
+        if responsavel_id == '':
+            item.responsavel = None
+        else:
+            try:
+                item.responsavel = FuncionarioAdministrativo.objects.get(id=responsavel_id)
+            except FuncionarioAdministrativo.DoesNotExist:
+                raise ValueError('Responsável não encontrado.')
+
+    if prazo is not None:
+        item.prazo = prazo if prazo else None
+
+    if is_fixo is not None:
+        item.is_fixo = is_fixo
+
+    item.save()
+    return item

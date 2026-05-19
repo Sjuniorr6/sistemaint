@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.utils import timezone
+import zoneinfo
 
 from .models import (
     ExecucaoTarefaAdministrativa,
@@ -20,10 +21,16 @@ from .selectors import (
 )
 from .services import (
     gerar_execucoes_semana,
+    gerar_blocos_semana,
     criar_tarefa_avulsa,
     criar_tarefa_recorrente,
     marcar_comentarios_lidos,
     excluir_execucao,
+    adicionar_item_bloco,
+    toggle_item_bloco,
+    excluir_item_bloco,
+    adicionar_comentario_item_bloco,
+    atualizar_item_bloco,
 )
 
 
@@ -31,6 +38,7 @@ from .services import (
 def painel(request):
     semana_iso, ano = get_semana_atual()
     gerar_execucoes_semana(semana_iso, ano)
+    gerar_blocos_semana(semana_iso, ano, request.user)
 
     execucoes    = get_execucoes_da_semana(semana_iso, ano, user=request.user)
     blocos       = get_blocos_da_semana(semana_iso, ano)
@@ -218,6 +226,119 @@ def excluir_tarefa(request, execucao_id):
             'percentual': resumo['percentual'],
             'concluidas': resumo['concluidas'],
             'total':      resumo['total'],
+        })
+    except ValueError as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+@require_POST
+def adicionar_item_bloco_view(request, bloco_id):
+    conteudo = request.POST.get('conteudo', '').strip()
+    is_fixo  = request.POST.get('is_fixo', 'false') == 'true'
+
+    try:
+        item = adicionar_item_bloco(bloco_id, conteudo, is_fixo, user=request.user)
+        return JsonResponse({
+            'success':  True,
+            'id':       item.id,
+            'conteudo': item.conteudo,
+            'is_fixo':  item.is_fixo,
+            'is_done':  item.is_done,
+        })
+    except ValueError as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@require_POST
+def toggle_item_bloco_view(request, item_id):
+    try:
+        item = toggle_item_bloco(item_id)
+        return JsonResponse({'success': True, 'is_done': item.is_done})
+    except ValueError as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@require_POST
+def excluir_item_bloco_view(request, item_id):
+    try:
+        excluir_item_bloco(item_id)
+        return JsonResponse({'success': True})
+    except ValueError as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+def detalhe_item_bloco(request, item_id):
+    """Retorna dados completos de um item do bloco para o modal."""
+    from .models import ItemBlocoSemanal
+    try:
+        item = ItemBlocoSemanal.objects.select_related(
+            'responsavel', 'criado_por'
+        ).prefetch_related('comentarios', 'comentarios__autor').get(id=item_id)
+    except ItemBlocoSemanal.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Item não encontrado.'})
+
+    comentarios = [
+        {
+            'id':        c.id,
+            'autor':     c.autor.get_full_name() or c.autor.username if c.autor else 'Desconhecido',
+            'conteudo':  c.conteudo,
+            'criado_em':   timezone.localtime(item.criado_em).strftime('%d/%m/%Y às %H:%M'),
+        }
+        for c in item.comentarios.all()
+    ]
+
+    return JsonResponse({
+        'success':     True,
+        'id':          item.id,
+        'conteudo':    item.conteudo,
+        'is_fixo':     item.is_fixo,
+        'is_done':     item.is_done,
+        'prazo':       item.prazo.strftime('%Y-%m-%d') if item.prazo else '',
+        'prazo_fmt':   item.prazo.strftime('%d/%m/%Y') if item.prazo else '—',
+        'responsavel_id':   item.responsavel.id if item.responsavel else '',
+        'responsavel_nome': item.responsavel.nome if item.responsavel else '—',
+        'criado_por':  item.criado_por.get_full_name() or item.criado_por.username if item.criado_por else '—',
+        'criado_em':   timezone.localtime(item.criado_em).strftime('%d/%m/%Y às %H:%M'),
+        'comentarios': comentarios,
+    })
+
+
+@login_required
+@require_POST
+def atualizar_item_bloco_view(request, item_id):
+    """Atualiza conteúdo, responsável, prazo e is_fixo de um item."""
+    conteudo      = request.POST.get('conteudo', '').strip() or None
+    responsavel_id = request.POST.get('responsavel_id', None)
+    prazo         = request.POST.get('prazo', None)
+    is_fixo_str   = request.POST.get('is_fixo', None)
+    is_fixo       = (is_fixo_str == 'true') if is_fixo_str is not None else None
+
+    try:
+        item = atualizar_item_bloco(item_id, conteudo, responsavel_id, prazo, is_fixo)
+        return JsonResponse({
+            'success':  True,
+            'conteudo': item.conteudo,
+            'is_fixo':  item.is_fixo,
+        })
+    except ValueError as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@require_POST
+def adicionar_comentario_item_bloco_view(request, item_id):
+    """Adiciona comentário a um item do bloco."""
+    conteudo = request.POST.get('conteudo', '').strip()
+    try:
+        comentario = adicionar_comentario_item_bloco(item_id, conteudo, request.user)
+        return JsonResponse({
+            'success':   True,
+            'id':        comentario.id,
+            'autor':     comentario.autor.get_full_name() or comentario.autor.username,
+            'conteudo':  comentario.conteudo,
+            'criado_em': comentario.criado_em.strftime('%d/%m/%Y às %H:%M'),
         })
     except ValueError as e:
         return JsonResponse({'success': False, 'error': str(e)})
