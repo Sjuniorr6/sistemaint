@@ -37,6 +37,15 @@ from .services import (
     excluir_tarefa_divisao,
 )
 
+def _pode_editar(request):
+    """Retorna True se o usuário pode editar — admin ou operador."""
+    if request.user.is_superuser:
+        return True
+    try:
+        func = FuncionarioAdministrativo.objects.get(usuario=request.user)
+        return func.perfil == 'operador'
+    except FuncionarioAdministrativo.DoesNotExist:
+        return False
 
 @login_required
 def painel(request):
@@ -63,15 +72,25 @@ def painel(request):
             'tarefas_divisao': tarefas,
         })
 
+    # Define perfil do usuário logado
+    perfil_usuario = 'admin'
+    if not request.user.is_superuser:
+        try:
+            func = FuncionarioAdministrativo.objects.get(usuario=request.user)
+            perfil_usuario = func.perfil
+        except FuncionarioAdministrativo.DoesNotExist:
+            perfil_usuario = 'visitante'
+
     context = {
-        'execucoes':               execucoes,
-        'blocos':                  blocos,
-        'funcionarios':            funcionarios,
+        'execucoes':                execucoes,
+        'blocos':                   blocos,
+        'funcionarios':             funcionarios,
         'funcionarios_com_tarefas': funcionarios_com_tarefas,
-        'resumo':                  resumo,
-        'dia_atual':               dia_atual,
-        'semana_iso':              semana_iso,
-        'ano':                     ano,
+        'resumo':                   resumo,
+        'dia_atual':                dia_atual,
+        'semana_iso':               semana_iso,
+        'ano':                      ano,
+        'perfil_usuario':           perfil_usuario,
         'dias': [
             ('segunda', 'Segunda-feira'),
             ('terca',   'Terça-feira'),
@@ -86,6 +105,8 @@ def painel(request):
 @login_required
 @require_POST
 def toggle_execucao(request, execucao_id):
+    if not _pode_editar(request):
+        return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
     execucao = get_object_or_404(ExecucaoTarefaAdministrativa, id=execucao_id)
     execucao.is_done = not execucao.is_done
 
@@ -117,6 +138,8 @@ def toggle_execucao(request, execucao_id):
 @login_required
 @require_POST
 def adicionar_comentario(request, execucao_id):
+    if not _pode_editar(request):
+        return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
     execucao = get_object_or_404(ExecucaoTarefaAdministrativa, id=execucao_id)
     conteudo = request.POST.get('conteudo', '').strip()
 
@@ -188,6 +211,8 @@ def detalhe_execucao(request, execucao_id):
 @login_required
 @require_POST
 def criar_tarefa(request):
+    if not _pode_editar(request):
+        return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
     titulo         = request.POST.get('titulo', '').strip()
     dia            = request.POST.get('dia', '').strip()
     periodo        = request.POST.get('periodo', '').strip()
@@ -222,6 +247,8 @@ def criar_tarefa(request):
 @login_required
 @require_POST
 def excluir_tarefa(request, execucao_id):
+    if not _pode_editar(request):
+        return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
     try:
         excluir_execucao(execucao_id, request.user)
         semana_iso, ano = get_semana_atual()
@@ -239,6 +266,8 @@ def excluir_tarefa(request, execucao_id):
 @login_required
 @require_POST
 def adicionar_item_bloco_view(request, bloco_id):
+    if not _pode_editar(request):
+        return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
     conteudo = request.POST.get('conteudo', '').strip()
     is_fixo  = request.POST.get('is_fixo', 'false') == 'true'
     try:
@@ -257,6 +286,8 @@ def adicionar_item_bloco_view(request, bloco_id):
 @login_required
 @require_POST
 def toggle_item_bloco_view(request, item_id):
+    if not _pode_editar(request):
+        return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
     try:
         item = toggle_item_bloco(item_id)
         return JsonResponse({'success': True, 'is_done': item.is_done})
@@ -267,6 +298,8 @@ def toggle_item_bloco_view(request, item_id):
 @login_required
 @require_POST
 def excluir_item_bloco_view(request, item_id):
+    if not _pode_editar(request):
+        return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
     try:
         excluir_item_bloco(item_id)
         return JsonResponse({'success': True})
@@ -313,6 +346,8 @@ def detalhe_item_bloco(request, item_id):
 @login_required
 @require_POST
 def atualizar_item_bloco_view(request, item_id):
+    if not _pode_editar(request):
+        return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
     conteudo       = request.POST.get('conteudo', '').strip() or None
     responsavel_id = request.POST.get('responsavel_id', None)
     prazo          = request.POST.get('prazo', None)
@@ -329,6 +364,8 @@ def atualizar_item_bloco_view(request, item_id):
 @login_required
 @require_POST
 def adicionar_comentario_item_bloco_view(request, item_id):
+    if not _pode_editar(request):
+        return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
     conteudo = request.POST.get('conteudo', '').strip()
     try:
         comentario = adicionar_comentario_item_bloco(item_id, conteudo, request.user)
@@ -346,6 +383,8 @@ def adicionar_comentario_item_bloco_view(request, item_id):
 @login_required
 @require_POST
 def adicionar_tarefa_divisao_view(request, funcionario_id):
+    if not _pode_editar(request):
+        return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
     conteudo = request.POST.get('conteudo', '').strip()
     semana_iso, ano = get_semana_atual()
     try:
@@ -358,6 +397,8 @@ def adicionar_tarefa_divisao_view(request, funcionario_id):
 @login_required
 @require_POST
 def editar_tarefa_divisao_view(request, tarefa_id):
+    if not _pode_editar(request):
+        return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
     conteudo = request.POST.get('conteudo', '').strip()
     try:
         tarefa = editar_tarefa_divisao(tarefa_id, conteudo)
@@ -369,6 +410,8 @@ def editar_tarefa_divisao_view(request, tarefa_id):
 @login_required
 @require_POST
 def excluir_tarefa_divisao_view(request, tarefa_id):
+    if not _pode_editar(request):
+        return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
     try:
         excluir_tarefa_divisao(tarefa_id)
         return JsonResponse({'success': True})

@@ -409,9 +409,11 @@
             {% elif bloco.tipo == 'diario' %}<i class="bi bi-journal-text me-1"></i>Diário
             {% else %}<i class="bi bi-chat-left-text me-1"></i>Observação{% endif %}
           </span>
+          {% if perfil_usuario != 'gestor' %}
           <button class="btn-add-bloco" onclick="toggleInputBloco({{ bloco.id }})" title="Adicionar item">
             <i class="bi bi-plus-lg"></i>
           </button>
+          {% endif %}
         </div>
 
         <div id="itens-bloco-{{ bloco.id }}">
@@ -461,9 +463,11 @@
           {% elif dia_key == 'quinta' %}{% for execucao in execucoes.quinta.manha %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
           {% elif dia_key == 'sexta' %}{% for execucao in execucoes.sexta.manha %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}{% endif %}
 
+          {% if perfil_usuario != 'gestor' %}
           <button class="btn-add-tarefa" onclick="abrirModalCriar('{{ dia_key }}', 'manha')">
             <i class="bi bi-plus"></i> tarefa
           </button>
+          {% endif %}
 
           <div class="sca-periodo-titulo"><i class="bi bi-moon-stars"></i> Tarde</div>
           {% if dia_key == 'segunda' %}{% for execucao in execucoes.segunda.tarde %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
@@ -472,9 +476,11 @@
           {% elif dia_key == 'quinta' %}{% for execucao in execucoes.quinta.tarde %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
           {% elif dia_key == 'sexta' %}{% for execucao in execucoes.sexta.tarde %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}{% endif %}
 
+          {% if perfil_usuario != 'gestor' %}
           <button class="btn-add-tarefa" onclick="abrirModalCriar('{{ dia_key }}', 'tarde')">
             <i class="bi bi-plus"></i> tarefa
           </button>
+          {% endif %}
 
         </div>
         {% endfor %}
@@ -489,9 +495,11 @@
 
           <div class="sca-divisao-titulo">
             <span><i class="bi bi-person-fill me-1"></i> {{ item.funcionario.nome }}</span>
+            {% if perfil_usuario != 'gestor' %}
             <button class="btn-add-bloco" onclick="toggleInputDivisao({{ item.funcionario.id }})" title="Adicionar tarefa">
               <i class="bi bi-plus-lg"></i>
             </button>
+            {% endif %}
           </div>
 
           <div class="sca-divisao-secao">Tarefas de hoje</div>

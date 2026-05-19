@@ -1,7 +1,7 @@
 # Backlog — SCA (Sistema de Controle Administrativo)
 **Grupo Golden Sat — Sistema INT**
 
-> Última atualização: 2026-05-15
+> Última atualização: 2026-05-19
 
 ---
 
@@ -72,15 +72,17 @@ M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → M10
 - [x] Botão para adicionar novo item em cada bloco
 - [x] Comentários por item do bloco
 - [x] Conteúdo isolado por semana
-- [ ] Botão de adicionar/excluir tarefas na divisão do André *(ficou pendente)*
-- [ ] Botão de adicionar/excluir tarefas na divisão da Rafa *(ficou pendente)*
+- [x] Botão de adicionar/excluir tarefas na divisão do André *(ficou pendente)*
+- [x] Botão de adicionar/excluir tarefas na divisão da Rafa *(ficou pendente)*
 - [x] Commit: `feat(sca): blocos especiais com modal, comentarios e fuso horario`
+- [x] Commit: `feat(sca): divisao de tarefas semanal por funcionario`
 
 ---
 
-## ⏳ MÓDULO 5 — Permissões e segurança
+## 🔁 MÓDULO 5 — Permissões e segurança
+> Em andamento (iniciado em 2026-05-19)
 
-- [ ] `@login_required` em todas as views
+- [x] `@login_required` em todas as views
 - [ ] Perfil `operador` — Rafa e André — edita semana atual
 - [ ] Perfil `gestor` — Jefferson — somente leitura
 - [ ] Operador não edita semanas passadas
