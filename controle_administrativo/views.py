@@ -10,6 +10,7 @@ from .models import (
     ComentarioTarefa,
     FuncionarioAdministrativo,
     StatusExecucao,
+    TarefaDivisao,
 )
 from .selectors import (
     get_semana_atual,
@@ -31,6 +32,9 @@ from .services import (
     excluir_item_bloco,
     adicionar_comentario_item_bloco,
     atualizar_item_bloco,
+    adicionar_tarefa_divisao,
+    editar_tarefa_divisao,
+    excluir_tarefa_divisao,
 )
 
 
@@ -46,14 +50,28 @@ def painel(request):
     resumo       = get_resumo_semana(semana_iso, ano)
     dia_atual    = get_dia_atual()
 
+    # Tarefas da divisão por funcionário — lista de dicts para o template
+    funcionarios_com_tarefas = []
+    for func in funcionarios:
+        tarefas = list(TarefaDivisao.objects.filter(
+            funcionario=func,
+            semana_iso=semana_iso,
+            ano=ano,
+        ).order_by('ordem', 'criado_em'))
+        funcionarios_com_tarefas.append({
+            'funcionario': func,
+            'tarefas_divisao': tarefas,
+        })
+
     context = {
-        'execucoes':    execucoes,
-        'blocos':       blocos,
-        'funcionarios': funcionarios,
-        'resumo':       resumo,
-        'dia_atual':    dia_atual,
-        'semana_iso':   semana_iso,
-        'ano':          ano,
+        'execucoes':               execucoes,
+        'blocos':                  blocos,
+        'funcionarios':            funcionarios,
+        'funcionarios_com_tarefas': funcionarios_com_tarefas,
+        'resumo':                  resumo,
+        'dia_atual':               dia_atual,
+        'semana_iso':              semana_iso,
+        'ano':                     ano,
         'dias': [
             ('segunda', 'Segunda-feira'),
             ('terca',   'Terça-feira'),
@@ -116,7 +134,7 @@ def adicionar_comentario(request, execucao_id):
         'id':        comentario.id,
         'autor':     comentario.autor.get_full_name() or comentario.autor.username,
         'conteudo':  comentario.conteudo,
-        'criado_em': comentario.criado_em.strftime('%d/%m/%Y às %H:%M'),
+        'criado_em': timezone.localtime(comentario.criado_em).strftime('%d/%m/%Y às %H:%M'),
     })
 
 
@@ -134,7 +152,6 @@ def detalhe_execucao(request, execucao_id):
         id=execucao_id
     )
 
-    # Marca todos os comentários como lidos
     marcar_comentarios_lidos(execucao, request.user)
 
     comentarios = [
@@ -142,7 +159,7 @@ def detalhe_execucao(request, execucao_id):
             'id':        c.id,
             'autor':     c.autor.get_full_name() or c.autor.username if c.autor else 'Desconhecido',
             'conteudo':  c.conteudo,
-            'criado_em': c.criado_em.strftime('%d/%m/%Y às %H:%M'),
+            'criado_em': timezone.localtime(c.criado_em).strftime('%d/%m/%Y às %H:%M'),
             'is_done':   c.is_done,
         }
         for c in execucao.comentarios.all()
@@ -161,9 +178,9 @@ def detalhe_execucao(request, execucao_id):
         'is_avulsa':      execucao.is_avulsa,
         'prazo':          execucao.prazo.strftime('%d/%m/%Y') if execucao.prazo else None,
         'concluido_por':  execucao.concluido_por.get_full_name() or execucao.concluido_por.username if execucao.concluido_por else None,
-        'concluido_em':   execucao.concluido_em.strftime('%d/%m/%Y às %H:%M') if execucao.concluido_em else None,
+        'concluido_em':   timezone.localtime(execucao.concluido_em).strftime('%d/%m/%Y às %H:%M') if execucao.concluido_em else None,
         'atualizado_por': execucao.atualizado_por.get_full_name() or execucao.atualizado_por.username if execucao.atualizado_por else None,
-        'atualizado_em':  execucao.atualizado_em.strftime('%d/%m/%Y às %H:%M') if execucao.atualizado_em else None,
+        'atualizado_em':  timezone.localtime(execucao.atualizado_em).strftime('%d/%m/%Y às %H:%M') if execucao.atualizado_em else None,
         'comentarios':    comentarios,
     })
 
@@ -171,16 +188,12 @@ def detalhe_execucao(request, execucao_id):
 @login_required
 @require_POST
 def criar_tarefa(request):
-    """
-    Cria tarefa avulsa ou recorrente.
-    Recebe: titulo, dia, periodo, responsavel_id, descricao, tipo (avulsa|recorrente)
-    """
-    titulo        = request.POST.get('titulo', '').strip()
-    dia           = request.POST.get('dia', '').strip()
-    periodo       = request.POST.get('periodo', '').strip()
+    titulo         = request.POST.get('titulo', '').strip()
+    dia            = request.POST.get('dia', '').strip()
+    periodo        = request.POST.get('periodo', '').strip()
     responsavel_id = request.POST.get('responsavel_id', '').strip()
-    descricao     = request.POST.get('descricao', '').strip()
-    tipo          = request.POST.get('tipo', 'avulsa').strip()
+    descricao      = request.POST.get('descricao', '').strip()
+    tipo           = request.POST.get('tipo', 'avulsa').strip()
 
     if not all([titulo, dia, periodo, responsavel_id]):
         return JsonResponse({'success': False, 'error': 'Preencha todos os campos obrigatórios.'})
@@ -190,22 +203,14 @@ def criar_tarefa(request):
     try:
         if tipo == 'recorrente':
             criar_tarefa_recorrente(
-                titulo=titulo,
-                dia=dia,
-                periodo=periodo,
-                responsavel_id=responsavel_id,
-                descricao=descricao,
-                semana_iso=semana_iso,
-                ano=ano,
+                titulo=titulo, dia=dia, periodo=periodo,
+                responsavel_id=responsavel_id, descricao=descricao,
+                semana_iso=semana_iso, ano=ano,
             )
         else:
             criar_tarefa_avulsa(
-                semana_iso=semana_iso,
-                ano=ano,
-                titulo=titulo,
-                dia=dia,
-                periodo=periodo,
-                responsavel_id=responsavel_id,
+                semana_iso=semana_iso, ano=ano, titulo=titulo,
+                dia=dia, periodo=periodo, responsavel_id=responsavel_id,
                 descricao=descricao,
             )
     except ValueError as e:
@@ -230,12 +235,12 @@ def excluir_tarefa(request, execucao_id):
     except ValueError as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
+
 @login_required
 @require_POST
 def adicionar_item_bloco_view(request, bloco_id):
     conteudo = request.POST.get('conteudo', '').strip()
     is_fixo  = request.POST.get('is_fixo', 'false') == 'true'
-
     try:
         item = adicionar_item_bloco(bloco_id, conteudo, is_fixo, user=request.user)
         return JsonResponse({
@@ -268,9 +273,9 @@ def excluir_item_bloco_view(request, item_id):
     except ValueError as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
+
 @login_required
 def detalhe_item_bloco(request, item_id):
-    """Retorna dados completos de um item do bloco para o modal."""
     from .models import ItemBlocoSemanal
     try:
         item = ItemBlocoSemanal.objects.select_related(
@@ -284,44 +289,39 @@ def detalhe_item_bloco(request, item_id):
             'id':        c.id,
             'autor':     c.autor.get_full_name() or c.autor.username if c.autor else 'Desconhecido',
             'conteudo':  c.conteudo,
-            'criado_em':   timezone.localtime(item.criado_em).strftime('%d/%m/%Y às %H:%M'),
+            'criado_em': timezone.localtime(c.criado_em).strftime('%d/%m/%Y às %H:%M'),
         }
         for c in item.comentarios.all()
     ]
 
     return JsonResponse({
-        'success':     True,
-        'id':          item.id,
-        'conteudo':    item.conteudo,
-        'is_fixo':     item.is_fixo,
-        'is_done':     item.is_done,
-        'prazo':       item.prazo.strftime('%Y-%m-%d') if item.prazo else '',
-        'prazo_fmt':   item.prazo.strftime('%d/%m/%Y') if item.prazo else '—',
+        'success':          True,
+        'id':               item.id,
+        'conteudo':         item.conteudo,
+        'is_fixo':          item.is_fixo,
+        'is_done':          item.is_done,
+        'prazo':            item.prazo.strftime('%Y-%m-%d') if item.prazo else '',
+        'prazo_fmt':        item.prazo.strftime('%d/%m/%Y') if item.prazo else '—',
         'responsavel_id':   item.responsavel.id if item.responsavel else '',
         'responsavel_nome': item.responsavel.nome if item.responsavel else '—',
-        'criado_por':  item.criado_por.get_full_name() or item.criado_por.username if item.criado_por else '—',
-        'criado_em':   timezone.localtime(item.criado_em).strftime('%d/%m/%Y às %H:%M'),
-        'comentarios': comentarios,
+        'criado_por':       item.criado_por.get_full_name() or item.criado_por.username if item.criado_por else '—',
+        'criado_em':        timezone.localtime(item.criado_em).strftime('%d/%m/%Y às %H:%M'),
+        'comentarios':      comentarios,
     })
 
 
 @login_required
 @require_POST
 def atualizar_item_bloco_view(request, item_id):
-    """Atualiza conteúdo, responsável, prazo e is_fixo de um item."""
-    conteudo      = request.POST.get('conteudo', '').strip() or None
+    conteudo       = request.POST.get('conteudo', '').strip() or None
     responsavel_id = request.POST.get('responsavel_id', None)
-    prazo         = request.POST.get('prazo', None)
-    is_fixo_str   = request.POST.get('is_fixo', None)
-    is_fixo       = (is_fixo_str == 'true') if is_fixo_str is not None else None
+    prazo          = request.POST.get('prazo', None)
+    is_fixo_str    = request.POST.get('is_fixo', None)
+    is_fixo        = (is_fixo_str == 'true') if is_fixo_str is not None else None
 
     try:
         item = atualizar_item_bloco(item_id, conteudo, responsavel_id, prazo, is_fixo)
-        return JsonResponse({
-            'success':  True,
-            'conteudo': item.conteudo,
-            'is_fixo':  item.is_fixo,
-        })
+        return JsonResponse({'success': True, 'conteudo': item.conteudo, 'is_fixo': item.is_fixo})
     except ValueError as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
@@ -329,7 +329,6 @@ def atualizar_item_bloco_view(request, item_id):
 @login_required
 @require_POST
 def adicionar_comentario_item_bloco_view(request, item_id):
-    """Adiciona comentário a um item do bloco."""
     conteudo = request.POST.get('conteudo', '').strip()
     try:
         comentario = adicionar_comentario_item_bloco(item_id, conteudo, request.user)
@@ -338,7 +337,40 @@ def adicionar_comentario_item_bloco_view(request, item_id):
             'id':        comentario.id,
             'autor':     comentario.autor.get_full_name() or comentario.autor.username,
             'conteudo':  comentario.conteudo,
-            'criado_em': comentario.criado_em.strftime('%d/%m/%Y às %H:%M'),
+            'criado_em': timezone.localtime(comentario.criado_em).strftime('%d/%m/%Y às %H:%M'),
         })
+    except ValueError as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@require_POST
+def adicionar_tarefa_divisao_view(request, funcionario_id):
+    conteudo = request.POST.get('conteudo', '').strip()
+    semana_iso, ano = get_semana_atual()
+    try:
+        tarefa = adicionar_tarefa_divisao(funcionario_id, semana_iso, ano, conteudo)
+        return JsonResponse({'success': True, 'id': tarefa.id, 'conteudo': tarefa.conteudo})
+    except ValueError as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@require_POST
+def editar_tarefa_divisao_view(request, tarefa_id):
+    conteudo = request.POST.get('conteudo', '').strip()
+    try:
+        tarefa = editar_tarefa_divisao(tarefa_id, conteudo)
+        return JsonResponse({'success': True, 'conteudo': tarefa.conteudo})
+    except ValueError as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@require_POST
+def excluir_tarefa_divisao_view(request, tarefa_id):
+    try:
+        excluir_tarefa_divisao(tarefa_id)
+        return JsonResponse({'success': True})
     except ValueError as e:
         return JsonResponse({'success': False, 'error': str(e)})

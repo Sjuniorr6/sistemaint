@@ -277,7 +277,9 @@
     padding: 0.25rem 0.5rem;
     border-radius: 4px;
     margin-bottom: 0.4rem;
-    text-align: center;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     flex-shrink: 0;
   }
 
@@ -311,6 +313,19 @@
 
   .sca-tarefa:hover .sca-excluir { opacity: 1; }
   .sca-excluir:hover { color: #ef5350; background: rgba(239,83,80,0.15); }
+
+  .sca-divisao-item .sca-item-excluir {
+    margin-left: auto;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.7rem;
+    opacity: 0;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .sca-divisao-item:hover .sca-item-excluir { opacity: 1; }
+  .sca-divisao-item:hover .sca-item-excluir:hover { color: #ef5350; }
 
   .btn-add-tarefa {
     width: 100%; background: transparent;
@@ -468,21 +483,47 @@
 
       <!-- ─── DIVISÃO DE TAREFAS ─── -->
       <div class="sca-divisao-wrapper">
-        {% for funcionario in funcionarios %}
-        {% if funcionario.perfil == 'operador' %}
+        {% for item in funcionarios_com_tarefas %}
+        {% if item.funcionario.perfil == 'operador' %}
         <div class="sca-divisao">
-          <div class="sca-divisao-titulo"><i class="bi bi-person-fill me-1"></i> {{ funcionario.nome }}</div>
+
+          <div class="sca-divisao-titulo">
+            <span><i class="bi bi-person-fill me-1"></i> {{ item.funcionario.nome }}</span>
+            <button class="btn-add-bloco" onclick="toggleInputDivisao({{ item.funcionario.id }})" title="Adicionar tarefa">
+              <i class="bi bi-plus-lg"></i>
+            </button>
+          </div>
+
           <div class="sca-divisao-secao">Tarefas de hoje</div>
-          {% for tarefa in funcionario.tarefas_modelo.all %}
+          {% for tarefa in item.funcionario.tarefas_modelo.all %}
             {% if tarefa.ativo and tarefa.dia_da_semana == dia_atual %}
             <div class="sca-divisao-item">
               <i class="bi bi-circle" style="font-size:0.5rem;color:var(--gold-dark);flex-shrink:0;margin-top:2px;"></i>
               {{ tarefa.titulo }}
             </div>
             {% endif %}
-          {% empty %}
-            <small class="text-muted">Nenhuma tarefa hoje.</small>
           {% endfor %}
+
+          <div class="sca-divisao-secao">Tarefas da semana</div>
+          <div id="divisao-lista-{{ item.funcionario.id }}">
+            {% for tarefa in item.tarefas_divisao %}
+            <div class="sca-divisao-item" id="divisao-tarefa-{{ tarefa.id }}">
+              <i class="bi bi-circle" style="font-size:0.5rem;color:var(--gold-dark);flex-shrink:0;margin-top:2px;"></i>
+              <span id="divisao-texto-{{ tarefa.id }}" style="flex:1;cursor:pointer;"
+                    onclick="editarTarefaDivisaoInline({{ tarefa.id }})">{{ tarefa.conteudo }}</span>
+              <i class="bi bi-x sca-item-excluir" onclick="excluirTarefaDivisao({{ tarefa.id }})"></i>
+            </div>
+            {% empty %}
+            <small class="text-muted" style="font-size:0.62rem;" id="vazio-divisao-{{ item.funcionario.id }}">Nenhuma tarefa ainda.</small>
+            {% endfor %}
+          </div>
+
+          <div class="sca-bloco-input" id="input-divisao-{{ item.funcionario.id }}">
+            <input type="text" placeholder="Nova tarefa..." id="texto-divisao-{{ item.funcionario.id }}"
+                   onkeydown="if(event.key==='Enter') salvarTarefaDivisao({{ item.funcionario.id }})">
+            <button onclick="salvarTarefaDivisao({{ item.funcionario.id }})"><i class="bi bi-check"></i></button>
+          </div>
+
         </div>
         {% endif %}
         {% endfor %}
@@ -794,9 +835,7 @@
   function toggleInputBloco(blocoId) {
     const el = document.getElementById(`input-bloco-${blocoId}`);
     el.classList.toggle('ativo');
-    if (el.classList.contains('ativo')) {
-      document.getElementById(`texto-novo-${blocoId}`).focus();
-    }
+    if (el.classList.contains('ativo')) document.getElementById(`texto-novo-${blocoId}`).focus();
   }
 
   function salvarItemBloco(blocoId) {
@@ -814,9 +853,7 @@
       if (vazio) vazio.remove();
       container.innerHTML += `
         <div class="sca-bloco-item" id="item-bloco-${data.id}">
-          <div class="sca-check" onclick="toggleItemBloco(${data.id}, this)">
-            <i class="bi bi-check"></i>
-          </div>
+          <div class="sca-check" onclick="toggleItemBloco(${data.id}, this)"><i class="bi bi-check"></i></div>
           <span id="texto-item-${data.id}" style="cursor:pointer;" onclick="abrirModalItem(${data.id})">${data.conteudo}</span>
           <i class="bi bi-x sca-item-excluir" onclick="excluirItemBloco(${data.id})"></i>
         </div>`;
@@ -913,6 +950,76 @@
       const novo = `<div class="comentario-item"><div class="d-flex justify-content-between"><span class="comentario-autor">${data.autor}</span><span class="comentario-data">${data.criado_em}</span></div><div class="comentario-texto">${data.conteudo}</div></div>`;
       if (el.querySelector('small')) el.innerHTML = '';
       el.innerHTML += novo;
+    });
+  }
+
+  // ── Divisão de tarefas ──
+  function toggleInputDivisao(funcId) {
+    const el = document.getElementById(`input-divisao-${funcId}`);
+    el.classList.toggle('ativo');
+    if (el.classList.contains('ativo')) document.getElementById(`texto-divisao-${funcId}`).focus();
+  }
+
+  function salvarTarefaDivisao(funcId) {
+    const input    = document.getElementById(`texto-divisao-${funcId}`);
+    const conteudo = input.value.trim();
+    if (!conteudo) return;
+    fetch(`/controle-administrativo/divisao/${funcId}/adicionar/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `conteudo=${encodeURIComponent(conteudo)}`
+    }).then(r => r.json()).then(data => {
+      if (!data.success) { alert(data.error); return; }
+      const lista = document.getElementById(`divisao-lista-${funcId}`);
+      const vazio = document.getElementById(`vazio-divisao-${funcId}`);
+      if (vazio) vazio.remove();
+      lista.innerHTML += `
+        <div class="sca-divisao-item" id="divisao-tarefa-${data.id}">
+          <i class="bi bi-circle" style="font-size:0.5rem;color:var(--gold-dark);flex-shrink:0;margin-top:2px;"></i>
+          <span id="divisao-texto-${data.id}" style="flex:1;cursor:pointer;"
+                onclick="editarTarefaDivisaoInline(${data.id})">${data.conteudo}</span>
+          <i class="bi bi-x sca-item-excluir" onclick="excluirTarefaDivisao(${data.id})"></i>
+        </div>`;
+      input.value = '';
+      document.getElementById(`input-divisao-${funcId}`).classList.remove('ativo');
+    });
+  }
+
+  function editarTarefaDivisaoInline(tarefaId) {
+    const span = document.getElementById(`divisao-texto-${tarefaId}`);
+    const textoAtual = span.textContent.trim();
+    const input = document.createElement('input');
+    input.type  = 'text';
+    input.value = textoAtual;
+    input.style.cssText = 'flex:1;background:#25253a;border:1px solid var(--gold-dark);color:var(--text-light);font-size:0.65rem;border-radius:4px;padding:0.1rem 0.3rem;';
+    span.replaceWith(input);
+    input.focus();
+    const salvar = () => {
+      const novoConteudo = input.value.trim();
+      if (!novoConteudo) { input.replaceWith(span); return; }
+      fetch(`/controle-administrativo/divisao/tarefa/${tarefaId}/editar/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `conteudo=${encodeURIComponent(novoConteudo)}`
+      }).then(r => r.json()).then(data => {
+        if (!data.success) { input.replaceWith(span); return; }
+        span.textContent = data.conteudo;
+        input.replaceWith(span);
+      });
+    };
+    input.addEventListener('blur', salvar);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') input.blur();
+      if (e.key === 'Escape') input.replaceWith(span);
+    });
+  }
+
+  function excluirTarefaDivisao(tarefaId) {
+    fetch(`/controle-administrativo/divisao/tarefa/${tarefaId}/excluir/`, {
+      method: 'POST', headers: { 'X-CSRFToken': CSRF },
+    }).then(r => r.json()).then(data => {
+      if (!data.success) { alert(data.error); return; }
+      document.getElementById(`divisao-tarefa-${tarefaId}`).remove();
     });
   }
 </script>

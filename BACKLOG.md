@@ -61,23 +61,20 @@ M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → M10
 
 ---
 
-## 🔄 MÓDULO 4 — Blocos especiais
-> Em andamento
-- [ ] Botão de Adicionar/excluir itens no bloco Não Esquecer
-- [ ] Botão de Adicionar/excluir itens no bloco Diário
-- [ ] Botão de Adicionar/excluir itens no bloco Observação
-- [ ] Checkbox por item nos blocos
-- [ ] Botão de Adicionar/excluir tarefas na divisão do André
-- [ ] Botão de Adicionar/excluir tarefas na divisão da Rafa
-- [ ] Conteúdo isolado por semana
-- [ ] Bloco "Importantes / Não Esquecer"
-- [ ] Bloco "Diário"
-- [ ] Bloco "Outros / Observação"
-- [ ] Itens editáveis por semana
-- [ ] Checkbox por item
-- [ ] Botão para adicionar novo item
-- [ ] Conteúdo isolado por semana
-- [ ] Commit: `feat(sca): blocos especiais`
+## ✅ MÓDULO 4 — Blocos especiais
+> Concluído em 2026-05-19
+
+- [x] Bloco "Importantes / Não Esquecer" com adicionar/excluir itens
+- [x] Bloco "Diário" com adicionar/excluir itens
+- [x] Bloco "Outros / Observação" com adicionar/excluir itens
+- [x] Checkbox por item nos blocos
+- [x] Itens editáveis por semana (modal com conteúdo, responsável, prazo, fixo)
+- [x] Botão para adicionar novo item em cada bloco
+- [x] Comentários por item do bloco
+- [x] Conteúdo isolado por semana
+- [ ] Botão de adicionar/excluir tarefas na divisão do André *(ficou pendente)*
+- [ ] Botão de adicionar/excluir tarefas na divisão da Rafa *(ficou pendente)*
+- [x] Commit: `feat(sca): blocos especiais com modal, comentarios e fuso horario`
 
 ---
 

@@ -249,3 +249,73 @@ def atualizar_item_bloco(item_id, conteudo=None, responsavel_id=None, prazo=None
 
     item.save()
     return item
+
+def adicionar_tarefa_divisao(funcionario_id, semana_iso, ano, conteudo):
+    """Adiciona uma tarefa na divisão semanal do funcionário."""
+    from .models import TarefaDivisao
+
+    if not conteudo.strip():
+        raise ValueError('O conteúdo não pode ser vazio.')
+
+    ultimo = TarefaDivisao.objects.filter(
+        funcionario_id=funcionario_id,
+        semana_iso=semana_iso,
+        ano=ano,
+    ).order_by('-ordem').first()
+    ordem = (ultimo.ordem + 1) if ultimo else 0
+
+    return TarefaDivisao.objects.create(
+        funcionario_id=funcionario_id,
+        semana_iso=semana_iso,
+        ano=ano,
+        conteudo=conteudo.strip(),
+        ordem=ordem,
+    )
+
+
+def editar_tarefa_divisao(tarefa_id, conteudo):
+    """Edita o conteúdo de uma tarefa da divisão."""
+    from .models import TarefaDivisao
+
+    try:
+        tarefa = TarefaDivisao.objects.get(id=tarefa_id)
+    except TarefaDivisao.DoesNotExist:
+        raise ValueError('Tarefa não encontrada.')
+
+    if not conteudo.strip():
+        raise ValueError('O conteúdo não pode ser vazio.')
+
+    tarefa.conteudo = conteudo.strip()
+    tarefa.save()
+    return tarefa
+
+
+def excluir_tarefa_divisao(tarefa_id):
+    """Exclui uma tarefa da divisão."""
+    from .models import TarefaDivisao
+
+    try:
+        tarefa = TarefaDivisao.objects.get(id=tarefa_id)
+    except TarefaDivisao.DoesNotExist:
+        raise ValueError('Tarefa não encontrada.')
+
+    tarefa.delete()
+
+
+def get_tarefas_divisao(semana_iso, ano):
+    """Retorna todas as tarefas da divisão da semana agrupadas por funcionário."""
+    from .models import TarefaDivisao
+
+    tarefas = TarefaDivisao.objects.filter(
+        semana_iso=semana_iso,
+        ano=ano,
+    ).select_related('funcionario').order_by('funcionario', 'ordem')
+
+    resultado = {}
+    for tarefa in tarefas:
+        fid = tarefa.funcionario.id
+        if fid not in resultado:
+            resultado[fid] = []
+        resultado[fid].append(tarefa)
+
+    return resultado

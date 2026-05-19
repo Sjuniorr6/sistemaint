@@ -433,3 +433,30 @@ class ComentarioItemBloco(models.Model):
 
     def __str__(self):
         return f"{self.autor} — {self.conteudo[:50]}"
+
+
+# ─────────────────────────────────────────
+# TAREFA DA DIVISÃO — lista pessoal semanal
+# ─────────────────────────────────────────
+
+class TarefaDivisao(models.Model):
+    funcionario = models.ForeignKey(
+        FuncionarioAdministrativo,
+        on_delete=models.CASCADE,
+        related_name='tarefas_divisao',
+        verbose_name='Funcionário'
+    )
+    semana_iso  = models.PositiveIntegerField(verbose_name='Semana ISO')
+    ano         = models.PositiveIntegerField(verbose_name='Ano')
+    conteudo    = models.CharField(max_length=300, verbose_name='Tarefa')
+    is_done     = models.BooleanField(default=False, verbose_name='Concluída')
+    ordem       = models.PositiveIntegerField(default=0, verbose_name='Ordem')
+    criado_em   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Tarefa da Divisão'
+        verbose_name_plural = 'Tarefas da Divisão'
+        ordering = ['ordem', 'criado_em']
+
+    def __str__(self):
+        return f"{self.funcionario.nome} — {self.conteudo[:50]}"
