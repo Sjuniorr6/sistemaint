@@ -79,18 +79,18 @@ M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → M10
 
 ---
 
-## 🔁 MÓDULO 5 — Permissões e segurança
-> Em andamento (iniciado em 2026-05-19)
+## ✅ MÓDULO 5 — Permissões e segurança
+> Concluído em 2026-05-19
 
 - [x] `@login_required` em todas as views
 - [x] Perfil `operador` — Rafa e André — edita semana atual
 - [x] Perfil `gestor` — Jefferson — somente leitura
-- [ ] Operador não edita semanas passadas
+- [x] Operador não edita semanas passadas
 - [x] Commit: `feat(sca): permissões e segurança`
 
 ---
 
-## ⏳ MÓDULO 6 — Geração automática de semanas
+## 🔁 MÓDULO 6 — Geração automática de semanas
 
 - [ ] Serviço que detecta início de nova semana
 - [ ] Gera execuções para todas as tarefas ativas
