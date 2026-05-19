@@ -182,6 +182,35 @@
         .route-info .dot.snapped { background: #22c55e; }
         .route-info .dot.raw     { background: #f59e0b; }
 
+        /* ── Map mode toggle ── */
+        .map-mode-toggle {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            display: flex;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+        .map-mode-btn {
+            padding: 6px 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            background: rgba(26, 29, 33, 0.9);
+            color: #94a3b8;
+            backdrop-filter: blur(6px);
+            transition: background 0.2s, color 0.2s;
+            white-space: nowrap;
+        }
+        .map-mode-btn:first-child { border-right: 1px solid #4a5568; }
+        .map-mode-btn.active {
+            background: #3b82f6;
+            color: white;
+        }
+
         #alertas-agendamento-container {
             position: fixed;
             top: 12px;
@@ -422,8 +451,10 @@
 
     <!-- ══════ MAPA ══════ -->
     <div id="map" class="mt-2" style="position: relative;">
-        <div class="route-info" id="routeInfo" style="display:none;">
-            <span class="dot snapped"></span> Rota nas ruas (OSRM)
+        <div class="route-info" id="routeInfo" style="display:none;"></div>
+        <div class="map-mode-toggle">
+            <button class="map-mode-btn active" id="btnModeGps" onclick="setMapMode('gps')">📍 GPS Real</button>
+            <button class="map-mode-btn" id="btnModeOsrm" onclick="setMapMode('osrm')">🗺️ Rota por Ruas</button>
         </div>
     </div>
 
@@ -643,10 +674,9 @@
         let html = "";
         photos.forEach(p => {
             const photoType = p.type || "";
+            if (!photoType.startsWith("odometro_")) return;
             const label = TYPE_LABELS[photoType] || photoType;
             const vr = p.validation_result || {};
-            const isPlaca = photoType.startsWith("placa_");
-            const isOdometro = photoType.startsWith("odometro_");
 
             if (!p.processed) {
                 if (vr.processing === true) {
@@ -654,15 +684,9 @@
                 } else {
                     html += ` <span class="photo-badge pending">⏳ ${label}: Aguardando</span>`;
                 }
-            } else if (isPlaca) {
-                html += ` <span class="photo-badge pending">ℹ️ ${label}: Ignorada</span>`;
-            } else if (isOdometro) {
-                if (vr.valid) {
-                    const odo = vr.odometer_value || vr.odometer_raw || "?";
-                    html += ` <span class="photo-badge valid">✅ ${label}: ${odo}</span>`;
-                } else {
-                    html += ` <span class="photo-badge invalid">❌ ${label}: Rejeitada</span>`;
-                }
+            } else if (vr.valid) {
+                const odo = vr.odometer_value || vr.odometer_raw || "?";
+                html += ` <span class="photo-badge valid">✅ ${label}: ${odo}</span>`;
             } else {
                 html += ` <span class="photo-badge invalid">❌ ${label}: Rejeitada</span>`;
             }
@@ -878,15 +902,24 @@
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
 
-    let rotaSnapped = null;       // polyline da rota encaixada nas ruas
-    let rotaRawGhost = null;      // polyline fantasma (pontos GPS reais, para debug)
+    // ── Map mode: 'gps' = GPS real, 'osrm' = rota por ruas ──
+    let mapMode = 'gps';
+
+    let rotaLayer = null;         // polyline principal (GPS ou OSRM conforme modo)
+    let rotaRawGhost = null;      // polyline fantasma GPS (visível apenas no modo OSRM)
+    let paradoMarker = null;      // marcador central quando usuário parado
+    let paradoCircle = null;      // círculo de precisão quando parado
     let markerInicio = null;
     let markerUltimo = null;
     let lastCount = 0;
+    let lastMode = null;
     let didFitBounds = false;
     let geofenceLayer = L.layerGroup().addTo(map);
-    let __snapInFlight = false;   // evitar requests concorrentes ao OSRM
+    let __snapInFlight = false;
     const panicLayer = L.layerGroup().addTo(map);
+
+    // Guarda últimos pontos para re-renderizar ao trocar modo
+    let _lastTrackingPoints = [];
 
     const panicIcon = L.divIcon({
         className: "",
@@ -931,98 +964,147 @@
             .filter(p => Number.isFinite(p.latitude) && Number.isFinite(p.longitude));
     }
 
-    function showRouteInfo(snapped, method) {
+    function showRouteInfo(text, dotClass) {
         const el = document.getElementById("routeInfo");
-        if (snapped) {
-            const dotEl = el.querySelector(".dot");
-            dotEl.className = "dot snapped";
-            el.innerHTML = `<span class="dot snapped"></span> Rota nas ruas (OSRM ${method || "match"})`;
-        } else {
-            el.innerHTML = `<span class="dot raw"></span> Rota aproximada (GPS direto)`;
-        }
+        el.innerHTML = `<span class="dot ${dotClass}"></span> ${text}`;
         el.style.display = "block";
     }
 
+    // ── Detecção de usuário parado (distância total < 20m) ──
+    function calcDistanceM(lat1, lng1, lat2, lng2) {
+        const R = 6371000;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLng = (lng2 - lng1) * Math.PI / 180;
+        const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    function detectarParado(rawLatLngs) {
+        if (rawLatLngs.length < 2) return { parado: true, distanciaMax: 0, centro: rawLatLngs[0] || null };
+        let distMax = 0;
+        const ref = rawLatLngs[0];
+        for (let i = 1; i < rawLatLngs.length; i++) {
+            const d = calcDistanceM(ref[0], ref[1], rawLatLngs[i][0], rawLatLngs[i][1]);
+            if (d > distMax) distMax = d;
+        }
+        const avgLat = rawLatLngs.reduce((s, p) => s + p[0], 0) / rawLatLngs.length;
+        const avgLng = rawLatLngs.reduce((s, p) => s + p[1], 0) / rawLatLngs.length;
+        return { parado: distMax < 20, distanciaMax: Math.round(distMax), centro: [avgLat, avgLng] };
+    }
+
+    function clearMapLayers() {
+        if (rotaLayer)    { map.removeLayer(rotaLayer);    rotaLayer = null; }
+        if (rotaRawGhost) { map.removeLayer(rotaRawGhost); rotaRawGhost = null; }
+        if (paradoMarker) { map.removeLayer(paradoMarker); paradoMarker = null; }
+        if (paradoCircle) { map.removeLayer(paradoCircle); paradoCircle = null; }
+        if (markerInicio) { map.removeLayer(markerInicio); markerInicio = null; }
+        if (markerUltimo) { map.removeLayer(markerUltimo); markerUltimo = null; }
+    }
+
+    // ── Toggle de modo ──
+    function setMapMode(mode) {
+        if (mapMode === mode) return;
+        mapMode = mode;
+        document.getElementById("btnModeGps").classList.toggle("active", mode === "gps");
+        document.getElementById("btnModeOsrm").classList.toggle("active", mode === "osrm");
+
+        // Força re-render com os últimos pontos
+        lastCount = 0;
+        lastMode = null;
+        didFitBounds = true; // não faz fitBounds de novo ao trocar modo
+        clearMapLayers();
+        if (_lastTrackingPoints.length) renderOrUpdateMap(_lastTrackingPoints);
+    }
+
+    // ── Modo GPS Real ──
+    function renderGpsReal(rawLatLngs, { parado, distanciaMax, centro }) {
+        if (parado) {
+            paradoCircle = L.circle(centro, {
+                radius: Math.max(distanciaMax, 8),
+                color: "#f59e0b", fillColor: "#f59e0b", fillOpacity: 0.15, weight: 2,
+            }).addTo(map);
+            paradoMarker = L.marker(centro, { icon: currentPosIcon, zIndexOffset: 1000 })
+                .addTo(map)
+                .bindPopup(`📍 Usuário parado<br>Variação máxima: ${distanciaMax}m`);
+            map.setView(centro, 18);
+            showRouteInfo(`GPS real · usuário parado (variação ${distanciaMax}m)`, "raw");
+        } else {
+            rotaLayer = L.polyline(rawLatLngs, {
+                color: "#3b82f6", weight: 4, opacity: 0.85,
+                smoothFactor: 1, lineCap: "round", lineJoin: "round",
+            }).addTo(map);
+            markerInicio = L.marker(rawLatLngs[0]).addTo(map).bindPopup("📍 Início");
+            markerUltimo = L.marker(rawLatLngs[rawLatLngs.length - 1], {
+                icon: currentPosIcon, zIndexOffset: 1000,
+            }).addTo(map).bindPopup("🚗 Última posição");
+            if (!didFitBounds) {
+                map.fitBounds(rotaLayer.getBounds(), { padding: [30, 30] });
+                didFitBounds = true;
+            }
+            showRouteInfo("GPS real · pontos capturados", "raw");
+        }
+    }
+
+    // ── Modo OSRM ──
+    async function renderOsrm(rawLatLngs) {
+        if (__snapInFlight) return;
+        __snapInFlight = true;
+        try {
+            const result = await getSnappedRoute(rawLatLngs);
+            rotaLayer = L.polyline(result.latlngs, {
+                color: "#3b82f6", weight: 5, opacity: 0.85,
+                smoothFactor: 1, lineCap: "round", lineJoin: "round",
+            }).addTo(map);
+            rotaRawGhost = L.polyline(rawLatLngs, {
+                color: "#94a3b8", weight: 1.5, opacity: 0.3, dashArray: "4 6",
+            }).addTo(map);
+            markerInicio = L.marker(rawLatLngs[0]).addTo(map).bindPopup("📍 Início");
+            markerUltimo = L.marker(rawLatLngs[rawLatLngs.length - 1], {
+                icon: currentPosIcon, zIndexOffset: 1000,
+            }).addTo(map).bindPopup("🚗 Última posição");
+            if (!didFitBounds) {
+                map.fitBounds(rotaLayer.getBounds(), { padding: [30, 30] });
+                didFitBounds = true;
+            }
+            showRouteInfo(`Rota nas ruas (OSRM ${result.method || "match"})`, "snapped");
+        } catch (err) {
+            console.warn("[OSRM] falhou, usando GPS real como fallback.", err.message);
+            renderGpsReal(rawLatLngs, detectarParado(rawLatLngs));
+        } finally {
+            __snapInFlight = false;
+        }
+    }
+
     async function renderOrUpdateMap(pontos) {
+        _lastTrackingPoints = pontos;
         const clean = normalizeTrackingPoints(pontos);
         if (clean.length === 0) { map.setView([-15, -55], 4); return; }
 
         const rawLatLngs = clean.map(p => [p.latitude, p.longitude]);
+        const analise = detectarParado(rawLatLngs);
 
-        // Se não mudou a quantidade de pontos, não refaz o snap
-        if (rawLatLngs.length === lastCount && rotaSnapped) return;
+        // Sem mudança de pontos nem de modo: atualiza só o marcador final
+        if (rawLatLngs.length === lastCount && mapMode === lastMode) {
+            if (markerUltimo) markerUltimo.setLatLng(rawLatLngs[rawLatLngs.length - 1]);
+            if (rotaLayer) rotaLayer.setLatLngs(rawLatLngs);
+            if (rotaRawGhost) rotaRawGhost.setLatLngs(rawLatLngs);
+            return;
+        }
 
-        // Evitar requests concorrentes
-        if (__snapInFlight) return;
-        __snapInFlight = true;
+        clearMapLayers();
+        lastCount = rawLatLngs.length;
+        lastMode = mapMode;
 
-        try {
-            // Obter rota encaixada nas ruas
-            const result = await getSnappedRoute(rawLatLngs);
-            const snappedLatLngs = result.latlngs;
-
-            // Rota principal (encaixada nas ruas)
-            if (!rotaSnapped) {
-                rotaSnapped = L.polyline(snappedLatLngs, {
-                    color: "#3b82f6",
-                    weight: 5,
-                    opacity: 0.85,
-                    smoothFactor: 1,
-                    lineCap: "round",
-                    lineJoin: "round",
-                }).addTo(map);
-
-                // Linha fantasma (pontos GPS reais) — sutil para debug visual
-                rotaRawGhost = L.polyline(rawLatLngs, {
-                    color: "#94a3b8",
-                    weight: 1.5,
-                    opacity: 0.25,
-                    dashArray: "4 6",
-                }).addTo(map);
-
-                if (!didFitBounds) {
-                    map.fitBounds(rotaSnapped.getBounds(), { padding: [30, 30] });
-                    didFitBounds = true;
-                }
-
-                markerInicio = L.marker(rawLatLngs[0]).addTo(map)
-                    .bindPopup("📍 Início");
-
-                markerUltimo = L.marker(rawLatLngs[rawLatLngs.length - 1], {
-                    icon: currentPosIcon,
-                    zIndexOffset: 1000,
-                }).addTo(map).bindPopup("🚗 Última posição");
+        if (mapMode === 'gps') {
+            renderGpsReal(rawLatLngs, analise);
+        } else {
+            if (analise.parado) {
+                // Usuário parado: não faz sentido chamar OSRM
+                renderGpsReal(rawLatLngs, analise);
+                showRouteInfo(`Rota por ruas · usuário parado (variação ${analise.distanciaMax}m) — exibindo GPS`, "raw");
             } else {
-                rotaSnapped.setLatLngs(snappedLatLngs);
-                rotaRawGhost.setLatLngs(rawLatLngs);
-                markerUltimo.setLatLng(rawLatLngs[rawLatLngs.length - 1]);
+                await renderOsrm(rawLatLngs);
             }
-
-            lastCount = rawLatLngs.length;
-            showRouteInfo(result.snapped, result.method);
-
-        } catch (err) {
-            console.error("[renderOrUpdateMap] erro no snap:", err);
-            // Fallback total: linha reta como antes
-            const rawLatLngs2 = clean.map(p => [p.latitude, p.longitude]);
-            if (!rotaSnapped) {
-                rotaSnapped = L.polyline(rawLatLngs2, {
-                    color: "#3b82f6", weight: 4, opacity: 0.8,
-                }).addTo(map);
-                if (!didFitBounds) {
-                    map.fitBounds(rotaSnapped.getBounds(), { padding: [30, 30] });
-                    didFitBounds = true;
-                }
-                markerInicio = L.marker(rawLatLngs2[0]).addTo(map).bindPopup("📍 Início");
-                markerUltimo = L.marker(rawLatLngs2[rawLatLngs2.length - 1]).addTo(map).bindPopup("🚗 Última posição");
-            } else {
-                rotaSnapped.setLatLngs(rawLatLngs2);
-                markerUltimo.setLatLng(rawLatLngs2[rawLatLngs2.length - 1]);
-            }
-            lastCount = rawLatLngs2.length;
-            showRouteInfo(false);
-        } finally {
-            __snapInFlight = false;
         }
     }
 

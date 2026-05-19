@@ -156,6 +156,7 @@ static/
 # IDE files
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
@@ -267,3 +268,5 @@ test_panic_resolve.py
 test_supabase.py
 test_webhook.py
 test_api.py
+.claude/settings.local.json
+
