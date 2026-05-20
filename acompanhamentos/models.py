@@ -493,7 +493,6 @@ class registroacompanhamento(models.Model):
         ("agendada", "Missão Agendada"),
         ("em_deslocamento", "Em Deslocamento"),
         ("no_local", "No Local"),
-        ("placa_inicio_verificada", "Placa Inicial Verificada"),
         ("odometro_inicio_verificado", "Odômetro Inicial Verificado"),
         ("teste_panico", "Teste Pânico"),
         ("teste_panico_verificado", "Teste Pânico Verificado"),
@@ -501,7 +500,6 @@ class registroacompanhamento(models.Model):
         ("disponivel", "Disponível"),
         ("sem_sinal", "Sem Sinal"),
         ("odometro_final_verificado", "Odômetro Final Verificado"),
-        ("placa_final_verificada", "Placa Final Verificada"),
         ("concluido", "Concluído"),
         ("verificado", "Verificado"),
     )
@@ -991,30 +989,6 @@ class registroacompanhamentoagente(models.Model):
     km_total = models.IntegerField(blank=True, null=True)
 
     km_excedente = models.IntegerField(blank=True, null=True)
-
-    # Campos para validação de placa (novo em v2.6.0)
-    placa_inicio = models.CharField(
-        max_length=10,
-        blank=True,
-        null=True,
-        verbose_name="Placa Início"
-    )
-    placa_final = models.CharField(
-        max_length=10,
-        blank=True,
-        null=True,
-        verbose_name="Placa Final"
-    )
-    data_placa_inicio = models.DateTimeField(
-        blank=True,
-        null=True,
-        verbose_name="Data/Hora Placa Início"
-    )
-    data_placa_final = models.DateTimeField(
-        blank=True,
-        null=True,
-        verbose_name="Data/Hora Placa Final"
-    )
 
     horario_solicitado = models.TimeField(blank=True, null=True)
     horario_inicio = models.TimeField(blank=True, null=True)

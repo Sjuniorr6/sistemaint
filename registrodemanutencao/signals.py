@@ -1,5 +1,6 @@
 # signals.py
 
+from django.conf import settings
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.core.mail import send_mail
@@ -10,9 +11,9 @@ def enviar_email_requisicao_criada(sender, instance, created, **kwargs):
     if created:
         subject = f"Nova entrada: {instance.id}"
         message = f"A nova entrada {instance.id} foi criada com sucesso. {instance.nome} Status: {instance.status}"
-        from_email = 'sysggoldensat@gmail.com'
-        recipient_list = ['comercial@grupogoldensat.com.br','comercial@grupogoldensat.com.br']
-        
+        from_email = settings.DEFAULT_FROM_EMAIL
+        recipient_list = ['riicodt@gmail.com']
+
         send_mail(subject, message, from_email, recipient_list)
 
 # registrodemanutencao/signals.py

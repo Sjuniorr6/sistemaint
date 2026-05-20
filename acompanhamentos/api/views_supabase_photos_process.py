@@ -139,7 +139,6 @@ def _remove_file_silent(abs_path: str):
 STATUS_PENDENTE = "pendente"
 STATUS_MISSAO_ACEITA = "missao_aceita"
 STATUS_NO_LOCAL = "no_local"
-STATUS_PLACA_INICIO_OK_LEGACY = "placa_inicio_verificada"
 STATUS_ODO_INICIO_OK = "odometro_inicio_verificado"
 STATUS_TESTE_PANICO = "teste_panico"
 STATUS_TESTE_PANICO_OK = "teste_panico_verificado"
@@ -441,66 +440,6 @@ def _update_django_km(acompanhamento, photo_type: str, odo_raw, ts_iso, photo_id
     }
 
 
-def _update_django_plate(acompanhamento, photo_type: str, plate_number: str, ts_iso, photo_id: str, confidence: float):
-    """
-    Salva PLACA no SEU BANCO (Django), preferencialmente no agente principal (registroacompanhamentoagente).
-    Não salva no Supabase.
-
-    Campos esperados (baseado no seu model):
-    - registroacompanhamentoagente: placa_inicio, data_placa_inicio, placa_final, data_placa_final
-    
-    photo_type: "placa_inicio" ou "placa_final"
-    """
-    if not acompanhamento:
-        return {"updated": False, "reason": "acompanhamento_not_found_in_django"}
-
-    # Pega agente principal (ou primeiro)
-    vinculo = (
-        acompanhamento.agentes.filter(tipo_agente="principal").first()
-        or acompanhamento.agentes.first()
-    )
-    if not vinculo:
-        return {"updated": False, "reason": "no_agente_vinculado"}
-
-    dt = _parse_ts_to_dt(ts_iso)
-
-    # Só salva se placa veio preenchida
-    if not plate_number:
-        return {"updated": False, "reason": "plate_number_is_empty"}
-
-    # Atualiza conforme tipo
-    update_fields = []
-    if photo_type == "placa_inicio":
-        vinculo.placa_inicio = plate_number
-        update_fields.append("placa_inicio")
-        if hasattr(vinculo, "data_placa_inicio"):
-            vinculo.data_placa_inicio = dt
-            update_fields.append("data_placa_inicio")
-
-    elif photo_type == "placa_final":
-        vinculo.placa_final = plate_number
-        update_fields.append("placa_final")
-        if hasattr(vinculo, "data_placa_final"):
-            vinculo.data_placa_final = dt
-            update_fields.append("data_placa_final")
-
-    else:
-        return {"updated": False, "reason": f"invalid_photo_type({photo_type})"}
-
-    vinculo.save(update_fields=update_fields)
-
-    return {
-        "updated": True,
-        "vinculo_id": getattr(vinculo, "id", None),
-        "photo_type": photo_type,
-        "plate_number": plate_number,
-        "timestamp": ts_iso,
-        "photo_id": photo_id,
-        "confidence": confidence,
-        "updated_fields": update_fields,
-    }
-
-
 def _update_django_datetime_inicio_fim(acompanhamento, tipo: str, ts_iso=None):
     """
     Grava data/horário de início ou finalização no agente principal.
@@ -554,7 +493,6 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
     Regras finais:
     - odometro_inicio: status atual precisa ser NO_LOCAL e valid=True -> status=ODO_INICIO_OK + salva km no Django
     - odometro_final: status atual precisa ser EM_ANDAMENTO e valid=True -> status=ODO_FINAL_OK + salva km no Django
-    - placa_inicio/placa_final: validação desabilitada (compatibilidade sem travar fluxo)
     """
     mission = _get_mission(sb, mission_id)
     if not mission:
@@ -567,26 +505,15 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
     confidence = float(vr.get("confidence", 0.0))
 
     # ==================================================
-    # PLACA INÍCIO (NOVO v2.6.0)
+    # ODÔMETRO INÍCIO
     # ==================================================
-    if photo_type == "placa_inicio":
-        return {
-            "updated": False,
-            "reason": "plate_validation_disabled",
-            "current_status": current_status,
-        }
-
-    # ==================================================
-    # ODÔMETRO INÍCIO (ATUALIZADO v2.6.0)
-    # ==================================================
-    elif photo_type == "odometro_inicio":
+    if photo_type == "odometro_inicio":
         odo_raw = vr.get("odometer_raw")
-        
-        allowed_start_statuses_for_odo_inicio = {STATUS_NO_LOCAL, STATUS_PLACA_INICIO_OK_LEGACY}
-        if current_status not in allowed_start_statuses_for_odo_inicio or not is_valid:
+
+        if current_status != STATUS_NO_LOCAL or not is_valid:
             return {
                 "updated": False,
-                "reason": "odometro_inicio_requires_status_no_local_or_placa_inicio_verificada_and_valid_true",
+                "reason": "odometro_inicio_requires_status_no_local_and_valid_true",
                 "current_status": current_status,
                 "valid": is_valid,
             }
@@ -768,16 +695,6 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
             "previous_status": current_status,
             "new_status": STATUS_ODO_FINAL_OK,
             "django_km_update": django_info,
-        }
-
-    # ==================================================
-    # PLACA FINAL (NOVO v2.6.0)
-    # ==================================================
-    elif photo_type == "placa_final":
-        return {
-            "updated": False,
-            "reason": "plate_validation_disabled",
-            "current_status": current_status,
         }
 
     return {"updated": False, "reason": f"invalid_photo_type({photo_type})"}
@@ -988,7 +905,7 @@ def process_one_photo_id(photo_id: str, force: bool = False):
         # 4) Validar campos
         if not mission_id:
             return ({"success": False, "error": "mission_id vazio em mission_photos"}, 400)
-        if photo_type not in ("placa_inicio", "odometro_inicio", "odometro_final", "placa_final"):
+        if photo_type not in ("odometro_inicio", "odometro_final"):
             return ({"success": False, "error": f"type inválido em mission_photos: {photo_type}"}, 400)
         if not storage_path:
             return ({"success": False, "error": "storage_path vazio em mission_photos"}, 400)
@@ -1002,48 +919,28 @@ def process_one_photo_id(photo_id: str, force: bool = False):
         # 7) Salvar temporário (opcional)
         tmp_path = _save_tmp_file(storage_path, img_bytes)
 
-        # 8) IA - valida odômetro; placa fica marcada como ignorada
-        if photo_type in ("placa_inicio", "placa_final"):
-            # Validação de PLACA
-            
-            # Monta validation_result para PLACA
-            metadata = photo.get("metadata") or {}
-            vr = {
-                "valid": True,
-                "skipped": True,
-                "reason": "plate_validation_disabled",
-                "timestamp": metadata.get("timestamp") or photo.get("uploaded_at") or photo.get("created_at"),
-                "latitude": metadata.get("latitude"),
-                "longitude": metadata.get("longitude"),
-                "issues": [],
-                "processed_at": _now_iso(),
-                "processing": False,
-                "_photo_id": photo_id,
-            }
-        else:
-            # Validação de ODÔMETRO (odometro_inicio, odometro_final)
-            ai_result = validate_odometer_with_ai(img_bytes)
-            is_valid = bool(ai_result.get("success", False))
-            
-            # Monta validation_result para ODÔMETRO
-            metadata = photo.get("metadata") or {}
-            vr = {
-                "valid": bool(is_valid),
-                "odometer_value": ai_result.get("odometer_formatted") or str(ai_result.get("odometer", "")),
-                "odometer_raw": ai_result.get("odometer"),
-                "confidence": float(ai_result.get("confidence", 0.0) or 0.0),
-                "timestamp": metadata.get("timestamp") or photo.get("uploaded_at") or photo.get("created_at"),
-                "latitude": metadata.get("latitude"),
-                "longitude": metadata.get("longitude"),
-                "display_type": ai_result.get("display_type", "unknown"),
-                "trip_meter": ai_result.get("trip_meter"),
-                "unit": ai_result.get("unit", "km"),
-                "issues": _normalize_issues_list(ai_result.get("issues")),
-                "raw_response": ai_result.get("raw_response"),
-                "processed_at": _now_iso(),
-                "processing": False,
-                "_photo_id": photo_id,
-            }
+        # 8) IA - valida odômetro
+        ai_result = validate_odometer_with_ai(img_bytes)
+        is_valid = bool(ai_result.get("success", False))
+
+        metadata = photo.get("metadata") or {}
+        vr = {
+            "valid": bool(is_valid),
+            "odometer_value": ai_result.get("odometer_formatted") or str(ai_result.get("odometer", "")),
+            "odometer_raw": ai_result.get("odometer"),
+            "confidence": float(ai_result.get("confidence", 0.0) or 0.0),
+            "timestamp": metadata.get("timestamp") or photo.get("uploaded_at") or photo.get("created_at"),
+            "latitude": metadata.get("latitude"),
+            "longitude": metadata.get("longitude"),
+            "display_type": ai_result.get("display_type", "unknown"),
+            "trip_meter": ai_result.get("trip_meter"),
+            "unit": ai_result.get("unit", "km"),
+            "issues": _normalize_issues_list(ai_result.get("issues")),
+            "raw_response": ai_result.get("raw_response"),
+            "processed_at": _now_iso(),
+            "processing": False,
+            "_photo_id": photo_id,
+        }
 
         # 9) Atualizar mission_photos
         sb.table("mission_photos").update({"processed": True, "validation_result": vr}).eq("id", photo_id).execute()
