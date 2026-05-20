@@ -342,7 +342,7 @@ def _maybe_backfill_km_inicio_django(mission_id: str, km_inicio: int, ts_iso, ph
 
 
 
-def _update_django_km(acompanhamento, photo_type: str, odo_raw, ts_iso, photo_id: str, confidence: float, mission_id: str = None):
+def _update_django_km(acompanhamento, photo_type: str, odo_raw, ts_iso, photo_id: str, confidence: float, mission_id: str = None, is_manual: bool = False):
     """
     Salva KM no SEU BANCO (Django), preferencialmente no agente principal (registroacompanhamentoagente).
     Não salva no Supabase.
@@ -354,6 +354,12 @@ def _update_django_km(acompanhamento, photo_type: str, odo_raw, ts_iso, photo_id
     """
     if mission_id:
         vinculo = _get_vinculo_by_mission_id(mission_id, for_update=True)
+        if not vinculo and acompanhamento:
+            vinculo = (
+                acompanhamento.agentes.select_for_update().filter(tipo_agente="principal").first()
+                or acompanhamento.agentes.select_for_update().order_by("id").first()
+            )
+
         if not vinculo:
             return {
                 "updated": False,
@@ -403,6 +409,9 @@ def _update_django_km(acompanhamento, photo_type: str, odo_raw, ts_iso, photo_id
         if hasattr(vinculo, "data_km_inicio"):
             vinculo.data_km_inicio = dt
             update_fields.append("data_km_inicio")
+        if is_manual and hasattr(vinculo, "km_inicio_manual"):
+            vinculo.km_inicio_manual = True
+            update_fields.append("km_inicio_manual")
 
     elif photo_type == "odometro_final":
         vinculo.km_final = odo_int
@@ -410,6 +419,9 @@ def _update_django_km(acompanhamento, photo_type: str, odo_raw, ts_iso, photo_id
         if hasattr(vinculo, "data_km_final"):
             vinculo.data_km_final = dt
             update_fields.append("data_km_final")
+        if is_manual and hasattr(vinculo, "km_final_manual"):
+            vinculo.km_final_manual = True
+            update_fields.append("km_final_manual")
 
     else:
         return {"updated": False, "reason": f"invalid_photo_type({photo_type})"}
@@ -488,7 +500,7 @@ def _update_django_datetime_inicio_fim(acompanhamento, tipo: str, ts_iso=None):
 # ==========================================================
 # Orquestração: regras finais (status + km/placa)
 # ==========================================================
-def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
+def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict, is_manual: bool = False) -> dict:
     """
     Regras finais:
     - odometro_inicio: status atual precisa ser NO_LOCAL e valid=True -> status=ODO_INICIO_OK + salva km no Django
@@ -518,11 +530,7 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
                 "valid": is_valid,
             }
 
-        # 1) atualiza status no Supabase
-        _supabase_update_status(sb, mission_id, STATUS_ODO_INICIO_OK)
-        _sync_django_status(mission_id, STATUS_ODO_INICIO_OK)
-
-        # 2) grava KM no Django
+        # 1) grava KM no Django — status só avança se isso tiver sucesso
         with transaction.atomic():
             acompanhamento = _find_acompanhamento_by_supabase_mission_id(mission_id)
             django_info = _update_django_km(
@@ -533,9 +541,28 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
                 photo_id=photo_id,
                 confidence=confidence,
                 mission_id=mission_id,
+                is_manual=is_manual,
             )
-            # Para pronta_resposta, início só é gravado ao receber odômetro inicial.
             _update_django_datetime_inicio_fim(acompanhamento, "inicio", ts_iso=ts)
+
+        if not django_info.get("updated"):
+            logger.error(
+                "[KM_SAVE_FAIL] mission_id=%s photo_id=%s photo_type=%s reason=%s",
+                mission_id,
+                photo_id,
+                photo_type,
+                django_info.get("reason"),
+            )
+            return {
+                "updated": False,
+                "reason": "django_km_update_failed",
+                "current_status": current_status,
+                "django_km_update": django_info,
+            }
+
+        # 2) só avança status após KM salvo
+        _supabase_update_status(sb, mission_id, STATUS_ODO_INICIO_OK)
+        _sync_django_status(mission_id, STATUS_ODO_INICIO_OK)
 
         return {
             "updated": True,
@@ -674,11 +701,7 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
                     "km_excedente_tolerancia": round(excedente, 2),
                 }
 
-        # 1) atualiza status no Supabase
-        _supabase_update_status(sb, mission_id, STATUS_ODO_FINAL_OK)
-        _sync_django_status(mission_id, STATUS_ODO_FINAL_OK)
-
-        # 2) grava KM no Django
+        # 1) grava KM no Django — status só avança se isso tiver sucesso
         with transaction.atomic():
             django_info = _update_django_km(
                 acompanhamento=acompanhamento,
@@ -688,7 +711,27 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict) -> dict:
                 photo_id=photo_id,
                 confidence=confidence,
                 mission_id=mission_id,
+                is_manual=is_manual,
             )
+
+        if not django_info.get("updated"):
+            logger.error(
+                "[KM_SAVE_FAIL] mission_id=%s photo_id=%s photo_type=%s reason=%s",
+                mission_id,
+                photo_id,
+                photo_type,
+                django_info.get("reason"),
+            )
+            return {
+                "updated": False,
+                "reason": "django_km_update_failed",
+                "current_status": current_status,
+                "django_km_update": django_info,
+            }
+
+        # 2) só avança status após KM salvo
+        _supabase_update_status(sb, mission_id, STATUS_ODO_FINAL_OK)
+        _sync_django_status(mission_id, STATUS_ODO_FINAL_OK)
 
         return {
             "updated": True,
@@ -842,6 +885,58 @@ def _mark_failed(sb, photo_id: str, mission_id, photo_type, storage_path, err: s
     }
 
 
+def _process_manual_entry(sb, photo: dict):
+    """
+    Processa uma entrada manual de odômetro (storage_path vazio, is_manual=True).
+    Constrói um validation_result sintético com valid=True e confidence=1.0,
+    atualiza o Supabase e aplica as regras de status/Django normalmente.
+    """
+    photo_id = photo.get("id")
+    mission_id = photo.get("mission_id")
+    photo_type = photo.get("type")
+    metadata = photo.get("metadata") or {}
+    manual_value = metadata.get("manual_value")
+
+    try:
+        manual_int = int(manual_value)
+    except (TypeError, ValueError):
+        return ({"success": False, "error": f"manual_value inválido: {manual_value}"}, 400)
+
+    formatted = f"{manual_int:,}".replace(",", ".") + " km"
+
+    vr = {
+        "valid": True,
+        "is_manual": True,
+        "odometer_raw": manual_int,
+        "odometer_value": formatted,
+        "confidence": 1.0,
+        "unit": "km",
+        "issues": [],
+        "display_type": "manual",
+        "trip_meter": None,
+        "latitude": metadata.get("latitude", 0),
+        "longitude": metadata.get("longitude", 0),
+        "timestamp": metadata.get("timestamp") or photo.get("uploaded_at") or photo.get("created_at"),
+        "processed_at": _now_iso(),
+        "processing": False,
+        "_photo_id": photo_id,
+    }
+
+    sb.table("mission_photos").update({"processed": True, "validation_result": vr}).eq("id", photo_id).execute()
+
+    mission_update_info = _apply_photo_rules(sb=sb, mission_id=mission_id, photo_type=photo_type, vr=vr, is_manual=True)
+
+    return ({
+        "success": True,
+        "message": "Entrada manual de odômetro processada",
+        "photo_id": photo_id,
+        "mission_id": mission_id,
+        "photo_type": photo_type,
+        "validation_result": vr,
+        "mission_update": mission_update_info,
+    }, 200)
+
+
 def process_one_photo_id(photo_id: str, force: bool = False):
     """
     Processa uma foto por ID (sem depender de request).
@@ -871,7 +966,35 @@ def process_one_photo_id(photo_id: str, force: bool = False):
         photo_type = photo.get("type")
         storage_path = photo.get("storage_path")
 
-        # 2) Idempotência: já processou
+        # 2) Entrada manual pré-processada pelo app (processed=true, source=manual ou is_manual)
+        # O app pode ter gravado processed=true diretamente; neste caso precisamos apenas
+        # aplicar as regras de status/Django sem reprocessar a imagem.
+        _early_metadata = photo.get("metadata") or {}
+        _early_vr = photo.get("validation_result") or {}
+        _is_manual_preproc = (
+            photo.get("processed") is True
+            and (
+                _early_metadata.get("source") == "manual"
+                or _early_metadata.get("is_manual") is True
+                or _early_vr.get("is_manual") is True
+            )
+            and bool(_early_vr.get("valid"))
+        )
+        if _is_manual_preproc and not force:
+            mission_update_info = _apply_photo_rules(
+                sb=sb, mission_id=mission_id, photo_type=photo_type, vr=_early_vr, is_manual=True
+            )
+            return ({
+                "success": True,
+                "message": "Entrada manual já processada pelo app — regras Django aplicadas",
+                "photo_id": photo_id,
+                "mission_id": mission_id,
+                "photo_type": photo_type,
+                "validation_result": _early_vr,
+                "mission_update": mission_update_info,
+            }, 200)
+
+        # 3) Idempotência: já processou via IA normalmente
         existing_vr = photo.get("validation_result") or {}
         has_previous_error = isinstance(existing_vr, dict) and bool(existing_vr.get("error"))
         if (
@@ -908,6 +1031,13 @@ def process_one_photo_id(photo_id: str, force: bool = False):
         if photo_type not in ("odometro_inicio", "odometro_final"):
             return ({"success": False, "error": f"type inválido em mission_photos: {photo_type}"}, 400)
         if not storage_path:
+            metadata = photo.get("metadata") or {}
+            is_manual_flag = (
+                metadata.get("is_manual") is True
+                or metadata.get("source") == "manual"
+            )
+            if is_manual_flag and metadata.get("manual_value") is not None:
+                return _process_manual_entry(sb, photo)
             return ({"success": False, "error": "storage_path vazio em mission_photos"}, 400)
 
         # 5) Marcar 'processing' (anti-loop)

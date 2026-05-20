@@ -988,6 +988,9 @@ class registroacompanhamentoagente(models.Model):
     km_final = models.IntegerField(blank=True, null=True)
     km_total = models.IntegerField(blank=True, null=True)
 
+    km_inicio_manual = models.BooleanField(default=False)
+    km_final_manual = models.BooleanField(default=False)
+
     km_excedente = models.IntegerField(blank=True, null=True)
 
     horario_solicitado = models.TimeField(blank=True, null=True)

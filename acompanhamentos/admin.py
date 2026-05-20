@@ -362,6 +362,8 @@ class RegistroAcompanhamentoAgenteAdmin(admin.ModelAdmin):
             "fields": (
                 "km_inicio",
                 "km_final",
+                "km_inicio_manual",
+                "km_final_manual",
                 "km_total",
                 "km_excedente",
             )
