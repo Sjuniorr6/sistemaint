@@ -6,6 +6,11 @@ app_name = 'controle_administrativo'
 urlpatterns = [
     # Painel
     path('', views.painel, name='painel'),
+    path('<int:semana_iso>/<int:ano>/', views.painel, name='painel_semana'),
+
+    # Histórico
+    path('historico/', views.historico, name='historico'),
+    path('historico/<int:semana_iso>/<int:ano>/', views.historico, name='historico_semana'),
 
     # Execuções de tarefa
     path('execucao/<int:execucao_id>/toggle/', views.toggle_execucao, name='toggle_execucao'),

@@ -100,7 +100,7 @@ M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → M10
 ---
 
 ## 🔁 MÓDULO 7 — Histórico de semanas
-
+> Em desenvolvimento (2026-05-20)
 - [ ] Tela de histórico com seletor de semana
 - [ ] Visualização somente leitura
 - [ ] Filtro por funcionário

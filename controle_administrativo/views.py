@@ -55,9 +55,17 @@ def _semana_atual_check(semana_iso, ano):
     return semana_iso == semana_atual and ano == ano_atual
 
 @login_required
-def painel(request):
-    semana_iso, ano = get_semana_atual()
-    marcar_atrasadas(semana_iso, ano)
+def painel(request, semana_iso=None, ano=None):
+    semana_atual, ano_atual = get_semana_atual()
+
+    if semana_iso is None or ano is None:
+        semana_iso = semana_atual
+        ano        = ano_atual
+
+    semana_iso = int(semana_iso)
+    ano        = int(ano)
+
+    marcar_atrasadas(semana_atual, ano_atual)
     gerar_execucoes_semana(semana_iso, ano)
     gerar_blocos_semana(semana_iso, ano, request.user)
 
@@ -66,6 +74,28 @@ def painel(request):
     funcionarios = get_funcionarios_ativos()
     resumo       = get_resumo_semana(semana_iso, ano)
     dia_atual    = get_dia_atual()
+
+    import datetime
+    MESES_PT = {
+        1: 'Janeiro', 2: 'Fevereiro', 3: 'Março', 4: 'Abril',
+        5: 'Maio', 6: 'Junho', 7: 'Julho', 8: 'Agosto',
+        9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro'
+    }
+    data_ref        = datetime.date.fromisocalendar(ano, semana_iso, 1)
+    data_fim        = data_ref + datetime.timedelta(days=4)
+    data_anterior   = data_ref - datetime.timedelta(weeks=1)
+    data_proxima    = data_ref + datetime.timedelta(weeks=1)
+    semana_anterior = data_anterior.isocalendar()[1]
+    ano_anterior    = data_anterior.isocalendar()[0]
+    semana_proxima  = data_proxima.isocalendar()[1]
+    ano_proxima     = data_proxima.isocalendar()[0]
+
+    if data_ref.month == data_fim.month:
+        intervalo_semana = f"{data_ref.day} a {data_fim.day} de {MESES_PT[data_ref.month]} de {ano}"
+    else:
+        intervalo_semana = f"{data_ref.day} de {MESES_PT[data_ref.month]} a {data_fim.day} de {MESES_PT[data_fim.month]} de {ano}"
+
+    eh_semana_atual = (semana_iso == semana_atual and ano == ano_atual)
 
     # Tarefas da divisão por funcionário — lista de dicts para o template
     funcionarios_com_tarefas = []
@@ -99,6 +129,12 @@ def painel(request):
         'semana_iso':               semana_iso,
         'ano':                      ano,
         'perfil_usuario':           perfil_usuario,
+        'intervalo_semana':         intervalo_semana,
+        'eh_semana_atual':          eh_semana_atual,
+        'semana_anterior':          semana_anterior,
+        'ano_anterior':             ano_anterior,
+        'semana_proxima':           semana_proxima,
+        'ano_proxima':              ano_proxima,
         'dias': [
             ('segunda', 'Segunda-feira'),
             ('terca',   'Terça-feira'),
@@ -118,6 +154,8 @@ def toggle_execucao(request, execucao_id):
     execucao = get_object_or_404(ExecucaoTarefaAdministrativa, id=execucao_id)
     if not request.user.is_superuser and not _semana_atual_check(execucao.semana_iso, execucao.ano):
         return JsonResponse({'success': False, 'error': 'Semanas passadas não podem ser editadas.'}, status=403)
+
+    execucao.is_done = not execucao.is_done
 
     if execucao.is_done:
         execucao.status        = StatusExecucao.CONCLUIDA
@@ -431,3 +469,82 @@ def excluir_tarefa_divisao_view(request, tarefa_id):
         return JsonResponse({'success': True})
     except ValueError as e:
         return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+def historico(request, semana_iso=None, ano=None):
+    """Visualização somente leitura de qualquer semana."""
+    semana_atual, ano_atual = get_semana_atual()
+
+    # Se não foi passada semana, usa a atual
+    if semana_iso is None or ano is None:
+        semana_iso = semana_atual
+        ano        = ano_atual
+
+    semana_iso = int(semana_iso)
+    ano        = int(ano)
+
+    # Calcula semana anterior e próxima para navegação
+    import datetime
+    MESES_PT = {
+        1: 'Janeiro', 2: 'Fevereiro', 3: 'Março', 4: 'Abril',
+        5: 'Maio', 6: 'Junho', 7: 'Julho', 8: 'Agosto',
+        9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro'
+    }
+    data_ref        = datetime.date.fromisocalendar(ano, semana_iso, 1)
+    data_fim        = data_ref + datetime.timedelta(days=4)
+    data_anterior   = data_ref - datetime.timedelta(weeks=1)
+    data_proxima    = data_ref + datetime.timedelta(weeks=1)
+    semana_anterior = data_anterior.isocalendar()[1]
+    ano_anterior    = data_anterior.isocalendar()[0]
+    semana_proxima  = data_proxima.isocalendar()[1]
+    ano_proxima     = data_proxima.isocalendar()[0]
+
+    if data_ref.month == data_fim.month:
+        intervalo_semana = f"{data_ref.day} a {data_fim.day} de {MESES_PT[data_ref.month]} de {ano}"
+    else:
+        intervalo_semana = f"{data_ref.day} de {MESES_PT[data_ref.month]} a {data_fim.day} de {MESES_PT[data_fim.month]} de {ano}"
+
+    execucoes    = get_execucoes_da_semana(semana_iso, ano, user=request.user)
+    blocos       = get_blocos_da_semana(semana_iso, ano)
+    funcionarios = get_funcionarios_ativos()
+    resumo       = get_resumo_semana(semana_iso, ano)
+
+    # Tarefas da divisão por funcionário
+    funcionarios_com_tarefas = []
+    for func in funcionarios:
+        tarefas = list(TarefaDivisao.objects.filter(
+            funcionario=func,
+            semana_iso=semana_iso,
+            ano=ano,
+        ).order_by('ordem', 'criado_em'))
+        funcionarios_com_tarefas.append({
+            'funcionario': func,
+            'tarefas_divisao': tarefas,
+        })
+
+    eh_semana_atual = (semana_iso == semana_atual and ano == ano_atual)
+
+    context = {
+        'execucoes':                execucoes,
+        'blocos':                   blocos,
+        'funcionarios':             funcionarios,
+        'funcionarios_com_tarefas': funcionarios_com_tarefas,
+        'resumo':                   resumo,
+        'semana_iso':               semana_iso,
+        'ano':                      ano,
+        'eh_semana_atual':          eh_semana_atual,
+        'semana_anterior':          semana_anterior,
+        'ano_anterior':             ano_anterior,
+        'semana_proxima':           semana_proxima,
+        'ano_proxima':              ano_proxima,
+        'intervalo_semana':         intervalo_semana,
+        'dias': [
+            ('segunda', 'Segunda-feira'),
+            ('terca',   'Terça-feira'),
+            ('quarta',  'Quarta-feira'),
+            ('quinta',  'Quinta-feira'),
+            ('sexta',   'Sexta-feira'),
+        ],
+    }
+    return render(request, 'controle_administrativo/historico.html', context)
