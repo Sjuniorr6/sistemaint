@@ -21,6 +21,6 @@ def enviar_email_requisicao_criada(sender, instance, created, **kwargs):
         """
         
         from_email = 'sysggoldensat@gmail.com'
-        recipient_list = ['sjuniorr6@gmail.com']
+        recipient_list = ['julio.cesar@grupogoldensat.com.br']
 
         send_mail(subject, message, from_email, recipient_list)

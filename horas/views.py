@@ -340,7 +340,6 @@ Sistema de Gestão de Horas"""
         recipients = [
             'julio.cesar@grupogoldensat.com.br',
             'rh@grupogoldensat.com.br',
-            'sjuniorr6@gmail.com',
         ]
 
         print("2. Preparando email...")

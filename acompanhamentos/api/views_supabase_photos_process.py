@@ -1017,90 +1017,64 @@ def process_one_photo_id(photo_id: str, force: bool = False):
         photo_type = photo.get("type")
         storage_path = photo.get("storage_path")
 
-        # 2) Entrada manual pré-processada pelo app (processed=true, source=manual ou is_manual)
-        # O app pode ter gravado processed=true diretamente; neste caso precisamos apenas
-        # aplicar as regras de status/Django sem reprocessar a imagem.
-        _early_metadata = photo.get("metadata") or {}
+        # 2) Foto já processada (pelo app ou pela IA) mas Django ainda não sincronizado
         _early_vr = photo.get("validation_result") or {}
-        _is_manual_preproc = (
-            photo.get("processed") is True
-            and (
-                _early_metadata.get("source") == "manual"
-                or _early_metadata.get("is_manual") is True
-                or _early_vr.get("is_manual") is True
-            )
-            and bool(_early_vr.get("valid"))
-        )
-        if _is_manual_preproc and not force:
-            # Se o Django já foi sincronizado numa rodada anterior, não aplica regras de novo
-            if _early_vr.get("django_synced"):
-                return ({
-                    "success": True,
-                    "message": "Entrada manual já sincronizada com Django",
-                    "photo_id": photo_id,
-                    "mission_id": mission_id,
-                    "photo_type": photo_type,
-                    "validation_result": _early_vr,
-                }, 200)
-
-            mission_update_info = _apply_photo_rules(
-                sb=sb, mission_id=mission_id, photo_type=photo_type, vr=_early_vr, is_manual=True
-            )
-
-            # Marca no Supabase que o Django já foi sincronizado para evitar reprocessamento
-            if mission_update_info.get("updated"):
-                _early_vr["django_synced"] = True
-                sb.table("mission_photos").update(
-                    {"validation_result": _early_vr}
-                ).eq("id", photo_id).execute()
-
-            return ({
-                "success": True,
-                "message": "Entrada manual já processada pelo app — regras Django aplicadas",
-                "photo_id": photo_id,
-                "mission_id": mission_id,
-                "photo_type": photo_type,
-                "validation_result": _early_vr,
-                "mission_update": mission_update_info,
-            }, 200)
-
-        # 3) Idempotência: já processou via IA normalmente
-        existing_vr = photo.get("validation_result") or {}
-        has_previous_error = isinstance(existing_vr, dict) and bool(existing_vr.get("error"))
+        _early_metadata = photo.get("metadata") or {}
         if (
             not force
             and photo.get("processed") is True
-            and photo.get("validation_result")
-            and not has_previous_error
+            and bool(_early_vr.get("valid"))
+            and _early_vr.get("odometer_raw") is not None
+            and not _early_vr.get("django_synced")
         ):
-            # Se a IA aprovou mas o Django ainda não foi sincronizado, aplica as regras agora
-            if bool(existing_vr.get("valid")) and not existing_vr.get("django_synced"):
-                logger.info(
-                    "[DJANGO_SYNC_PENDING] Foto processada pela IA mas Django não sincronizado. "
-                    "Aplicando regras. photo_id=%s mission_id=%s type=%s",
-                    photo_id, mission_id, photo_type,
+            _is_manual = (
+                not storage_path
+                or _early_vr.get("is_manual") is True
+                or _early_metadata.get("is_manual") is True
+                or _early_metadata.get("source") == "manual"
+            )
+            try:
+                km_valor = int(_early_vr["odometer_raw"])
+                mission_uuid = uuid.UUID(mission_id)
+                vinculo = (
+                    registroacompanhamentoagente.objects
+                    .filter(acompanhamento__supabase_mission_id=mission_uuid)
+                    .filter(tipo_agente="principal")
+                    .first()
+                    or registroacompanhamentoagente.objects
+                    .filter(acompanhamento__supabase_mission_id=mission_uuid)
+                    .order_by("id").first()
                 )
-                mission_update_info = _apply_photo_rules(
-                    sb=sb, mission_id=mission_id, photo_type=photo_type, vr=existing_vr
-                )
-                if mission_update_info.get("updated"):
-                    existing_vr["django_synced"] = True
-                    sb.table("mission_photos").update(
-                        {"validation_result": existing_vr}
-                    ).eq("id", photo_id).execute()
-                elif mission_update_info.get("reason") == "django_km_update_failed":
-                    # Já gravou o erro no validation_result dentro de _apply_photo_rules
-                    pass
-                return ({
-                    "success": True,
-                    "message": "Foto já processada — Django sincronizado",
-                    "photo_id": photo_id,
-                    "mission_id": mission_id,
-                    "photo_type": photo_type,
-                    "validation_result": existing_vr,
-                    "mission_update": mission_update_info,
-                }, 200)
-            return ({"success": True, "message": "Foto já processada", "photo": photo}, 200)
+                if vinculo:
+                    update_fields = []
+                    if photo_type == "odometro_inicio":
+                        vinculo.km_inicio = km_valor
+                        update_fields.append("km_inicio")
+                        if _is_manual:
+                            vinculo.km_inicio_manual = True
+                            update_fields.append("km_inicio_manual")
+                    elif photo_type == "odometro_final":
+                        vinculo.km_final = km_valor
+                        update_fields.append("km_final")
+                        if _is_manual:
+                            vinculo.km_final_manual = True
+                            update_fields.append("km_final_manual")
+                    if update_fields:
+                        vinculo.save(update_fields=update_fields)
+                        _early_vr["django_synced"] = True
+                        sb.table("mission_photos").update({"validation_result": _early_vr}).eq("id", photo_id).execute()
+                        logger.info("[SYNC_OK] photo_id=%s mission_id=%s type=%s km=%s manual=%s", photo_id, mission_id, photo_type, km_valor, _is_manual)
+                        return ({"success": True, "message": "KM sincronizado com Django", "photo_id": photo_id, "mission_id": mission_id, "photo_type": photo_type, "km_valor": km_valor, "is_manual": _is_manual}, 200)
+                    return ({"success": True, "message": "Foto já processada", "photo_id": photo_id}, 200)
+                else:
+                    logger.error("[SYNC_FAIL] vinculo nao encontrado mission_id=%s", mission_id)
+                    return ({"success": False, "error": "vinculo_nao_encontrado", "mission_id": mission_id}, 404)
+            except Exception as sync_exc:
+                logger.exception("[SYNC_FAIL] photo_id=%s mission_id=%s", photo_id, mission_id)
+                return ({"success": False, "error": str(sync_exc)}, 500)
+
+        if not force and photo.get("processed") is True and _early_vr.get("django_synced"):
+            return ({"success": True, "message": "Foto já processada e Django sincronizado", "photo_id": photo_id}, 200)
         if has_previous_error:
             logger.info(
                 "[PHOTO_REPROCESS] Reprocessando foto com falha anterior photo_id=%s mission_id=%s type=%s error=%s",

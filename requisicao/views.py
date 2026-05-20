@@ -789,7 +789,7 @@ def aprovar_ceo(request, id):
     subject = f"Requisicao Aprovada: {registro.id}"
     message = f"A manutenção {registro.id} foi aprovada com sucesso. {registro.nome} Status: {registro.status} criar Requisição"
     from_email = settings.DEFAULT_FROM_EMAIL
-    recipient_list = ["sjuniorr6@gmail.com"]
+    recipient_list = ["julio.cesar@grupogoldensat.com.br"]
 
     try:
         send_mail(subject, message, from_email, recipient_list)
@@ -1133,7 +1133,7 @@ def Aprovar_diretoria(request, id):
     subject = f"Manutenção Aprovada: {registro.id}"
     message = f"A manutenção {registro.id} foi aprovada com sucesso. {registro.nome} Status: {registro.status} criar Requisição"
     from_email = settings.DEFAULT_FROM_EMAIL
-    recipient_list = ["sjuniorr6@gmail.com"]
+    recipient_list = ["julio.cesar@grupogoldensat.com.br"]
 
     try:
         send_mail(subject, message, from_email, recipient_list)
@@ -1591,7 +1591,7 @@ def enviar_email_com_pdf(request, id):
     subject = f"Requisição Criada: {requisicao.id}"
     message = f"A requisição {requisicao.id} foi criada com sucesso. Segue PDF para tratativa."
     from_email = settings.DEFAULT_FROM_EMAIL
-    recipient_list = ["sjuniorr6@gmail.com"]
+    recipient_list = ["julio.cesar@grupogoldensat.com.br"]
 
     email = EmailMessage(subject, message, from_email, recipient_list)
     email.attach_file(pdf_path)
@@ -1750,7 +1750,7 @@ class AntenistaCreateView(CreateView):
             subject="Projeto Fast - Novo Registro",
             message="Um novo registro foi criado no sistema. Comercial favor tratar",
             from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=["sjuniorr6@Gmail.com", "comercial@grupogoldensat.com.br"],
+            recipient_list=["julio.cesar@grupogoldensat.com.br", "comercial@grupogoldensat.com.br"],
             fail_silently=False,  # Define como True para evitar erros visíveis ao usuário
         )
 
