@@ -140,3 +140,4 @@ M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → M10
 - [ ] Indicadores individuais por funcionário
 - [ ] Ajustes do uso real
 - [ ] Filtro por funcionário no histórico
+- [ ] Exportação Excel via Celery (tarefa em background)

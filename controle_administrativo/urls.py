@@ -31,4 +31,7 @@ urlpatterns = [
     path('divisao/<int:funcionario_id>/adicionar/', views.adicionar_tarefa_divisao_view, name='adicionar_tarefa_divisao'),
     path('divisao/tarefa/<int:tarefa_id>/editar/', views.editar_tarefa_divisao_view, name='editar_tarefa_divisao'),
     path('divisao/tarefa/<int:tarefa_id>/excluir/', views.excluir_tarefa_divisao_view, name='excluir_tarefa_divisao'),
+
+    # Exportação Excel
+    path('exportar/<int:semana_iso>/<int:ano>/', views.exportar_excel, name='exportar_excel'),
 ]

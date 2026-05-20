@@ -548,3 +548,146 @@ def historico(request, semana_iso=None, ano=None):
         ],
     }
     return render(request, 'controle_administrativo/historico.html', context)
+
+@login_required
+def exportar_excel(request, semana_iso, ano):
+    """Exporta as execuções da semana em formato Excel com abas por funcionário."""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from django.http import HttpResponse
+
+    semana_iso = int(semana_iso)
+    ano        = int(ano)
+
+    from .models import FuncionarioAdministrativo, ExecucaoTarefaAdministrativa
+
+    funcionarios = FuncionarioAdministrativo.objects.filter(
+        perfil='operador', ativo=True
+    ).order_by('nome')
+
+    execucoes = ExecucaoTarefaAdministrativa.objects.filter(
+        semana_iso=semana_iso, ano=ano
+    ).exclude(status='cancelada').select_related(
+        'tarefa_modelo', 'tarefa_modelo__responsavel',
+        'responsavel_avulso', 'concluido_por',
+    ).prefetch_related('comentarios').order_by(
+        'tarefa_modelo__dia_da_semana', 'tarefa_modelo__periodo'
+    )
+
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+
+    # ── Cores ──
+    AZUL_ESCURO  = '1F3864'
+    AZUL_CLARO   = 'D9E1F2'
+    VERDE_CLARO  = 'E2EFDA'
+    VERMELHO_CL  = 'FCE4D6'
+    AMARELO_CL   = 'FFF2CC'
+    CINZA_CLARO  = 'F2F2F2'
+    BRANCO       = 'FFFFFF'
+    VERDE_TEXTO  = '375623'
+    VERMELHO_TX  = '9C0006'
+    AMARELO_TX   = '7D6608'
+
+    # ── Bordas ──
+    borda = Border(
+        left   = Side(style='thin', color='BFBFBF'),
+        right  = Side(style='thin', color='BFBFBF'),
+        top    = Side(style='thin', color='BFBFBF'),
+        bottom = Side(style='thin', color='BFBFBF'),
+    )
+
+    DIAS_ORDEM  = ['segunda', 'terca', 'quarta', 'quinta', 'sexta']
+    DIAS_PT     = {'segunda': 'Segunda-feira', 'terca': 'Terça-feira', 'quarta': 'Quarta-feira', 'quinta': 'Quinta-feira', 'sexta': 'Sexta-feira'}
+    PERIODOS_PT = {'manha': 'Manhã', 'tarde': 'Tarde'}
+    STATUS_PT   = {'pendente': 'Pendente', 'em_andamento': 'Em Andamento', 'concluida': 'Concluída', 'atrasada': 'Atrasada'}
+
+    for func in funcionarios:
+        ws = wb.create_sheet(title=func.nome[:31])
+        ws.sheet_view.showGridLines = False
+
+        # ── Título ──
+        ws.merge_cells('A1:F1')
+        ws['A1'] = f'Controle Administrativo — {func.nome} — Semana {semana_iso}/{ano}'
+        ws['A1'].font      = Font(bold=True, size=13, color=BRANCO)
+        ws['A1'].fill      = PatternFill('solid', fgColor=AZUL_ESCURO)
+        ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
+        ws.row_dimensions[1].height = 28
+
+        # ── Cabeçalho ──
+        headers = ['Dia', 'Período', 'Tarefa', 'Status', 'Comentários', 'Concluído por']
+        for col, h in enumerate(headers, 1):
+            cell = ws.cell(row=2, column=col, value=h)
+            cell.font      = Font(bold=True, size=10, color=AZUL_ESCURO)
+            cell.fill      = PatternFill('solid', fgColor=AZUL_CLARO)
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border    = borda
+        ws.row_dimensions[2].height = 18
+
+        # ── Dados ──
+        execucoes_func = [
+            e for e in execucoes
+            if (e.tarefa_modelo and e.tarefa_modelo.responsavel_id == func.id)
+            or (e.is_avulsa and e.responsavel_avulso_id == func.id)
+        ]
+
+        execucoes_func.sort(key=lambda e: (
+            DIAS_ORDEM.index(e.dia_key) if e.dia_key in DIAS_ORDEM else 99,
+            e.periodo_key or ''
+        ))
+
+        row = 3
+        for i, e in enumerate(execucoes_func):
+            comentarios_texto = ' | '.join([c.conteudo for c in e.comentarios.all()])
+            concluido_por = ''
+            if e.concluido_por:
+                concluido_por = e.concluido_por.get_full_name() or e.concluido_por.username
+
+            # Cor por status
+            if e.status == 'concluida':
+                bg, fg = VERDE_CLARO, VERDE_TEXTO
+            elif e.status == 'atrasada':
+                bg, fg = VERMELHO_CL, VERMELHO_TX
+            elif e.status == 'em_andamento':
+                bg, fg = AMARELO_CL, AMARELO_TX
+            else:
+                bg = CINZA_CLARO if i % 2 == 0 else BRANCO
+                fg = '000000'
+
+            valores = [
+                DIAS_PT.get(e.dia_key, e.dia_key or '—'),
+                PERIODOS_PT.get(e.periodo_key, e.periodo_key or '—'),
+                e.titulo_display,
+                STATUS_PT.get(e.status, e.status),
+                comentarios_texto or '—',
+                concluido_por or '—',
+            ]
+
+            for col, val in enumerate(valores, 1):
+                cell = ws.cell(row=row, column=col, value=val)
+                cell.fill      = PatternFill('solid', fgColor=bg)
+                cell.font      = Font(size=10, color=fg)
+                cell.border    = borda
+                cell.alignment = Alignment(
+                    horizontal='center' if col <= 2 else 'left',
+                    vertical='center',
+                    wrap_text=True
+                )
+
+            ws.row_dimensions[row].height = 16
+            row += 1
+
+        # ── Larguras ──
+        ws.column_dimensions['A'].width = 16
+        ws.column_dimensions['B'].width = 10
+        ws.column_dimensions['C'].width = 42
+        ws.column_dimensions['D'].width = 14
+        ws.column_dimensions['E'].width = 50
+        ws.column_dimensions['F'].width = 20
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="controle_adm_semana_{semana_iso}_{ano}.xlsx"'
+    wb.save(response)
+    return response
