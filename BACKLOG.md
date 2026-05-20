@@ -90,17 +90,16 @@ M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → M10
 
 ---
 
-## 🔁 MÓDULO 6 — Geração automática de semanas
-> Em desenvolvimento (iniciado em 2026-05-20)
-- [ ] Serviço que detecta início de nova semana
-- [ ] Gera execuções para todas as tarefas ativas
-- [ ] Tarefas não concluídas viram `atrasada`
-- [ ] Lógica idempotente — sem duplicação
-- [ ] Commit: `feat(sca): geração automática de semanas`
-
+## ✅ MÓDULO 6 — Geração automática de semanas
+> Concluído em 2026-05-20
+- [x] Serviço que detecta início de nova semana
+- [x] Gera execuções para todas as tarefas ativas
+- [x] Tarefas não concluídas viram `atrasada`
+- [x] Lógica idempotente — sem duplicação
+- [x] Commit: `feat(sca): geracao automatica de semanas e marcacao de atrasadas`
 ---
 
-## ⏳ MÓDULO 7 — Histórico de semanas
+## 🔁 MÓDULO 7 — Histórico de semanas
 
 - [ ] Tela de histórico com seletor de semana
 - [ ] Visualização somente leitura
