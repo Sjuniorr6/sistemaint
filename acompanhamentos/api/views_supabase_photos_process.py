@@ -377,15 +377,6 @@ def _update_django_km(acompanhamento, photo_type: str, odo_raw, ts_iso, photo_id
             or acompanhamento.agentes.select_for_update().order_by("id").first()
         )
 
-    if mission_id and str(getattr(acompanhamento, "supabase_mission_id", "")) != str(mission_id):
-        return {
-            "updated": False,
-            "reason": "mission_mismatch_on_update",
-            "mission_id": mission_id,
-            "acompanhamento_id": getattr(acompanhamento, "id", None),
-            "acompanhamento_mission_id": str(getattr(acompanhamento, "supabase_mission_id", "")),
-        }
-
     if not vinculo:
         return {"updated": False, "reason": "no_agente_vinculado"}
 
@@ -522,15 +513,15 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict, is_manual
     if photo_type == "odometro_inicio":
         odo_raw = vr.get("odometer_raw")
 
-        if current_status != STATUS_NO_LOCAL or not is_valid:
+        if not is_valid:
             return {
                 "updated": False,
-                "reason": "odometro_inicio_requires_status_no_local_and_valid_true",
+                "reason": "odometro_inicio_invalid",
                 "current_status": current_status,
                 "valid": is_valid,
             }
 
-        # 1) grava KM no Django — status só avança se isso tiver sucesso
+        # 1) Sempre salva KM no Django se a foto for válida
         with transaction.atomic():
             acompanhamento = _find_acompanhamento_by_supabase_mission_id(mission_id)
             django_info = _update_django_km(
@@ -546,13 +537,14 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict, is_manual
             _update_django_datetime_inicio_fim(acompanhamento, "inicio", ts_iso=ts)
 
         if not django_info.get("updated"):
+            fail_reason = django_info.get("reason", "desconhecido")
             logger.error(
-                "[KM_SAVE_FAIL] mission_id=%s photo_id=%s photo_type=%s reason=%s",
-                mission_id,
-                photo_id,
-                photo_type,
-                django_info.get("reason"),
+                "[KM_SAVE_FAIL] odometro_inicio mission_id=%s photo_id=%s reason=%s django_info=%s",
+                mission_id, photo_id, fail_reason, django_info,
             )
+            vr["django_km_error"] = fail_reason
+            vr["django_km_info"] = django_info
+            sb.table("mission_photos").update({"validation_result": vr}).eq("id", photo_id).execute()
             return {
                 "updated": False,
                 "reason": "django_km_update_failed",
@@ -560,14 +552,23 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict, is_manual
                 "django_km_update": django_info,
             }
 
-        # 2) só avança status após KM salvo
-        _supabase_update_status(sb, mission_id, STATUS_ODO_INICIO_OK)
-        _sync_django_status(mission_id, STATUS_ODO_INICIO_OK)
+        # 2) Avança status apenas se estiver no status esperado
+        if current_status == STATUS_NO_LOCAL:
+            _supabase_update_status(sb, mission_id, STATUS_ODO_INICIO_OK)
+            _sync_django_status(mission_id, STATUS_ODO_INICIO_OK)
+            new_status = STATUS_ODO_INICIO_OK
+        else:
+            logger.info(
+                "[STATUS_SKIP] odometro_inicio KM salvo mas status não avançou "
+                "(status atual=%s, esperado=%s) mission_id=%s",
+                current_status, STATUS_NO_LOCAL, mission_id,
+            )
+            new_status = current_status
 
         return {
             "updated": True,
             "previous_status": current_status,
-            "new_status": STATUS_ODO_INICIO_OK,
+            "new_status": new_status,
             "django_km_update": django_info,
         }
 
@@ -576,11 +577,11 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict, is_manual
     # ==================================================
     elif photo_type == "odometro_final":
         odo_raw = vr.get("odometer_raw")
-        
-        if current_status != STATUS_EM_ANDAMENTO or not is_valid:
+
+        if not is_valid:
             return {
                 "updated": False,
-                "reason": "odometro_final_requires_status_em_andamento_and_valid_true",
+                "reason": "odometro_final_invalid",
                 "current_status": current_status,
                 "valid": is_valid,
             }
@@ -701,7 +702,7 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict, is_manual
                     "km_excedente_tolerancia": round(excedente, 2),
                 }
 
-        # 1) grava KM no Django — status só avança se isso tiver sucesso
+        # 1) Sempre salva KM no Django se a foto for válida
         with transaction.atomic():
             django_info = _update_django_km(
                 acompanhamento=acompanhamento,
@@ -715,13 +716,14 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict, is_manual
             )
 
         if not django_info.get("updated"):
+            fail_reason = django_info.get("reason", "desconhecido")
             logger.error(
-                "[KM_SAVE_FAIL] mission_id=%s photo_id=%s photo_type=%s reason=%s",
-                mission_id,
-                photo_id,
-                photo_type,
-                django_info.get("reason"),
+                "[KM_SAVE_FAIL] odometro_final mission_id=%s photo_id=%s reason=%s django_info=%s",
+                mission_id, photo_id, fail_reason, django_info,
             )
+            vr["django_km_error"] = fail_reason
+            vr["django_km_info"] = django_info
+            sb.table("mission_photos").update({"validation_result": vr}).eq("id", photo_id).execute()
             return {
                 "updated": False,
                 "reason": "django_km_update_failed",
@@ -729,14 +731,23 @@ def _apply_photo_rules(sb, mission_id: str, photo_type: str, vr: dict, is_manual
                 "django_km_update": django_info,
             }
 
-        # 2) só avança status após KM salvo
-        _supabase_update_status(sb, mission_id, STATUS_ODO_FINAL_OK)
-        _sync_django_status(mission_id, STATUS_ODO_FINAL_OK)
+        # 2) Avança status apenas se estiver no status esperado
+        if current_status == STATUS_EM_ANDAMENTO:
+            _supabase_update_status(sb, mission_id, STATUS_ODO_FINAL_OK)
+            _sync_django_status(mission_id, STATUS_ODO_FINAL_OK)
+            new_status = STATUS_ODO_FINAL_OK
+        else:
+            logger.info(
+                "[STATUS_SKIP] odometro_final KM salvo mas status não avançou "
+                "(status atual=%s, esperado=%s) mission_id=%s",
+                current_status, STATUS_EM_ANDAMENTO, mission_id,
+            )
+            new_status = current_status
 
         return {
             "updated": True,
             "previous_status": current_status,
-            "new_status": STATUS_ODO_FINAL_OK,
+            "new_status": new_status,
             "django_km_update": django_info,
         }
 
@@ -924,6 +935,44 @@ def _process_manual_entry(sb, photo: dict):
 
     sb.table("mission_photos").update({"processed": True, "validation_result": vr}).eq("id", photo_id).execute()
 
+    # Salva KM direto no Django
+    django_km_saved = False
+    django_km_error = None
+    try:
+        mission_uuid = uuid.UUID(mission_id)
+        vinculo = (
+            registroacompanhamentoagente.objects
+            .filter(acompanhamento__supabase_mission_id=mission_uuid)
+            .filter(tipo_agente="principal")
+            .first()
+            or registroacompanhamentoagente.objects
+            .filter(acompanhamento__supabase_mission_id=mission_uuid)
+            .order_by("id")
+            .first()
+        )
+        if vinculo:
+            update_fields = []
+            if photo_type == "odometro_inicio":
+                vinculo.km_inicio = manual_int
+                vinculo.km_inicio_manual = True
+                update_fields = ["km_inicio", "km_inicio_manual"]
+            elif photo_type == "odometro_final":
+                vinculo.km_final = manual_int
+                vinculo.km_final_manual = True
+                update_fields = ["km_final", "km_final_manual"]
+            if update_fields:
+                vinculo.save(update_fields=update_fields)
+                django_km_saved = True
+                vr["django_synced"] = True
+                sb.table("mission_photos").update({"validation_result": vr}).eq("id", photo_id).execute()
+                logger.info("[KM_MANUAL_SAVE_OK] mission_id=%s photo_type=%s km=%s vinculo_id=%s", mission_id, photo_type, manual_int, vinculo.id)
+        else:
+            django_km_error = "vinculo_nao_encontrado"
+            logger.error("[KM_MANUAL_SAVE_FAIL] Vinculo não encontrado mission_id=%s", mission_id)
+    except Exception as km_exc:
+        django_km_error = str(km_exc)
+        logger.exception("[KM_MANUAL_SAVE_FAIL] mission_id=%s photo_id=%s", mission_id, photo_id)
+
     mission_update_info = _apply_photo_rules(sb=sb, mission_id=mission_id, photo_type=photo_type, vr=vr, is_manual=True)
 
     return ({
@@ -933,6 +982,8 @@ def _process_manual_entry(sb, photo: dict):
         "mission_id": mission_id,
         "photo_type": photo_type,
         "validation_result": vr,
+        "django_km_saved": django_km_saved,
+        "django_km_error": django_km_error,
         "mission_update": mission_update_info,
     }, 200)
 
@@ -981,9 +1032,28 @@ def process_one_photo_id(photo_id: str, force: bool = False):
             and bool(_early_vr.get("valid"))
         )
         if _is_manual_preproc and not force:
+            # Se o Django já foi sincronizado numa rodada anterior, não aplica regras de novo
+            if _early_vr.get("django_synced"):
+                return ({
+                    "success": True,
+                    "message": "Entrada manual já sincronizada com Django",
+                    "photo_id": photo_id,
+                    "mission_id": mission_id,
+                    "photo_type": photo_type,
+                    "validation_result": _early_vr,
+                }, 200)
+
             mission_update_info = _apply_photo_rules(
                 sb=sb, mission_id=mission_id, photo_type=photo_type, vr=_early_vr, is_manual=True
             )
+
+            # Marca no Supabase que o Django já foi sincronizado para evitar reprocessamento
+            if mission_update_info.get("updated"):
+                _early_vr["django_synced"] = True
+                sb.table("mission_photos").update(
+                    {"validation_result": _early_vr}
+                ).eq("id", photo_id).execute()
+
             return ({
                 "success": True,
                 "message": "Entrada manual já processada pelo app — regras Django aplicadas",
@@ -1003,6 +1073,33 @@ def process_one_photo_id(photo_id: str, force: bool = False):
             and photo.get("validation_result")
             and not has_previous_error
         ):
+            # Se a IA aprovou mas o Django ainda não foi sincronizado, aplica as regras agora
+            if bool(existing_vr.get("valid")) and not existing_vr.get("django_synced"):
+                logger.info(
+                    "[DJANGO_SYNC_PENDING] Foto processada pela IA mas Django não sincronizado. "
+                    "Aplicando regras. photo_id=%s mission_id=%s type=%s",
+                    photo_id, mission_id, photo_type,
+                )
+                mission_update_info = _apply_photo_rules(
+                    sb=sb, mission_id=mission_id, photo_type=photo_type, vr=existing_vr
+                )
+                if mission_update_info.get("updated"):
+                    existing_vr["django_synced"] = True
+                    sb.table("mission_photos").update(
+                        {"validation_result": existing_vr}
+                    ).eq("id", photo_id).execute()
+                elif mission_update_info.get("reason") == "django_km_update_failed":
+                    # Já gravou o erro no validation_result dentro de _apply_photo_rules
+                    pass
+                return ({
+                    "success": True,
+                    "message": "Foto já processada — Django sincronizado",
+                    "photo_id": photo_id,
+                    "mission_id": mission_id,
+                    "photo_type": photo_type,
+                    "validation_result": existing_vr,
+                    "mission_update": mission_update_info,
+                }, 200)
             return ({"success": True, "message": "Foto já processada", "photo": photo}, 200)
         if has_previous_error:
             logger.info(
@@ -1072,10 +1169,50 @@ def process_one_photo_id(photo_id: str, force: bool = False):
             "_photo_id": photo_id,
         }
 
-        # 9) Atualizar mission_photos
+        # 9) Atualizar mission_photos no Supabase
         sb.table("mission_photos").update({"processed": True, "validation_result": vr}).eq("id", photo_id).execute()
 
-        # 10) Aplicar regras (status no Supabase + km/placa no Django)
+        # 10) Salvar KM no Django diretamente, se IA aprovou
+        django_km_saved = False
+        django_km_error = None
+        if is_valid and vr.get("odometer_raw") is not None:
+            try:
+                km_valor = int(vr["odometer_raw"])
+                vinculo = (
+                    registroacompanhamentoagente.objects
+                    .filter(acompanhamento__supabase_mission_id=uuid.UUID(mission_id))
+                    .filter(tipo_agente="principal")
+                    .first()
+                    or registroacompanhamentoagente.objects
+                    .filter(acompanhamento__supabase_mission_id=uuid.UUID(mission_id))
+                    .order_by("id")
+                    .first()
+                )
+                if vinculo:
+                    update_fields = []
+                    if photo_type == "odometro_inicio":
+                        vinculo.km_inicio = km_valor
+                        update_fields.append("km_inicio")
+                    elif photo_type == "odometro_final":
+                        vinculo.km_final = km_valor
+                        update_fields.append("km_final")
+                    if update_fields:
+                        vinculo.save(update_fields=update_fields)
+                        django_km_saved = True
+                        vr["django_synced"] = True
+                        sb.table("mission_photos").update({"validation_result": vr}).eq("id", photo_id).execute()
+                        logger.info(
+                            "[KM_SAVE_OK] mission_id=%s photo_type=%s km=%s vinculo_id=%s",
+                            mission_id, photo_type, km_valor, vinculo.id,
+                        )
+                else:
+                    django_km_error = "vinculo_nao_encontrado"
+                    logger.error("[KM_SAVE_FAIL] Vinculo não encontrado mission_id=%s", mission_id)
+            except Exception as km_exc:
+                django_km_error = str(km_exc)
+                logger.exception("[KM_SAVE_FAIL] mission_id=%s photo_id=%s", mission_id, photo_id)
+
+        # 11) Avançar status no Supabase + Django
         mission_update_info = _apply_photo_rules(sb=sb, mission_id=mission_id, photo_type=photo_type, vr=vr)
 
         return ({
@@ -1086,6 +1223,8 @@ def process_one_photo_id(photo_id: str, force: bool = False):
             "photo_type": photo_type,
             "storage_path": storage_path,
             "validation_result": vr,
+            "django_km_saved": django_km_saved,
+            "django_km_error": django_km_error,
             "mission_update": mission_update_info,
         }, 200)
 
@@ -1160,8 +1299,9 @@ def sb_process_pending_photos(request):
         pending = photos_res.data or []
 
         # Além das pendentes, tenta reprocessar fotos já "processed=true"
-        # que ficaram com erro de processamento (casos legados travados).
+        # que ficaram com erro ou que têm valid=True mas django_synced ausente (KM não salvo no Django).
         errored = []
+        unsynced = []
         if mission_id:
             recent_q = (
                 sb.table("mission_photos")
@@ -1174,18 +1314,21 @@ def sb_process_pending_photos(request):
                 recent_q = recent_q.eq("type", photo_type)
 
             recent_rows = recent_q.execute().data or []
-            errored = [
-                row
-                for row in recent_rows
-                if row.get("processed") is True
-                and isinstance(row.get("validation_result"), dict)
-                and row.get("validation_result", {}).get("error")
-            ]
+            for row in recent_rows:
+                if not (row.get("processed") is True):
+                    continue
+                vr_row = row.get("validation_result") or {}
+                if not isinstance(vr_row, dict):
+                    continue
+                if vr_row.get("error"):
+                    errored.append(row)
+                elif vr_row.get("valid") is True and not vr_row.get("django_synced"):
+                    unsynced.append(row)
 
-        # Deduplica mantendo ordem: pendentes primeiro, depois errored.
+        # Deduplica mantendo ordem: pendentes primeiro, depois unsynced, depois errored.
         all_candidates = []
         seen_ids = set()
-        for row in (pending + errored):
+        for row in (pending + unsynced + errored):
             pid = row.get("id")
             if not pid or pid in seen_ids:
                 continue
@@ -1306,6 +1449,7 @@ def sb_process_pending_photos(request):
             "message": "Polling completado",
             "filters": {"mission_id": mission_id, "type": photo_type, "limit": limit, "mode": mode},
             "total_pending_found": len(pending),
+            "total_unsynced_found": len(unsynced),
             "total_errored_found": len(errored),
             "total_candidates": len(all_candidates),
             "processing_locked_skipped": locked_count,
@@ -1319,4 +1463,164 @@ def sb_process_pending_photos(request):
 
     except Exception as e:
         logger.exception("Erro no polling de fotos")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@csrf_exempt
+@require_POST
+def sb_mission_sync_km(request, mission_id: str):
+    """
+    Lê as fotos de odômetro aprovadas no Supabase e salva km_inicio/km_final
+    diretamente no registroacompanhamentoagente do Django. Simples e direto.
+
+    POST /api/supabase/mission/<mission_id>/sync-km/
+    """
+    try:
+        sb = get_supabase()
+
+        # Busca as fotos de odômetro processadas e válidas para essa missão
+        fotos = (
+            sb.table("mission_photos")
+            .select("id, type, metadata, validation_result")
+            .eq("mission_id", mission_id)
+            .eq("processed", True)
+            .in_("type", ["odometro_inicio", "odometro_final"])
+            .execute()
+            .data or []
+        )
+
+        if not fotos:
+            return JsonResponse({"success": False, "error": "Nenhuma foto de odômetro processada encontrada no Supabase para essa missão"}, status=404)
+
+        # Encontra o vinculo (agente) no Django
+        try:
+            mission_uuid = uuid.UUID(mission_id)
+        except ValueError:
+            return JsonResponse({"success": False, "error": "mission_id inválido"}, status=400)
+
+        vinculo = (
+            registroacompanhamentoagente.objects
+            .filter(acompanhamento__supabase_mission_id=mission_uuid)
+            .filter(tipo_agente="principal")
+            .first()
+            or registroacompanhamentoagente.objects
+            .filter(acompanhamento__supabase_mission_id=mission_uuid)
+            .order_by("id")
+            .first()
+        )
+
+        if not vinculo:
+            return JsonResponse({"success": False, "error": "Nenhum agente vinculado encontrado no Django para essa missão"}, status=404)
+
+        saved = []
+        skipped = []
+
+        for foto in fotos:
+            vr = foto.get("validation_result") or {}
+            metadata = foto.get("metadata") or {}
+            photo_type = foto.get("type")
+            photo_id = foto.get("id")
+
+            # Só processa se válida
+            if not vr.get("valid"):
+                skipped.append({"photo_id": photo_id, "type": photo_type, "reason": "valid=false"})
+                continue
+
+            odometer_raw = vr.get("odometer_raw")
+            if odometer_raw is None:
+                skipped.append({"photo_id": photo_id, "type": photo_type, "reason": "odometer_raw ausente"})
+                continue
+
+            try:
+                km_valor = int(odometer_raw)
+            except (TypeError, ValueError):
+                skipped.append({"photo_id": photo_id, "type": photo_type, "reason": f"odometer_raw não é número: {odometer_raw}"})
+                continue
+
+            is_manual = (
+                vr.get("is_manual") is True
+                or metadata.get("is_manual") is True
+                or metadata.get("source") == "manual"
+            )
+
+            update_fields = []
+            if photo_type == "odometro_inicio":
+                vinculo.km_inicio = km_valor
+                update_fields.append("km_inicio")
+                if is_manual:
+                    vinculo.km_inicio_manual = True
+                    update_fields.append("km_inicio_manual")
+            elif photo_type == "odometro_final":
+                vinculo.km_final = km_valor
+                update_fields.append("km_final")
+                if is_manual:
+                    vinculo.km_final_manual = True
+                    update_fields.append("km_final_manual")
+
+            vinculo.save(update_fields=update_fields)
+
+            # Marca django_synced no Supabase
+            vr["django_synced"] = True
+            sb.table("mission_photos").update({"validation_result": vr}).eq("id", photo_id).execute()
+
+            saved.append({
+                "photo_id": photo_id,
+                "type": photo_type,
+                "km_valor": km_valor,
+                "is_manual": is_manual,
+                "fields_saved": update_fields,
+            })
+
+        return JsonResponse({
+            "success": True,
+            "mission_id": mission_id,
+            "vinculo_id": vinculo.id,
+            "km_inicio": vinculo.km_inicio,
+            "km_final": vinculo.km_final,
+            "km_inicio_manual": vinculo.km_inicio_manual,
+            "km_final_manual": vinculo.km_final_manual,
+            "saved": saved,
+            "skipped": skipped,
+        })
+
+    except Exception as e:
+        logger.exception("Erro em sync-km mission_id=%s", mission_id)
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@csrf_exempt
+@require_GET
+def sb_mission_django_debug(request, mission_id: str):
+    """
+    Diagnóstico: mostra o estado do Django para uma missão — acompanhamento e agentes vinculados.
+    Útil para debugar por que km_inicio/km_final não está sendo salvo.
+    """
+    try:
+        acompanhamento = _find_acompanhamento_by_supabase_mission_id(mission_id)
+        if not acompanhamento:
+            return JsonResponse({
+                "success": False,
+                "error": "Nenhum acompanhamento Django encontrado para essa mission_id",
+                "mission_id": mission_id,
+            }, status=404)
+
+        agentes = list(
+            acompanhamento.agentes.values(
+                "id", "tipo_agente", "km_inicio", "km_final",
+                "km_inicio_manual", "km_final_manual",
+                "agente__id", "agente__nome",
+            )
+        )
+
+        return JsonResponse({
+            "success": True,
+            "mission_id": mission_id,
+            "acompanhamento_id": acompanhamento.id,
+            "supabase_mission_id": str(acompanhamento.supabase_mission_id),
+            "status_acompanhamento": acompanhamento.status_acompanhamento,
+            "total_agentes": len(agentes),
+            "agentes": agentes,
+        })
+    except Exception as e:
+        logger.exception("Erro no diagnóstico Django de missão")
         return JsonResponse({"success": False, "error": str(e)}, status=500)

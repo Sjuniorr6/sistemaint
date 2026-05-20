@@ -621,20 +621,29 @@ def mission_photo_webhook(request):
         photo_id = record.get('id')
         mission_id = record.get('mission_id')
         photo_type = record.get('type')
-        storage_path = record.get('storage_path')
+        storage_path = record.get('storage_path') or ''
+        metadata = record.get('metadata') or {}
 
-        if not all([photo_id, mission_id, photo_type, storage_path]):
+        is_manual_entry = (
+            metadata.get('source') == 'manual'
+            or metadata.get('is_manual') is True
+        )
+
+        # Entradas manuais têm storage_path vazio — permitir sem bloquear
+        required_ok = photo_id and mission_id and photo_type and (storage_path or is_manual_entry)
+        if not required_ok:
             logger.error(
-                'Webhook: campos obrigatórios faltando. photo_id=%s, mission_id=%s, type=%s',
+                'Webhook: campos obrigatórios faltando. photo_id=%s, mission_id=%s, type=%s, storage_path=%s',
                 photo_id,
                 mission_id,
                 photo_type,
+                storage_path,
             )
             return JsonResponse({'success': False, 'error': 'Missing required fields'}, status=400)
 
         logger.info('Webhook recebeu photo_id=%s, mission_id=%s, type=%s', photo_id, mission_id, photo_type)
 
-        from .views_supabase_photos_process import dispatch_photo_processing
+        from .views_supabase_photos_process import dispatch_photo_processing, process_one_photo_id
 
         dispatch_info = dispatch_photo_processing(photo_id, force=False)
         if dispatch_info.get('enqueued'):
@@ -647,19 +656,24 @@ def mission_photo_webhook(request):
                 'dispatch': dispatch_info,
             }, status=202)
 
-        logger.error(
-            'Webhook: falha ao enfileirar processamento photo_id=%s mission_id=%s erro=%s',
+        # Celery indisponível — processa de forma síncrona como fallback
+        logger.warning(
+            'Webhook: Celery indisponível (%s), processando foto de forma síncrona. photo_id=%s mission_id=%s',
+            dispatch_info.get('error'),
             photo_id,
             mission_id,
-            dispatch_info.get('error'),
         )
+        payload, status_code = process_one_photo_id(photo_id, force=False)
         return JsonResponse({
-            'success': True,
-            'message': 'Foto recebida; fila indisponível, aguardando processamento por worker de pendências',
+            'success': payload.get('success', False),
+            'message': payload.get('message') or payload.get('error') or 'Processamento síncrono concluído',
             'photo_id': photo_id,
             'mission_id': mission_id,
+            'photo_type': photo_type,
+            'sync_fallback': True,
             'dispatch': dispatch_info,
-        }, status=202)
+            'result': payload,
+        }, status=200 if payload.get('success') else 500)
 
     except json.JSONDecodeError as e:
         logger.error('Webhook: JSON inválido: %s', str(e))

@@ -24,9 +24,11 @@ def processar_fotos_pendentes(photo_limit: int = 20) -> Dict[str, Any]:
     }
 
     sb = get_supabase()
-    pending = (
+
+    # Fotos ainda não processadas pela IA
+    not_processed = (
         sb.table("mission_photos")
-        .select("id,mission_id,type,created_at")
+        .select("id,mission_id,type,created_at,metadata,validation_result")
         .eq("processed", False)
         .order("created_at", desc=False)
         .limit(limit)
@@ -34,6 +36,39 @@ def processar_fotos_pendentes(photo_limit: int = 20) -> Dict[str, Any]:
         .data
         or []
     )
+
+    # Fotos manuais pré-processadas pelo app (processed=true) que ainda não foram
+    # sincronizadas com o Django — identificadas por validation_result sem km salvo
+    # no Django (o campo is_manual ou source=manual indica entrada manual).
+    # Buscamos as recentes (últimas 24h) para evitar reprocessar missões antigas.
+    from datetime import datetime, timezone as dt_timezone, timedelta
+    cutoff = (datetime.now(dt_timezone.utc) - timedelta(hours=24)).isoformat()
+    manual_preproc = (
+        sb.table("mission_photos")
+        .select("id,mission_id,type,created_at,metadata,validation_result")
+        .eq("processed", True)
+        .gte("created_at", cutoff)
+        .order("created_at", desc=False)
+        .limit(limit)
+        .execute()
+        .data
+        or []
+    )
+    # Filtrar apenas as que são realmente manuais, válidas e ainda não sincronizadas com Django
+    manual_pending = [
+        p for p in manual_preproc
+        if (
+            (p.get("metadata") or {}).get("source") == "manual"
+            or (p.get("metadata") or {}).get("is_manual") is True
+            or (p.get("validation_result") or {}).get("is_manual") is True
+        )
+        and (p.get("validation_result") or {}).get("valid") is True
+        and not (p.get("validation_result") or {}).get("django_synced")
+    ]
+
+    # IDs já presentes em not_processed para não duplicar
+    not_processed_ids = {p.get("id") for p in not_processed}
+    pending = not_processed + [p for p in manual_pending if p.get("id") not in not_processed_ids]
 
     summary["photos_found"] = len(pending)
 
