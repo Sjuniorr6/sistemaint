@@ -213,21 +213,20 @@ STATICFILES_DIRS = [
 
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-# Configuração de email para envio real
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 DATE_INPUT_FORMATS = ['%d/%m/%Y']
 DATE_FORMAT = 'd/m/Y'
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
+# Backend customizado: SMTP da Golden Sat usa certificado da hospedagem,
+# cujo hostname não bate com smtp.grupogoldensat.com.br. Ignora verificação.
+EMAIL_BACKEND = 'app.email_backend.UnverifiedSSLEmailBackend'
+EMAIL_HOST = 'smtp.grupogoldensat.com.br'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_USE_SSL = False
-EMAIL_HOST_USER = 'sysggoldensat@gmail.com'
-EMAIL_HOST_PASSWORD = 'yzxs ieko subp xesu'  # Senha de app do Gmail
-DEFAULT_FROM_EMAIL = 'sysggoldensat@gmail.com'
+EMAIL_HOST_USER = 'infodev@grupogoldensat.com.br'
+EMAIL_HOST_PASSWORD = 'GGSintdev20xx#!'  # Senha de app do Gmail
+DEFAULT_FROM_EMAIL = 'infodev@grupogoldensat.com.br'
 
 # OpenAI
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
