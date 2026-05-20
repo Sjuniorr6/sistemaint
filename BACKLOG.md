@@ -99,18 +99,21 @@ M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → M10
 - [x] Commit: `feat(sca): geracao automatica de semanas e marcacao de atrasadas`
 ---
 
-## 🔁 MÓDULO 7 — Histórico de semanas
-> Em desenvolvimento (2026-05-20)
-- [ ] Tela de histórico com seletor de semana
-- [ ] Visualização somente leitura
-- [ ] Filtro por funcionário
-- [ ] Indicador de percentual de conclusão
-- [ ] Commit: `feat(sca): histórico de semanas`
+## ✅ MÓDULO 7 — Histórico de semanas
+> Concluído em 2026-05-20
+
+- [x] Tela de histórico com seletor de semana
+- [x] Visualização somente leitura
+- [x] Navegação entre semanas com setas
+- [x] Data por extenso no header
+- [x] Indicador de percentual de conclusão
+- [ ] Filtro por funcionário *(movido para Módulo 10)*
+- [x] Commit: `feat(sca): historico de semanas com navegacao e data por extenso`
 
 ---
 
-## ⏳ MÓDULO 8 — Exportação Excel
-
+## 🔁 MÓDULO 8 — Exportação Excel
+> Em desenvolvimento (iniciado em 2026-05-20)
 - [ ] Exportar semana selecionada para `.xlsx`
 - [ ] Aba Rafa + Aba André no mesmo arquivo
 - [ ] Colunas: tarefa, dia, período, status, comentário
@@ -136,3 +139,4 @@ M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → M10
 - [ ] Filtros no painel por responsável
 - [ ] Indicadores individuais por funcionário
 - [ ] Ajustes do uso real
+- [ ] Filtro por funcionário no histórico
