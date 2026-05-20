@@ -92,6 +92,7 @@ M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → M10
 
 ## ✅ MÓDULO 6 — Geração automática de semanas
 > Concluído em 2026-05-20
+
 - [x] Serviço que detecta início de nova semana
 - [x] Gera execuções para todas as tarefas ativas
 - [x] Tarefas não concluídas viram `atrasada`
@@ -112,18 +113,21 @@ M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → M10
 
 ---
 
-## 🔁 MÓDULO 8 — Exportação Excel
-> Em desenvolvimento (iniciado em 2026-05-20)
-- [ ] Exportar semana selecionada para `.xlsx`
-- [ ] Aba Rafa + Aba André no mesmo arquivo
-- [ ] Colunas: tarefa, dia, período, status, comentário
-- [ ] Disponível na semana atual e no histórico
-- [ ] Commit: `feat(sca): exportação excel`
+## ✅ MÓDULO 8 — Exportação Excel
+> Concluído em 2026-05-20
+
+- [x] Exportar semana selecionada para `.xlsx`
+- [x] Aba Rafa + Aba André no mesmo arquivo
+- [x] Colunas: tarefa, dia, período, status, comentário
+- [x] Disponível na semana atual e no histórico
+- [x] Visual profissional — fundo branco, cores por status
+- [ ] Exportação via Celery em background *(movido para Módulo 10)*
+- [x] Commit: `feat(sca): exportacao excel com visual profissional`
 
 ---
 
-## ⏳ MÓDULO 9 — Gestão de tarefas (CRUD)
-
+## 🔁 MÓDULO 9 — Gestão de tarefas (CRUD)
+> Em andamento, previsão de conclusão em 2026-05-20
 - [ ] Tela para criar nova tarefa recorrente
 - [ ] Editar tarefa existente
 - [ ] Desativar tarefa
