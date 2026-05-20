@@ -1,7 +1,7 @@
 # Backlog — SCA (Sistema de Controle Administrativo)
 **Grupo Golden Sat — Sistema INT**
 
-> Última atualização: 2026-05-19
+> Última atualização: 2026-05-20
 
 ---
 
@@ -91,7 +91,7 @@ M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → M10
 ---
 
 ## 🔁 MÓDULO 6 — Geração automática de semanas
-
+> Em desenvolvimento (iniciado em 2026-05-20)
 - [ ] Serviço que detecta início de nova semana
 - [ ] Gera execuções para todas as tarefas ativas
 - [ ] Tarefas não concluídas viram `atrasada`
