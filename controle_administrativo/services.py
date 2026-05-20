@@ -319,3 +319,18 @@ def get_tarefas_divisao(semana_iso, ano):
         resultado[fid].append(tarefa)
 
     return resultado
+
+def marcar_atrasadas(semana_iso_atual, ano_atual):
+    """
+    Marca como 'atrasada' todas as execuções de semanas anteriores
+    que ainda estão pendente ou em_andamento.
+    Idempotente — pode ser chamada várias vezes sem efeito duplicado.
+    """
+    from .models import ExecucaoTarefaAdministrativa, StatusExecucao
+
+    ExecucaoTarefaAdministrativa.objects.filter(
+        status__in=[StatusExecucao.PENDENTE, StatusExecucao.EM_ANDAMENTO],
+    ).exclude(
+        semana_iso=semana_iso_atual,
+        ano=ano_atual,
+    ).update(status=StatusExecucao.ATRASADA)

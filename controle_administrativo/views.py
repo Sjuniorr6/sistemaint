@@ -23,6 +23,7 @@ from .selectors import (
 from .services import (
     gerar_execucoes_semana,
     gerar_blocos_semana,
+    marcar_atrasadas,
     criar_tarefa_avulsa,
     criar_tarefa_recorrente,
     marcar_comentarios_lidos,
@@ -56,6 +57,7 @@ def _semana_atual_check(semana_iso, ano):
 @login_required
 def painel(request):
     semana_iso, ano = get_semana_atual()
+    marcar_atrasadas(semana_iso, ano)
     gerar_execucoes_semana(semana_iso, ano)
     gerar_blocos_semana(semana_iso, ano, request.user)
 
