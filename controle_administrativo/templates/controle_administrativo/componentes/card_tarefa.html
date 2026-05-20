@@ -1,0 +1,26 @@
+<div class="sca-tarefa {% if execucao.is_done %}concluida{% endif %} {% if execucao.status == 'cancelada' %}d-none{% endif %}"
+     data-id="{{ execucao.id }}"
+     onclick="abrirModal({{ execucao.id }})">
+
+  <div class="sca-check {% if execucao.is_done %}checked{% endif %}"
+       onclick="toggleTarefa({{ execucao.id }}, this)">
+    <i class="bi bi-check"></i>
+  </div>
+
+  <span class="sca-tarefa-titulo">{{ execucao.titulo_display }}</span>
+
+  <div class="d-flex align-items-center gap-1 ms-auto">
+    {% if execucao.nao_lidos > 0 %}
+    <span class="badge-comentario" title="{{ execucao.nao_lidos }} comentário(s) não lido(s)">
+      {{ execucao.nao_lidos }}
+    </span>
+    {% endif %}
+
+    <div class="sca-excluir"
+         onclick="excluirTarefa({{ execucao.id }}, this)"
+         title="Excluir tarefa">
+      <i class="bi bi-x"></i>
+    </div>
+  </div>
+
+</div>

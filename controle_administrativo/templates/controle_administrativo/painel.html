@@ -1,0 +1,1035 @@
+{% extends 'base.html' %}
+
+{% block title %}Controle Administrativo | Golden Sat{% endblock %}
+
+{% block content %}
+
+<style>
+  :root {
+    --gold:       #ffd700;
+    --gold-dark:  #665b1d;
+    --bg-card:    #1e1e2e;
+    --bg-panel:   #16161e;
+    --border:     #2a2a3e;
+    --text-light: #e0e0e0;
+    --text-muted: #888;
+    --green:      #4caf50;
+    --radius:     10px;
+  }
+
+  body { background: var(--bg-panel) !important; }
+  .container { max-width: 100% !important; padding: 0 !important; }
+
+  .sca-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 55px);
+    padding: 0.3rem 0.5rem;
+    gap: 0.4rem;
+    overflow: hidden;
+    margin-top: -2rem;
+  }
+
+  .sca-header {
+    background: linear-gradient(135deg, #1e1e2e, #2a2a3e);
+    border: 2px solid var(--gold-dark);
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .sca-header h4 { color: var(--gold); font-weight: 700; margin: 0; font-size: 0.95rem; }
+  .sca-header small { color: var(--text-muted); font-size: 0.7rem; }
+
+  .progress-track { height: 7px; background: var(--border); border-radius: 10px; overflow: hidden; width: 180px; }
+  .progress-bar-sca { height: 7px; border-radius: 10px; background: var(--gold); transition: width 0.4s ease; }
+  .progress-label { color: var(--gold); font-weight: 700; font-size: 0.9rem; }
+
+  .sca-main {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 0.5rem;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    align-items: stretch;
+  }
+
+  .sca-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    overflow-y: auto;
+    height: 100%;
+  }
+
+  .sca-bloco {
+    background: var(--bg-card);
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.45rem;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sca-bloco-titulo {
+    color: var(--gold);
+    font-weight: 700;
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.35rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .btn-add-bloco {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.75rem;
+    padding: 0;
+    transition: color 0.2s;
+    line-height: 1;
+  }
+
+  .btn-add-bloco:hover { color: var(--gold); }
+
+  .sca-bloco-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.3rem;
+    padding: 0.2rem 0;
+    border-bottom: 1px solid #2a2a3e;
+    font-size: 0.65rem;
+    color: var(--text-light);
+    line-height: 1.3;
+  }
+
+  .sca-bloco-item:last-child { border-bottom: none; }
+
+  .sca-bloco-item .sca-item-excluir {
+    margin-left: auto;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.7rem;
+    opacity: 0;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .sca-bloco-item:hover .sca-item-excluir { opacity: 1; }
+  .sca-bloco-item:hover .sca-item-excluir:hover { color: #ef5350; }
+
+  .sca-bloco-input {
+    display: none;
+    margin-top: 0.35rem;
+    flex-shrink: 0;
+  }
+
+  .sca-bloco-input.ativo { display: flex; gap: 0.3rem; }
+
+  .sca-bloco-input input {
+    flex: 1;
+    background: #25253a;
+    border: 1px solid var(--border);
+    color: var(--text-light);
+    font-size: 0.65rem;
+    border-radius: 4px;
+    padding: 0.2rem 0.4rem;
+  }
+
+  .sca-bloco-input input:focus { outline: none; border-color: var(--gold-dark); }
+
+  .sca-bloco-input button {
+    background: var(--gold-dark);
+    border: none;
+    color: var(--gold);
+    font-size: 0.65rem;
+    border-radius: 4px;
+    padding: 0.2rem 0.4rem;
+    cursor: pointer;
+  }
+
+  .sca-right {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .sca-dias-wrapper { flex: 0 0 55%; min-height: 0; overflow: hidden; }
+
+  .sca-dias {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.4rem;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .sca-dia-col {
+    background: var(--bg-card);
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.45rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sca-dia-col.dia-atual { border-color: var(--gold); box-shadow: 0 0 10px rgba(255,215,0,0.12); }
+
+  .sca-dia-titulo {
+    color: var(--gold);
+    font-weight: 700;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.4rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .sca-periodo-titulo {
+    color: var(--text-muted);
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0.4rem 0 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    flex-shrink: 0;
+  }
+
+  .sca-tarefa {
+    background: #25253a;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 0.3rem 0.4rem;
+    margin-bottom: 0.25rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.35rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .sca-tarefa:hover { border-color: var(--gold-dark); background: #2a2a40; }
+  .sca-tarefa.concluida { opacity: 0.5; border-color: var(--green); }
+  .sca-tarefa.concluida .sca-tarefa-titulo { text-decoration: line-through; color: var(--text-muted); }
+  .sca-tarefa-titulo { color: var(--text-light); font-size: 0.67rem; flex: 1; line-height: 1.3; }
+
+  .sca-check {
+    width: 13px; height: 13px; min-width: 13px;
+    border: 2px solid var(--gold-dark);
+    border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.2s;
+    background: transparent; margin-top: 1px;
+  }
+
+  .sca-check.checked { background: var(--green); border-color: var(--green); }
+  .sca-check i { font-size: 8px; color: white; display: none; }
+  .sca-check.checked i { display: block; }
+
+  .sca-divisao-wrapper {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .sca-divisao {
+    background: var(--bg-card);
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.45rem;
+    height: 100%;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sca-divisao-titulo {
+    color: var(--gold);
+    font-weight: 700;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    background: #2a2a3e;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    margin-bottom: 0.4rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .sca-divisao-item {
+    font-size: 0.65rem;
+    color: var(--text-light);
+    padding: 0.15rem 0;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .sca-divisao-item:last-child { border-bottom: none; }
+  .sca-divisao-secao { color: var(--gold-dark); font-size: 0.58rem; font-weight: 700; text-transform: uppercase; margin: 0.3rem 0 0.15rem; flex-shrink: 0; }
+
+  .badge-comentario {
+    background: var(--gold); color: #1e1e2e;
+    font-size: 0.58rem; font-weight: 800;
+    border-radius: 50%; width: 16px; height: 16px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+
+  .sca-excluir {
+    width: 16px; height: 16px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 3px; color: var(--text-muted);
+    font-size: 0.75rem; cursor: pointer; transition: all 0.2s;
+    flex-shrink: 0; opacity: 0;
+  }
+
+  .sca-tarefa:hover .sca-excluir { opacity: 1; }
+  .sca-excluir:hover { color: #ef5350; background: rgba(239,83,80,0.15); }
+
+  .sca-divisao-item .sca-item-excluir {
+    margin-left: auto;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.7rem;
+    opacity: 0;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .sca-divisao-item:hover .sca-item-excluir { opacity: 1; }
+  .sca-divisao-item:hover .sca-item-excluir:hover { color: #ef5350; }
+
+  .btn-add-tarefa {
+    width: 100%; background: transparent;
+    border: 1px dashed var(--border); border-radius: 5px;
+    color: var(--text-muted); font-size: 0.65rem; padding: 0.25rem;
+    cursor: pointer; transition: all 0.2s; text-align: center;
+    margin-top: 0.25rem; flex-shrink: 0;
+  }
+
+  .btn-add-tarefa:hover { border-color: var(--gold-dark); color: var(--gold); background: rgba(255,215,0,0.05); }
+
+  .form-control-sca {
+    background: #25253a; border: 1px solid var(--border);
+    color: var(--text-light); font-size: 0.82rem; border-radius: 6px;
+  }
+
+  .form-control-sca:focus { background: #2a2a40; border-color: var(--gold-dark); color: var(--text-light); box-shadow: none; }
+  .form-label-sca { color: var(--text-muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem; }
+
+  .tipo-tarefa-btn {
+    flex: 1; background: #25253a; border: 2px solid var(--border);
+    color: var(--text-muted); border-radius: 6px; padding: 0.5rem;
+    font-size: 0.75rem; cursor: pointer; transition: all 0.2s; text-align: center;
+  }
+
+  .tipo-tarefa-btn.active { border-color: var(--gold); color: var(--gold); background: rgba(255,215,0,0.08); }
+
+  .modal-content { background: #1e1e2e; border: 2px solid var(--gold-dark); border-radius: var(--radius); color: var(--text-light); }
+  .modal-header { border-bottom: 1px solid var(--border); padding: 0.75rem 1rem; }
+  .modal-title { color: var(--gold); font-weight: 700; font-size: 0.95rem; }
+  .btn-close { filter: invert(1); }
+  .modal-body { padding: 1rem; }
+
+  .modal-descricao { background: #25253a; border-radius: 8px; padding: 0.6rem 0.75rem; font-size: 0.82rem; color: var(--text-light); margin-bottom: 0.75rem; line-height: 1.6; }
+  .modal-secao-titulo { color: var(--gold); font-weight: 700; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin: 0.75rem 0 0.4rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--border); }
+  .modal-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin-bottom: 0.75rem; }
+  .modal-meta-item label { color: var(--text-muted); font-size: 0.65rem; text-transform: uppercase; display: block; }
+  .modal-meta-item span { color: var(--text-light); font-size: 0.82rem; font-weight: 600; }
+
+  .comentario-item { background: #25253a; border-radius: 6px; padding: 0.5rem 0.6rem; margin-bottom: 0.4rem; font-size: 0.78rem; }
+  .comentario-autor { color: var(--gold); font-weight: 700; font-size: 0.7rem; }
+  .comentario-data  { color: var(--text-muted); font-size: 0.65rem; }
+  .comentario-texto { color: var(--text-light); margin-top: 0.2rem; }
+
+  .badge-status { padding: 0.2rem 0.5rem; border-radius: 20px; font-size: 0.68rem; font-weight: 700; }
+  .badge-pendente     { background: #333; color: #aaa; }
+  .badge-em_andamento { background: #1a3a5c; color: #4a9eda; }
+  .badge-concluida    { background: #1a3a1a; color: #4caf50; }
+  .badge-atrasada     { background: #3a1a1a; color: #ef5350; }
+  .badge-cancelada    { background: #2a2a2a; color: #666; }
+</style>
+
+<div class="sca-wrapper">
+
+  <!-- ─── HEADER ─── -->
+  <div class="sca-header">
+    <div>
+      <h4><i class="bi bi-calendar-week-fill me-2"></i>Controle Administrativo</h4>
+      <small>Semana {{ semana_iso }} · {{ ano }}</small>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <small class="text-muted">Progresso</small>
+      <div class="progress-track">
+        <div class="progress-bar-sca" id="progress-bar" style="width: {{ resumo.percentual }}%;"></div>
+      </div>
+      <span class="progress-label" id="pct-label">{{ resumo.percentual }}%</span>
+      <small class="text-muted" id="pct-detalhe">({{ resumo.concluidas }}/{{ resumo.total }})</small>
+    </div>
+  </div>
+
+  <!-- ─── ÁREA PRINCIPAL ─── -->
+  <div class="sca-main">
+
+    <!-- ─── SIDEBAR ─── -->
+    <div class="sca-sidebar">
+      {% for bloco in blocos %}
+      <div class="sca-bloco" id="bloco-{{ bloco.id }}">
+        <div class="sca-bloco-titulo">
+          <span>
+            {% if bloco.tipo == 'nao_esquecer' %}<i class="bi bi-bell-fill me-1"></i>Não Esquecer
+            {% elif bloco.tipo == 'diario' %}<i class="bi bi-journal-text me-1"></i>Diário
+            {% else %}<i class="bi bi-chat-left-text me-1"></i>Observação{% endif %}
+          </span>
+          {% if perfil_usuario != 'gestor' %}
+          <button class="btn-add-bloco" onclick="toggleInputBloco({{ bloco.id }})" title="Adicionar item">
+            <i class="bi bi-plus-lg"></i>
+          </button>
+          {% endif %}
+        </div>
+
+        <div id="itens-bloco-{{ bloco.id }}">
+          {% for item in bloco.itens.all %}
+          <div class="sca-bloco-item" id="item-bloco-{{ item.id }}">
+            <div class="sca-check {% if item.is_done %}checked{% endif %}"
+                 onclick="toggleItemBloco({{ item.id }}, this)">
+              <i class="bi bi-check"></i>
+            </div>
+            <span id="texto-item-{{ item.id }}"
+                  style="cursor:pointer;{% if item.is_done %}text-decoration:line-through;color:var(--text-muted){% endif %}"
+                  onclick="abrirModalItem({{ item.id }})">
+              {{ item.conteudo }}
+            </span>
+            <i class="bi bi-x sca-item-excluir" onclick="excluirItemBloco({{ item.id }})"></i>
+          </div>
+          {% empty %}
+          <small class="text-muted" style="font-size:0.62rem;" id="vazio-bloco-{{ bloco.id }}">Nenhum item.</small>
+          {% endfor %}
+        </div>
+
+        <div class="sca-bloco-input" id="input-bloco-{{ bloco.id }}">
+          <input type="text" placeholder="Novo item..." id="texto-novo-{{ bloco.id }}"
+                 onkeydown="if(event.key==='Enter') salvarItemBloco({{ bloco.id }})">
+          <button onclick="salvarItemBloco({{ bloco.id }})"><i class="bi bi-check"></i></button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- ─── COLUNA DIREITA ─── -->
+    <div class="sca-right">
+
+      <!-- ─── DIAS ─── -->
+      <div class="sca-dias-wrapper">
+      <div class="sca-dias">
+        {% for dia_key, dia_nome in dias %}
+        <div class="sca-dia-col {% if dia_key == dia_atual %}dia-atual{% endif %}">
+          <div class="sca-dia-titulo">
+            {{ dia_nome }}{% if dia_key == dia_atual %} <span style="color:var(--gold);font-size:0.55rem;">● hoje</span>{% endif %}
+          </div>
+
+          <div class="sca-periodo-titulo"><i class="bi bi-brightness-high"></i> Manhã</div>
+          {% if dia_key == 'segunda' %}{% for execucao in execucoes.segunda.manha %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
+          {% elif dia_key == 'terca' %}{% for execucao in execucoes.terca.manha %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
+          {% elif dia_key == 'quarta' %}{% for execucao in execucoes.quarta.manha %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
+          {% elif dia_key == 'quinta' %}{% for execucao in execucoes.quinta.manha %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
+          {% elif dia_key == 'sexta' %}{% for execucao in execucoes.sexta.manha %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}{% endif %}
+
+          {% if perfil_usuario != 'gestor' %}
+          <button class="btn-add-tarefa" onclick="abrirModalCriar('{{ dia_key }}', 'manha')">
+            <i class="bi bi-plus"></i> tarefa
+          </button>
+          {% endif %}
+
+          <div class="sca-periodo-titulo"><i class="bi bi-moon-stars"></i> Tarde</div>
+          {% if dia_key == 'segunda' %}{% for execucao in execucoes.segunda.tarde %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
+          {% elif dia_key == 'terca' %}{% for execucao in execucoes.terca.tarde %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
+          {% elif dia_key == 'quarta' %}{% for execucao in execucoes.quarta.tarde %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
+          {% elif dia_key == 'quinta' %}{% for execucao in execucoes.quinta.tarde %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
+          {% elif dia_key == 'sexta' %}{% for execucao in execucoes.sexta.tarde %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}{% endif %}
+
+          {% if perfil_usuario != 'gestor' %}
+          <button class="btn-add-tarefa" onclick="abrirModalCriar('{{ dia_key }}', 'tarde')">
+            <i class="bi bi-plus"></i> tarefa
+          </button>
+          {% endif %}
+
+        </div>
+        {% endfor %}
+      </div>
+      </div>
+
+      <!-- ─── DIVISÃO DE TAREFAS ─── -->
+      <div class="sca-divisao-wrapper">
+        {% for item in funcionarios_com_tarefas %}
+        {% if item.funcionario.perfil == 'operador' %}
+        <div class="sca-divisao">
+
+          <div class="sca-divisao-titulo">
+            <span><i class="bi bi-person-fill me-1"></i> {{ item.funcionario.nome }}</span>
+            {% if perfil_usuario != 'gestor' %}
+            <button class="btn-add-bloco" onclick="toggleInputDivisao({{ item.funcionario.id }})" title="Adicionar tarefa">
+              <i class="bi bi-plus-lg"></i>
+            </button>
+            {% endif %}
+          </div>
+
+          <div class="sca-divisao-secao">Tarefas de hoje</div>
+          {% for tarefa in item.funcionario.tarefas_modelo.all %}
+            {% if tarefa.ativo and tarefa.dia_da_semana == dia_atual %}
+            <div class="sca-divisao-item">
+              <i class="bi bi-circle" style="font-size:0.5rem;color:var(--gold-dark);flex-shrink:0;margin-top:2px;"></i>
+              {{ tarefa.titulo }}
+            </div>
+            {% endif %}
+          {% endfor %}
+
+          <div class="sca-divisao-secao">Tarefas da semana</div>
+          <div id="divisao-lista-{{ item.funcionario.id }}">
+            {% for tarefa in item.tarefas_divisao %}
+            <div class="sca-divisao-item" id="divisao-tarefa-{{ tarefa.id }}">
+              <i class="bi bi-circle" style="font-size:0.5rem;color:var(--gold-dark);flex-shrink:0;margin-top:2px;"></i>
+              <span id="divisao-texto-{{ tarefa.id }}" style="flex:1;cursor:pointer;"
+                    onclick="editarTarefaDivisaoInline({{ tarefa.id }})">{{ tarefa.conteudo }}</span>
+              <i class="bi bi-x sca-item-excluir" onclick="excluirTarefaDivisao({{ tarefa.id }})"></i>
+            </div>
+            {% empty %}
+            <small class="text-muted" style="font-size:0.62rem;" id="vazio-divisao-{{ item.funcionario.id }}">Nenhuma tarefa ainda.</small>
+            {% endfor %}
+          </div>
+
+          <div class="sca-bloco-input" id="input-divisao-{{ item.funcionario.id }}">
+            <input type="text" placeholder="Nova tarefa..." id="texto-divisao-{{ item.funcionario.id }}"
+                   onkeydown="if(event.key==='Enter') salvarTarefaDivisao({{ item.funcionario.id }})">
+            <button onclick="salvarTarefaDivisao({{ item.funcionario.id }})"><i class="bi bi-check"></i></button>
+          </div>
+
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ─── MODAL DE ITEM DO BLOCO ─── -->
+<div class="modal fade" id="modalItemBloco" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modal-item-titulo">Carregando...</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-secao-titulo">Detalhes</div>
+        <div class="mb-3">
+          <label class="form-label-sca">Conteúdo</label>
+          <textarea id="modal-item-conteudo" class="form-control form-control-sca" rows="2"></textarea>
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col">
+            <label class="form-label-sca">Responsável</label>
+            <select id="modal-item-responsavel" class="form-control form-control-sca">
+              <option value="">— Nenhum —</option>
+              {% for funcionario in funcionarios %}
+              <option value="{{ funcionario.id }}">{{ funcionario.nome }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col">
+            <label class="form-label-sca">Prazo</label>
+            <input type="date" id="modal-item-prazo" class="form-control form-control-sca">
+          </div>
+        </div>
+        <div class="mb-3 d-flex align-items-center gap-2">
+          <input type="checkbox" id="modal-item-fixo" style="accent-color:var(--gold);width:14px;height:14px;">
+          <label class="form-label-sca mb-0" for="modal-item-fixo">Item fixo — carregar para a semana seguinte</label>
+        </div>
+        <div class="modal-meta">
+          <div class="modal-meta-item"><label>Criado por</label><span id="modal-item-criado-por">—</span></div>
+          <div class="modal-meta-item"><label>Criado em</label><span id="modal-item-criado-em">—</span></div>
+        </div>
+        <div class="d-flex justify-content-end mb-3">
+          <button class="btn btn-sm"
+            style="background:var(--gold-dark);color:var(--gold);font-weight:700;"
+            onclick="salvarItemModal()">
+            <i class="bi bi-floppy me-1"></i>Salvar alterações
+          </button>
+        </div>
+        <div class="modal-secao-titulo">Comentários</div>
+        <div id="modal-item-comentarios"></div>
+        <div class="mt-2">
+          <textarea class="form-control form-control-sca" id="modal-item-novo-comentario"
+            rows="2" placeholder="Adicionar comentário..."></textarea>
+          <button class="btn btn-sm mt-2"
+            style="background:var(--gold-dark);color:var(--gold);font-weight:700;"
+            onclick="enviarComentarioItem()">
+            <i class="bi bi-send me-1"></i>Adicionar Comentário
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── MODAL DE CRIAÇÃO DE TAREFA ─── -->
+<div class="modal fade" id="modalCriarTarefa" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Nova Tarefa</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label-sca">Tipo da tarefa</label>
+          <div class="d-flex gap-2">
+            <div class="tipo-tarefa-btn active" id="btn-tipo-avulsa" onclick="selecionarTipo('avulsa')">
+              <i class="bi bi-calendar-x me-1"></i>Somente esta semana
+            </div>
+            <div class="tipo-tarefa-btn" id="btn-tipo-recorrente" onclick="selecionarTipo('recorrente')">
+              <i class="bi bi-arrow-repeat me-1"></i>Recorrente (toda semana)
+            </div>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label-sca">Título *</label>
+          <input type="text" id="criar-titulo" class="form-control form-control-sca" placeholder="Nome da tarefa">
+        </div>
+        <div class="mb-3">
+          <label class="form-label-sca">Descrição</label>
+          <textarea id="criar-descricao" class="form-control form-control-sca" rows="2" placeholder="Detalhes (opcional)"></textarea>
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col">
+            <label class="form-label-sca">Dia *</label>
+            <select id="criar-dia" class="form-control form-control-sca">
+              <option value="segunda">Segunda-feira</option>
+              <option value="terca">Terça-feira</option>
+              <option value="quarta">Quarta-feira</option>
+              <option value="quinta">Quinta-feira</option>
+              <option value="sexta">Sexta-feira</option>
+            </select>
+          </div>
+          <div class="col">
+            <label class="form-label-sca">Período *</label>
+            <select id="criar-periodo" class="form-control form-control-sca">
+              <option value="manha">Manhã</option>
+              <option value="tarde">Tarde</option>
+            </select>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label-sca">Responsável *</label>
+          <select id="criar-responsavel" class="form-control form-control-sca">
+            {% for funcionario in funcionarios %}
+            <option value="{{ funcionario.id }}">{{ funcionario.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div id="criar-erro" class="text-danger" style="font-size:0.75rem;display:none;"></div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid var(--border);">
+        <button type="button" class="btn btn-sm"
+          style="background:transparent;color:var(--text-muted);border:1px solid var(--border);"
+          data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-sm"
+          style="background:var(--gold-dark);color:var(--gold);font-weight:700;"
+          onclick="confirmarCriarTarefa()">
+          <i class="bi bi-check2 me-1"></i>Criar Tarefa
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── MODAL DE DETALHES DA TAREFA ─── -->
+<div class="modal fade" id="modalTarefa" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modal-titulo">Carregando...</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-descricao" id="modal-descricao" style="display:none;"></div>
+        <div class="modal-secao-titulo">Pontos Importantes</div>
+        <div class="modal-meta">
+          <div class="modal-meta-item"><label>Status</label><span id="modal-status">—</span></div>
+          <div class="modal-meta-item"><label>Dia</label><span id="modal-dia">—</span></div>
+          <div class="modal-meta-item"><label>Responsável</label><span id="modal-responsavel">—</span></div>
+          <div class="modal-meta-item"><label>Período</label><span id="modal-periodo">—</span></div>
+          <div class="modal-meta-item"><label>Concluído por</label><span id="modal-concluido-por">—</span></div>
+          <div class="modal-meta-item"><label>Concluído em</label><span id="modal-concluido-em">—</span></div>
+          <div class="modal-meta-item"><label>Prazo</label><span id="modal-prazo">—</span></div>
+          <div class="modal-meta-item"><label>Última atualização</label><span id="modal-atualizado">—</span></div>
+        </div>
+        <div class="modal-secao-titulo">Comentários</div>
+        <div id="modal-comentarios"></div>
+        <div class="mt-2">
+          <textarea class="form-control form-control-sca" id="novo-comentario" rows="2"
+            placeholder="Adicionar comentário..."></textarea>
+          <button class="btn btn-sm mt-2"
+            style="background:var(--gold-dark);color:var(--gold);font-weight:700;"
+            onclick="enviarComentario()">
+            <i class="bi bi-send me-1"></i>Adicionar Comentário
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const CSRF = '{{ csrf_token }}';
+  let execucaoAtualId = null;
+  let itemAtualId = null;
+  let tipoTarefaSelecionado = 'avulsa';
+
+  // ── Modal de detalhes da tarefa ──
+  function abrirModal(execucaoId) {
+    execucaoAtualId = execucaoId;
+    document.getElementById('modal-titulo').textContent = 'Carregando...';
+    fetch(`/controle-administrativo/execucao/${execucaoId}/detalhe/`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.success) return;
+        document.getElementById('modal-titulo').textContent = data.titulo;
+        const descEl = document.getElementById('modal-descricao');
+        if (data.descricao) { descEl.textContent = data.descricao; descEl.style.display = 'block'; }
+        else { descEl.style.display = 'none'; }
+        document.getElementById('modal-status').innerHTML = `<span class="badge-status badge-${data.status.toLowerCase()}">${data.status}</span>`;
+        document.getElementById('modal-dia').textContent           = data.dia;
+        document.getElementById('modal-responsavel').textContent    = data.responsavel;
+        document.getElementById('modal-periodo').textContent       = data.periodo;
+        document.getElementById('modal-prazo').textContent         = data.prazo || '—';
+        document.getElementById('modal-concluido-por').textContent  = data.concluido_por || '—';
+        document.getElementById('modal-concluido-em').textContent   = data.concluido_em  || '—';
+        document.getElementById('modal-atualizado').textContent    = data.atualizado_por ? `${data.atualizado_por} · ${data.atualizado_em}` : '—';
+        renderizarComentarios(data.comentarios);
+        document.getElementById('novo-comentario').value = '';
+        const card = document.querySelector(`.sca-tarefa[data-id="${execucaoId}"]`);
+        if (card) { const badge = card.querySelector('.badge-comentario'); if (badge) badge.remove(); }
+        new bootstrap.Modal(document.getElementById('modalTarefa')).show();
+      });
+  }
+
+  function renderizarComentarios(comentarios) {
+    const el = document.getElementById('modal-comentarios');
+    if (!comentarios.length) { el.innerHTML = '<small class="text-muted">Nenhum comentário ainda.</small>'; return; }
+    el.innerHTML = comentarios.map(c => `
+      <div class="comentario-item">
+        <div class="d-flex justify-content-between">
+          <span class="comentario-autor">${c.autor}</span>
+          <span class="comentario-data">${c.criado_em}</span>
+        </div>
+        <div class="comentario-texto">${c.conteudo}</div>
+      </div>`).join('');
+  }
+
+  function enviarComentario() {
+    const conteudo = document.getElementById('novo-comentario').value.trim();
+    if (!conteudo) return;
+    fetch(`/controle-administrativo/execucao/${execucaoAtualId}/comentario/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `conteudo=${encodeURIComponent(conteudo)}`
+    }).then(r => r.json()).then(data => {
+      if (!data.success) return;
+      document.getElementById('novo-comentario').value = '';
+      const el = document.getElementById('modal-comentarios');
+      const novo = `<div class="comentario-item"><div class="d-flex justify-content-between"><span class="comentario-autor">${data.autor}</span><span class="comentario-data">${data.criado_em}</span></div><div class="comentario-texto">${data.conteudo}</div></div>`;
+      if (el.querySelector('small')) el.innerHTML = '';
+      el.innerHTML += novo;
+    });
+  }
+
+  function toggleTarefa(execucaoId, el) {
+    event.stopPropagation();
+    fetch(`/controle-administrativo/execucao/${execucaoId}/toggle/`, {
+      method: 'POST', headers: { 'X-CSRFToken': CSRF },
+    }).then(r => r.json()).then(data => {
+      if (!data.success) return;
+      el.classList.toggle('checked', data.is_done);
+      el.closest('.sca-tarefa').classList.toggle('concluida', data.is_done);
+      document.getElementById('progress-bar').style.width = data.percentual + '%';
+      document.getElementById('pct-label').textContent    = data.percentual + '%';
+      document.getElementById('pct-detalhe').textContent  = `(${data.concluidas}/${data.total})`;
+    });
+  }
+
+  function excluirTarefa(execucaoId, el) {
+    event.stopPropagation();
+    if (!confirm('Excluir esta tarefa?')) return;
+    fetch(`/controle-administrativo/execucao/${execucaoId}/excluir/`, {
+      method: 'POST', headers: { 'X-CSRFToken': CSRF },
+    }).then(r => r.json()).then(data => {
+      if (!data.success) { alert(data.error); return; }
+      el.closest('.sca-tarefa').remove();
+      document.getElementById('progress-bar').style.width = data.percentual + '%';
+      document.getElementById('pct-label').textContent    = data.percentual + '%';
+      document.getElementById('pct-detalhe').textContent  = `(${data.concluidas}/${data.total})`;
+    });
+  }
+
+  // ── Modal de criação de tarefa ──
+  function selecionarTipo(tipo) {
+    tipoTarefaSelecionado = tipo;
+    document.getElementById('btn-tipo-avulsa').classList.toggle('active', tipo === 'avulsa');
+    document.getElementById('btn-tipo-recorrente').classList.toggle('active', tipo === 'recorrente');
+  }
+
+  function abrirModalCriar(dia, periodo) {
+    document.getElementById('criar-titulo').value    = '';
+    document.getElementById('criar-descricao').value = '';
+    document.getElementById('criar-dia').value       = dia;
+    document.getElementById('criar-periodo').value   = periodo;
+    document.getElementById('criar-erro').style.display = 'none';
+    selecionarTipo('avulsa');
+    new bootstrap.Modal(document.getElementById('modalCriarTarefa')).show();
+  }
+
+  function confirmarCriarTarefa() {
+    const titulo        = document.getElementById('criar-titulo').value.trim();
+    const descricao     = document.getElementById('criar-descricao').value.trim();
+    const dia           = document.getElementById('criar-dia').value;
+    const periodo       = document.getElementById('criar-periodo').value;
+    const responsavelId = document.getElementById('criar-responsavel').value;
+    const erroEl        = document.getElementById('criar-erro');
+    if (!titulo) { erroEl.textContent = 'O título é obrigatório.'; erroEl.style.display = 'block'; return; }
+    erroEl.style.display = 'none';
+    const body = new URLSearchParams({ titulo, descricao, dia, periodo, responsavel_id: responsavelId, tipo: tipoTarefaSelecionado });
+    fetch('/controle-administrativo/execucao/criar/', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    }).then(r => r.json()).then(data => {
+      if (!data.success) { erroEl.textContent = data.error; erroEl.style.display = 'block'; return; }
+      bootstrap.Modal.getInstance(document.getElementById('modalCriarTarefa')).hide();
+      window.location.reload();
+    });
+  }
+
+  // ── Blocos especiais ──
+  function toggleInputBloco(blocoId) {
+    const el = document.getElementById(`input-bloco-${blocoId}`);
+    el.classList.toggle('ativo');
+    if (el.classList.contains('ativo')) document.getElementById(`texto-novo-${blocoId}`).focus();
+  }
+
+  function salvarItemBloco(blocoId) {
+    const input    = document.getElementById(`texto-novo-${blocoId}`);
+    const conteudo = input.value.trim();
+    if (!conteudo) return;
+    fetch(`/controle-administrativo/bloco/${blocoId}/item/adicionar/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `conteudo=${encodeURIComponent(conteudo)}`
+    }).then(r => r.json()).then(data => {
+      if (!data.success) { alert(data.error); return; }
+      const container = document.getElementById(`itens-bloco-${blocoId}`);
+      const vazio     = document.getElementById(`vazio-bloco-${blocoId}`);
+      if (vazio) vazio.remove();
+      container.innerHTML += `
+        <div class="sca-bloco-item" id="item-bloco-${data.id}">
+          <div class="sca-check" onclick="toggleItemBloco(${data.id}, this)"><i class="bi bi-check"></i></div>
+          <span id="texto-item-${data.id}" style="cursor:pointer;" onclick="abrirModalItem(${data.id})">${data.conteudo}</span>
+          <i class="bi bi-x sca-item-excluir" onclick="excluirItemBloco(${data.id})"></i>
+        </div>`;
+      input.value = '';
+      document.getElementById(`input-bloco-${blocoId}`).classList.remove('ativo');
+    });
+  }
+
+  function toggleItemBloco(itemId, el) {
+    fetch(`/controle-administrativo/bloco/item/${itemId}/toggle/`, {
+      method: 'POST', headers: { 'X-CSRFToken': CSRF },
+    }).then(r => r.json()).then(data => {
+      if (!data.success) return;
+      el.classList.toggle('checked', data.is_done);
+      const texto = document.getElementById(`texto-item-${itemId}`);
+      texto.style.textDecoration = data.is_done ? 'line-through' : '';
+      texto.style.color          = data.is_done ? 'var(--text-muted)' : '';
+    });
+  }
+
+  function excluirItemBloco(itemId) {
+    fetch(`/controle-administrativo/bloco/item/${itemId}/excluir/`, {
+      method: 'POST', headers: { 'X-CSRFToken': CSRF },
+    }).then(r => r.json()).then(data => {
+      if (!data.success) { alert(data.error); return; }
+      document.getElementById(`item-bloco-${itemId}`).remove();
+    });
+  }
+
+  // ── Modal do item do bloco ──
+  function abrirModalItem(itemId) {
+    itemAtualId = itemId;
+    document.getElementById('modal-item-titulo').textContent = 'Carregando...';
+    fetch(`/controle-administrativo/bloco/item/${itemId}/detalhe/`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.success) return;
+        document.getElementById('modal-item-titulo').textContent     = data.conteudo;
+        document.getElementById('modal-item-conteudo').value         = data.conteudo;
+        document.getElementById('modal-item-prazo').value            = data.prazo;
+        document.getElementById('modal-item-responsavel').value      = data.responsavel_id;
+        document.getElementById('modal-item-fixo').checked           = data.is_fixo;
+        document.getElementById('modal-item-criado-por').textContent = data.criado_por;
+        document.getElementById('modal-item-criado-em').textContent  = data.criado_em;
+        document.getElementById('modal-item-novo-comentario').value  = '';
+        renderizarComentariosItem(data.comentarios);
+        new bootstrap.Modal(document.getElementById('modalItemBloco')).show();
+      });
+  }
+
+  function renderizarComentariosItem(comentarios) {
+    const el = document.getElementById('modal-item-comentarios');
+    if (!comentarios.length) { el.innerHTML = '<small class="text-muted">Nenhum comentário ainda.</small>'; return; }
+    el.innerHTML = comentarios.map(c => `
+      <div class="comentario-item">
+        <div class="d-flex justify-content-between">
+          <span class="comentario-autor">${c.autor}</span>
+          <span class="comentario-data">${c.criado_em}</span>
+        </div>
+        <div class="comentario-texto">${c.conteudo}</div>
+      </div>`).join('');
+  }
+
+  function salvarItemModal() {
+    const conteudo      = document.getElementById('modal-item-conteudo').value.trim();
+    const responsavelId = document.getElementById('modal-item-responsavel').value;
+    const prazo         = document.getElementById('modal-item-prazo').value;
+    const isFixo        = document.getElementById('modal-item-fixo').checked;
+    const body = new URLSearchParams({ conteudo, responsavel_id: responsavelId, prazo, is_fixo: isFixo.toString() });
+    fetch(`/controle-administrativo/bloco/item/${itemAtualId}/atualizar/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    }).then(r => r.json()).then(data => {
+      if (!data.success) { alert(data.error); return; }
+      document.getElementById('modal-item-titulo').textContent = data.conteudo;
+      const textoEl = document.getElementById(`texto-item-${itemAtualId}`);
+      if (textoEl) textoEl.textContent = data.conteudo;
+      bootstrap.Modal.getInstance(document.getElementById('modalItemBloco')).hide();
+    });
+  }
+
+  function enviarComentarioItem() {
+    const conteudo = document.getElementById('modal-item-novo-comentario').value.trim();
+    if (!conteudo) return;
+    fetch(`/controle-administrativo/bloco/item/${itemAtualId}/comentario/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `conteudo=${encodeURIComponent(conteudo)}`
+    }).then(r => r.json()).then(data => {
+      if (!data.success) return;
+      document.getElementById('modal-item-novo-comentario').value = '';
+      const el  = document.getElementById('modal-item-comentarios');
+      const novo = `<div class="comentario-item"><div class="d-flex justify-content-between"><span class="comentario-autor">${data.autor}</span><span class="comentario-data">${data.criado_em}</span></div><div class="comentario-texto">${data.conteudo}</div></div>`;
+      if (el.querySelector('small')) el.innerHTML = '';
+      el.innerHTML += novo;
+    });
+  }
+
+  // ── Divisão de tarefas ──
+  function toggleInputDivisao(funcId) {
+    const el = document.getElementById(`input-divisao-${funcId}`);
+    el.classList.toggle('ativo');
+    if (el.classList.contains('ativo')) document.getElementById(`texto-divisao-${funcId}`).focus();
+  }
+
+  function salvarTarefaDivisao(funcId) {
+    const input    = document.getElementById(`texto-divisao-${funcId}`);
+    const conteudo = input.value.trim();
+    if (!conteudo) return;
+    fetch(`/controle-administrativo/divisao/${funcId}/adicionar/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `conteudo=${encodeURIComponent(conteudo)}`
+    }).then(r => r.json()).then(data => {
+      if (!data.success) { alert(data.error); return; }
+      const lista = document.getElementById(`divisao-lista-${funcId}`);
+      const vazio = document.getElementById(`vazio-divisao-${funcId}`);
+      if (vazio) vazio.remove();
+      lista.innerHTML += `
+        <div class="sca-divisao-item" id="divisao-tarefa-${data.id}">
+          <i class="bi bi-circle" style="font-size:0.5rem;color:var(--gold-dark);flex-shrink:0;margin-top:2px;"></i>
+          <span id="divisao-texto-${data.id}" style="flex:1;cursor:pointer;"
+                onclick="editarTarefaDivisaoInline(${data.id})">${data.conteudo}</span>
+          <i class="bi bi-x sca-item-excluir" onclick="excluirTarefaDivisao(${data.id})"></i>
+        </div>`;
+      input.value = '';
+      document.getElementById(`input-divisao-${funcId}`).classList.remove('ativo');
+    });
+  }
+
+  function editarTarefaDivisaoInline(tarefaId) {
+    const span = document.getElementById(`divisao-texto-${tarefaId}`);
+    const textoAtual = span.textContent.trim();
+    const input = document.createElement('input');
+    input.type  = 'text';
+    input.value = textoAtual;
+    input.style.cssText = 'flex:1;background:#25253a;border:1px solid var(--gold-dark);color:var(--text-light);font-size:0.65rem;border-radius:4px;padding:0.1rem 0.3rem;';
+    span.replaceWith(input);
+    input.focus();
+    const salvar = () => {
+      const novoConteudo = input.value.trim();
+      if (!novoConteudo) { input.replaceWith(span); return; }
+      fetch(`/controle-administrativo/divisao/tarefa/${tarefaId}/editar/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `conteudo=${encodeURIComponent(novoConteudo)}`
+      }).then(r => r.json()).then(data => {
+        if (!data.success) { input.replaceWith(span); return; }
+        span.textContent = data.conteudo;
+        input.replaceWith(span);
+      });
+    };
+    input.addEventListener('blur', salvar);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') input.blur();
+      if (e.key === 'Escape') input.replaceWith(span);
+    });
+  }
+
+  function excluirTarefaDivisao(tarefaId) {
+    fetch(`/controle-administrativo/divisao/tarefa/${tarefaId}/excluir/`, {
+      method: 'POST', headers: { 'X-CSRFToken': CSRF },
+    }).then(r => r.json()).then(data => {
+      if (!data.success) { alert(data.error); return; }
+      document.getElementById(`divisao-tarefa-${tarefaId}`).remove();
+    });
+  }
+</script>
+
+{% endblock %}
