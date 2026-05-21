@@ -11,6 +11,6 @@ def enviar_email_tiket_criada(sender, instance, created, **kwargs):
         subject = f"Tiket: {instance.id}"
         message = f"um novo tiket {instance.id} foi criado. {instance.usuario} Status: {instance.status}"
         from_email = 'sysggoldensat@gmail.com'
-        recipient_list = ['sjuniorr6@gmail.com']
+        recipient_list = ['julio.cesar@grupogoldensat.com.br']
         
         send_mail(subject, message, from_email, recipient_list)

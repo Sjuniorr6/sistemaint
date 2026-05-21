@@ -98,6 +98,20 @@ urlpatterns = [
         name="sb_mission_geofence_check",
     ),
 
+    # Sync direto: lê odometer_raw do Supabase e salva km_inicio/km_final no Django
+    path(
+        "supabase/mission/<str:mission_id>/sync-km/",
+        vp.sb_mission_sync_km,
+        name="sb_mission_sync_km",
+    ),
+
+    # Diagnóstico Django para uma missão (debug)
+    path(
+        "supabase/mission/<str:mission_id>/django-debug/",
+        vp.sb_mission_django_debug,
+        name="sb_mission_django_debug",
+    ),
+
     # WEBHOOK
     path('webhooks/mission-photo/', views.mission_photo_webhook, name='mission_photo_webhook'),
 ]

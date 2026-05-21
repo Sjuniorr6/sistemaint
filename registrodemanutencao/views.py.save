@@ -175,7 +175,7 @@ def aprovar_manut(request, id):
     subject = f"Manutenção Aprovada: {registro.id}"
     message = f"A manutenção {registro.id} foi aprovada com sucesso. segue pdf para tratativa "
     from_email = settings.DEFAULT_FROM_EMAIL
-    recipient_list = ['sjuniorr6@gmail.com']
+    recipient_list = ['julio.cesar@grupogoldensat.com.br']
     
     try:
         send_mail(subject, message, from_email, recipient_list)

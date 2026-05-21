@@ -107,7 +107,7 @@ def aprovar_manutencao(request, id):
     subject = f"Manutenção Aprovada: {registro.id}"
     message = f"A manutenção {registro.id} foi aprovada com sucesso. Segue PDF para tratativa."
     from_email = settings.DEFAULT_FROM_EMAIL
-    recipient_list = ['comercial@grupogoldensat.com.br', 'atendimento@grupogoldensat.com.br', 'sjuniorr6@gmail.com']
+    recipient_list = ['comercial@grupogoldensat.com.br', 'atendimento@grupogoldensat.com.br', 'julio.cesar@grupogoldensat.com.br']
 
     email = EmailMessage(subject, message, from_email, recipient_list)
     email.attach(f"registro-manutencao-{registro.id}.pdf", pdf, "application/pdf")

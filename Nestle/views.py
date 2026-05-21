@@ -667,7 +667,7 @@ def grid_internacional_send_email(request):
             subject='Planilha Grid Internacional',
             body='Segue em anexo a planilha solicitada.',
             from_email=None,
-            to=['inteligencia@grupogoldensat.com.br', 'inteligencia6@grupogoldensat.com.br', 'julio.cesar@grupogoldensat.com.br', 'sjuniorr6@gmail.com'],
+            to=['inteligencia@grupogoldensat.com.br', 'inteligencia6@grupogoldensat.com.br', 'julio.cesar@grupogoldensat.com.br'],
         )
         email.attach('grid_internacional.xlsx', output.read(), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         email.send()
