@@ -437,11 +437,20 @@ def adicionar_comentario_item_bloco_view(request, item_id):
 def adicionar_tarefa_divisao_view(request, funcionario_id):
     if not _pode_editar(request):
         return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
-    conteudo = request.POST.get('conteudo', '').strip()
+    conteudo  = request.POST.get('conteudo', '').strip()
+    is_fixo   = request.POST.get('is_fixo', 'false') == 'true'
+    prazo_str = request.POST.get('prazo', '').strip()
+    prazo     = prazo_str if prazo_str else None
     semana_iso, ano = get_semana_atual()
     try:
-        tarefa = adicionar_tarefa_divisao(funcionario_id, semana_iso, ano, conteudo)
-        return JsonResponse({'success': True, 'id': tarefa.id, 'conteudo': tarefa.conteudo})
+        tarefa = adicionar_tarefa_divisao(funcionario_id, semana_iso, ano, conteudo, is_fixo=is_fixo, prazo=prazo)
+        return JsonResponse({
+            'success':  True,
+            'id':       tarefa.id,
+            'conteudo': tarefa.conteudo,
+            'is_fixo':  tarefa.is_fixo,
+            'prazo':    tarefa.prazo.strftime('%d/%m/%Y') if tarefa.prazo else '—',
+        })
     except ValueError as e:
         return JsonResponse({'success': False, 'error': str(e)})
 

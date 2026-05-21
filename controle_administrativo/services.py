@@ -140,7 +140,7 @@ def gerar_blocos_semana(semana_iso, ano, user):
     """
     from .models import BlocoSemanal, TipoBloco
 
-    for tipo in [TipoBloco.NAO_ESQUECER, TipoBloco.DIARIO, TipoBloco.OBSERVACAO]:
+    for tipo in [TipoBloco.NAO_ESQUECER, TipoBloco.QUINZENAL, TipoBloco.MENSAL]:
         BlocoSemanal.objects.get_or_create(
             tipo=tipo,
             semana_iso=semana_iso,
@@ -250,7 +250,7 @@ def atualizar_item_bloco(item_id, conteudo=None, responsavel_id=None, prazo=None
     item.save()
     return item
 
-def adicionar_tarefa_divisao(funcionario_id, semana_iso, ano, conteudo):
+def adicionar_tarefa_divisao(funcionario_id, semana_iso, ano, conteudo, is_fixo=False, prazo=None):
     """Adiciona uma tarefa na divisão semanal do funcionário."""
     from .models import TarefaDivisao
 
@@ -269,6 +269,8 @@ def adicionar_tarefa_divisao(funcionario_id, semana_iso, ano, conteudo):
         semana_iso=semana_iso,
         ano=ano,
         conteudo=conteudo.strip(),
+        is_fixo=is_fixo,
+        prazo=prazo,
         ordem=ordem,
     )
 

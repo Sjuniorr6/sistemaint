@@ -34,9 +34,9 @@ class TipoControle(models.TextChoices):
 
 
 class TipoBloco(models.TextChoices):
-    NAO_ESQUECER = 'nao_esquecer', 'Importantes / Não Esquecer'
-    DIARIO       = 'diario',       'Diário'
-    OBSERVACAO   = 'observacao',   'Outros / Observação'
+    NAO_ESQUECER = 'nao_esquecer', 'Não Esquecer'
+    QUINZENAL    = 'quinzenal',    'Quinzenal'
+    MENSAL       = 'mensal',       'Mensal'
 
 
 class PerfilFuncionario(models.TextChoices):
@@ -450,6 +450,8 @@ class TarefaDivisao(models.Model):
     ano         = models.PositiveIntegerField(verbose_name='Ano')
     conteudo    = models.CharField(max_length=300, verbose_name='Tarefa')
     is_done     = models.BooleanField(default=False, verbose_name='Concluída')
+    is_fixo     = models.BooleanField(default=False, verbose_name='Item fixo')
+    prazo       = models.DateField(null=True, blank=True, verbose_name='Prazo')
     ordem       = models.PositiveIntegerField(default=0, verbose_name='Ordem')
     criado_em   = models.DateTimeField(auto_now_add=True)
 

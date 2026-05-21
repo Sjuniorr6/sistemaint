@@ -249,9 +249,9 @@
   .sca-check i { font-size: 8px; color: white; display: none; }
   .sca-check.checked i { display: block; }
 
-  .sca-divisao-wrapper {
+.sca-divisao-wrapper {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: 0.4rem;
     flex: 1;
     min-height: 0;
@@ -431,8 +431,8 @@
         <div class="sca-bloco-titulo">
           <span>
             {% if bloco.tipo == 'nao_esquecer' %}<i class="bi bi-bell-fill me-1"></i>Não Esquecer
-            {% elif bloco.tipo == 'diario' %}<i class="bi bi-journal-text me-1"></i>Diário
-            {% else %}<i class="bi bi-chat-left-text me-1"></i>Observação{% endif %}
+            {% elif bloco.tipo == 'quinzenal' %}<i class="bi bi-calendar2-week me-1"></i>Quinzenal
+            {% else %}<i class="bi bi-calendar-month me-1"></i>Mensal{% endif %}
           </span>
           {% if perfil_usuario != 'gestor' %}
           <button class="btn-add-bloco" onclick="toggleInputBloco({{ bloco.id }})" title="Adicionar item">
@@ -521,7 +521,7 @@
           <div class="sca-divisao-titulo">
             <span><i class="bi bi-person-fill me-1"></i> {{ item.funcionario.nome }}</span>
             {% if perfil_usuario != 'gestor' %}
-            <button class="btn-add-bloco" onclick="toggleInputDivisao({{ item.funcionario.id }})" title="Adicionar tarefa">
+            <button class="btn-add-bloco" onclick="abrirModalNovaTarefaDivisao({{ item.funcionario.id }})" title="Adicionar tarefa">
               <i class="bi bi-plus-lg"></i>
             </button>
             {% endif %}
@@ -556,12 +556,50 @@
                    onkeydown="if(event.key==='Enter') salvarTarefaDivisao({{ item.funcionario.id }})">
             <button onclick="salvarTarefaDivisao({{ item.funcionario.id }})"><i class="bi bi-check"></i></button>
           </div>
+          <div style="font-size:0.58rem;color:var(--text-muted);margin-top:0.2rem;" id="prazo-divisao-{{ item.funcionario.id }}"></div>
 
         </div>
         {% endif %}
         {% endfor %}
       </div>
 
+    </div>
+  </div>
+</div>
+
+<!-- ─── MODAL DE NOVA TAREFA DA DIVISÃO ─── -->
+<div class="modal fade" id="modalNovaTarefaDivisao" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Nova Tarefa</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label-sca">Tarefa *</label>
+          <input type="text" id="divisao-nova-conteudo" class="form-control form-control-sca" placeholder="Descreva a tarefa">
+        </div>
+        <div class="mb-3">
+          <label class="form-label-sca">Prazo</label>
+          <input type="date" id="divisao-nova-prazo" class="form-control form-control-sca">
+        </div>
+        <div class="mb-3 d-flex align-items-center gap-2">
+          <input type="checkbox" id="divisao-nova-fixo" style="accent-color:var(--gold);width:14px;height:14px;">
+          <label class="form-label-sca mb-0" for="divisao-nova-fixo">Item fixo — carregar para a semana seguinte</label>
+        </div>
+        <div id="divisao-nova-erro" class="text-danger" style="font-size:0.75rem;display:none;"></div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid var(--border);">
+        <button type="button" class="btn btn-sm"
+          style="background:transparent;color:var(--text-muted);border:1px solid var(--border);"
+          data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-sm"
+          style="background:var(--gold-dark);color:var(--gold);font-weight:700;"
+          onclick="confirmarNovaTarefaDivisao()">
+          <i class="bi bi-check2 me-1"></i>Adicionar
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -987,37 +1025,48 @@
   }
 
   // ── Divisão de tarefas ──
-  function toggleInputDivisao(funcId) {
-    const el = document.getElementById(`input-divisao-${funcId}`);
-    el.classList.toggle('ativo');
-    if (el.classList.contains('ativo')) document.getElementById(`texto-divisao-${funcId}`).focus();
+  let funcIdAtual = null;
+
+  function abrirModalNovaTarefaDivisao(funcId) {
+    funcIdAtual = funcId;
+    document.getElementById('divisao-nova-conteudo').value = '';
+    document.getElementById('divisao-nova-prazo').value    = '';
+    document.getElementById('divisao-nova-fixo').checked   = false;
+    document.getElementById('divisao-nova-erro').style.display = 'none';
+    new bootstrap.Modal(document.getElementById('modalNovaTarefaDivisao')).show();
   }
 
-  function salvarTarefaDivisao(funcId) {
-    const input    = document.getElementById(`texto-divisao-${funcId}`);
-    const conteudo = input.value.trim();
-    if (!conteudo) return;
-    fetch(`/controle-administrativo/divisao/${funcId}/adicionar/`, {
+  function confirmarNovaTarefaDivisao() {
+    const conteudo = document.getElementById('divisao-nova-conteudo').value.trim();
+    const prazo    = document.getElementById('divisao-nova-prazo').value;
+    const isFixo   = document.getElementById('divisao-nova-fixo').checked;
+    const erroEl   = document.getElementById('divisao-nova-erro');
+
+    if (!conteudo) { erroEl.textContent = 'O conteúdo é obrigatório.'; erroEl.style.display = 'block'; return; }
+    erroEl.style.display = 'none';
+
+    const body = new URLSearchParams({ conteudo, prazo, is_fixo: isFixo.toString() });
+    fetch(`/controle-administrativo/divisao/${funcIdAtual}/adicionar/`, {
       method: 'POST',
       headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `conteudo=${encodeURIComponent(conteudo)}`
+      body: body.toString()
     }).then(r => r.json()).then(data => {
-      if (!data.success) { alert(data.error); return; }
-      const lista = document.getElementById(`divisao-lista-${funcId}`);
-      const vazio = document.getElementById(`vazio-divisao-${funcId}`);
+      if (!data.success) { erroEl.textContent = data.error; erroEl.style.display = 'block'; return; }
+      bootstrap.Modal.getInstance(document.getElementById('modalNovaTarefaDivisao')).hide();
+      const lista = document.getElementById(`divisao-lista-${funcIdAtual}`);
+      const vazio = document.getElementById(`vazio-divisao-${funcIdAtual}`);
       if (vazio) vazio.remove();
       lista.innerHTML += `
         <div class="sca-divisao-item" id="divisao-tarefa-${data.id}">
           <i class="bi bi-circle" style="font-size:0.5rem;color:var(--gold-dark);flex-shrink:0;margin-top:2px;"></i>
           <span id="divisao-texto-${data.id}" style="flex:1;cursor:pointer;"
                 onclick="editarTarefaDivisaoInline(${data.id})">${data.conteudo}</span>
+          ${data.prazo !== '—' ? `<small style="color:var(--text-muted);font-size:0.58rem;">${data.prazo}</small>` : ''}
+          ${data.is_fixo ? `<i class="bi bi-pin-fill" style="color:var(--gold-dark);font-size:0.6rem;" title="Item fixo"></i>` : ''}
           <i class="bi bi-x sca-item-excluir" onclick="excluirTarefaDivisao(${data.id})"></i>
         </div>`;
-      input.value = '';
-      document.getElementById(`input-divisao-${funcId}`).classList.remove('ativo');
     });
   }
-
   function editarTarefaDivisaoInline(tarefaId) {
     const span = document.getElementById(`divisao-texto-${tarefaId}`);
     const textoAtual = span.textContent.trim();
