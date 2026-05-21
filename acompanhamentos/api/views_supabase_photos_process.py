@@ -1073,6 +1073,9 @@ def process_one_photo_id(photo_id: str, force: bool = False):
                 logger.exception("[SYNC_FAIL] photo_id=%s mission_id=%s", photo_id, mission_id)
                 return ({"success": False, "error": str(sync_exc)}, 500)
 
+        existing_vr = _early_vr
+        has_previous_error = bool(existing_vr.get("error"))
+
         if not force and photo.get("processed") is True and _early_vr.get("django_synced"):
             return ({"success": True, "message": "Foto já processada e Django sincronizado", "photo_id": photo_id}, 200)
         if has_previous_error:
