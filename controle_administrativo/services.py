@@ -336,3 +336,52 @@ def marcar_atrasadas(semana_iso_atual, ano_atual):
         semana_iso=semana_iso_atual,
         ano=ano_atual,
     ).update(status=StatusExecucao.ATRASADA)
+
+
+def detalhe_tarefa_divisao(tarefa_id):
+    """Retorna dados completos de uma tarefa da divisão."""
+    from .models import TarefaDivisao
+    try:
+        return TarefaDivisao.objects.prefetch_related(
+            'comentarios', 'comentarios__autor'
+        ).get(id=tarefa_id)
+    except TarefaDivisao.DoesNotExist:
+        raise ValueError('Tarefa não encontrada.')
+
+
+def atualizar_tarefa_divisao(tarefa_id, conteudo=None, tipo=None, prazo=None, is_fixo=None):
+    """Atualiza dados de uma tarefa da divisão."""
+    from .models import TarefaDivisao
+    try:
+        tarefa = TarefaDivisao.objects.get(id=tarefa_id)
+    except TarefaDivisao.DoesNotExist:
+        raise ValueError('Tarefa não encontrada.')
+
+    if conteudo is not None:
+        tarefa.conteudo = conteudo.strip()
+    if tipo is not None:
+        tarefa.tipo = tipo
+    if prazo is not None:
+        tarefa.prazo = prazo if prazo else None
+    if is_fixo is not None:
+        tarefa.is_fixo = is_fixo
+    tarefa.save()
+    return tarefa
+
+
+def adicionar_comentario_tarefa_divisao(tarefa_id, conteudo, user):
+    """Adiciona comentário a uma tarefa da divisão."""
+    from .models import TarefaDivisao, ComentarioTarefaDivisao
+    try:
+        tarefa = TarefaDivisao.objects.get(id=tarefa_id)
+    except TarefaDivisao.DoesNotExist:
+        raise ValueError('Tarefa não encontrada.')
+
+    if not conteudo.strip():
+        raise ValueError('Comentário não pode ser vazio.')
+
+    return ComentarioTarefaDivisao.objects.create(
+        tarefa=tarefa,
+        autor=user,
+        conteudo=conteudo.strip(),
+    )

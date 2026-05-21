@@ -43,6 +43,11 @@ class PerfilFuncionario(models.TextChoices):
     GESTOR   = 'gestor',   'Gestor'
     OPERADOR = 'operador', 'Operador'
 
+class TipoTarefaDivisao(models.TextChoices):
+    HOJE   = 'hoje',   'Tarefas de Hoje'
+    SEMANA = 'semana', 'Tarefas da Semana'
+    MENSAL = 'mensal', 'Tarefas Mensais'
+
 
 # ─────────────────────────────────────────
 # FUNCIONÁRIO
@@ -449,6 +454,12 @@ class TarefaDivisao(models.Model):
     semana_iso  = models.PositiveIntegerField(verbose_name='Semana ISO')
     ano         = models.PositiveIntegerField(verbose_name='Ano')
     conteudo    = models.CharField(max_length=300, verbose_name='Tarefa')
+    tipo        = models.CharField(
+        max_length=10,
+        choices=TipoTarefaDivisao.choices,
+        default=TipoTarefaDivisao.SEMANA,
+        verbose_name='Tipo'
+    )
     is_done     = models.BooleanField(default=False, verbose_name='Concluída')
     is_fixo     = models.BooleanField(default=False, verbose_name='Item fixo')
     prazo       = models.DateField(null=True, blank=True, verbose_name='Prazo')
@@ -462,3 +473,32 @@ class TarefaDivisao(models.Model):
 
     def __str__(self):
         return f"{self.funcionario.nome} — {self.conteudo[:50]}"
+    
+# ─────────────────────────────────────────
+# COMENTÁRIO DA TAREFA DA DIVISÃO
+# ─────────────────────────────────────────
+
+class ComentarioTarefaDivisao(models.Model):
+    tarefa    = models.ForeignKey(
+        TarefaDivisao,
+        on_delete=models.CASCADE,
+        related_name='comentarios',
+        verbose_name='Tarefa'
+    )
+    autor     = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='comentarios_divisao',
+        verbose_name='Autor'
+    )
+    conteudo  = models.TextField(verbose_name='Comentário')
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Comentário de Tarefa da Divisão'
+        verbose_name_plural = 'Comentários de Tarefas da Divisão'
+        ordering = ['criado_em']
+
+    def __str__(self):
+        return f"{self.autor} — {self.conteudo[:50]}"

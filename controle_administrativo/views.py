@@ -36,6 +36,12 @@ from .services import (
     adicionar_tarefa_divisao,
     editar_tarefa_divisao,
     excluir_tarefa_divisao,
+    adicionar_tarefa_divisao,
+    editar_tarefa_divisao,
+    excluir_tarefa_divisao,
+    detalhe_tarefa_divisao,
+    atualizar_tarefa_divisao,
+    adicionar_comentario_tarefa_divisao,
 )
 
 def _pode_editar(request):
@@ -106,8 +112,11 @@ def painel(request, semana_iso=None, ano=None):
             ano=ano,
         ).order_by('ordem', 'criado_em'))
         funcionarios_com_tarefas.append({
-            'funcionario': func,
-            'tarefas_divisao': tarefas,
+            'funcionario':          func,
+            'tarefas_divisao':      tarefas,
+            'tarefas_divisao_hoje':  [t for t in tarefas if t.tipo == 'hoje'],
+            'tarefas_divisao_semana':[t for t in tarefas if t.tipo == 'semana'],
+            'tarefas_divisao_mensal':[t for t in tarefas if t.tipo == 'mensal'],
         })
 
     # Define perfil do usuário logado
@@ -440,7 +449,14 @@ def adicionar_tarefa_divisao_view(request, funcionario_id):
     conteudo  = request.POST.get('conteudo', '').strip()
     is_fixo   = request.POST.get('is_fixo', 'false') == 'true'
     prazo_str = request.POST.get('prazo', '').strip()
-    prazo     = prazo_str if prazo_str else None
+    if prazo_str:
+        try:
+            from datetime import date
+            prazo = date.fromisoformat(prazo_str)
+        except ValueError:
+            prazo = None
+    else:
+        prazo = None
     semana_iso, ano = get_semana_atual()
     try:
         tarefa = adicionar_tarefa_divisao(funcionario_id, semana_iso, ano, conteudo, is_fixo=is_fixo, prazo=prazo)
@@ -528,8 +544,11 @@ def historico(request, semana_iso=None, ano=None):
             ano=ano,
         ).order_by('ordem', 'criado_em'))
         funcionarios_com_tarefas.append({
-            'funcionario': func,
-            'tarefas_divisao': tarefas,
+            'funcionario':           func,
+            'tarefas_divisao':       tarefas,
+            'tarefas_divisao_hoje':  [t for t in tarefas if t.tipo == 'hoje'],
+            'tarefas_divisao_semana':[t for t in tarefas if t.tipo == 'semana'],
+            'tarefas_divisao_mensal':[t for t in tarefas if t.tipo == 'mensal'],
         })
 
     eh_semana_atual = (semana_iso == semana_atual and ano == ano_atual)
@@ -700,3 +719,83 @@ def exportar_excel(request, semana_iso, ano):
     response['Content-Disposition'] = f'attachment; filename="controle_adm_semana_{semana_iso}_{ano}.xlsx"'
     wb.save(response)
     return response
+
+@login_required
+def detalhe_tarefa_divisao_view(request, tarefa_id):
+    """Retorna dados completos de uma tarefa da divisão para o modal."""
+    try:
+        from .models import TarefaDivisao
+        tarefa = TarefaDivisao.objects.prefetch_related(
+            'comentarios', 'comentarios__autor'
+        ).get(id=tarefa_id)
+    except TarefaDivisao.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Tarefa não encontrada.'})
+
+    comentarios = [
+        {
+            'autor':     c.autor.get_full_name() or c.autor.username if c.autor else 'Desconhecido',
+            'conteudo':  c.conteudo,
+            'criado_em': timezone.localtime(c.criado_em).strftime('%d/%m/%Y às %H:%M'),
+        }
+        for c in tarefa.comentarios.all()
+    ]
+
+    return JsonResponse({
+        'success':  True,
+        'id':       tarefa.id,
+        'conteudo': tarefa.conteudo,
+        'tipo':     tarefa.tipo,
+        'prazo':    tarefa.prazo.strftime('%Y-%m-%d') if tarefa.prazo else '',
+        'prazo_fmt': tarefa.prazo.strftime('%d/%m/%Y') if tarefa.prazo else '—',
+        'is_fixo':  tarefa.is_fixo,
+        'comentarios': comentarios,
+    })
+
+
+@login_required
+@require_POST
+def atualizar_tarefa_divisao_view(request, tarefa_id):
+    """Atualiza dados de uma tarefa da divisão."""
+    if not _pode_editar(request):
+        return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
+
+    conteudo   = request.POST.get('conteudo', '').strip() or None
+    tipo       = request.POST.get('tipo', None)
+    prazo_str  = request.POST.get('prazo', '').strip()
+    is_fixo_str = request.POST.get('is_fixo', None)
+    is_fixo    = (is_fixo_str == 'true') if is_fixo_str is not None else None
+
+    if prazo_str:
+        try:
+            from datetime import date
+            prazo = date.fromisoformat(prazo_str)
+        except ValueError:
+            prazo = None
+    else:
+        prazo = ''
+
+    try:
+        tarefa = atualizar_tarefa_divisao(tarefa_id, conteudo, tipo, prazo, is_fixo)
+        return JsonResponse({'success': True, 'conteudo': tarefa.conteudo, 'tipo': tarefa.tipo})
+    except ValueError as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@require_POST
+def adicionar_comentario_tarefa_divisao_view(request, tarefa_id):
+    """Adiciona comentário a uma tarefa da divisão."""
+    if not _pode_editar(request):
+        return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
+
+    conteudo = request.POST.get('conteudo', '').strip()
+    try:
+        comentario = adicionar_comentario_tarefa_divisao(tarefa_id, conteudo, request.user)
+        return JsonResponse({
+            'success':   True,
+            'autor':     comentario.autor.get_full_name() or comentario.autor.username,
+            'conteudo':  comentario.conteudo,
+            'criado_em': timezone.localtime(comentario.criado_em).strftime('%d/%m/%Y às %H:%M'),
+        })
+    except ValueError as e:
+        return JsonResponse({'success': False, 'error': str(e)})

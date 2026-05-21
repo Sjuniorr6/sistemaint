@@ -117,7 +117,8 @@
     line-height: 1.3;
   }
 
-  .sca-bloco-item:last-child { border-bottom: none; }
+.sca-bloco-item:last-child { border-bottom: none; }
+.sca-bloco small, #itens-bloco-0 small { color: #888 !important; font-size: 0.62rem; }
 
   .sca-bloco-item .sca-item-excluir {
     margin-left: auto;
@@ -412,12 +413,14 @@
          style="background:#1a3a1a;color:#4caf50;font-size:0.72rem;font-weight:700;padding:0.25rem 0.6rem;border-radius:5px;text-decoration:none;border:1px solid #4caf50;">
         <i class="bi bi-file-earmark-excel me-1"></i>Excel
       </a>
-      <small class="text-muted">Progresso</small>
-      <div class="progress-track">
-        <div class="progress-bar-sca" id="progress-bar" style="width: {{ resumo.percentual }}%;"></div>
+      <div class="d-flex align-items-center gap-2">
+        <small style="color:var(--text-light);font-size:0.72rem;font-weight:600;">Progresso</small>
+        <div class="progress-track" style="width:150px;">
+          <div class="progress-bar-sca" id="progress-bar" style="width: {{ resumo.percentual }}%;"></div>
+        </div>
+        <span class="progress-label" id="pct-label">{{ resumo.percentual }}%</span>
+        <small style="color:var(--text-light);font-size:0.72rem;" id="pct-detalhe">({{ resumo.concluidas }}/{{ resumo.total }})</small>
       </div>
-      <span class="progress-label" id="pct-label">{{ resumo.percentual }}%</span>
-      <small class="text-muted" id="pct-detalhe">({{ resumo.concluidas }}/{{ resumo.total }})</small>
     </div>
   </div>
 
@@ -528,28 +531,50 @@
           </div>
 
           <div class="sca-divisao-secao">Tarefas de hoje</div>
-          {% for tarefa in item.funcionario.tarefas_modelo.all %}
-            {% if tarefa.ativo and tarefa.dia_da_semana == dia_atual %}
-            <div class="sca-divisao-item">
-              <i class="bi bi-circle" style="font-size:0.5rem;color:var(--gold-dark);flex-shrink:0;margin-top:2px;"></i>
-              {{ tarefa.titulo }}
-            </div>
-            {% endif %}
-          {% endfor %}
-
-          <div class="sca-divisao-secao">Tarefas da semana</div>
-          <div id="divisao-lista-{{ item.funcionario.id }}">
-            {% for tarefa in item.tarefas_divisao %}
+          <div id="divisao-lista-hoje-{{ item.funcionario.id }}">
+            {% for tarefa in item.tarefas_divisao %}{% if tarefa.tipo == 'hoje' %}
             <div class="sca-divisao-item" id="divisao-tarefa-{{ tarefa.id }}">
               <i class="bi bi-circle" style="font-size:0.5rem;color:var(--gold-dark);flex-shrink:0;margin-top:2px;"></i>
               <span id="divisao-texto-{{ tarefa.id }}" style="flex:1;cursor:pointer;"
-                    onclick="editarTarefaDivisaoInline({{ tarefa.id }})">{{ tarefa.conteudo }}</span>
+                    onclick="abrirDetalheTarefaDivisao({{ tarefa.id }})">{{ tarefa.conteudo }}</span>
               <i class="bi bi-x sca-item-excluir" onclick="excluirTarefaDivisao({{ tarefa.id }})"></i>
             </div>
-            {% empty %}
-            <small class="text-muted" style="font-size:0.62rem;" id="vazio-divisao-{{ item.funcionario.id }}">Nenhuma tarefa ainda.</small>
-            {% endfor %}
+            {% endif %}{% endfor %}
+            {% if not item.tarefas_divisao_hoje %}
+            <small style="font-size:0.62rem;color:#888;">Nenhuma tarefa ainda.</small>
+            {% endif %}
           </div>
+
+          <div class="sca-divisao-secao">Tarefas da semana</div>
+          <div id="divisao-lista-semana-{{ item.funcionario.id }}">
+            {% for tarefa in item.tarefas_divisao %}{% if tarefa.tipo == 'semana' %}
+            <div class="sca-divisao-item" id="divisao-tarefa-{{ tarefa.id }}">
+              <i class="bi bi-circle" style="font-size:0.5rem;color:var(--gold-dark);flex-shrink:0;margin-top:2px;"></i>
+              <span id="divisao-texto-{{ tarefa.id }}" style="flex:1;cursor:pointer;"
+                    onclick="abrirDetalheTarefaDivisao({{ tarefa.id }})">{{ tarefa.conteudo }}</span>
+              <i class="bi bi-x sca-item-excluir" onclick="excluirTarefaDivisao({{ tarefa.id }})"></i>
+            </div>
+            {% endif %}{% endfor %}
+            {% if not item.tarefas_divisao_semana %}
+            <small style="font-size:0.62rem;color:#888;">Nenhuma tarefa ainda.</small>
+            {% endif %}
+          </div>
+
+          <div class="sca-divisao-secao">Tarefas mensais</div>
+          <div id="divisao-lista-mensal-{{ item.funcionario.id }}">
+            {% for tarefa in item.tarefas_divisao %}{% if tarefa.tipo == 'mensal' %}
+            <div class="sca-divisao-item" id="divisao-tarefa-{{ tarefa.id }}">
+              <i class="bi bi-circle" style="font-size:0.5rem;color:var(--gold-dark);flex-shrink:0;margin-top:2px;"></i>
+              <span id="divisao-texto-{{ tarefa.id }}" style="flex:1;cursor:pointer;"
+                    onclick="abrirDetalheTarefaDivisao({{ tarefa.id }})">{{ tarefa.conteudo }}</span>
+              <i class="bi bi-x sca-item-excluir" onclick="excluirTarefaDivisao({{ tarefa.id }})"></i>
+            </div>
+            {% endif %}{% endfor %}
+            {% if not item.tarefas_divisao_mensal %}
+            <small style="font-size:0.62rem;color:#888;">Nenhuma tarefa ainda.</small>
+            {% endif %}
+          </div>
+
 
           <div class="sca-bloco-input" id="input-divisao-{{ item.funcionario.id }}">
             <input type="text" placeholder="Nova tarefa..." id="texto-divisao-{{ item.funcionario.id }}"
@@ -581,6 +606,14 @@
           <input type="text" id="divisao-nova-conteudo" class="form-control form-control-sca" placeholder="Descreva a tarefa">
         </div>
         <div class="mb-3">
+          <label class="form-label-sca">Tipo</label>
+          <select id="divisao-nova-tipo" class="form-control form-control-sca">
+            <option value="hoje">Tarefas de Hoje</option>
+            <option value="semana">Tarefas da Semana</option>
+            <option value="mensal">Tarefas Mensais</option>
+          </select>
+        </div>
+        <div class="mb-3">
           <label class="form-label-sca">Prazo</label>
           <input type="date" id="divisao-nova-prazo" class="form-control form-control-sca">
         </div>
@@ -599,6 +632,59 @@
           onclick="confirmarNovaTarefaDivisao()">
           <i class="bi bi-check2 me-1"></i>Adicionar
         </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── MODAL DE DETALHE DA TAREFA DA DIVISÃO ─── -->
+<div class="modal fade" id="modalDetalheTarefaDivisao" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modal-divisao-titulo">Carregando...</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-secao-titulo">Detalhes</div>
+        <div class="mb-3">
+          <label class="form-label-sca">Tarefa *</label>
+          <input type="text" id="modal-divisao-conteudo" class="form-control form-control-sca">
+        </div>
+        <div class="mb-3">
+          <label class="form-label-sca">Tipo</label>
+          <select id="modal-divisao-tipo" class="form-control form-control-sca">
+            <option value="hoje">Tarefas de Hoje</option>
+            <option value="semana">Tarefas da Semana</option>
+            <option value="mensal">Tarefas Mensais</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label-sca">Prazo</label>
+          <input type="date" id="modal-divisao-prazo" class="form-control form-control-sca">
+        </div>
+        <div class="mb-3 d-flex align-items-center gap-2">
+          <input type="checkbox" id="modal-divisao-fixo" style="accent-color:var(--gold);width:14px;height:14px;">
+          <label class="form-label-sca mb-0" for="modal-divisao-fixo">Item fixo — carregar para a semana seguinte</label>
+        </div>
+        <div class="d-flex justify-content-end mb-3">
+          <button class="btn btn-sm"
+            style="background:var(--gold-dark);color:var(--gold);font-weight:700;"
+            onclick="salvarDetalheTarefaDivisao()">
+            <i class="bi bi-floppy me-1"></i>Salvar alterações
+          </button>
+        </div>
+        <div class="modal-secao-titulo">Comentários</div>
+        <div id="modal-divisao-comentarios"></div>
+        <div class="mt-2">
+          <textarea class="form-control form-control-sca" id="modal-divisao-novo-comentario"
+            rows="2" placeholder="Adicionar comentário..."></textarea>
+          <button class="btn btn-sm mt-2"
+            style="background:var(--gold-dark);color:var(--gold);font-weight:700;"
+            onclick="enviarComentarioDivisao()">
+            <i class="bi bi-send me-1"></i>Adicionar Comentário
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -1045,7 +1131,8 @@
     if (!conteudo) { erroEl.textContent = 'O conteúdo é obrigatório.'; erroEl.style.display = 'block'; return; }
     erroEl.style.display = 'none';
 
-    const body = new URLSearchParams({ conteudo, prazo, is_fixo: isFixo.toString() });
+    const tipo  = document.getElementById('divisao-nova-tipo').value;
+    const body = new URLSearchParams({ conteudo, tipo, prazo, is_fixo: isFixo.toString() });
     fetch(`/controle-administrativo/divisao/${funcIdAtual}/adicionar/`, {
       method: 'POST',
       headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -1053,46 +1140,19 @@
     }).then(r => r.json()).then(data => {
       if (!data.success) { erroEl.textContent = data.error; erroEl.style.display = 'block'; return; }
       bootstrap.Modal.getInstance(document.getElementById('modalNovaTarefaDivisao')).hide();
-      const lista = document.getElementById(`divisao-lista-${funcIdAtual}`);
+      const listaId = tipo === 'hoje' ? `divisao-lista-hoje-${funcIdAtual}` : tipo === 'mensal' ? `divisao-lista-mensal-${funcIdAtual}` : `divisao-lista-semana-${funcIdAtual}`;
+      const lista = document.getElementById(listaId);
       const vazio = document.getElementById(`vazio-divisao-${funcIdAtual}`);
       if (vazio) vazio.remove();
       lista.innerHTML += `
         <div class="sca-divisao-item" id="divisao-tarefa-${data.id}">
           <i class="bi bi-circle" style="font-size:0.5rem;color:var(--gold-dark);flex-shrink:0;margin-top:2px;"></i>
           <span id="divisao-texto-${data.id}" style="flex:1;cursor:pointer;"
-                onclick="editarTarefaDivisaoInline(${data.id})">${data.conteudo}</span>
+                onclick="abrirDetalheTarefaDivisao(${data.id})">${data.conteudo}</span>
           ${data.prazo !== '—' ? `<small style="color:var(--text-muted);font-size:0.58rem;">${data.prazo}</small>` : ''}
           ${data.is_fixo ? `<i class="bi bi-pin-fill" style="color:var(--gold-dark);font-size:0.6rem;" title="Item fixo"></i>` : ''}
           <i class="bi bi-x sca-item-excluir" onclick="excluirTarefaDivisao(${data.id})"></i>
         </div>`;
-    });
-  }
-  function editarTarefaDivisaoInline(tarefaId) {
-    const span = document.getElementById(`divisao-texto-${tarefaId}`);
-    const textoAtual = span.textContent.trim();
-    const input = document.createElement('input');
-    input.type  = 'text';
-    input.value = textoAtual;
-    input.style.cssText = 'flex:1;background:#25253a;border:1px solid var(--gold-dark);color:var(--text-light);font-size:0.65rem;border-radius:4px;padding:0.1rem 0.3rem;';
-    span.replaceWith(input);
-    input.focus();
-    const salvar = () => {
-      const novoConteudo = input.value.trim();
-      if (!novoConteudo) { input.replaceWith(span); return; }
-      fetch(`/controle-administrativo/divisao/tarefa/${tarefaId}/editar/`, {
-        method: 'POST',
-        headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `conteudo=${encodeURIComponent(novoConteudo)}`
-      }).then(r => r.json()).then(data => {
-        if (!data.success) { input.replaceWith(span); return; }
-        span.textContent = data.conteudo;
-        input.replaceWith(span);
-      });
-    };
-    input.addEventListener('blur', salvar);
-    input.addEventListener('keydown', e => {
-      if (e.key === 'Enter') input.blur();
-      if (e.key === 'Escape') input.replaceWith(span);
     });
   }
 
@@ -1102,6 +1162,76 @@
     }).then(r => r.json()).then(data => {
       if (!data.success) { alert(data.error); return; }
       document.getElementById(`divisao-tarefa-${tarefaId}`).remove();
+    });
+  }
+
+  // ── Modal detalhe tarefa divisão ──
+  let tarefaDivisaoAtualId = null;
+
+  function abrirDetalheTarefaDivisao(tarefaId) {
+    tarefaDivisaoAtualId = tarefaId;
+    document.getElementById('modal-divisao-titulo').textContent = 'Carregando...';
+    fetch(`/controle-administrativo/divisao/tarefa/${tarefaId}/detalhe/`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.success) return;
+        document.getElementById('modal-divisao-titulo').textContent  = data.conteudo;
+        document.getElementById('modal-divisao-conteudo').value      = data.conteudo;
+        document.getElementById('modal-divisao-tipo').value          = data.tipo;
+        document.getElementById('modal-divisao-prazo').value         = data.prazo;
+        document.getElementById('modal-divisao-fixo').checked        = data.is_fixo;
+        document.getElementById('modal-divisao-novo-comentario').value = '';
+        renderizarComentariosDivisao(data.comentarios);
+        new bootstrap.Modal(document.getElementById('modalDetalheTarefaDivisao')).show();
+      });
+  }
+
+  function renderizarComentariosDivisao(comentarios) {
+    const el = document.getElementById('modal-divisao-comentarios');
+    if (!comentarios.length) { el.innerHTML = '<small class="text-muted">Nenhum comentário ainda.</small>'; return; }
+    el.innerHTML = comentarios.map(c => `
+      <div class="comentario-item">
+        <div class="d-flex justify-content-between">
+          <span class="comentario-autor">${c.autor}</span>
+          <span class="comentario-data">${c.criado_em}</span>
+        </div>
+        <div class="comentario-texto">${c.conteudo}</div>
+      </div>`).join('');
+  }
+
+  function salvarDetalheTarefaDivisao() {
+    const conteudo = document.getElementById('modal-divisao-conteudo').value.trim();
+    const tipo     = document.getElementById('modal-divisao-tipo').value;
+    const prazo    = document.getElementById('modal-divisao-prazo').value;
+    const isFixo   = document.getElementById('modal-divisao-fixo').checked;
+    const body = new URLSearchParams({ conteudo, tipo, prazo, is_fixo: isFixo.toString() });
+    fetch(`/controle-administrativo/divisao/tarefa/${tarefaDivisaoAtualId}/atualizar/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    }).then(r => r.json()).then(data => {
+      if (!data.success) { alert(data.error); return; }
+      document.getElementById('modal-divisao-titulo').textContent = data.conteudo;
+      const textoEl = document.getElementById(`divisao-texto-${tarefaDivisaoAtualId}`);
+      if (textoEl) textoEl.textContent = data.conteudo;
+      bootstrap.Modal.getInstance(document.getElementById('modalDetalheTarefaDivisao')).hide();
+    });
+  }
+
+  function enviarComentarioDivisao() {
+    const conteudo = document.getElementById('modal-divisao-novo-comentario').value.trim();
+    if (!conteudo) return;
+    fetch(`/controle-administrativo/divisao/tarefa/${tarefaDivisaoAtualId}/comentario/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `conteudo=${encodeURIComponent(conteudo)}`
+    }).then(r => r.json()).then(data => {
+      if (!data.success) return;
+      document.getElementById('modal-divisao-novo-comentario').value = '';
+      const el  = document.getElementById('modal-divisao-comentarios');
+      const novo = `<div class="comentario-item"><div class="d-flex justify-content-between"><span class="comentario-autor">${data.autor}</span><span class="comentario-data">${data.criado_em}</span></div><div class="comentario-texto">${data.conteudo}</div></div>`;
+      if (el.querySelector('small')) el.innerHTML = '';
+      el.innerHTML += novo;
     });
   }
 </script>
