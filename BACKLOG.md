@@ -126,12 +126,12 @@ M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → M10
 
 ---
 
-## 🔁 MÓDULO 9 — Gestão de tarefas (CRUD)
-> Em andamento, previsão de conclusão em 2026-05-20
-- [ ] Tela para criar nova tarefa recorrente
-- [ ] Editar tarefa existente
-- [ ] Desativar tarefa
-- [ ] Acessível apenas para gestor ou admin
+## ⏳ MÓDULO 9 — Gestão de tarefas (CRUD)
+> Movido para pós-feedback — avaliar após uso em produção
+
+- [ ] Avaliar necessidade real após uso em produção
+- [ ] Tela para criar/editar tarefas recorrentes sem usar o admin Django
+- [ ] Definir perfil de acesso do gestor no sistema
 - [ ] Commit: `feat(sca): gestão de tarefas`
 
 ---
@@ -145,3 +145,5 @@ M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → M10
 - [ ] Ajustes do uso real
 - [ ] Filtro por funcionário no histórico
 - [ ] Exportação Excel via Celery (tarefa em background)
+- [ ] Gestão de tarefas recorrentes (CRUD) para o gestor
+- [ ] Definição do papel do gestor no sistema
