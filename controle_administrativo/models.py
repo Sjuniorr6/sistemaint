@@ -193,7 +193,7 @@ class ExecucaoTarefaAdministrativa(models.Model):
         verbose_name='Status'
     )
     is_done       = models.BooleanField(default=False, verbose_name='Concluída')
-    prazo         = models.DateField(null=True, blank=True, verbose_name='Prazo')
+    prazo         = models.DateTimeField(null=True, blank=True, verbose_name='Prazo')
     concluido_por = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,

@@ -209,6 +209,8 @@ def adicionar_comentario(request, execucao_id):
         autor=request.user,
         conteudo=conteudo,
     )
+    execucao.atualizado_por = request.user
+    execucao.save()
 
     return JsonResponse({
         'success':   True,
@@ -257,7 +259,8 @@ def detalhe_execucao(request, execucao_id):
         'status':         execucao.get_status_display(),
         'is_done':        execucao.is_done,
         'is_avulsa':      execucao.is_avulsa,
-        'prazo':          execucao.prazo.strftime('%d/%m/%Y') if execucao.prazo else None,
+        'prazo':          timezone.localtime(execucao.prazo).strftime('%d/%m/%Y às %H:%M') if execucao.prazo else None,
+        'prazo_iso':      timezone.localtime(execucao.prazo).strftime('%Y-%m-%dT%H:%M') if execucao.prazo else '',
         'concluido_por':  execucao.concluido_por.get_full_name() or execucao.concluido_por.username if execucao.concluido_por else None,
         'concluido_em':   timezone.localtime(execucao.concluido_em).strftime('%d/%m/%Y às %H:%M') if execucao.concluido_em else None,
         'atualizado_por': execucao.atualizado_por.get_full_name() or execucao.atualizado_por.username if execucao.atualizado_por else None,
@@ -799,3 +802,55 @@ def adicionar_comentario_tarefa_divisao_view(request, tarefa_id):
         })
     except ValueError as e:
         return JsonResponse({'success': False, 'error': str(e)})
+    
+
+@login_required
+@require_POST
+def atualizar_execucao(request, execucao_id):
+    """Atualiza título, descrição e prazo de uma execução avulsa."""
+    if not _pode_editar(request):
+        return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
+    execucao = get_object_or_404(ExecucaoTarefaAdministrativa, id=execucao_id)
+    if not request.user.is_superuser and not _semana_atual_check(execucao.semana_iso, execucao.ano):
+        return JsonResponse({'success': False, 'error': 'Semanas passadas não podem ser editadas.'}, status=403)
+
+    titulo    = request.POST.get('titulo', '').strip()
+    descricao = request.POST.get('descricao', '').strip()
+    prazo_str = request.POST.get('prazo', '').strip()
+
+    if titulo:
+        execucao.titulo_avulso = titulo
+    if descricao is not None:
+        execucao.descricao_avulsa = descricao
+    if prazo_str:
+        try:
+            from datetime import datetime
+            execucao.prazo = datetime.fromisoformat(prazo_str)
+        except ValueError:
+            pass
+    else:
+        execucao.prazo = None
+
+    execucao.atualizado_por = request.user
+    execucao.save()
+
+    return JsonResponse({
+        'success': True,
+        'titulo':  execucao.titulo_display,
+        'prazo':   execucao.prazo.strftime('%d/%m/%Y') if execucao.prazo else '—',
+    })
+
+@login_required
+@require_POST
+def excluir_comentario(request, comentario_id):
+    """Exclui um comentário de uma execução."""
+    if not _pode_editar(request):
+        return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
+    try:
+        comentario = ComentarioTarefa.objects.get(id=comentario_id)
+        if comentario.autor != request.user and not request.user.is_superuser:
+            return JsonResponse({'success': False, 'error': 'Só o autor pode excluir.'}, status=403)
+        comentario.delete()
+        return JsonResponse({'success': True})
+    except ComentarioTarefa.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Comentário não encontrado.'})

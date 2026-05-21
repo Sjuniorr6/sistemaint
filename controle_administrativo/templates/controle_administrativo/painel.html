@@ -592,6 +592,66 @@
   </div>
 </div>
 
+<!-- ─── MODAL DE DETALHES DA TAREFA ─── -->
+<div class="modal fade" id="modalTarefa" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modal-titulo">Carregando...</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3" id="modal-editar-bloco">
+          <div class="d-flex gap-2 mb-3">
+            <div class="tipo-tarefa-btn active" id="modal-btn-avulsa" onclick="modalSelecionarTipo('avulsa')">
+              <i class="bi bi-calendar-x me-1"></i>Somente esta semana
+            </div>
+            <div class="tipo-tarefa-btn" id="modal-btn-recorrente" onclick="modalSelecionarTipo('recorrente')">
+              <i class="bi bi-arrow-repeat me-1"></i>Recorrente (toda semana)
+            </div>
+          </div>
+          <label class="form-label-sca">Título</label>
+          <input type="text" id="modal-editar-titulo" class="form-control form-control-sca">
+          <label class="form-label-sca mt-2">Descrição</label>
+          <textarea id="modal-editar-descricao" class="form-control form-control-sca" rows="2"></textarea>
+          <label class="form-label-sca mt-2">Prazo</label>
+          <input type="datetime-local" id="modal-editar-prazo" class="form-control form-control-sca">
+        </div>
+        <div class="modal-descricao" id="modal-descricao" style="display:none;"></div>
+        <div class="modal-secao-titulo">Pontos Importantes</div>
+        <div class="modal-meta">
+          <div class="modal-meta-item"><label>Status</label><span id="modal-status">—</span></div>
+          <div class="modal-meta-item"><label>Dia</label><span id="modal-dia">—</span></div>
+          <div class="modal-meta-item"><label>Responsável</label><span id="modal-responsavel">—</span></div>
+          <div class="modal-meta-item"><label>Período</label><span id="modal-periodo">—</span></div>
+          <div class="modal-meta-item"><label>Concluído por</label><span id="modal-concluido-por">—</span></div>
+          <div class="modal-meta-item"><label>Concluído em</label><span id="modal-concluido-em">—</span></div>
+          <div class="modal-meta-item"><label>Prazo</label><span id="modal-prazo">—</span></div>
+          <div class="modal-meta-item"><label>Última atualização</label><span id="modal-atualizado">—</span></div>
+        </div>
+        <div class="modal-secao-titulo">Comentários</div>
+        <div id="modal-comentarios"></div>
+        <div class="mt-2">
+          <textarea class="form-control form-control-sca" id="novo-comentario" rows="2"
+            placeholder="Adicionar comentário..." style="color:var(--text-light);"></textarea>
+          <div class="d-flex justify-content-between mt-2">
+            <button class="btn btn-sm px-2 py-1"
+              style="background:var(--gold-dark);color:var(--gold);font-weight:600;font-size:0.75rem;"
+              onclick="enviarComentario()">
+              <i class="bi bi-send me-1"></i>Enviar comentário
+            </button>
+            <button class="btn btn-sm px-2 py-1"
+              style="background:var(--gold-dark);color:var(--gold);font-weight:600;font-size:0.75rem;"
+              onclick="salvarAlteracoesExecucao()">
+              <i class="bi bi-floppy me-1"></i>Salvar alterações
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ─── MODAL DE NOVA TAREFA DA DIVISÃO ─── -->
 <div class="modal fade" id="modalNovaTarefaDivisao" tabindex="-1">
   <div class="modal-dialog">
@@ -821,43 +881,6 @@
   </div>
 </div>
 
-<!-- ─── MODAL DE DETALHES DA TAREFA ─── -->
-<div class="modal fade" id="modalTarefa" tabindex="-1">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="modal-titulo">Carregando...</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <div class="modal-descricao" id="modal-descricao" style="display:none;"></div>
-        <div class="modal-secao-titulo">Pontos Importantes</div>
-        <div class="modal-meta">
-          <div class="modal-meta-item"><label>Status</label><span id="modal-status">—</span></div>
-          <div class="modal-meta-item"><label>Dia</label><span id="modal-dia">—</span></div>
-          <div class="modal-meta-item"><label>Responsável</label><span id="modal-responsavel">—</span></div>
-          <div class="modal-meta-item"><label>Período</label><span id="modal-periodo">—</span></div>
-          <div class="modal-meta-item"><label>Concluído por</label><span id="modal-concluido-por">—</span></div>
-          <div class="modal-meta-item"><label>Concluído em</label><span id="modal-concluido-em">—</span></div>
-          <div class="modal-meta-item"><label>Prazo</label><span id="modal-prazo">—</span></div>
-          <div class="modal-meta-item"><label>Última atualização</label><span id="modal-atualizado">—</span></div>
-        </div>
-        <div class="modal-secao-titulo">Comentários</div>
-        <div id="modal-comentarios"></div>
-        <div class="mt-2">
-          <textarea class="form-control form-control-sca" id="novo-comentario" rows="2"
-            placeholder="Adicionar comentário..."></textarea>
-          <button class="btn btn-sm mt-2"
-            style="background:var(--gold-dark);color:var(--gold);font-weight:700;"
-            onclick="enviarComentario()">
-            <i class="bi bi-send me-1"></i>Adicionar Comentário
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
 <script>
   const CSRF = '{{ csrf_token }}';
   let execucaoAtualId = null;
@@ -884,6 +907,9 @@
         document.getElementById('modal-concluido-por').textContent  = data.concluido_por || '—';
         document.getElementById('modal-concluido-em').textContent   = data.concluido_em  || '—';
         document.getElementById('modal-atualizado').textContent    = data.atualizado_por ? `${data.atualizado_por} · ${data.atualizado_em}` : '—';
+        document.getElementById('modal-editar-titulo').value   = data.titulo;
+        document.getElementById('modal-editar-descricao').value = data.descricao || '';
+        document.getElementById('modal-editar-prazo').value    = data.prazo_iso || '';
         renderizarComentarios(data.comentarios);
         document.getElementById('novo-comentario').value = '';
         const card = document.querySelector(`.sca-tarefa[data-id="${execucaoId}"]`);
@@ -896,13 +922,27 @@
     const el = document.getElementById('modal-comentarios');
     if (!comentarios.length) { el.innerHTML = '<small class="text-muted">Nenhum comentário ainda.</small>'; return; }
     el.innerHTML = comentarios.map(c => `
-      <div class="comentario-item">
-        <div class="d-flex justify-content-between">
+      <div class="comentario-item" id="comentario-${c.id}">
+        <div class="d-flex justify-content-between align-items-center">
           <span class="comentario-autor">${c.autor}</span>
-          <span class="comentario-data">${c.criado_em}</span>
+          <div class="d-flex align-items-center gap-2">
+            <span class="comentario-data">${c.criado_em}</span>
+            <i class="bi bi-trash" style="color:#ef5350;font-size:0.65rem;cursor:pointer;"
+               onclick="excluirComentario(${c.id})" title="Excluir comentário"></i>
+          </div>
         </div>
         <div class="comentario-texto">${c.conteudo}</div>
       </div>`).join('');
+  }
+
+  function excluirComentario(comentarioId) {
+    if (!confirm('Excluir este comentário?')) return;
+    fetch(`/controle-administrativo/execucao/comentario/${comentarioId}/excluir/`, {
+      method: 'POST', headers: { 'X-CSRFToken': CSRF },
+    }).then(r => r.json()).then(data => {
+      if (!data.success) { alert(data.error); return; }
+      document.getElementById(`comentario-${comentarioId}`).remove();
+    });
   }
 
   function enviarComentario() {
@@ -1233,6 +1273,33 @@
       if (el.querySelector('small')) el.innerHTML = '';
       el.innerHTML += novo;
     });
+  }
+
+  function salvarAlteracoesExecucao() {
+    const titulo    = document.getElementById('modal-editar-titulo').value.trim();
+    const descricao = document.getElementById('modal-editar-descricao').value.trim();
+    const prazo     = document.getElementById('modal-editar-prazo').value;
+    const body = new URLSearchParams({ titulo, descricao, prazo });
+    fetch(`/controle-administrativo/execucao/${execucaoAtualId}/atualizar/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    }).then(r => r.json()).then(data => {
+      if (!data.success) { alert(data.error); return; }
+      document.getElementById('modal-titulo').textContent = data.titulo;
+      document.getElementById('modal-prazo').textContent  = data.prazo;
+      const card = document.querySelector(`.sca-tarefa[data-id="${execucaoAtualId}"] .sca-tarefa-titulo`);
+      if (card) card.firstChild.textContent = data.titulo + ' ';
+      bootstrap.Modal.getInstance(document.getElementById('modalTarefa')).hide();
+    });
+  }
+
+  let modalTipoExecucao = 'avulsa';
+
+  function modalSelecionarTipo(tipo) {
+    modalTipoExecucao = tipo;
+    document.getElementById('modal-btn-avulsa').classList.toggle('active', tipo === 'avulsa');
+    document.getElementById('modal-btn-recorrente').classList.toggle('active', tipo === 'recorrente');
   }
 </script>
 
