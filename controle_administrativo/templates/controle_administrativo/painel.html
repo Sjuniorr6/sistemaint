@@ -625,7 +625,6 @@
           <label class="form-label-sca mt-2">Prazo</label>
           <input type="datetime-local" id="modal-editar-prazo" class="form-control form-control-sca">
         </div>
-        <div class="modal-descricao" id="modal-descricao" style="display:none;"></div>
         <div class="modal-secao-titulo">Pontos Importantes</div>
         <div class="modal-meta">
           <div class="modal-meta-item"><label>Status</label><span id="modal-status">—</span></div>
@@ -904,9 +903,6 @@
       .then(data => {
         if (!data.success) return;
         document.getElementById('modal-titulo').textContent = data.titulo;
-        const descEl = document.getElementById('modal-descricao');
-        if (data.descricao) { descEl.textContent = data.descricao; descEl.style.display = 'block'; }
-        else { descEl.style.display = 'none'; }
         document.getElementById('modal-status').innerHTML = `<span class="badge-status badge-${data.status.toLowerCase()}">${data.status}</span>`;
         document.getElementById('modal-dia').textContent           = data.dia;
         document.getElementById('modal-responsavel').textContent    = data.responsavel;
