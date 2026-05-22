@@ -281,9 +281,19 @@ def criar_tarefa(request):
     responsavel_id = request.POST.get('responsavel_id', '').strip()
     descricao      = request.POST.get('descricao', '').strip()
     tipo           = request.POST.get('tipo', 'avulsa').strip()
+    prazo_str      = request.POST.get('prazo', '').strip()
 
     if not all([titulo, dia, periodo, responsavel_id]):
         return JsonResponse({'success': False, 'error': 'Preencha todos os campos obrigatórios.'})
+
+    # Converte string ISO (do datetime-local) em objeto datetime; vazio vira None
+    prazo = None
+    if prazo_str:
+        try:
+            from datetime import datetime
+            prazo = datetime.fromisoformat(prazo_str)
+        except ValueError:
+            prazo = None
 
     semana_iso, ano = get_semana_atual()
 
@@ -292,13 +302,13 @@ def criar_tarefa(request):
             criar_tarefa_recorrente(
                 titulo=titulo, dia=dia, periodo=periodo,
                 responsavel_id=responsavel_id, descricao=descricao,
-                semana_iso=semana_iso, ano=ano,
+                semana_iso=semana_iso, ano=ano, prazo=prazo,
             )
         else:
             criar_tarefa_avulsa(
                 semana_iso=semana_iso, ano=ano, titulo=titulo,
                 dia=dia, periodo=periodo, responsavel_id=responsavel_id,
-                descricao=descricao,
+                descricao=descricao, prazo=prazo,
             )
     except ValueError as e:
         return JsonResponse({'success': False, 'error': str(e)})
@@ -451,6 +461,7 @@ def adicionar_tarefa_divisao_view(request, funcionario_id):
     if not _pode_editar(request):
         return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
     conteudo  = request.POST.get('conteudo', '').strip()
+    tipo      = request.POST.get('tipo', 'semana').strip()
     is_fixo   = request.POST.get('is_fixo', 'false') == 'true'
     prazo_str = request.POST.get('prazo', '').strip()
     if prazo_str:
@@ -463,11 +474,12 @@ def adicionar_tarefa_divisao_view(request, funcionario_id):
         prazo = None
     semana_iso, ano = get_semana_atual()
     try:
-        tarefa = adicionar_tarefa_divisao(funcionario_id, semana_iso, ano, conteudo, is_fixo=is_fixo, prazo=prazo)
+        tarefa = adicionar_tarefa_divisao(funcionario_id, semana_iso, ano, conteudo, tipo=tipo, is_fixo=is_fixo, prazo=prazo)
         return JsonResponse({
             'success':  True,
             'id':       tarefa.id,
             'conteudo': tarefa.conteudo,
+            'tipo':     tarefa.tipo,
             'is_fixo':  tarefa.is_fixo,
             'prazo':    tarefa.prazo.strftime('%d/%m/%Y') if tarefa.prazo else '—',
         })

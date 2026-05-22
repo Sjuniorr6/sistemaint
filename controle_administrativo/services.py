@@ -30,7 +30,7 @@ def gerar_execucoes_semana(semana_iso, ano):
         )
 
 
-def criar_tarefa_avulsa(semana_iso, ano, titulo, dia, periodo, responsavel_id, descricao=''):
+def criar_tarefa_avulsa(semana_iso, ano, titulo, dia, periodo, responsavel_id, descricao='', prazo=None):
     """
     Cria uma tarefa que existe apenas nesta semana.
     Não cria TarefaModelo — a execução fica sem vínculo de modelo.
@@ -52,14 +52,17 @@ def criar_tarefa_avulsa(semana_iso, ano, titulo, dia, periodo, responsavel_id, d
         ano                = ano,
         status             = StatusExecucao.PENDENTE,
         is_done            = False,
+        prazo              = prazo,
     )
     return execucao
 
 
-def criar_tarefa_recorrente(titulo, dia, periodo, responsavel_id, descricao='', semana_iso=None, ano=None):
+def criar_tarefa_recorrente(titulo, dia, periodo, responsavel_id, descricao='', semana_iso=None, ano=None, prazo=None):
     """
     Cria uma TarefaModeloAdministrativa recorrente
     e já gera a execução da semana atual.
+    O prazo aplica-se apenas à execução desta semana — nas futuras,
+    o usuário pode definir o prazo individualmente.
     """
     try:
         responsavel = FuncionarioAdministrativo.objects.get(id=responsavel_id)
@@ -84,6 +87,7 @@ def criar_tarefa_recorrente(titulo, dia, periodo, responsavel_id, descricao='', 
                 'status':    StatusExecucao.PENDENTE,
                 'is_done':   False,
                 'is_avulsa': False,
+                'prazo':     prazo,
             }
         )
 
@@ -472,7 +476,7 @@ def atualizar_item_bloco(item_id, conteudo=None, responsavel_id=None, prazo=None
     return item
 
 
-def adicionar_tarefa_divisao(funcionario_id, semana_iso, ano, conteudo, is_fixo=False, prazo=None):
+def adicionar_tarefa_divisao(funcionario_id, semana_iso, ano, conteudo, tipo='semana', is_fixo=False, prazo=None):
     """Adiciona uma tarefa na divisão semanal do funcionário."""
     from .models import TarefaDivisao
 
@@ -491,6 +495,7 @@ def adicionar_tarefa_divisao(funcionario_id, semana_iso, ano, conteudo, is_fixo=
         semana_iso     = semana_iso,
         ano            = ano,
         conteudo       = conteudo.strip(),
+        tipo           = tipo,
         is_fixo        = is_fixo,
         prazo          = prazo,
         ordem          = ordem,
