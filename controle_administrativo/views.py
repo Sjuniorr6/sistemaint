@@ -26,6 +26,7 @@ from .services import (
     marcar_atrasadas,
     criar_tarefa_avulsa,
     criar_tarefa_recorrente,
+    converter_para_recorrente,
     marcar_comentarios_lidos,
     excluir_execucao,
     adicionar_item_bloco,
@@ -33,9 +34,6 @@ from .services import (
     excluir_item_bloco,
     adicionar_comentario_item_bloco,
     atualizar_item_bloco,
-    adicionar_tarefa_divisao,
-    editar_tarefa_divisao,
-    excluir_tarefa_divisao,
     adicionar_tarefa_divisao,
     editar_tarefa_divisao,
     excluir_tarefa_divisao,
@@ -137,6 +135,8 @@ def painel(request, semana_iso=None, ano=None):
         'dia_atual':                dia_atual,
         'semana_iso':               semana_iso,
         'ano':                      ano,
+        'semana_atual':             semana_atual,
+        'ano_atual':                ano_atual,
         'perfil_usuario':           perfil_usuario,
         'intervalo_semana':         intervalo_semana,
         'eh_semana_atual':          eh_semana_atual,
@@ -760,7 +760,7 @@ def detalhe_tarefa_divisao_view(request, tarefa_id):
 def atualizar_tarefa_divisao_view(request, tarefa_id):
     """Atualiza dados de uma tarefa da divisão."""
     if not _pode_editar(request):
-        return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
+        return JsonResponse({'success': True, 'conteudo': tarefa.conteudo, 'tipo': tarefa.tipo, 'is_fixo': tarefa.is_fixo})
 
     conteudo   = request.POST.get('conteudo', '').strip() or None
     tipo       = request.POST.get('tipo', None)
@@ -807,17 +807,22 @@ def adicionar_comentario_tarefa_divisao_view(request, tarefa_id):
 @login_required
 @require_POST
 def atualizar_execucao(request, execucao_id):
-    """Atualiza título, descrição e prazo de uma execução avulsa."""
+    """Atualiza título, descrição e prazo de uma execução avulsa.
+    Se tipo=='recorrente', converte a tarefa avulsa em recorrente permanente.
+    """
     if not _pode_editar(request):
         return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
     execucao = get_object_or_404(ExecucaoTarefaAdministrativa, id=execucao_id)
     if not request.user.is_superuser and not _semana_atual_check(execucao.semana_iso, execucao.ano):
         return JsonResponse({'success': False, 'error': 'Semanas passadas não podem ser editadas.'}, status=403)
 
+    tipo      = request.POST.get('tipo', 'avulsa').strip()
     titulo    = request.POST.get('titulo', '').strip()
     descricao = request.POST.get('descricao', '').strip()
     prazo_str = request.POST.get('prazo', '').strip()
 
+    # Atualiza título e descrição antes de qualquer conversão
+    # (para que o modelo recorrente já nasça com o título editado)
     if titulo:
         execucao.titulo_avulso = titulo
     if descricao is not None:
@@ -834,10 +839,20 @@ def atualizar_execucao(request, execucao_id):
     execucao.atualizado_por = request.user
     execucao.save()
 
+    # Se o usuário escolheu "Recorrente" e a tarefa ainda é avulsa, converte
+    if tipo == 'recorrente' and execucao.is_avulsa:
+        try:
+            converter_para_recorrente(execucao.id, request.user)
+            # Recarrega do banco para pegar o estado atualizado
+            execucao.refresh_from_db()
+        except ValueError as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+
     return JsonResponse({
-        'success': True,
-        'titulo':  execucao.titulo_display,
-        'prazo':   execucao.prazo.strftime('%d/%m/%Y') if execucao.prazo else '—',
+        'success':      True,
+        'titulo':       execucao.titulo_display,
+        'prazo':        execucao.prazo.strftime('%d/%m/%Y') if execucao.prazo else '—',
+        'is_recorrente': not execucao.is_avulsa,
     })
 
 @login_required

@@ -397,13 +397,16 @@
         <div style="text-align:center;padding:0 0.5rem;">
           <div style="color:var(--text-light);font-size:0.78rem;font-weight:600;">{{ intervalo_semana }}</div>
           {% if eh_semana_atual %}
-          <div style="color:var(--text-muted);font-size:0.6rem;letter-spacing:0.5px;">semana atual</div>
+            <div style="color:var(--gold);font-size:0.6rem;font-weight:700;letter-spacing:0.5px;">● Semana Atual</div>
+          {% elif ano < ano_atual or ano == ano_atual and semana_iso < semana_atual %}
+            <div style="color:var(--text-muted);font-size:0.6rem;letter-spacing:0.5px;">Histórico</div>
+          {% else %}
+            <div style="color:#4a9eda;font-size:0.6rem;font-weight:700;letter-spacing:0.5px;">→ Próxima Semana</div>
           {% endif %}
         </div>
         <a href="{% url 'controle_administrativo:painel_semana' semana_proxima ano_proxima %}"
-           {% if eh_semana_atual %}style="color:var(--text-muted);opacity:0.3;pointer-events:none;text-decoration:none;font-size:0.72rem;"
-           {% else %}style="color:var(--text-muted);text-decoration:none;font-size:0.72rem;transition:color 0.2s;"
-           onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='var(--text-muted)'"{% endif %}>
+           style="color:var(--text-muted);text-decoration:none;font-size:0.72rem;transition:color 0.2s;"
+           onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='var(--text-muted)'">
           Próxima <i class="bi bi-chevron-right"></i>
         </a>
       </div>
@@ -456,6 +459,11 @@
                   onclick="abrirModalItem({{ item.id }})">
               {{ item.conteudo }}
             </span>
+            {% if item.is_fixo %}
+            <i class="bi bi-pin-fill" id="pin-item-{{ item.id }}" style="color:var(--gold-dark);font-size:0.6rem;flex-shrink:0;" title="Item fixo"></i>
+            {% else %}
+            <i class="bi bi-pin-fill" id="pin-item-{{ item.id }}" style="color:var(--gold-dark);font-size:0.6rem;flex-shrink:0;display:none;" title="Item fixo"></i>
+            {% endif %}
             <i class="bi bi-x sca-item-excluir" onclick="excluirItemBloco({{ item.id }})"></i>
           </div>
           {% empty %}
@@ -1052,6 +1060,7 @@
         <div class="sca-bloco-item" id="item-bloco-${data.id}">
           <div class="sca-check" onclick="toggleItemBloco(${data.id}, this)"><i class="bi bi-check"></i></div>
           <span id="texto-item-${data.id}" style="cursor:pointer;" onclick="abrirModalItem(${data.id})">${data.conteudo}</span>
+          <i class="bi bi-pin-fill" id="pin-item-${data.id}" style="color:var(--gold-dark);font-size:0.6rem;flex-shrink:0;${data.is_fixo ? '' : 'display:none;'}" title="Item fixo"></i>
           <i class="bi bi-x sca-item-excluir" onclick="excluirItemBloco(${data.id})"></i>
         </div>`;
       input.value = '';
@@ -1129,6 +1138,9 @@
       document.getElementById('modal-item-titulo').textContent = data.conteudo;
       const textoEl = document.getElementById(`texto-item-${itemAtualId}`);
       if (textoEl) textoEl.textContent = data.conteudo;
+      // Atualiza ícone de alfinete
+      const pinEl = document.getElementById(`pin-item-${itemAtualId}`);
+      if (pinEl) pinEl.style.display = data.is_fixo ? '' : 'none';
       bootstrap.Modal.getInstance(document.getElementById('modalItemBloco')).hide();
     });
   }
@@ -1171,7 +1183,7 @@
     if (!conteudo) { erroEl.textContent = 'O conteúdo é obrigatório.'; erroEl.style.display = 'block'; return; }
     erroEl.style.display = 'none';
 
-    const tipo  = document.getElementById('divisao-nova-tipo').value;
+    const tipo = document.getElementById('divisao-nova-tipo').value;
     const body = new URLSearchParams({ conteudo, tipo, prazo, is_fixo: isFixo.toString() });
     fetch(`/controle-administrativo/divisao/${funcIdAtual}/adicionar/`, {
       method: 'POST',
@@ -1182,15 +1194,18 @@
       bootstrap.Modal.getInstance(document.getElementById('modalNovaTarefaDivisao')).hide();
       const listaId = tipo === 'hoje' ? `divisao-lista-hoje-${funcIdAtual}` : tipo === 'mensal' ? `divisao-lista-mensal-${funcIdAtual}` : `divisao-lista-semana-${funcIdAtual}`;
       const lista = document.getElementById(listaId);
-      const vazio = document.getElementById(`vazio-divisao-${funcIdAtual}`);
-      if (vazio) vazio.remove();
+
+      // Remove placeholder "Nenhuma tarefa ainda" se existir
+      const vazioEl = lista ? lista.querySelector('small') : null;
+      if (vazioEl) vazioEl.remove();
+
       lista.innerHTML += `
         <div class="sca-divisao-item" id="divisao-tarefa-${data.id}">
           <i class="bi bi-circle" style="font-size:0.5rem;color:var(--gold-dark);flex-shrink:0;margin-top:2px;"></i>
           <span id="divisao-texto-${data.id}" style="flex:1;cursor:pointer;"
                 onclick="abrirDetalheTarefaDivisao(${data.id})">${data.conteudo}</span>
           ${data.prazo !== '—' ? `<small style="color:var(--text-muted);font-size:0.58rem;">${data.prazo}</small>` : ''}
-          ${data.is_fixo ? `<i class="bi bi-pin-fill" style="color:var(--gold-dark);font-size:0.6rem;" title="Item fixo"></i>` : ''}
+          <i class="bi bi-pin-fill" id="pin-divisao-${data.id}" style="color:var(--gold-dark);font-size:0.6rem;${data.is_fixo ? '' : 'display:none;'}" title="Item fixo"></i>
           <i class="bi bi-x sca-item-excluir" onclick="excluirTarefaDivisao(${data.id})"></i>
         </div>`;
     });
@@ -1254,6 +1269,9 @@
       document.getElementById('modal-divisao-titulo').textContent = data.conteudo;
       const textoEl = document.getElementById(`divisao-texto-${tarefaDivisaoAtualId}`);
       if (textoEl) textoEl.textContent = data.conteudo;
+      // Atualiza ícone de alfinete
+      const pinEl = document.getElementById(`pin-divisao-${tarefaDivisaoAtualId}`);
+      if (pinEl) pinEl.style.display = data.is_fixo ? '' : 'none';
       bootstrap.Modal.getInstance(document.getElementById('modalDetalheTarefaDivisao')).hide();
     });
   }
@@ -1279,7 +1297,7 @@
     const titulo    = document.getElementById('modal-editar-titulo').value.trim();
     const descricao = document.getElementById('modal-editar-descricao').value.trim();
     const prazo     = document.getElementById('modal-editar-prazo').value;
-    const body = new URLSearchParams({ titulo, descricao, prazo });
+    const body = new URLSearchParams({ titulo, descricao, prazo, tipo: modalTipoExecucao });
     fetch(`/controle-administrativo/execucao/${execucaoAtualId}/atualizar/`, {
       method: 'POST',
       headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -1290,6 +1308,9 @@
       document.getElementById('modal-prazo').textContent  = data.prazo;
       const card = document.querySelector(`.sca-tarefa[data-id="${execucaoAtualId}"] .sca-tarefa-titulo`);
       if (card) card.firstChild.textContent = data.titulo + ' ';
+      if (data.is_recorrente) {
+        document.getElementById('modal-editar-bloco').querySelector('.d-flex.gap-2').style.display = 'none';
+      }
       bootstrap.Modal.getInstance(document.getElementById('modalTarefa')).hide();
     });
   }
