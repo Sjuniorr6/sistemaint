@@ -27,6 +27,7 @@ from .services import (
     criar_tarefa_avulsa,
     criar_tarefa_recorrente,
     converter_para_recorrente,
+    converter_para_avulsa,
     marcar_comentarios_lidos,
     excluir_execucao,
     adicionar_item_bloco,
@@ -840,10 +841,18 @@ def atualizar_execucao(request, execucao_id):
     execucao.save()
 
     # Se o usuário escolheu "Recorrente" e a tarefa ainda é avulsa, converte
+    # Conversão de tipo (avulsa <-> recorrente)
     if tipo == 'recorrente' and execucao.is_avulsa:
+        # Avulsa -> Recorrente: cria TarefaModeloAdministrativa
         try:
             converter_para_recorrente(execucao.id, request.user)
-            # Recarrega do banco para pegar o estado atualizado
+            execucao.refresh_from_db()
+        except ValueError as e:
+            return JsonResponse({'success': False, 'error': str(e)})
+    elif tipo == 'avulsa' and not execucao.is_avulsa:
+        # Recorrente -> Avulsa: desativa o modelo e desvincula
+        try:
+            converter_para_avulsa(execucao.id, request.user)
             execucao.refresh_from_db()
         except ValueError as e:
             return JsonResponse({'success': False, 'error': str(e)})

@@ -914,6 +914,14 @@
         document.getElementById('modal-editar-titulo').value   = data.titulo;
         document.getElementById('modal-editar-descricao').value = data.descricao || '';
         document.getElementById('modal-editar-prazo').value    = data.prazo_iso || '';
+
+        // Botões de tipo sempre visíveis, marca o correto como ativo
+        if (data.is_avulsa) {
+          modalSelecionarTipo('avulsa');
+        } else {
+          modalSelecionarTipo('recorrente');
+        }
+
         renderizarComentarios(data.comentarios);
         document.getElementById('novo-comentario').value = '';
         const card = document.querySelector(`.sca-tarefa[data-id="${execucaoId}"]`);
@@ -1293,6 +1301,27 @@
     const titulo    = document.getElementById('modal-editar-titulo').value.trim();
     const descricao = document.getElementById('modal-editar-descricao').value.trim();
     const prazo     = document.getElementById('modal-editar-prazo').value;
+
+    // Detecta tentativa de desconverter recorrente -> avulsa e pede confirmação
+    const card = document.querySelector(`.sca-tarefa[data-id="${execucaoAtualId}"] .sca-tarefa-titulo`);
+    const iconeRecorrenteAtual = card ? card.querySelector('.bi-arrow-repeat') : null;
+    const estaDesconvertendo = (iconeRecorrenteAtual !== null) && (modalTipoExecucao === 'avulsa');
+
+    if (estaDesconvertendo) {
+      const confirmar = confirm(
+        'Atenção! Você está desativando uma tarefa recorrente.\n\n' +
+        'Isso vai:\n' +
+        '• Desativar o modelo recorrente (não será mais gerada automaticamente)\n' +
+        '• Transformar esta execução em tarefa avulsa\n\n' +
+        'Tem certeza?'
+      );
+      if (!confirmar) {
+        // Reverte visualmente o botão para recorrente
+        modalSelecionarTipo('recorrente');
+        return;
+      }
+    }
+
     const body = new URLSearchParams({ titulo, descricao, prazo, tipo: modalTipoExecucao });
     fetch(`/controle-administrativo/execucao/${execucaoAtualId}/atualizar/`, {
       method: 'POST',
@@ -1302,11 +1331,26 @@
       if (!data.success) { alert(data.error); return; }
       document.getElementById('modal-titulo').textContent = data.titulo;
       document.getElementById('modal-prazo').textContent  = data.prazo;
-      const card = document.querySelector(`.sca-tarefa[data-id="${execucaoAtualId}"] .sca-tarefa-titulo`);
       if (card) card.firstChild.textContent = data.titulo + ' ';
+
+      // Sincroniza ícone de setas no card e estado dos botões com o resultado do servidor
       if (data.is_recorrente) {
-        document.getElementById('modal-editar-bloco').querySelector('.d-flex.gap-2').style.display = 'none';
+        modalSelecionarTipo('recorrente');
+        // Adiciona o ícone se ainda não existe
+        if (card && !card.querySelector('.bi-arrow-repeat')) {
+          const icone = document.createElement('i');
+          icone.className = 'bi bi-arrow-repeat';
+          icone.style.cssText = 'color:var(--gold);font-size:0.6rem;margin-left:3px;';
+          icone.title = 'Tarefa recorrente';
+          card.appendChild(icone);
+        }
+      } else {
+        modalSelecionarTipo('avulsa');
+        // Remove o ícone se existir
+        const icone = card ? card.querySelector('.bi-arrow-repeat') : null;
+        if (icone) icone.remove();
       }
+
       bootstrap.Modal.getInstance(document.getElementById('modalTarefa')).hide();
     });
   }
