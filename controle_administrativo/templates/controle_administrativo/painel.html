@@ -611,11 +611,15 @@
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="modal-titulo">Carregando...</h5>
+        <h5 class="modal-title" id="modal-titulo"><i class="bi bi-pencil-square me-2"></i>Carregando...</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <div class="mb-3" id="modal-editar-bloco">
+
+        <!-- ── DETALHES (editável) ── -->
+        <!-- ── DETALHES (editável) ── -->
+        <div class="modal-secao-titulo">Detalhes</div>
+        <div id="modal-editar-bloco">
           <div class="d-flex gap-2 mb-3">
             <div class="tipo-tarefa-btn active" id="modal-btn-avulsa" onclick="modalSelecionarTipo('avulsa')">
               <i class="bi bi-calendar-x me-1"></i>Somente esta semana
@@ -624,42 +628,56 @@
               <i class="bi bi-arrow-repeat me-1"></i>Recorrente (toda semana)
             </div>
           </div>
-          <label class="form-label-sca">Título</label>
-          <input type="text" id="modal-editar-titulo" class="form-control form-control-sca">
-          <label class="form-label-sca mt-2">Descrição</label>
-          <textarea id="modal-editar-descricao" class="form-control form-control-sca" rows="2"></textarea>
-          <label class="form-label-sca mt-2">Prazo</label>
-          <input type="datetime-local" id="modal-editar-prazo" class="form-control form-control-sca">
+          <div class="mb-3">
+            <label class="form-label-sca">Título *</label>
+            <input type="text" id="modal-editar-titulo" class="form-control form-control-sca">
+          </div>
+          <div class="mb-3">
+            <label class="form-label-sca">Descrição</label>
+            <textarea id="modal-editar-descricao" class="form-control form-control-sca" rows="2"></textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label-sca">Prazo</label>
+            <input type="datetime-local" id="modal-editar-prazo" class="form-control form-control-sca">
+          </div>
         </div>
+
+        <!-- ── PONTOS IMPORTANTES (read-only) ── -->
         <div class="modal-secao-titulo">Pontos Importantes</div>
         <div class="modal-meta">
           <div class="modal-meta-item"><label>Status</label><span id="modal-status">—</span></div>
-          <div class="modal-meta-item"><label>Dia</label><span id="modal-dia">—</span></div>
-          <div class="modal-meta-item"><label>Responsável</label><span id="modal-responsavel">—</span></div>
-          <div class="modal-meta-item"><label>Período</label><span id="modal-periodo">—</span></div>
+          <div class="modal-meta-item"><label>Última atualização</label><span id="modal-atualizado">—</span></div>
           <div class="modal-meta-item"><label>Concluído por</label><span id="modal-concluido-por">—</span></div>
           <div class="modal-meta-item"><label>Concluído em</label><span id="modal-concluido-em">—</span></div>
-          <div class="modal-meta-item"><label>Prazo</label><span id="modal-prazo">—</span></div>
-          <div class="modal-meta-item"><label>Última atualização</label><span id="modal-atualizado">—</span></div>
+          <div class="modal-meta-item"><label>Dia</label><span id="modal-dia">—</span></div>
+          <div class="modal-meta-item"><label>Período</label><span id="modal-periodo">—</span></div>
+          <div class="modal-meta-item"><label>Responsável</label><span id="modal-responsavel">—</span></div>
         </div>
+
+        <!-- ── COMENTÁRIOS ── -->
         <div class="modal-secao-titulo">Comentários</div>
         <div id="modal-comentarios"></div>
         <div class="mt-2">
           <textarea class="form-control form-control-sca" id="novo-comentario" rows="2"
             placeholder="Adicionar comentário..." style="color:var(--text-light);"></textarea>
-          <div class="d-flex justify-content-between mt-2">
-            <button class="btn btn-sm px-2 py-1"
-              style="background:var(--gold-dark);color:var(--gold);font-weight:600;font-size:0.75rem;"
-              onclick="enviarComentario()">
-              <i class="bi bi-send me-1"></i>Enviar comentário
-            </button>
-            <button class="btn btn-sm px-2 py-1"
-              style="background:var(--gold-dark);color:var(--gold);font-weight:600;font-size:0.75rem;"
-              onclick="salvarAlteracoesExecucao()">
-              <i class="bi bi-floppy me-1"></i>Salvar alterações
-            </button>
-          </div>
         </div>
+      </div>
+
+      <!-- ── FOOTER ── -->
+      <div class="modal-footer" style="border-top:1px solid var(--border);gap:0.4rem;">
+        <button type="button" class="btn btn-sm me-auto"
+          style="background:var(--gold-dark);color:var(--gold);font-weight:700;font-size:0.72rem;padding:0.25rem 0.6rem;"
+          onclick="enviarComentario()">
+          <i class="bi bi-send me-1"></i>Adicionar comentário
+        </button>
+        <button type="button" class="btn btn-sm"
+          style="background:transparent;color:var(--text-muted);border:1px solid var(--border);font-size:0.72rem;padding:0.25rem 0.6rem;"
+          data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-sm"
+          style="background:var(--gold-dark);color:var(--gold);font-weight:700;font-size:0.72rem;padding:0.25rem 0.6rem;"
+          onclick="salvarAlteracoesExecucao()">
+          <i class="bi bi-floppy me-1"></i>Salvar alterações
+        </button>
       </div>
     </div>
   </div>
@@ -907,23 +925,30 @@
   // ── Modal de detalhes da tarefa ──
   function abrirModal(execucaoId) {
     execucaoAtualId = execucaoId;
-    document.getElementById('modal-titulo').textContent = 'Carregando...';
+    document.getElementById('modal-titulo').innerHTML = '<i class="bi bi-pencil-square me-2"></i>Carregando...';
     fetch(`/controle-administrativo/execucao/${execucaoId}/detalhe/`)
       .then(r => r.json())
       .then(data => {
         if (!data.success) return;
-        document.getElementById('modal-titulo').textContent = data.titulo;
-        document.getElementById('modal-status').innerHTML = `<span class="badge-status badge-${data.status.toLowerCase()}">${data.status}</span>`;
-        document.getElementById('modal-dia').textContent           = data.dia;
-        document.getElementById('modal-responsavel').textContent    = data.responsavel;
-        document.getElementById('modal-periodo').textContent       = data.periodo;
-        document.getElementById('modal-prazo').textContent         = data.prazo || '—';
-        document.getElementById('modal-concluido-por').textContent  = data.concluido_por || '—';
-        document.getElementById('modal-concluido-em').textContent   = data.concluido_em  || '—';
-        document.getElementById('modal-atualizado').textContent    = data.atualizado_por ? `${data.atualizado_por} · ${data.atualizado_em}` : '—';
-        document.getElementById('modal-editar-titulo').value   = data.titulo;
+
+        // Título do modal com ícone
+        document.getElementById('modal-titulo').innerHTML = '<i class="bi bi-pencil-square me-2"></i>' + data.titulo;
+
+        // Seção Detalhes — campos editáveis
+        document.getElementById('modal-editar-titulo').value    = data.titulo;
         document.getElementById('modal-editar-descricao').value = data.descricao || '';
-        document.getElementById('modal-editar-prazo').value    = data.prazo_iso || '';
+        document.getElementById('modal-editar-prazo').value     = data.prazo_iso || '';
+
+        // Seção Detalhes — campos read-only (dia/período/responsável)
+        document.getElementById('modal-dia').textContent         = data.dia;
+        document.getElementById('modal-periodo').textContent     = data.periodo;
+        document.getElementById('modal-responsavel').textContent = data.responsavel;
+
+        // Seção Pontos Importantes — read-only
+        document.getElementById('modal-status').innerHTML        = `<span class="badge-status badge-${data.status.toLowerCase()}">${data.status}</span>`;
+        document.getElementById('modal-atualizado').textContent  = data.atualizado_por ? `${data.atualizado_por} · ${data.atualizado_em}` : '—';
+        document.getElementById('modal-concluido-por').textContent = data.concluido_por || '—';
+        document.getElementById('modal-concluido-em').textContent  = data.concluido_em  || '—';
 
         // Botões de tipo sempre visíveis, marca o correto como ativo
         if (data.is_avulsa) {
@@ -932,10 +957,14 @@
           modalSelecionarTipo('recorrente');
         }
 
+        // Comentários
         renderizarComentarios(data.comentarios);
         document.getElementById('novo-comentario').value = '';
+
+        // Limpa badge de não-lidos do card
         const card = document.querySelector(`.sca-tarefa[data-id="${execucaoId}"]`);
         if (card) { const badge = card.querySelector('.badge-comentario'); if (badge) badge.remove(); }
+
         new bootstrap.Modal(document.getElementById('modalTarefa')).show();
       });
   }
@@ -1341,10 +1370,8 @@
       body: body.toString(),
     }).then(r => r.json()).then(data => {
       if (!data.success) { alert(data.error); return; }
-      document.getElementById('modal-titulo').textContent = data.titulo;
-      document.getElementById('modal-prazo').textContent  = data.prazo;
+      document.getElementById('modal-titulo').innerHTML = '<i class="bi bi-pencil-square me-2"></i>' + data.titulo;
       if (card) card.firstChild.textContent = data.titulo + ' ';
-
       // Sincroniza ícone de setas no card e estado dos botões com o resultado do servidor
       if (data.is_recorrente) {
         modalSelecionarTipo('recorrente');
