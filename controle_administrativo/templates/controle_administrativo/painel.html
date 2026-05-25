@@ -810,61 +810,75 @@
   </div>
 </div>
 
-<!-- ─── MODAL DE ITEM DO BLOCO ─── -->
+<!-- ─── MODAL DE ITEM DO BLOCO (EDIÇÃO) ─── -->
 <div class="modal fade" id="modalItemBloco" tabindex="-1">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="modal-item-titulo">Carregando...</h5>
+        <h5 class="modal-title" id="modal-item-titulo"><i class="bi bi-pencil-square me-2"></i>Carregando...</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
+
+        <!-- ── DETALHES (editável) ── -->
         <div class="modal-secao-titulo">Detalhes</div>
+
         <div class="mb-3">
-          <label class="form-label-sca">Conteúdo</label>
+          <label class="form-label-sca">Conteúdo *</label>
           <textarea id="modal-item-conteudo" class="form-control form-control-sca" rows="2"></textarea>
         </div>
-        <div class="row g-2 mb-3">
-          <div class="col">
-            <label class="form-label-sca">Responsável</label>
-            <select id="modal-item-responsavel" class="form-control form-control-sca">
-              <option value="">— Nenhum —</option>
-              {% for funcionario in funcionarios %}
-              <option value="{{ funcionario.id }}">{{ funcionario.nome }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="col">
-            <label class="form-label-sca">Prazo</label>
-            <input type="date" id="modal-item-prazo" class="form-control form-control-sca">
-          </div>
+
+        <div class="mb-3">
+          <label class="form-label-sca">Responsável</label>
+          <select id="modal-item-responsavel" class="form-control form-control-sca">
+            <option value="">— Nenhum —</option>
+            {% for funcionario in funcionarios %}
+            <option value="{{ funcionario.id }}">{{ funcionario.nome }}</option>
+            {% endfor %}
+          </select>
         </div>
+
+        <div class="mb-3">
+          <label class="form-label-sca">Prazo</label>
+          <input type="date" id="modal-item-prazo" class="form-control form-control-sca">
+        </div>
+
         <div class="mb-3 d-flex align-items-center gap-2">
           <input type="checkbox" id="modal-item-fixo" style="accent-color:var(--gold);width:14px;height:14px;">
           <label class="form-label-sca mb-0" for="modal-item-fixo">Item fixo — carregar para a semana seguinte</label>
         </div>
+
+        <!-- ── PONTOS IMPORTANTES (read-only) ── -->
+        <div class="modal-secao-titulo">Pontos Importantes</div>
         <div class="modal-meta">
           <div class="modal-meta-item"><label>Criado por</label><span id="modal-item-criado-por">—</span></div>
           <div class="modal-meta-item"><label>Criado em</label><span id="modal-item-criado-em">—</span></div>
         </div>
-        <div class="d-flex justify-content-end mb-3">
-          <button class="btn btn-sm"
-            style="background:var(--gold-dark);color:var(--gold);font-weight:700;"
-            onclick="salvarItemModal()">
-            <i class="bi bi-floppy me-1"></i>Salvar alterações
-          </button>
-        </div>
+
+        <!-- ── COMENTÁRIOS ── -->
         <div class="modal-secao-titulo">Comentários</div>
         <div id="modal-item-comentarios"></div>
         <div class="mt-2">
           <textarea class="form-control form-control-sca" id="modal-item-novo-comentario"
             rows="2" placeholder="Adicionar comentário..."></textarea>
-          <button class="btn btn-sm mt-2"
-            style="background:var(--gold-dark);color:var(--gold);font-weight:700;"
-            onclick="enviarComentarioItem()">
-            <i class="bi bi-send me-1"></i>Adicionar Comentário
-          </button>
         </div>
+      </div>
+
+      <!-- ── FOOTER ── -->
+      <div class="modal-footer" style="border-top:1px solid var(--border);gap:0.4rem;">
+        <button type="button" class="btn btn-sm me-auto"
+          style="background:var(--gold-dark);color:var(--gold);font-weight:700;font-size:0.72rem;padding:0.25rem 0.6rem;"
+          onclick="enviarComentarioItem()">
+          <i class="bi bi-send me-1"></i>Adicionar comentário
+        </button>
+        <button type="button" class="btn btn-sm"
+          style="background:transparent;color:var(--text-muted);border:1px solid var(--border);font-size:0.72rem;padding:0.25rem 0.6rem;"
+          data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-sm"
+          style="background:var(--gold-dark);color:var(--gold);font-weight:700;font-size:0.72rem;padding:0.25rem 0.6rem;"
+          onclick="salvarItemModal()">
+          <i class="bi bi-floppy me-1"></i>Salvar alterações
+        </button>
       </div>
     </div>
   </div>
@@ -1166,12 +1180,12 @@
   // ── Modal do item do bloco ──
   function abrirModalItem(itemId) {
     itemAtualId = itemId;
-    document.getElementById('modal-item-titulo').textContent = 'Carregando...';
+    document.getElementById('modal-item-titulo').innerHTML = '<i class="bi bi-pencil-square me-2"></i>Carregando...';
     fetch(`/controle-administrativo/bloco/item/${itemId}/detalhe/`)
       .then(r => r.json())
       .then(data => {
         if (!data.success) return;
-        document.getElementById('modal-item-titulo').textContent     = data.conteudo;
+        document.getElementById('modal-item-titulo').innerHTML       = '<i class="bi bi-pencil-square me-2"></i>' + data.conteudo;
         document.getElementById('modal-item-conteudo').value         = data.conteudo;
         document.getElementById('modal-item-prazo').value            = data.prazo;
         document.getElementById('modal-item-responsavel').value      = data.responsavel_id;
@@ -1209,7 +1223,7 @@
       body: body.toString(),
     }).then(r => r.json()).then(data => {
       if (!data.success) { alert(data.error); return; }
-      document.getElementById('modal-item-titulo').textContent = data.conteudo;
+      document.getElementById('modal-item-titulo').innerHTML = '<i class="bi bi-pencil-square me-2"></i>' + data.conteudo;
       const textoEl = document.getElementById(`texto-item-${itemAtualId}`);
       if (textoEl) textoEl.textContent = data.conteudo;
       // Atualiza ícone de alfinete
