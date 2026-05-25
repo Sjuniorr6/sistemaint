@@ -764,6 +764,7 @@ def detalhe_tarefa_divisao_view(request, tarefa_id):
         'prazo':    tarefa.prazo.strftime('%Y-%m-%d') if tarefa.prazo else '',
         'prazo_fmt': tarefa.prazo.strftime('%d/%m/%Y') if tarefa.prazo else '—',
         'is_fixo':  tarefa.is_fixo,
+        'criado_em': timezone.localtime(tarefa.criado_em).strftime('%d/%m/%Y às %H:%M') if tarefa.criado_em else None,
         'comentarios': comentarios,
     })
 
@@ -792,7 +793,13 @@ def atualizar_tarefa_divisao_view(request, tarefa_id):
 
     try:
         tarefa = atualizar_tarefa_divisao(tarefa_id, conteudo, tipo, prazo, is_fixo)
-        return JsonResponse({'success': True, 'conteudo': tarefa.conteudo, 'tipo': tarefa.tipo})
+        return JsonResponse({
+            'success':   True,
+            'conteudo':  tarefa.conteudo,
+            'tipo':      tarefa.tipo,
+            'is_fixo':   tarefa.is_fixo,
+            'prazo_fmt': tarefa.prazo.strftime('%d/%m/%Y') if tarefa.prazo else '',
+        })
     except ValueError as e:
         return JsonResponse({'success': False, 'error': str(e)})
 

@@ -738,20 +738,24 @@
   </div>
 </div>
 
-<!-- ─── MODAL DE DETALHE DA TAREFA DA DIVISÃO ─── -->
+<!-- ─── MODAL DE DETALHE DA TAREFA DA DIVISÃO (EDIÇÃO) ─── -->
 <div class="modal fade" id="modalDetalheTarefaDivisao" tabindex="-1">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="modal-divisao-titulo">Carregando...</h5>
+        <h5 class="modal-title" id="modal-divisao-titulo"><i class="bi bi-pencil-square me-2"></i>Carregando...</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
+
+        <!-- ── DETALHES (editável) ── -->
         <div class="modal-secao-titulo">Detalhes</div>
+
         <div class="mb-3">
           <label class="form-label-sca">Tarefa *</label>
           <input type="text" id="modal-divisao-conteudo" class="form-control form-control-sca">
         </div>
+
         <div class="mb-3">
           <label class="form-label-sca">Tipo</label>
           <select id="modal-divisao-tipo" class="form-control form-control-sca">
@@ -760,32 +764,47 @@
             <option value="mensal">Tarefas Mensais</option>
           </select>
         </div>
+
         <div class="mb-3">
           <label class="form-label-sca">Prazo</label>
           <input type="date" id="modal-divisao-prazo" class="form-control form-control-sca">
         </div>
+
         <div class="mb-3 d-flex align-items-center gap-2">
           <input type="checkbox" id="modal-divisao-fixo" style="accent-color:var(--gold);width:14px;height:14px;">
           <label class="form-label-sca mb-0" for="modal-divisao-fixo">Item fixo — carregar para a semana seguinte</label>
         </div>
-        <div class="d-flex justify-content-end mb-3">
-          <button class="btn btn-sm"
-            style="background:var(--gold-dark);color:var(--gold);font-weight:700;"
-            onclick="salvarDetalheTarefaDivisao()">
-            <i class="bi bi-floppy me-1"></i>Salvar alterações
-          </button>
+
+        <!-- ── PONTOS IMPORTANTES (read-only) ── -->
+        <div class="modal-secao-titulo">Pontos Importantes</div>
+        <div class="modal-meta">
+          <div class="modal-meta-item"><label>Criado em</label><span id="modal-divisao-criado-em">—</span></div>
         </div>
+
+        <!-- ── COMENTÁRIOS ── -->
         <div class="modal-secao-titulo">Comentários</div>
         <div id="modal-divisao-comentarios"></div>
         <div class="mt-2">
           <textarea class="form-control form-control-sca" id="modal-divisao-novo-comentario"
             rows="2" placeholder="Adicionar comentário..."></textarea>
-          <button class="btn btn-sm mt-2"
-            style="background:var(--gold-dark);color:var(--gold);font-weight:700;"
-            onclick="enviarComentarioDivisao()">
-            <i class="bi bi-send me-1"></i>Adicionar Comentário
-          </button>
         </div>
+      </div>
+
+      <!-- ── FOOTER ── -->
+      <div class="modal-footer" style="border-top:1px solid var(--border);gap:0.4rem;">
+        <button type="button" class="btn btn-sm me-auto"
+          style="background:var(--gold-dark);color:var(--gold);font-weight:700;font-size:0.72rem;padding:0.25rem 0.6rem;"
+          onclick="enviarComentarioDivisao()">
+          <i class="bi bi-send me-1"></i>Adicionar comentário
+        </button>
+        <button type="button" class="btn btn-sm"
+          style="background:transparent;color:var(--text-muted);border:1px solid var(--border);font-size:0.72rem;padding:0.25rem 0.6rem;"
+          data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-sm"
+          style="background:var(--gold-dark);color:var(--gold);font-weight:700;font-size:0.72rem;padding:0.25rem 0.6rem;"
+          onclick="salvarDetalheTarefaDivisao()">
+          <i class="bi bi-floppy me-1"></i>Salvar alterações
+        </button>
       </div>
     </div>
   </div>
@@ -1280,16 +1299,17 @@
 
   function abrirDetalheTarefaDivisao(tarefaId) {
     tarefaDivisaoAtualId = tarefaId;
-    document.getElementById('modal-divisao-titulo').textContent = 'Carregando...';
+    document.getElementById('modal-divisao-titulo').innerHTML = '<i class="bi bi-pencil-square me-2"></i>Carregando...';
     fetch(`/controle-administrativo/divisao/tarefa/${tarefaId}/detalhe/`)
       .then(r => r.json())
       .then(data => {
         if (!data.success) return;
-        document.getElementById('modal-divisao-titulo').textContent  = data.conteudo;
+        document.getElementById('modal-divisao-titulo').innerHTML    = '<i class="bi bi-pencil-square me-2"></i>' + data.conteudo;
         document.getElementById('modal-divisao-conteudo').value      = data.conteudo;
         document.getElementById('modal-divisao-tipo').value          = data.tipo;
         document.getElementById('modal-divisao-prazo').value         = data.prazo;
         document.getElementById('modal-divisao-fixo').checked        = data.is_fixo;
+        document.getElementById('modal-divisao-criado-em').textContent = data.criado_em || '—';
         document.getElementById('modal-divisao-novo-comentario').value = '';
         renderizarComentariosDivisao(data.comentarios);
         new bootstrap.Modal(document.getElementById('modalDetalheTarefaDivisao')).show();
@@ -1321,12 +1341,79 @@
       body: body.toString(),
     }).then(r => r.json()).then(data => {
       if (!data.success) { alert(data.error); return; }
-      document.getElementById('modal-divisao-titulo').textContent = data.conteudo;
+
+      // Atualiza título do modal
+      document.getElementById('modal-divisao-titulo').innerHTML = '<i class="bi bi-pencil-square me-2"></i>' + data.conteudo;
+
+      // Atualiza texto da tarefa no card
       const textoEl = document.getElementById(`divisao-texto-${tarefaDivisaoAtualId}`);
       if (textoEl) textoEl.textContent = data.conteudo;
+
       // Atualiza ícone de alfinete
       const pinEl = document.getElementById(`pin-divisao-${tarefaDivisaoAtualId}`);
       if (pinEl) pinEl.style.display = data.is_fixo ? '' : 'none';
+
+      // Atualiza ou cria o <small> do prazo
+      const cardElPrazo = document.getElementById(`divisao-tarefa-${tarefaDivisaoAtualId}`);
+      if (cardElPrazo) {
+        let smallPrazo = cardElPrazo.querySelector('small');
+        if (data.prazo_fmt) {
+          if (smallPrazo) {
+            // <small> já existe — só atualiza
+            smallPrazo.textContent = data.prazo_fmt;
+          } else {
+            // <small> não existe — cria e insere antes do ícone de alfinete
+            smallPrazo = document.createElement('small');
+            smallPrazo.style.color    = 'var(--text-muted)';
+            smallPrazo.style.fontSize = '0.58rem';
+            smallPrazo.textContent    = data.prazo_fmt;
+            // Insere antes do ícone de alfinete (que vem logo após o texto)
+            const pinAtual = cardElPrazo.querySelector('.bi-pin-fill');
+            if (pinAtual) cardElPrazo.insertBefore(smallPrazo, pinAtual);
+          }
+        } else {
+          // Prazo foi removido — apaga o <small> se existir
+          if (smallPrazo) smallPrazo.remove();
+        }
+      }
+
+      // Move o card para a seção correta se o tipo mudou
+      const cardEl = document.getElementById(`divisao-tarefa-${tarefaDivisaoAtualId}`);
+      if (cardEl && data.tipo) {
+        const listaAtual = cardEl.parentElement;
+
+        // Descobre o ID do funcionário a partir da lista atual
+        // Formato dos IDs: divisao-lista-hoje-X / divisao-lista-semana-X / divisao-lista-mensal-X
+        const match = listaAtual.id.match(/divisao-lista-(hoje|semana|mensal)-(\d+)/);
+        if (match) {
+          const tipoAntigo = match[1];
+          const funcId     = match[2];
+
+          if (tipoAntigo !== data.tipo) {
+            const novaListaId = `divisao-lista-${data.tipo}-${funcId}`;
+            const novaLista   = document.getElementById(novaListaId);
+
+            if (novaLista) {
+              // Remove placeholder "Nenhuma tarefa ainda" da lista de destino, se existir
+              const vazioNovo = novaLista.querySelector('small');
+              if (vazioNovo) vazioNovo.remove();
+
+              // Move o card para a nova lista
+              novaLista.appendChild(cardEl);
+
+              // Se a lista antiga ficou sem cards, adiciona o placeholder de volta
+              if (!listaAtual.querySelector('.sca-divisao-item')) {
+                const placeholder = document.createElement('small');
+                placeholder.style.fontSize = '0.62rem';
+                placeholder.style.color   = '#888';
+                placeholder.textContent   = 'Nenhuma tarefa ainda.';
+                listaAtual.appendChild(placeholder);
+              }
+            }
+          }
+        }
+      }
+
       bootstrap.Modal.getInstance(document.getElementById('modalDetalheTarefaDivisao')).hide();
     });
   }
