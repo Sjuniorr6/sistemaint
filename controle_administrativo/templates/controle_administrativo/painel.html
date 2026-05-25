@@ -683,7 +683,7 @@
   </div>
 </div>
 
-<!-- ─── MODAL DE NOVA TAREFA DA DIVISÃO ─── -->
+<!-- ─── MODAL DE NOVA TAREFA DA DIVISÃO (CRIAÇÃO) ─── -->
 <div class="modal fade" id="modalNovaTarefaDivisao" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -692,10 +692,15 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
+
+        <!-- ── DETALHES ── -->
+        <div class="modal-secao-titulo">Detalhes</div>
+
         <div class="mb-3">
           <label class="form-label-sca">Tarefa *</label>
           <input type="text" id="divisao-nova-conteudo" class="form-control form-control-sca" placeholder="Descreva a tarefa">
         </div>
+
         <div class="mb-3">
           <label class="form-label-sca">Tipo</label>
           <select id="divisao-nova-tipo" class="form-control form-control-sca">
@@ -704,24 +709,29 @@
             <option value="mensal">Tarefas Mensais</option>
           </select>
         </div>
+
         <div class="mb-3">
           <label class="form-label-sca">Prazo</label>
           <input type="date" id="divisao-nova-prazo" class="form-control form-control-sca">
         </div>
+
         <div class="mb-3 d-flex align-items-center gap-2">
           <input type="checkbox" id="divisao-nova-fixo" style="accent-color:var(--gold);width:14px;height:14px;">
           <label class="form-label-sca mb-0" for="divisao-nova-fixo">Item fixo — carregar para a semana seguinte</label>
         </div>
+
         <div id="divisao-nova-erro" class="text-danger" style="font-size:0.75rem;display:none;"></div>
       </div>
-      <div class="modal-footer" style="border-top:1px solid var(--border);">
+
+      <!-- ── FOOTER ── -->
+      <div class="modal-footer" style="border-top:1px solid var(--border);gap:0.4rem;">
         <button type="button" class="btn btn-sm"
-          style="background:transparent;color:var(--text-muted);border:1px solid var(--border);"
+          style="background:transparent;color:var(--text-muted);border:1px solid var(--border);font-size:0.72rem;padding:0.25rem 0.6rem;"
           data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-sm"
-          style="background:var(--gold-dark);color:var(--gold);font-weight:700;"
+          style="background:var(--gold-dark);color:var(--gold);font-weight:700;font-size:0.72rem;padding:0.25rem 0.6rem;"
           onclick="confirmarNovaTarefaDivisao()">
-          <i class="bi bi-check2 me-1"></i>Adicionar
+          <i class="bi bi-check2 me-1"></i>Adicionar Tarefa
         </button>
       </div>
     </div>
