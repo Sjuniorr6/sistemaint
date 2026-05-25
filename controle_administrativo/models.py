@@ -34,14 +34,19 @@ class TipoControle(models.TextChoices):
 
 
 class TipoBloco(models.TextChoices):
-    NAO_ESQUECER = 'nao_esquecer', 'Importantes / Não Esquecer'
-    DIARIO       = 'diario',       'Diário'
-    OBSERVACAO   = 'observacao',   'Outros / Observação'
+    NAO_ESQUECER = 'nao_esquecer', 'Não Esquecer'
+    QUINZENAL    = 'quinzenal',    'Quinzenal'
+    MENSAL       = 'mensal',       'Mensal'
 
 
 class PerfilFuncionario(models.TextChoices):
     GESTOR   = 'gestor',   'Gestor'
     OPERADOR = 'operador', 'Operador'
+
+class TipoTarefaDivisao(models.TextChoices):
+    HOJE   = 'hoje',   'Tarefas de Hoje'
+    SEMANA = 'semana', 'Tarefas da Semana'
+    MENSAL = 'mensal', 'Tarefas Mensais'
 
 
 # ─────────────────────────────────────────
@@ -188,7 +193,7 @@ class ExecucaoTarefaAdministrativa(models.Model):
         verbose_name='Status'
     )
     is_done       = models.BooleanField(default=False, verbose_name='Concluída')
-    prazo         = models.DateField(null=True, blank=True, verbose_name='Prazo')
+    prazo         = models.DateTimeField(null=True, blank=True, verbose_name='Prazo')
     concluido_por = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -449,7 +454,15 @@ class TarefaDivisao(models.Model):
     semana_iso  = models.PositiveIntegerField(verbose_name='Semana ISO')
     ano         = models.PositiveIntegerField(verbose_name='Ano')
     conteudo    = models.CharField(max_length=300, verbose_name='Tarefa')
+    tipo        = models.CharField(
+        max_length=10,
+        choices=TipoTarefaDivisao.choices,
+        default=TipoTarefaDivisao.SEMANA,
+        verbose_name='Tipo'
+    )
     is_done     = models.BooleanField(default=False, verbose_name='Concluída')
+    is_fixo     = models.BooleanField(default=False, verbose_name='Item fixo')
+    prazo       = models.DateField(null=True, blank=True, verbose_name='Prazo')
     ordem       = models.PositiveIntegerField(default=0, verbose_name='Ordem')
     criado_em   = models.DateTimeField(auto_now_add=True)
 
@@ -460,3 +473,32 @@ class TarefaDivisao(models.Model):
 
     def __str__(self):
         return f"{self.funcionario.nome} — {self.conteudo[:50]}"
+    
+# ─────────────────────────────────────────
+# COMENTÁRIO DA TAREFA DA DIVISÃO
+# ─────────────────────────────────────────
+
+class ComentarioTarefaDivisao(models.Model):
+    tarefa    = models.ForeignKey(
+        TarefaDivisao,
+        on_delete=models.CASCADE,
+        related_name='comentarios',
+        verbose_name='Tarefa'
+    )
+    autor     = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='comentarios_divisao',
+        verbose_name='Autor'
+    )
+    conteudo  = models.TextField(verbose_name='Comentário')
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Comentário de Tarefa da Divisão'
+        verbose_name_plural = 'Comentários de Tarefas da Divisão'
+        ordering = ['criado_em']
+
+    def __str__(self):
+        return f"{self.autor} — {self.conteudo[:50]}"

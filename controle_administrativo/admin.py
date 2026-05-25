@@ -10,6 +10,7 @@ from .models import (
     ItemBlocoSemanal,
     ComentarioItemBloco,
     TarefaDivisao,
+    ComentarioTarefaDivisao,
 )
 
 
@@ -98,3 +99,9 @@ class TarefaDivisaoAdmin(admin.ModelAdmin):
     list_display  = ['funcionario', 'conteudo', 'semana_iso', 'ano', 'is_done']
     list_filter   = ['funcionario', 'ano', 'semana_iso', 'is_done']
     search_fields = ['conteudo']
+@admin.register(ComentarioTarefaDivisao)
+class ComentarioTarefaDivisaoAdmin(admin.ModelAdmin):
+    list_display  = ['autor', 'tarefa', 'conteudo', 'criado_em']
+    list_filter   = ['autor']
+    search_fields = ['conteudo']
+    readonly_fields = ['criado_em']

@@ -80,10 +80,18 @@ def get_execucoes_da_semana(semana_iso, ano, user=None):
 
 
 def get_blocos_da_semana(semana_iso, ano):
-    return BlocoSemanal.objects.filter(
+    from .models import TipoBloco
+    ORDEM = {
+        TipoBloco.NAO_ESQUECER: 0,
+        TipoBloco.QUINZENAL:    1,
+        TipoBloco.MENSAL:       2,
+    }
+    blocos = list(BlocoSemanal.objects.filter(
         semana_iso=semana_iso,
         ano=ano,
-    ).prefetch_related('itens').order_by('tipo')
+    ).prefetch_related('itens'))
+    blocos.sort(key=lambda b: ORDEM.get(b.tipo, 99))
+    return blocos
 
 
 def get_funcionarios_ativos():

@@ -90,42 +90,48 @@ M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → M10
 
 ---
 
-## 🔁 MÓDULO 6 — Geração automática de semanas
-> Em desenvolvimento (iniciado em 2026-05-20)
-- [ ] Serviço que detecta início de nova semana
-- [ ] Gera execuções para todas as tarefas ativas
-- [ ] Tarefas não concluídas viram `atrasada`
-- [ ] Lógica idempotente — sem duplicação
-- [ ] Commit: `feat(sca): geração automática de semanas`
+## ✅ MÓDULO 6 — Geração automática de semanas
+> Concluído em 2026-05-20
+
+- [x] Serviço que detecta início de nova semana
+- [x] Gera execuções para todas as tarefas ativas
+- [x] Tarefas não concluídas viram `atrasada`
+- [x] Lógica idempotente — sem duplicação
+- [x] Commit: `feat(sca): geracao automatica de semanas e marcacao de atrasadas`
+---
+
+## ✅ MÓDULO 7 — Histórico de semanas
+> Concluído em 2026-05-20
+
+- [x] Tela de histórico com seletor de semana
+- [x] Visualização somente leitura
+- [x] Navegação entre semanas com setas
+- [x] Data por extenso no header
+- [x] Indicador de percentual de conclusão
+- [ ] Filtro por funcionário *(movido para Módulo 10)*
+- [x] Commit: `feat(sca): historico de semanas com navegacao e data por extenso`
 
 ---
 
-## ⏳ MÓDULO 7 — Histórico de semanas
+## ✅ MÓDULO 8 — Exportação Excel
+> Concluído em 2026-05-20
 
-- [ ] Tela de histórico com seletor de semana
-- [ ] Visualização somente leitura
-- [ ] Filtro por funcionário
-- [ ] Indicador de percentual de conclusão
-- [ ] Commit: `feat(sca): histórico de semanas`
-
----
-
-## ⏳ MÓDULO 8 — Exportação Excel
-
-- [ ] Exportar semana selecionada para `.xlsx`
-- [ ] Aba Rafa + Aba André no mesmo arquivo
-- [ ] Colunas: tarefa, dia, período, status, comentário
-- [ ] Disponível na semana atual e no histórico
-- [ ] Commit: `feat(sca): exportação excel`
+- [x] Exportar semana selecionada para `.xlsx`
+- [x] Aba Rafa + Aba André no mesmo arquivo
+- [x] Colunas: tarefa, dia, período, status, comentário
+- [x] Disponível na semana atual e no histórico
+- [x] Visual profissional — fundo branco, cores por status
+- [ ] Exportação via Celery em background *(movido para Módulo 10)*
+- [x] Commit: `feat(sca): exportacao excel com visual profissional`
 
 ---
 
 ## ⏳ MÓDULO 9 — Gestão de tarefas (CRUD)
+> Movido para pós-feedback — avaliar após uso em produção
 
-- [ ] Tela para criar nova tarefa recorrente
-- [ ] Editar tarefa existente
-- [ ] Desativar tarefa
-- [ ] Acessível apenas para gestor ou admin
+- [ ] Avaliar necessidade real após uso em produção
+- [ ] Tela para criar/editar tarefas recorrentes sem usar o admin Django
+- [ ] Definir perfil de acesso do gestor no sistema
 - [ ] Commit: `feat(sca): gestão de tarefas`
 
 ---
@@ -137,3 +143,7 @@ M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → M10
 - [ ] Filtros no painel por responsável
 - [ ] Indicadores individuais por funcionário
 - [ ] Ajustes do uso real
+- [ ] Filtro por funcionário no histórico
+- [ ] Exportação Excel via Celery (tarefa em background)
+- [ ] Gestão de tarefas recorrentes (CRUD) para o gestor
+- [ ] Definição do papel do gestor no sistema

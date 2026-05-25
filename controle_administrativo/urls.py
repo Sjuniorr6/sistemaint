@@ -6,12 +6,21 @@ app_name = 'controle_administrativo'
 urlpatterns = [
     # Painel
     path('', views.painel, name='painel'),
+    path('<int:semana_iso>/<int:ano>/', views.painel, name='painel_semana'),
 
-    # Execuções de tarefa
+    # Histórico
+    path('historico/', views.historico, name='historico'),
+    path('historico/<int:semana_iso>/<int:ano>/', views.historico, name='historico_semana'),
+
+    # Execuções — rotas fixas primeiro
+    path('execucao/criar/', views.criar_tarefa, name='criar_tarefa'),
+    path('execucao/comentario/<int:comentario_id>/excluir/', views.excluir_comentario, name='excluir_comentario'),
+
+    # Execuções — rotas com ID
     path('execucao/<int:execucao_id>/toggle/', views.toggle_execucao, name='toggle_execucao'),
     path('execucao/<int:execucao_id>/comentario/', views.adicionar_comentario, name='adicionar_comentario'),
     path('execucao/<int:execucao_id>/detalhe/', views.detalhe_execucao, name='detalhe_execucao'),
-    path('execucao/criar/', views.criar_tarefa, name='criar_tarefa'),
+    path('execucao/<int:execucao_id>/atualizar/', views.atualizar_execucao, name='atualizar_execucao'),
     path('execucao/<int:execucao_id>/excluir/', views.excluir_tarefa, name='excluir_tarefa'),
 
     # Blocos especiais
@@ -26,4 +35,10 @@ urlpatterns = [
     path('divisao/<int:funcionario_id>/adicionar/', views.adicionar_tarefa_divisao_view, name='adicionar_tarefa_divisao'),
     path('divisao/tarefa/<int:tarefa_id>/editar/', views.editar_tarefa_divisao_view, name='editar_tarefa_divisao'),
     path('divisao/tarefa/<int:tarefa_id>/excluir/', views.excluir_tarefa_divisao_view, name='excluir_tarefa_divisao'),
+    path('divisao/tarefa/<int:tarefa_id>/detalhe/', views.detalhe_tarefa_divisao_view, name='detalhe_tarefa_divisao'),
+    path('divisao/tarefa/<int:tarefa_id>/atualizar/', views.atualizar_tarefa_divisao_view, name='atualizar_tarefa_divisao'),
+    path('divisao/tarefa/<int:tarefa_id>/comentario/', views.adicionar_comentario_tarefa_divisao_view, name='comentario_tarefa_divisao'),
+
+    # Exportação Excel
+    path('exportar/<int:semana_iso>/<int:ano>/', views.exportar_excel, name='exportar_excel'),
 ]
