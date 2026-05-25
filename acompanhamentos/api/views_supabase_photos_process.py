@@ -104,6 +104,12 @@ def _append_issue(vr: dict, issue: str) -> None:
     vr["issues"] = issues
 
 
+def _add_local_validation_marker(vr: dict) -> dict:
+    if isinstance(vr, dict) and settings.DEBUG:
+        vr["validation_marker"] = "VALIDADA LOCALMENTE"
+    return vr
+
+
 # ==========================================================
 # Storage / Temp file
 # ==========================================================
@@ -933,6 +939,8 @@ def _process_manual_entry(sb, photo: dict):
         "_photo_id": photo_id,
     }
 
+    _add_local_validation_marker(vr)
+
     sb.table("mission_photos").update({"processed": True, "validation_result": vr}).eq("id", photo_id).execute()
 
     # Salva KM direto no Django
@@ -1061,6 +1069,7 @@ def process_one_photo_id(photo_id: str, force: bool = False):
                             update_fields.append("km_final_manual")
                     if update_fields:
                         vinculo.save(update_fields=update_fields)
+                        _add_local_validation_marker(_early_vr)
                         _early_vr["django_synced"] = True
                         sb.table("mission_photos").update({"validation_result": _early_vr}).eq("id", photo_id).execute()
                         logger.info("[SYNC_OK] photo_id=%s mission_id=%s type=%s km=%s manual=%s", photo_id, mission_id, photo_type, km_valor, _is_manual)
@@ -1145,6 +1154,8 @@ def process_one_photo_id(photo_id: str, force: bool = False):
             "processing": False,
             "_photo_id": photo_id,
         }
+
+        _add_local_validation_marker(vr)
 
         # 9) Atualizar mission_photos no Supabase
         sb.table("mission_photos").update({"processed": True, "validation_result": vr}).eq("id", photo_id).execute()

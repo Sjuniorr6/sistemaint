@@ -267,41 +267,23 @@
                                     </td>
                                     <td>
                                         {{ grupo.primeiro.destino|default:"-" }}
-                                            {% with status=req.status_requisicao|default:''|lower %}
-                                                {% if status == "cancelado" or status == "cancelada" or status == "canceladas" %}
-                                                    <button type="button"
-                                                            class="btn btn-outline-danger btn-sm btn-cancelamento-info"
-                                                            title="Ver informações do cancelamento"
-                                                            data-cancel-status="{{ req.status_requisicao|default:'-' }}"
-                                                            data-cancel-taxa="{{ req.taxa_cancelamento_percentual|default:'-' }}"
-                                                            data-cancel-valor="{{ req.valor_cancelamento|default:'-' }}"
-                                                            data-cancel-aceitou="{% if req.aceitou_termos_cancelamento %}Sim{% else %}Não{% endif %}"
-                                                            data-cancel-usuario="{{ req.usuario_aceitou_termos_cancelamento|default:'-' }}"
-                                                            data-cancel-justificativa="{{ req.justificativa_cancelamento|default:'-' }}"
-                                                            data-cancel-motivos="{{ req.motivos_cancelamento|join:', '|default:'-' }}"
-                                                            data-cancelado-em="{{ req.cancelado_em|date:'d/m/Y H:i'|default:'-' }}"
-                                                            data-bs-toggle="modal"
-                                                            data-bs-target="#cancelamentoModal">
-                                                        <i class="bi bi-x-octagon"></i>
-                                                    </button>
-                                                {% elif req.is_reuso %}
-                                                    <a href="{% url 'RequisicaoCreate' req.pk %}" class="btn btn-success btn-sm" title="Criar acompanhamento (reuso)">
-                                                        <i class="bi bi-recycle"></i>
-                                                    </a>
-                                                    <form method="post" action="{% url 'recusar_reuso' req.pk %}"
-                                                        onsubmit="return confirm('Recusar reuso deste agente?\nO GS será notificado para escalar outro.');"
-                                                        style="display: inline;">
-                                                        {% csrf_token %}
-                                                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Recusar reuso">
-                                                            <i class="bi bi-x-circle"></i>
-                                                        </button>
-                                                    </form>
-                                                {% else %}
-                                                    <a href="{% url 'RequisicaoCreate' req.pk %}" class="btn btn-warning btn-sm">
-                                                        <i class="bi bi-plus-circle"></i>
-                                                    </a>
-                                                {% endif %}
-                                            {% endwith %}
+                                        {% if grupo.primeiro.destino_2 and grupo.primeiro.destino_3 %}
+                                            <span class="badge text-bg-secondary badge-comboio ms-1" title="Possui Destino 2 e Destino 3">
+                                                <i class="bi bi-geo-alt-fill me-1"></i>+2
+                                            </span>
+                                        {% elif grupo.primeiro.destino_2 or grupo.primeiro.destino_3 %}
+                                            <span class="badge text-bg-secondary badge-comboio ms-1" title="Possui mais 1 destino">
+                                                <i class="bi bi-geo-alt-fill me-1"></i>+1
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ grupo.primeiro.motorista }}</td>
+                                    <td>{{ grupo.primeiro.placa }}</td>
+                                    <td>{{ grupo.primeiro.numero_motorista }}</td>
+                                    <td>{{ grupo.primeiro.data_agendamento|date:"d/m/Y" }}</td>
+                                    <td>{{ grupo.primeiro.horario_agendamento|time:"H:i" }}</td>
+                                    <td>{{ grupo.primeiro.nome_user }}</td>
+                                </tr>
                                 {% else %}
                                 {% with req=grupo.primeiro %}
                                 <tr>
