@@ -373,9 +373,9 @@ def gerar_blocos_semana(semana_iso, ano, user):
     _copiar_tarefas_divisao_fixas(semana_iso, ano)
 
 
-def adicionar_item_bloco(bloco_id, conteudo, is_fixo=False, user=None):
+def adicionar_item_bloco(bloco_id, conteudo, is_fixo=False, user=None, responsavel_id=None, prazo=None):
     """Adiciona um item a um bloco semanal."""
-    from .models import BlocoSemanal, ItemBlocoSemanal
+    from .models import BlocoSemanal, ItemBlocoSemanal, FuncionarioAdministrativo
 
     try:
         bloco = BlocoSemanal.objects.get(id=bloco_id)
@@ -385,16 +385,26 @@ def adicionar_item_bloco(bloco_id, conteudo, is_fixo=False, user=None):
     if not conteudo.strip():
         raise ValueError('O conteúdo não pode ser vazio.')
 
+    # Resolve responsável (opcional)
+    responsavel = None
+    if responsavel_id:
+        try:
+            responsavel = FuncionarioAdministrativo.objects.get(id=responsavel_id)
+        except FuncionarioAdministrativo.DoesNotExist:
+            raise ValueError('Responsável não encontrado.')
+
     ultimo = bloco.itens.order_by('-ordem').first()
     ordem  = (ultimo.ordem + 1) if ultimo else 0
 
     item = ItemBlocoSemanal.objects.create(
-        bloco      = bloco,
-        conteudo   = conteudo.strip(),
-        is_fixo    = is_fixo,
-        is_done    = False,
-        ordem      = ordem,
-        criado_por = user,
+        bloco       = bloco,
+        conteudo    = conteudo.strip(),
+        is_fixo     = is_fixo,
+        is_done     = False,
+        ordem       = ordem,
+        criado_por  = user,
+        responsavel = responsavel,
+        prazo       = prazo,
     )
     return item
 

@@ -441,7 +441,7 @@
             {% else %}<i class="bi bi-calendar-month me-1"></i>Mensal{% endif %}
           </span>
           {% if perfil_usuario != 'gestor' %}
-          <button class="btn-add-bloco" onclick="toggleInputBloco({{ bloco.id }})" title="Adicionar item">
+          <button class="btn-add-bloco" onclick="abrirModalCriarItemBloco({{ bloco.id }})" title="Adicionar item">
             <i class="bi bi-plus-lg"></i>
           </button>
           {% endif %}
@@ -471,11 +471,6 @@
           {% endfor %}
         </div>
 
-        <div class="sca-bloco-input" id="input-bloco-{{ bloco.id }}">
-          <input type="text" placeholder="Novo item..." id="texto-novo-{{ bloco.id }}"
-                 onkeydown="if(event.key==='Enter') salvarItemBloco({{ bloco.id }})">
-          <button onclick="salvarItemBloco({{ bloco.id }})"><i class="bi bi-check"></i></button>
-        </div>
       </div>
       {% endfor %}
     </div>
@@ -616,7 +611,6 @@
       </div>
       <div class="modal-body">
 
-        <!-- ── DETALHES (editável) ── -->
         <!-- ── DETALHES (editável) ── -->
         <div class="modal-secao-titulo">Detalhes</div>
         <div id="modal-editar-bloco">
@@ -824,7 +818,7 @@
         <div class="modal-secao-titulo">Detalhes</div>
 
         <div class="mb-3">
-          <label class="form-label-sca">Conteúdo *</label>
+          <label class="form-label-sca">Descrição *</label>
           <textarea id="modal-item-conteudo" class="form-control form-control-sca" rows="2"></textarea>
         </div>
 
@@ -878,6 +872,62 @@
           style="background:var(--gold-dark);color:var(--gold);font-weight:700;font-size:0.72rem;padding:0.25rem 0.6rem;"
           onclick="salvarItemModal()">
           <i class="bi bi-floppy me-1"></i>Salvar alterações
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── MODAL DE CRIAÇÃO DE ITEM DO BLOCO ─── -->
+<div class="modal fade" id="modalCriarItemBloco" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Novo Item</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+
+        <!-- ── DETALHES ── -->
+        <div class="modal-secao-titulo">Detalhes</div>
+
+        <div class="mb-3">
+          <label class="form-label-sca">Descrição *</label>
+          <textarea id="criar-item-conteudo" class="form-control form-control-sca" rows="2" placeholder="Descreva o item"></textarea>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label-sca">Responsável</label>
+          <select id="criar-item-responsavel" class="form-control form-control-sca">
+            <option value="">— Nenhum —</option>
+            {% for funcionario in funcionarios %}
+            <option value="{{ funcionario.id }}">{{ funcionario.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label-sca">Prazo</label>
+          <input type="date" id="criar-item-prazo" class="form-control form-control-sca">
+        </div>
+
+        <div class="mb-3 d-flex align-items-center gap-2">
+          <input type="checkbox" id="criar-item-fixo" style="accent-color:var(--gold);width:14px;height:14px;">
+          <label class="form-label-sca mb-0" for="criar-item-fixo">Item fixo — carregar para a semana seguinte</label>
+        </div>
+
+        <div id="criar-item-erro" class="text-danger" style="font-size:0.75rem;display:none;"></div>
+      </div>
+
+      <!-- ── FOOTER ── -->
+      <div class="modal-footer" style="border-top:1px solid var(--border);gap:0.4rem;">
+        <button type="button" class="btn btn-sm"
+          style="background:transparent;color:var(--text-muted);border:1px solid var(--border);font-size:0.72rem;padding:0.25rem 0.6rem;"
+          data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-sm"
+          style="background:var(--gold-dark);color:var(--gold);font-weight:700;font-size:0.72rem;padding:0.25rem 0.6rem;"
+          onclick="confirmarCriarItemBloco()">
+          <i class="bi bi-check2 me-1"></i>Adicionar Tarefa
         </button>
       </div>
     </div>
@@ -945,12 +995,12 @@
         </div>
         <div id="criar-erro" class="text-danger" style="font-size:0.75rem;display:none;"></div>
       </div>
-      <div class="modal-footer" style="border-top:1px solid var(--border);">
+      <div class="modal-footer" style="border-top:1px solid var(--border);gap:0.4rem;">
         <button type="button" class="btn btn-sm"
-          style="background:transparent;color:var(--text-muted);border:1px solid var(--border);"
+          style="background:transparent;color:var(--text-muted);border:1px solid var(--border);font-size:0.72rem;padding:0.25rem 0.6rem;"
           data-bs-dismiss="modal">Cancelar</button>
         <button type="button" class="btn btn-sm"
-          style="background:var(--gold-dark);color:var(--gold);font-weight:700;"
+          style="background:var(--gold-dark);color:var(--gold);font-weight:700;font-size:0.72rem;padding:0.25rem 0.6rem;"
           onclick="confirmarCriarTarefa()">
           <i class="bi bi-check2 me-1"></i>Criar Tarefa
         </button>
@@ -988,7 +1038,7 @@
         document.getElementById('modal-responsavel').textContent = data.responsavel;
 
         // Seção Pontos Importantes — read-only
-        document.getElementById('modal-status').innerHTML        = `<span class="badge-status badge-${data.status.toLowerCase()}">${data.status}</span>`;
+        document.getElementById('modal-status').innerHTML        = `<span class="badge-status badge-${data.status_key}">${data.status}</span>`;
         document.getElementById('modal-atualizado').textContent  = data.atualizado_por ? `${data.atualizado_por} · ${data.atualizado_em}` : '—';
         document.getElementById('modal-concluido-por').textContent = data.concluido_por || '—';
         document.getElementById('modal-concluido-em').textContent  = data.concluido_em  || '—';
@@ -1125,24 +1175,44 @@
   }
 
   // ── Blocos especiais ──
-  function toggleInputBloco(blocoId) {
-    const el = document.getElementById(`input-bloco-${blocoId}`);
-    el.classList.toggle('ativo');
-    if (el.classList.contains('ativo')) document.getElementById(`texto-novo-${blocoId}`).focus();
+  let blocoAtualId = null;
+
+  function abrirModalCriarItemBloco(blocoId) {
+    blocoAtualId = blocoId;
+    document.getElementById('criar-item-conteudo').value      = '';
+    document.getElementById('criar-item-responsavel').value   = '';
+    document.getElementById('criar-item-prazo').value         = '';
+    document.getElementById('criar-item-fixo').checked        = false;
+    document.getElementById('criar-item-erro').style.display  = 'none';
+    new bootstrap.Modal(document.getElementById('modalCriarItemBloco')).show();
   }
 
-  function salvarItemBloco(blocoId) {
-    const input    = document.getElementById(`texto-novo-${blocoId}`);
-    const conteudo = input.value.trim();
-    if (!conteudo) return;
-    fetch(`/controle-administrativo/bloco/${blocoId}/item/adicionar/`, {
+  function confirmarCriarItemBloco() {
+    const conteudo      = document.getElementById('criar-item-conteudo').value.trim();
+    const responsavelId = document.getElementById('criar-item-responsavel').value;
+    const prazo         = document.getElementById('criar-item-prazo').value;
+    const isFixo        = document.getElementById('criar-item-fixo').checked;
+    const erroEl        = document.getElementById('criar-item-erro');
+
+    if (!conteudo) { erroEl.textContent = 'A descrição é obrigatória.'; erroEl.style.display = 'block'; return; }
+    erroEl.style.display = 'none';
+
+    const body = new URLSearchParams({
+      conteudo,
+      responsavel_id: responsavelId,
+      prazo,
+      is_fixo: isFixo.toString(),
+    });
+
+    fetch(`/controle-administrativo/bloco/${blocoAtualId}/item/adicionar/`, {
       method: 'POST',
       headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `conteudo=${encodeURIComponent(conteudo)}`
+      body: body.toString(),
     }).then(r => r.json()).then(data => {
-      if (!data.success) { alert(data.error); return; }
-      const container = document.getElementById(`itens-bloco-${blocoId}`);
-      const vazio     = document.getElementById(`vazio-bloco-${blocoId}`);
+      if (!data.success) { erroEl.textContent = data.error; erroEl.style.display = 'block'; return; }
+      bootstrap.Modal.getInstance(document.getElementById('modalCriarItemBloco')).hide();
+      const container = document.getElementById(`itens-bloco-${blocoAtualId}`);
+      const vazio     = document.getElementById(`vazio-bloco-${blocoAtualId}`);
       if (vazio) vazio.remove();
       container.innerHTML += `
         <div class="sca-bloco-item" id="item-bloco-${data.id}">
@@ -1151,11 +1221,8 @@
           <i class="bi bi-pin-fill" id="pin-item-${data.id}" style="color:var(--gold-dark);font-size:0.6rem;flex-shrink:0;${data.is_fixo ? '' : 'display:none;'}" title="Item fixo"></i>
           <i class="bi bi-x sca-item-excluir" onclick="excluirItemBloco(${data.id})"></i>
         </div>`;
-      input.value = '';
-      document.getElementById(`input-bloco-${blocoId}`).classList.remove('ativo');
     });
   }
-
   function toggleItemBloco(itemId, el) {
     fetch(`/controle-administrativo/bloco/item/${itemId}/toggle/`, {
       method: 'POST', headers: { 'X-CSRFToken': CSRF },

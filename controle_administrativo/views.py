@@ -258,6 +258,7 @@ def detalhe_execucao(request, execucao_id):
         'dia':            execucao.dia_display,
         'periodo':        execucao.periodo_display,
         'status':         execucao.get_status_display(),
+        'status_key':     execucao.status,
         'is_done':        execucao.is_done,
         'is_avulsa':      execucao.is_avulsa,
         'prazo':          timezone.localtime(execucao.prazo).strftime('%d/%m/%Y às %H:%M') if execucao.prazo else None,
@@ -774,7 +775,7 @@ def detalhe_tarefa_divisao_view(request, tarefa_id):
 def atualizar_tarefa_divisao_view(request, tarefa_id):
     """Atualiza dados de uma tarefa da divisão."""
     if not _pode_editar(request):
-        return JsonResponse({'success': True, 'conteudo': tarefa.conteudo, 'tipo': tarefa.tipo, 'is_fixo': tarefa.is_fixo})
+        return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
 
     conteudo   = request.POST.get('conteudo', '').strip() or None
     tipo       = request.POST.get('tipo', None)
@@ -806,19 +807,36 @@ def atualizar_tarefa_divisao_view(request, tarefa_id):
 
 @login_required
 @require_POST
-def adicionar_comentario_tarefa_divisao_view(request, tarefa_id):
-    """Adiciona comentário a uma tarefa da divisão."""
+def adicionar_item_bloco_view(request, bloco_id):
     if not _pode_editar(request):
         return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
+    conteudo       = request.POST.get('conteudo', '').strip()
+    is_fixo        = request.POST.get('is_fixo', 'false') == 'true'
+    responsavel_id = request.POST.get('responsavel_id', '').strip() or None
+    prazo_str      = request.POST.get('prazo', '').strip()
 
-    conteudo = request.POST.get('conteudo', '').strip()
+    # Converte string ISO em objeto date; vazio vira None
+    prazo = None
+    if prazo_str:
+        try:
+            from datetime import date
+            prazo = date.fromisoformat(prazo_str)
+        except ValueError:
+            prazo = None
+
     try:
-        comentario = adicionar_comentario_tarefa_divisao(tarefa_id, conteudo, request.user)
+        item = adicionar_item_bloco(
+            bloco_id, conteudo, is_fixo,
+            user=request.user,
+            responsavel_id=responsavel_id,
+            prazo=prazo,
+        )
         return JsonResponse({
-            'success':   True,
-            'autor':     comentario.autor.get_full_name() or comentario.autor.username,
-            'conteudo':  comentario.conteudo,
-            'criado_em': timezone.localtime(comentario.criado_em).strftime('%d/%m/%Y às %H:%M'),
+            'success':  True,
+            'id':       item.id,
+            'conteudo': item.conteudo,
+            'is_fixo':  item.is_fixo,
+            'is_done':  item.is_done,
         })
     except ValueError as e:
         return JsonResponse({'success': False, 'error': str(e)})
@@ -897,3 +915,22 @@ def excluir_comentario(request, comentario_id):
         return JsonResponse({'success': True})
     except ComentarioTarefa.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Comentário não encontrado.'})
+
+@login_required
+@require_POST
+def adicionar_comentario_tarefa_divisao_view(request, tarefa_id):
+    """Adiciona comentário a uma tarefa da divisão."""
+    if not _pode_editar(request):
+        return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
+
+    conteudo = request.POST.get('conteudo', '').strip()
+    try:
+        comentario = adicionar_comentario_tarefa_divisao(tarefa_id, conteudo, request.user)
+        return JsonResponse({
+            'success':   True,
+            'autor':     comentario.autor.get_full_name() or comentario.autor.username,
+            'conteudo':  comentario.conteudo,
+            'criado_em': timezone.localtime(comentario.criado_em).strftime('%d/%m/%Y às %H:%M'),
+        })
+    except ValueError as e:
+        return JsonResponse({'success': False, 'error': str(e)})
