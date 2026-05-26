@@ -880,7 +880,9 @@ def atualizar_execucao(request, execucao_id):
     if prazo_str:
         try:
             from datetime import datetime
-            execucao.prazo = datetime.fromisoformat(prazo_str)
+            prazo_naive = datetime.fromisoformat(prazo_str)
+            # Adiciona fuso horário do Django (USE_TZ=True espera datetimes aware)
+            execucao.prazo = timezone.make_aware(prazo_naive)
         except ValueError:
             pass
     else:
