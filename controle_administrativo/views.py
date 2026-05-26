@@ -611,7 +611,7 @@ def exportar_excel(request, semana_iso, ano):
     ).order_by('nome')
 
     execucoes = ExecucaoTarefaAdministrativa.objects.filter(
-        semana_iso=semana_iso, ano=ano
+        semana_iso=semana_iso, ano=ano, oculta=False,
     ).exclude(status='cancelada').select_related(
         'tarefa_modelo', 'tarefa_modelo__responsavel',
         'responsavel_avulso', 'concluido_por',
@@ -859,12 +859,24 @@ def atualizar_execucao(request, execucao_id):
     descricao = request.POST.get('descricao', '').strip()
     prazo_str = request.POST.get('prazo', '').strip()
 
-    # Atualiza título e descrição antes de qualquer conversão
-    # (para que o modelo recorrente já nasça com o título editado)
-    if titulo:
-        execucao.titulo_avulso = titulo
-    if descricao is not None:
-        execucao.descricao_avulsa = descricao
+    # Atualiza título e descrição
+    # - Se a execução é AVULSA: edita os campos _avulso na execução
+    # - Se a execução é RECORRENTE: edita o tarefa_modelo (afeta todas as semanas)
+    if execucao.is_avulsa:
+        if titulo:
+            execucao.titulo_avulso = titulo
+        if descricao is not None:
+            execucao.descricao_avulsa = descricao
+    else:
+        # Recorrente — edita o modelo permanente
+        if execucao.tarefa_modelo:
+            if titulo:
+                execucao.tarefa_modelo.titulo = titulo
+            if descricao is not None:
+                execucao.tarefa_modelo.descricao = descricao
+            execucao.tarefa_modelo.save()
+
+    # Prazo é sempre na execução (varia por semana)
     if prazo_str:
         try:
             from datetime import datetime
