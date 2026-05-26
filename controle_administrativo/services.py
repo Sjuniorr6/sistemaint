@@ -1,3 +1,4 @@
+from django.db import models
 from django.utils import timezone
 from .models import (
     TarefaModeloAdministrativa,
@@ -156,12 +157,14 @@ def converter_para_avulsa(execucao_id, user):
       3. Desvincula a execução do modelo (tarefa_modelo = None)
       4. Marca is_avulsa = True
       5. Desativa o modelo recorrente (ativo = False) — para de gerar nas semanas futuras
+      6. Marca como oculta=True todas as execuções FUTURAS vinculadas ao modelo
+         (semanas futuras já geradas somem do painel mas ficam no banco — soft delete)
 
-    ATENÇÃO — efeitos colaterais:
-      - Execuções de SEMANAS PASSADAS continuam vinculadas ao modelo desativado
-        (semanas passadas são imutáveis por regra de negócio)
-      - Execuções de SEMANAS FUTURAS já geradas continuam existindo até serem
-        excluídas manualmente — só novas semanas é que param de gerar a tarefa
+    Comportamento esperado:
+      - Semanas PASSADAS: continuam vinculadas ao modelo desativado, visíveis no histórico
+      - Semana ATUAL: vira avulsa
+      - Semanas FUTURAS já geradas: ocultadas (soft delete via oculta=True)
+      - Novas semanas (que ainda não foram visitadas): não vão gerar a tarefa
     """
     try:
         execucao = ExecucaoTarefaAdministrativa.objects.select_related(
@@ -192,6 +195,19 @@ def converter_para_avulsa(execucao_id, user):
     # Desativa o modelo recorrente — para de gerar nas próximas semanas
     modelo.ativo = False
     modelo.save()
+
+    # Oculta execuções FUTURAS vinculadas ao modelo (soft delete)
+    # Considera futura: ano > ano_atual OU (ano == ano_atual E semana > semana_atual)
+    hoje         = timezone.now().date()
+    semana_atual = hoje.isocalendar()[1]
+    ano_atual    = hoje.year
+
+    ExecucaoTarefaAdministrativa.objects.filter(
+        tarefa_modelo=modelo,
+    ).filter(
+        models.Q(ano__gt=ano_atual) |
+        models.Q(ano=ano_atual, semana_iso__gt=semana_atual)
+    ).update(oculta=True)
 
     return execucao
 
@@ -562,16 +578,157 @@ def get_tarefas_divisao(semana_iso, ano):
 
 def marcar_atrasadas(semana_iso_atual, ano_atual):
     """
-    Marca como 'atrasada' todas as execuções de semanas anteriores
-    que ainda estão pendente ou em_andamento.
+    Marca como 'atrasada' as execuções pendente/em_andamento que já passaram:
+      - Toda execução de SEMANAS PASSADAS (ano menor OU mesmo ano com semana menor)
+      - Execuções da SEMANA ATUAL cujo dia já passou (ex: hoje é terça → segunda atrasada)
+      - Execuções da SEMANA ATUAL no DIA DE HOJE cujo horário-limite já passou
+        (com margem de tolerância de 30 minutos):
+          - Se prazo individual definido → usa prazo + 30min
+          - Se não tem prazo → manhã: 12:30, tarde: 18:30
+
+    Execuções de SEMANAS FUTURAS nunca são marcadas como atrasadas.
     Idempotente — pode ser chamada várias vezes sem efeito duplicado.
     """
+    import datetime
+
+    agora = timezone.now()
+    MARGEM = datetime.timedelta(minutes=30)
+
+    # ── 1. Execuções de SEMANAS PASSADAS (ano menor OU mesmo ano com semana menor)
     ExecucaoTarefaAdministrativa.objects.filter(
         status__in=[StatusExecucao.PENDENTE, StatusExecucao.EM_ANDAMENTO],
-    ).exclude(
-        semana_iso = semana_iso_atual,
-        ano        = ano_atual,
+    ).filter(
+        models.Q(ano__lt=ano_atual) |
+        models.Q(ano=ano_atual, semana_iso__lt=semana_iso_atual)
     ).update(status=StatusExecucao.ATRASADA)
+
+    # ── 2. Execuções da SEMANA ATUAL — dias anteriores a hoje
+    DIAS_ORDEM = {
+        'segunda': 0, 'terca': 1, 'quarta': 2, 'quinta': 3, 'sexta': 4,
+    }
+    hoje_idx = agora.date().weekday()  # 0=segunda, 1=terça, ...
+
+    # Dias da semana que JÁ PASSARAM (idx < hoje_idx)
+    dias_passados = [dia for dia, idx in DIAS_ORDEM.items() if idx < hoje_idx]
+
+    if dias_passados:
+        ExecucaoTarefaAdministrativa.objects.filter(
+            status__in=[StatusExecucao.PENDENTE, StatusExecucao.EM_ANDAMENTO],
+            semana_iso=semana_iso_atual,
+            ano=ano_atual,
+        ).filter(
+            models.Q(tarefa_modelo__dia_da_semana__in=dias_passados) |
+            models.Q(dia_avulso__in=dias_passados)
+        ).update(status=StatusExecucao.ATRASADA)
+
+    # ── 3. Execuções de HOJE — verifica horário-limite individual
+    dia_hoje_key = None
+    for dia, idx in DIAS_ORDEM.items():
+        if idx == hoje_idx:
+            dia_hoje_key = dia
+            break
+
+    if dia_hoje_key:  # só vale dias úteis (segunda a sexta)
+        execucoes_hoje = ExecucaoTarefaAdministrativa.objects.filter(
+            status__in=[StatusExecucao.PENDENTE, StatusExecucao.EM_ANDAMENTO],
+            semana_iso=semana_iso_atual,
+            ano=ano_atual,
+        ).filter(
+            models.Q(tarefa_modelo__dia_da_semana=dia_hoje_key) |
+            models.Q(dia_avulso=dia_hoje_key)
+        ).select_related('tarefa_modelo')
+
+        ids_atrasadas = []
+        for execucao in execucoes_hoje:
+            # Determina o prazo efetivo da execução
+            if execucao.prazo:
+                # Tem prazo individual definido — usa prazo + margem
+                prazo_efetivo = execucao.prazo + MARGEM
+            else:
+                # Sem prazo individual — usa horário padrão do período
+                periodo = execucao.periodo_key  # 'manha' ou 'tarde'
+                if periodo == 'manha':
+                    hora_limite = datetime.time(12, 30)  # 12:30
+                elif periodo == 'tarde':
+                    hora_limite = datetime.time(18, 30)  # 18:30
+                else:
+                    continue  # período desconhecido — pula
+
+                # Combina data de hoje com hora-limite (timezone-aware)
+                prazo_efetivo = timezone.make_aware(
+                    datetime.datetime.combine(agora.date(), hora_limite)
+                )
+
+            if agora > prazo_efetivo:
+                ids_atrasadas.append(execucao.id)
+
+        if ids_atrasadas:
+            ExecucaoTarefaAdministrativa.objects.filter(
+                id__in=ids_atrasadas
+            ).update(status=StatusExecucao.ATRASADA)
+
+    # ── 4. DESMARCAR atrasadas que não deveriam estar atrasadas
+    # Espelha a lógica dos blocos anteriores, mas no sentido inverso.
+    # IMPORTANTE: nunca desmarca atrasadas de semanas passadas (imutáveis por BR5).
+
+    # 4a. Semanas FUTURAS — toda execução atrasada vira pendente
+    ExecucaoTarefaAdministrativa.objects.filter(
+        status=StatusExecucao.ATRASADA,
+    ).filter(
+        models.Q(ano__gt=ano_atual) |
+        models.Q(ano=ano_atual, semana_iso__gt=semana_iso_atual)
+    ).update(status=StatusExecucao.PENDENTE)
+
+    # 4b. Semana ATUAL — dias FUTUROS (depois de hoje) — vira pendente
+    dias_futuros = [dia for dia, idx in DIAS_ORDEM.items() if idx > hoje_idx]
+
+    if dias_futuros:
+        ExecucaoTarefaAdministrativa.objects.filter(
+            status=StatusExecucao.ATRASADA,
+            semana_iso=semana_iso_atual,
+            ano=ano_atual,
+        ).filter(
+            models.Q(tarefa_modelo__dia_da_semana__in=dias_futuros) |
+            models.Q(dia_avulso__in=dias_futuros)
+        ).update(status=StatusExecucao.PENDENTE)
+
+    # 4c. Semana ATUAL — DIA DE HOJE com horário-limite ainda NÃO passou
+    if dia_hoje_key:
+        execucoes_hoje_atrasadas = ExecucaoTarefaAdministrativa.objects.filter(
+            status=StatusExecucao.ATRASADA,
+            semana_iso=semana_iso_atual,
+            ano=ano_atual,
+        ).filter(
+            models.Q(tarefa_modelo__dia_da_semana=dia_hoje_key) |
+            models.Q(dia_avulso=dia_hoje_key)
+        ).select_related('tarefa_modelo')
+
+        ids_desmarcar = []
+        for execucao in execucoes_hoje_atrasadas:
+            # Recalcula o prazo efetivo
+            if execucao.prazo:
+                prazo_efetivo = execucao.prazo + MARGEM
+            else:
+                periodo = execucao.periodo_key
+                if periodo == 'manha':
+                    hora_limite = datetime.time(12, 30)
+                elif periodo == 'tarde':
+                    hora_limite = datetime.time(18, 30)
+                else:
+                    continue
+
+                prazo_efetivo = timezone.make_aware(
+                    datetime.datetime.combine(agora.date(), hora_limite)
+                )
+
+            # Se ainda NÃO passou do prazo, volta pra pendente
+            if agora <= prazo_efetivo:
+                ids_desmarcar.append(execucao.id)
+
+        if ids_desmarcar:
+            ExecucaoTarefaAdministrativa.objects.filter(
+                id__in=ids_desmarcar
+            ).update(status=StatusExecucao.PENDENTE)
 
 
 def detalhe_tarefa_divisao(tarefa_id):
