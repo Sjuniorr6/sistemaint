@@ -1,4 +1,4 @@
-<div class="sca-tarefa {% if execucao.is_done %}concluida{% endif %} {% if execucao.status == 'cancelada' %}d-none{% endif %}"
+<div class="sca-tarefa {% if execucao.is_done %}concluida{% elif execucao.status == 'atrasada' %}atrasada{% endif %} {% if execucao.status == 'cancelada' %}d-none{% endif %}"
      data-id="{{ execucao.id }}"
      onclick="abrirModal({{ execucao.id }})">
 
