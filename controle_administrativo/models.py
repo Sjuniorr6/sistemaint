@@ -182,6 +182,11 @@ class ExecucaoTarefaAdministrativa(models.Model):
         verbose_name='Responsável (avulso)'
     )
     is_avulsa = models.BooleanField(default=False, verbose_name='Tarefa avulsa')
+    oculta    = models.BooleanField(
+        default=False,
+        verbose_name='Oculta',
+        help_text='Quando True, esta execução é ignorada no painel (soft delete). Usado quando uma tarefa recorrente é desativada.'
+    )
 
     # Campos comuns
     semana_iso = models.PositiveIntegerField(verbose_name='Semana ISO')
@@ -462,6 +467,11 @@ class TarefaDivisao(models.Model):
     )
     is_done     = models.BooleanField(default=False, verbose_name='Concluída')
     is_fixo     = models.BooleanField(default=False, verbose_name='Item fixo')
+    oculta      = models.BooleanField(
+        default=False,
+        verbose_name='Oculta',
+        help_text='Quando True, esta tarefa é ignorada no painel (soft delete). Usado ao excluir tarefas fixas para evitar recriação automática.'
+    )
     prazo       = models.DateField(null=True, blank=True, verbose_name='Prazo')
     ordem       = models.PositiveIntegerField(default=0, verbose_name='Ordem')
     criado_em   = models.DateTimeField(auto_now_add=True)

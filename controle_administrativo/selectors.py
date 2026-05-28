@@ -37,6 +37,7 @@ def get_execucoes_da_semana(semana_iso, ano, user=None):
     execucoes = ExecucaoTarefaAdministrativa.objects.filter(
         semana_iso=semana_iso,
         ano=ano,
+        oculta=False,
     ).select_related(
         'tarefa_modelo',
         'tarefa_modelo__responsavel',
@@ -104,6 +105,7 @@ def get_resumo_semana(semana_iso, ano):
     execucoes = ExecucaoTarefaAdministrativa.objects.filter(
         semana_iso=semana_iso,
         ano=ano,
+        oculta=False,
     ).exclude(status='cancelada')
 
     total = execucoes.count()

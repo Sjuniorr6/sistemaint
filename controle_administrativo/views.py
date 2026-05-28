@@ -109,10 +109,11 @@ def painel(request, semana_iso=None, ano=None):
             funcionario=func,
             semana_iso=semana_iso,
             ano=ano,
+            oculta=False,
         ).order_by('ordem', 'criado_em'))
         funcionarios_com_tarefas.append({
-            'funcionario':          func,
-            'tarefas_divisao':      tarefas,
+            'funcionario':           func,
+            'tarefas_divisao':       tarefas,
             'tarefas_divisao_hoje':  [t for t in tarefas if t.tipo == 'hoje'],
             'tarefas_divisao_semana':[t for t in tarefas if t.tipo == 'semana'],
             'tarefas_divisao_mensal':[t for t in tarefas if t.tipo == 'mensal'],
@@ -552,13 +553,14 @@ def historico(request, semana_iso=None, ano=None):
     funcionarios = get_funcionarios_ativos()
     resumo       = get_resumo_semana(semana_iso, ano)
 
-    # Tarefas da divisão por funcionário
+    # Tarefas da divisão por funcionário — lista de dicts para o template
     funcionarios_com_tarefas = []
     for func in funcionarios:
         tarefas = list(TarefaDivisao.objects.filter(
             funcionario=func,
             semana_iso=semana_iso,
             ano=ano,
+            oculta=False,
         ).order_by('ordem', 'criado_em'))
         funcionarios_com_tarefas.append({
             'funcionario':           func,

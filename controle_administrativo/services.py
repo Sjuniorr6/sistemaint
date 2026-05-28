@@ -323,6 +323,7 @@ def _copiar_tarefas_divisao_fixas(semana_iso, ano):
         semana_iso = semana_ant,
         ano        = ano_ant,
         is_fixo    = True,
+        oculta     = False,   # não copia tarefas que foram soft-deleted
     )
 
     for tarefa in tarefas_fixas:
@@ -336,6 +337,22 @@ def _copiar_tarefas_divisao_fixas(semana_iso, ano):
         ).exists()
 
         if ja_existe:
+            continue
+
+        # Verifica se a tarefa fixa equivalente foi excluída em QUALQUER
+        # semana >= à anterior que estamos copiando. Isso captura o caso:
+        # usuário excluiu na sem 22, vamos copiar da 21 para 22 de novo.
+        foi_excluida = TarefaDivisao.objects.filter(
+            funcionario = tarefa.funcionario,
+            conteudo    = tarefa.conteudo,
+            is_fixo     = True,
+            oculta      = True,
+        ).filter(
+            models.Q(ano__gt=tarefa.ano) |
+            models.Q(ano=tarefa.ano, semana_iso__gt=tarefa.semana_iso)
+        ).exists()
+
+        if foi_excluida:
             continue
 
         ultimo = TarefaDivisao.objects.filter(
@@ -546,7 +563,17 @@ def editar_tarefa_divisao(tarefa_id, conteudo):
 
 
 def excluir_tarefa_divisao(tarefa_id):
-    """Exclui uma tarefa da divisão."""
+    """
+    Exclui (soft delete) uma tarefa da divisão.
+
+    O que faz:
+      1. Marca oculta=True na tarefa
+      2. Se a tarefa é FIXA, marca oculta=True também em todas as versões
+         FUTURAS (mesmo conteúdo + funcionário + is_fixo=True) já geradas
+         para evitar que apareçam nas próximas semanas
+
+    Semanas passadas: imutáveis (não são tocadas)
+    """
     from .models import TarefaDivisao
 
     try:
@@ -554,7 +581,21 @@ def excluir_tarefa_divisao(tarefa_id):
     except TarefaDivisao.DoesNotExist:
         raise ValueError('Tarefa não encontrada.')
 
-    tarefa.delete()
+    # Marca a tarefa atual como oculta (soft delete)
+    tarefa.oculta = True
+    tarefa.save()
+
+    # Se é fixa, propaga oculta=True para semanas FUTURAS
+    if tarefa.is_fixo:
+        TarefaDivisao.objects.filter(
+            funcionario = tarefa.funcionario,
+            conteudo    = tarefa.conteudo,
+            is_fixo     = True,
+            oculta      = False,
+        ).filter(
+            models.Q(ano__gt=tarefa.ano) |
+            models.Q(ano=tarefa.ano, semana_iso__gt=tarefa.semana_iso)
+        ).update(oculta=True)
 
 
 def get_tarefas_divisao(semana_iso, ano):
