@@ -1284,7 +1284,22 @@
       method: 'POST', headers: { 'X-CSRFToken': CSRF },
     }).then(r => r.json()).then(data => {
       if (!data.success) { alert(data.error); return; }
-      document.getElementById(`item-bloco-${itemId}`).remove();
+
+      // Pega o container ANTES de remover, pra saber se sobrou algum item depois
+      const itemEl    = document.getElementById(`item-bloco-${itemId}`);
+      const container = itemEl ? itemEl.parentElement : null;  // itens-bloco-X
+      if (itemEl) itemEl.remove();
+
+      // Se o bloco ficou sem itens, recoloca o placeholder "Nenhum item."
+      if (container && !container.querySelector('.sca-bloco-item')) {
+        const blocoId = container.id.replace('itens-bloco-', '');
+        const placeholder = document.createElement('small');
+        placeholder.className      = 'text-muted';
+        placeholder.style.fontSize = '0.62rem';
+        placeholder.id             = `vazio-bloco-${blocoId}`;
+        placeholder.textContent    = 'Nenhum item.';
+        container.appendChild(placeholder);
+      }
     });
   }
 
@@ -1435,7 +1450,20 @@
       method: 'POST', headers: { 'X-CSRFToken': CSRF },
     }).then(r => r.json()).then(data => {
       if (!data.success) { alert(data.error); return; }
-      document.getElementById(`divisao-tarefa-${tarefaId}`).remove();
+
+      // Pega a lista ANTES de remover, pra saber se sobrou alguma tarefa depois
+      const tarefaEl  = document.getElementById(`divisao-tarefa-${tarefaId}`);
+      const container = tarefaEl ? tarefaEl.parentElement : null;  // divisao-lista-{tipo}-{funcId}
+      if (tarefaEl) tarefaEl.remove();
+
+      // Se a lista ficou sem tarefas, recoloca o placeholder "Nenhuma tarefa ainda."
+      if (container && !container.querySelector('.sca-divisao-item')) {
+        const placeholder = document.createElement('small');
+        placeholder.style.fontSize = '0.62rem';
+        placeholder.style.color    = '#888';
+        placeholder.textContent    = 'Nenhuma tarefa ainda.';
+        container.appendChild(placeholder);
+      }
     });
   }
 
