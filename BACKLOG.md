@@ -147,3 +147,31 @@ M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → M10
 - [ ] Exportação Excel via Celery (tarefa em background)
 - [ ] Gestão de tarefas recorrentes (CRUD) para o gestor
 - [ ] Definição do papel do gestor no sistema
+  
+
+  ---
+
+  ## ⏳ MÓDULO 11 — Bug fixes pós-feedback (sessão 2026-05-27 / 2026-05-29)
+> Após uso real, identificados ajustes de comportamento
+
+- [x] Bug: tarefas excluídas no bloco dos funcionários voltavam ao F5 (TarefaDivisao)
+  - Causa raiz: bytecode antigo no `__pycache__`. Fix do `oculta=False` já estava no disco mas Python rodava versão compilada anterior.
+  - Solução: limpar `__pycache__` + reiniciar servidor. Código já estava correto.
+  - Commit: `90debe6` — `fix(sca): exclusao de tarefas fixas persiste corretamente em todas as semanas`
+
+- [x] Bug: excluir tarefa recorrente não removia ela das semanas futuras (ExecucaoTarefaAdministrativa)
+  - Causa: `excluir_execucao` só marcava status=cancelada, não desativava o modelo nem ocultava futuras
+  - Solução: função privada `_desativar_modelo_e_ocultar_futuras` reutilizada por `excluir_execucao` e `converter_para_avulsa`
+  - Confirm() do painel agora diferencia tarefa avulsa de recorrente
+  - Commit: `860f49b` — `fix(sca): excluir tarefa recorrente desativa modelo e oculta semanas futuras`
+
+- [ ] Prevenção de duplicatas de TarefaModeloAdministrativa
+  - Hoje o sistema permite criar 2 modelos com mesmo título+dia+período+ativo=True
+  - Implementar verificação em `criar_tarefa_recorrente` e `converter_para_recorrente` (services.py)
+  - Critério de duplicata: título + dia + período + ativo=True
+  - Ação ao detectar: levantar ValueError (frontend já trata via try/except no views.py)
+
+- [ ] Naive datetime warning ao criar tarefa com prazo
+  - `views.py` função `criar_tarefa` cria datetime naive ao processar `prazo_str`
+  - Mesmo pattern já corrigido em `atualizar_execucao` (commit 2e5346b)
+  - Aplicar `timezone.make_aware()` igual feito naquele
