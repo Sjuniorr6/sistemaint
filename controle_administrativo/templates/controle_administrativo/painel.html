@@ -345,6 +345,14 @@
   }
 
   .form-control-sca:focus { background: #2a2a40; border-color: var(--gold-dark); color: var(--text-light); box-shadow: none; }
+
+  /* Placeholder dos campos dos modais — cinza legível, igual aos demais textos */
+  .form-control-sca::placeholder { color: var(--text-muted); opacity: 1; }
+
+  /* Texto "Nenhum comentário ainda." dos modais — mesmo cinza */
+  #modal-comentarios .text-muted,
+  #modal-item-comentarios .text-muted,
+  #modal-divisao-comentarios .text-muted { color: var(--text-muted) !important; }
   .form-label-sca { color: var(--text-muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem; }
 
   .tipo-tarefa-btn {
