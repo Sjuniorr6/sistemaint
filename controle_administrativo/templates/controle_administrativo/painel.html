@@ -1122,9 +1122,31 @@
       document.getElementById('pct-detalhe').textContent  = `(${data.concluidas}/${data.total})`;
     });
   }
+
   function excluirTarefa(execucaoId, el) {
     event.stopPropagation();
-    if (!confirm('Excluir esta tarefa?')) return;
+
+    // Detecta se a tarefa é recorrente: procura o ícone de setas (bi-arrow-repeat)
+    // dentro do card da tarefa. Se existir, é recorrente.
+    const card = el.closest('.sca-tarefa');
+    const eRecorrente = card && card.querySelector('.bi-arrow-repeat') !== null;
+
+    let mensagem;
+    if (eRecorrente) {
+      mensagem =
+        'Atenção! Você está excluindo uma tarefa RECORRENTE.\n\n' +
+        'Isso vai:\n' +
+        '• Cancelar esta tarefa nesta semana\n' +
+        '• Desativar o modelo recorrente (não será mais gerada automaticamente)\n' +
+        '• Ocultar esta tarefa em todas as semanas futuras\n\n' +
+        'Semanas passadas serão preservadas no histórico.\n\n' +
+        'Tem certeza?';
+    } else {
+      mensagem = 'Excluir esta tarefa desta semana?';
+    }
+
+    if (!confirm(mensagem)) return;
+
     fetch(`/controle-administrativo/execucao/${execucaoId}/excluir/`, {
       method: 'POST', headers: { 'X-CSRFToken': CSRF },
     }).then(r => r.json()).then(data => {

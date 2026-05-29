@@ -192,15 +192,33 @@ def converter_para_avulsa(execucao_id, user):
     execucao.atualizado_por     = user
     execucao.save()
 
-    # Desativa o modelo recorrente — para de gerar nas próximas semanas
-    modelo.ativo = False
-    modelo.save()
+    # Desativa o modelo recorrente + oculta execuções futuras
+    # (regra centralizada em _desativar_modelo_e_ocultar_futuras)
+    _desativar_modelo_e_ocultar_futuras(modelo)
 
-    # Oculta execuções FUTURAS vinculadas ao modelo (soft delete)
-    # Considera futura: ano > ano_atual OU (ano == ano_atual E semana > semana_atual)
+    return execucao
+
+
+def _desativar_modelo_e_ocultar_futuras(modelo):
+    """
+    Função privada — centraliza a regra "esta tarefa recorrente nao deve mais existir
+    daqui pra frente". Usada quando o usuario exclui ou converte uma recorrente.
+
+    O que faz:
+      1. Desativa o modelo recorrente (ativo=False) → para de gerar execuções nas
+         próximas semanas que ainda nao foram visitadas
+      2. Oculta (oculta=True) todas as execuções FUTURAS já geradas vinculadas ao
+         modelo, para que sumam do painel das próximas semanas
+
+    Semanas PASSADAS: nunca tocadas (BR5 — historico imutavel).
+    Semana ATUAL: nao tocada por esta funcao — quem chama decide o que fazer com ela.
+    """
     hoje         = timezone.now().date()
     semana_atual = hoje.isocalendar()[1]
     ano_atual    = hoje.year
+
+    modelo.ativo = False
+    modelo.save()
 
     ExecucaoTarefaAdministrativa.objects.filter(
         tarefa_modelo=modelo,
@@ -208,8 +226,6 @@ def converter_para_avulsa(execucao_id, user):
         models.Q(ano__gt=ano_atual) |
         models.Q(ano=ano_atual, semana_iso__gt=semana_atual)
     ).update(oculta=True)
-
-    return execucao
 
 
 def marcar_comentarios_lidos(execucao, user):
@@ -250,6 +266,11 @@ def excluir_execucao(execucao_id, user):
         execucao.status        = StatusExecucao.CANCELADA
         execucao.atualizado_por = user
         execucao.save()
+
+        # Recorrente: tambem desativa o modelo + oculta execucoes futuras
+        # (mesma regra usada em converter_para_avulsa)
+        if execucao.tarefa_modelo:
+            _desativar_modelo_e_ocultar_futuras(execucao.tarefa_modelo)
 
 
 def _copiar_itens_fixos_bloco(bloco_atual, semana_anterior, ano_anterior):
