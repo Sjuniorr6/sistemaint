@@ -1260,6 +1260,26 @@
   }
 
   function excluirItemBloco(itemId) {
+    // Detecta se o item é fixo: o pin dourado existe sempre no DOM,
+    // mas fica com display:none quando o item NÃO é fixo.
+    const pin   = document.getElementById('pin-item-' + itemId);
+    const eFixo = pin && pin.style.display !== 'none';
+
+    let mensagem;
+    if (eFixo) {
+      mensagem =
+        'Atenção! Este é um item FIXO.\n\n' +
+        'Isso vai:\n' +
+        '• Remover o item desta semana\n' +
+        '• Parar de copiá-lo automaticamente para as próximas semanas\n\n' +
+        'Semanas passadas não são afetadas.\n\n' +
+        'Tem certeza?';
+    } else {
+      mensagem = 'Excluir este item do bloco?';
+    }
+
+    if (!confirm(mensagem)) return;
+
     fetch(`/controle-administrativo/bloco/item/${itemId}/excluir/`, {
       method: 'POST', headers: { 'X-CSRFToken': CSRF },
     }).then(r => r.json()).then(data => {
@@ -1391,6 +1411,26 @@
   }
 
   function excluirTarefaDivisao(tarefaId) {
+    // Detecta se a tarefa é fixa: o pin dourado existe sempre no DOM,
+    // mas fica com display:none quando a tarefa NÃO é fixa.
+    const pin   = document.getElementById('pin-divisao-' + tarefaId);
+    const eFixo = pin && pin.style.display !== 'none';
+
+    let mensagem;
+    if (eFixo) {
+      mensagem =
+        'Atenção! Esta é uma tarefa FIXA.\n\n' +
+        'Isso vai:\n' +
+        '• Remover a tarefa desta semana\n' +
+        '• Parar de copiá-la automaticamente para as próximas semanas\n\n' +
+        'Semanas passadas não são afetadas.\n\n' +
+        'Tem certeza?';
+    } else {
+      mensagem = 'Excluir esta tarefa do funcionário?';
+    }
+
+    if (!confirm(mensagem)) return;
+
     fetch(`/controle-administrativo/divisao/tarefa/${tarefaId}/excluir/`, {
       method: 'POST', headers: { 'X-CSRFToken': CSRF },
     }).then(r => r.json()).then(data => {
