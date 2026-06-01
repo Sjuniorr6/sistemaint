@@ -82,8 +82,8 @@ class BlocoSemanalAdmin(admin.ModelAdmin):
 
 @admin.register(ItemBlocoSemanal)
 class ItemBlocoSemanalAdmin(admin.ModelAdmin):
-    list_display  = ['conteudo', 'bloco', 'is_fixo', 'is_done', 'ordem']
-    list_filter   = ['is_fixo', 'is_done']
+    list_display  = ['conteudo', 'bloco', 'is_fixo', 'is_done', 'oculta', 'ordem']
+    list_filter   = ['is_fixo', 'is_done', 'oculta']
     search_fields = ['conteudo']
 
 
