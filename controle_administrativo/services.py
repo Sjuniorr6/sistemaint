@@ -278,6 +278,11 @@ def _copiar_itens_fixos_bloco(bloco_atual, semana_anterior, ano_anterior):
     Copia itens com is_fixo=True do bloco equivalente da semana anterior
     para o bloco atual. Idempotente — não duplica se o conteúdo já existe.
 
+    Respeita soft-delete (espelha _copiar_tarefas_divisao_fixas):
+    - Não copia itens de origem que estão ocultos (oculta=True).
+    - Não re-copia um item fixo que foi excluído (oculta=True) em qualquer
+      semana posterior à de origem.
+
     Função interna — chamada apenas por gerar_blocos_semana.
     """
     from .models import BlocoSemanal, ItemBlocoSemanal
@@ -296,9 +301,12 @@ def _copiar_itens_fixos_bloco(bloco_atual, semana_anterior, ano_anterior):
     itens_fixos = ItemBlocoSemanal.objects.filter(
         bloco   = bloco_anterior,
         is_fixo = True,
+        oculta  = False,   # não copia itens que foram soft-deleted na origem
     )
 
-    # Conteúdos que já existem no bloco atual (para idempotência)
+    # Conteúdos que já existem no bloco atual (para idempotência).
+    # Inclui itens ocultos de propósito: se o usuário excluiu um item nesta
+    # mesma semana, ele continua no banco com oculta=True e não deve voltar.
     conteudos_existentes = set(
         ItemBlocoSemanal.objects.filter(bloco=bloco_atual).values_list('conteudo', flat=True)
     )
@@ -308,7 +316,22 @@ def _copiar_itens_fixos_bloco(bloco_atual, semana_anterior, ano_anterior):
 
     for item in itens_fixos:
         if item.conteudo in conteudos_existentes:
-            continue  # Já existe — não duplica
+            continue  # Já existe (visível ou oculto) — não duplica
+
+        # Se este item fixo foi excluído (oculta=True) em QUALQUER semana
+        # posterior à de origem, o usuário não quer mais ele — não re-copia.
+        foi_excluida = ItemBlocoSemanal.objects.filter(
+            bloco__tipo = bloco_atual.tipo,
+            conteudo    = item.conteudo,
+            is_fixo     = True,
+            oculta      = True,
+        ).filter(
+            models.Q(bloco__ano__gt=ano_anterior) |
+            models.Q(bloco__ano=ano_anterior, bloco__semana_iso__gt=semana_anterior)
+        ).exists()
+
+        if foi_excluida:
+            continue
 
         ItemBlocoSemanal.objects.create(
             bloco       = bloco_atual,
@@ -418,10 +441,11 @@ def gerar_blocos_semana(semana_iso, ano, user):
             ano        = ano,
             defaults   = {'criado_por': user}
         )
-        # Copia itens fixos apenas quando o bloco acabou de ser criado
-        # (se já existia, os itens já foram copiados na primeira chamada)
-        if criado:
-            _copiar_itens_fixos_bloco(bloco, semana_ant, ano_ant)
+        # Copia os itens fixos SEMPRE — não só quando o bloco nasce.
+        # A função é idempotente e respeita soft-delete (oculta), então rodar
+        # em toda visita propaga itens recém-fixados para semanas já existentes,
+        # sem duplicar e sem ressuscitar itens excluídos de propósito.
+        _copiar_itens_fixos_bloco(bloco, semana_ant, ano_ant)
 
     # Copia tarefas da divisão com is_fixo=True da semana anterior
     _copiar_tarefas_divisao_fixas(semana_iso, ano)
@@ -478,7 +502,18 @@ def toggle_item_bloco(item_id):
 
 
 def excluir_item_bloco(item_id):
-    """Exclui um item de um bloco semanal."""
+    """
+    Exclui (soft delete) um item de um bloco semanal.
+
+    O que faz:
+      1. Marca oculta=True no item da semana onde foi excluído.
+      2. Se o item é FIXO, marca oculta=True também em todas as cópias
+         FUTURAS (mesmo conteúdo + mesmo tipo de bloco + is_fixo=True) já
+         geradas, para que sumam das próximas semanas.
+
+    Semanas passadas: imutáveis — nunca são tocadas (BR5).
+    Espelha o comportamento de excluir_tarefa_divisao.
+    """
     from .models import ItemBlocoSemanal
 
     try:
@@ -486,7 +521,21 @@ def excluir_item_bloco(item_id):
     except ItemBlocoSemanal.DoesNotExist:
         raise ValueError('Item não encontrado.')
 
-    item.delete()
+    # Marca o item da semana atual como oculto (soft delete)
+    item.oculta = True
+    item.save()
+
+    # Se é fixo, propaga oculta=True para as semanas FUTURAS já geradas
+    if item.is_fixo:
+        ItemBlocoSemanal.objects.filter(
+            bloco__tipo = item.bloco.tipo,
+            conteudo    = item.conteudo,
+            is_fixo     = True,
+            oculta      = False,
+        ).filter(
+            models.Q(bloco__ano__gt=item.bloco.ano) |
+            models.Q(bloco__ano=item.bloco.ano, bloco__semana_iso__gt=item.bloco.semana_iso)
+        ).update(oculta=True)
 
 
 def adicionar_comentario_item_bloco(item_id, conteudo, user):

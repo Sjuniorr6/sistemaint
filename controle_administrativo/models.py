@@ -388,6 +388,11 @@ class ItemBlocoSemanal(models.Model):
         help_text='Itens fixos são copiados automaticamente para a semana seguinte'
     )
     is_done      = models.BooleanField(default=False, verbose_name='Concluído')
+    oculta       = models.BooleanField(
+        default=False,
+        verbose_name='Oculto',
+        help_text='Soft-delete: item escondido do painel, não apagado fisicamente'
+    )
     ordem        = models.PositiveIntegerField(default=0, verbose_name='Ordem')
     responsavel  = models.ForeignKey(
         FuncionarioAdministrativo,

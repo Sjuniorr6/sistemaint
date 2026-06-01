@@ -81,16 +81,22 @@ def get_execucoes_da_semana(semana_iso, ano, user=None):
 
 
 def get_blocos_da_semana(semana_iso, ano):
-    from .models import TipoBloco
+    from .models import TipoBloco, ItemBlocoSemanal
+    from django.db.models import Prefetch
     ORDEM = {
         TipoBloco.NAO_ESQUECER: 0,
         TipoBloco.QUINZENAL:    1,
         TipoBloco.MENSAL:       2,
     }
+    # Só traz itens visíveis (oculta=False). Itens soft-deleted continuam no
+    # banco para o copiador respeitar as exclusões, mas não aparecem no painel.
+    itens_visiveis = ItemBlocoSemanal.objects.filter(oculta=False)
     blocos = list(BlocoSemanal.objects.filter(
         semana_iso=semana_iso,
         ano=ano,
-    ).prefetch_related('itens'))
+    ).prefetch_related(
+        Prefetch('itens', queryset=itens_visiveis)
+    ))
     blocos.sort(key=lambda b: ORDEM.get(b.tipo, 99))
     return blocos
 
