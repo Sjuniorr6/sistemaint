@@ -394,6 +394,61 @@ body {
         grid-template-columns: 1fr !important;
     }
 }
+
+/* ============================================================
+   SPEC 1.0 – Coluna "Concluído": máximo ~5 cards visíveis,
+   restante acessível via scroll vertical interno.
+   Aplicado SOMENTE à coluna Concluído (data-status="concluido");
+   as demais colunas mantêm o comportamento existente.
+   ============================================================ */
+.kanban-cards[data-status="concluido"] {
+    max-height: calc(5 * 250px + 4 * 15px); /* ~5 cards + gaps; ajustar conforme altura real */
+    overflow-y: auto;
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+}
+
+/* ============================================================
+   SPEC 2.0 – Header auto-hide (somente na página Kanban TI).
+   O header real do sistema é .header-bottom (components/_header.html).
+   Este CSS é carregado apenas nesta página, portanto NÃO afeta
+   o header nas demais telas.
+   ============================================================ */
+.header-bottom {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1100;
+    transform: translateY(-100%);
+    transition: transform 0.25s ease;
+    /* mantém todos os estilos visuais existentes do header */
+}
+
+.header-bottom:hover,
+.header-bottom.visivel {
+    transform: translateY(0);
+}
+
+/* Zona de gatilho invisível no topo da tela */
+#header-trigger {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 8px;
+    z-index: 1101;
+    cursor: default;
+}
+
+/* O kanban acompanha o header: ocupa a tela inteira quando oculto
+   e desce suavemente quando o header é revelado */
+.kanban-page {
+    transition: padding-top 0.25s ease;
+}
+.kanban-page.com-header {
+    padding-top: calc(20px + var(--header-altura, 60px)) !important;
+}
 </style>
 
 <div class="kanban-page">
@@ -1247,6 +1302,40 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Inicializa estatísticas
     atualizarEstatisticas();
+
+    // ===== SPEC 2.0 – HEADER AUTO-HIDE =====
+    // Revela o header (.header-bottom) ao passar o mouse no topo da tela
+    // e o oculta novamente ao tirar o mouse. Sai silenciosamente se não
+    // encontrar o header.
+    (function () {
+        const header = document.querySelector('.header-bottom');
+        if (!header) return;
+
+        const page = document.querySelector('.kanban-page');
+
+        // Cria a zona de gatilho no topo se ainda não existir
+        let trigger = document.getElementById('header-trigger');
+        if (!trigger) {
+            trigger = document.createElement('div');
+            trigger.id = 'header-trigger';
+            document.body.prepend(trigger);
+        }
+
+        function mostrar() {
+            // mede a altura real do header para o espaçamento do kanban
+            document.documentElement.style.setProperty('--header-altura', header.offsetHeight + 'px');
+            header.classList.add('visivel');
+            page && page.classList.add('com-header');
+        }
+
+        function ocultar() {
+            header.classList.remove('visivel');
+            page && page.classList.remove('com-header');
+        }
+
+        trigger.addEventListener('mouseenter', mostrar);
+        header.addEventListener('mouseleave', ocultar);
+    }());
 });
 </script>
 
