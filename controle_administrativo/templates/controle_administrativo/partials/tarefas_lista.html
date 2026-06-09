@@ -1,0 +1,174 @@
+{# Template parcial — SEM extends, SEM block, SEM base. #}
+{# Conteúdo interno de .sca-main (sidebar de blocos + coluna de dias + divisão). #}
+{# Atualizado pelo HTMX ao receber o evento SSE 'tarefas_atualizadas'. #}
+{# IMPORTANTE: este é exatamente o mesmo HTML que já existia na página principal, #}
+{# apenas extraído para um arquivo separado — não redesenhar, não alterar visual. #}
+
+    <!-- ─── SIDEBAR ─── -->
+    <div class="sca-sidebar">
+      {% for bloco in blocos %}
+      <div class="sca-bloco" id="bloco-{{ bloco.id }}">
+        <div class="sca-bloco-titulo">
+          <span>
+            {% if bloco.tipo == 'nao_esquecer' %}<i class="bi bi-bell-fill me-1"></i>Não Esquecer
+            {% elif bloco.tipo == 'quinzenal' %}<i class="bi bi-calendar2-week me-1"></i>Quinzenal
+            {% else %}<i class="bi bi-calendar-month me-1"></i>Mensal{% endif %}
+          </span>
+          {% if perfil_usuario != 'gestor' %}
+          <button class="btn-add-bloco" onclick="abrirModalCriarItemBloco({{ bloco.id }})" title="Adicionar item">
+            <i class="bi bi-plus-lg"></i>
+          </button>
+          {% endif %}
+        </div>
+
+        <div id="itens-bloco-{{ bloco.id }}">
+          {% for item in bloco.itens.all %}
+          <div class="sca-bloco-item" id="item-bloco-{{ item.id }}">
+            <div class="sca-check {% if item.is_done %}checked{% endif %}"
+                 onclick="toggleItemBloco({{ item.id }}, this)">
+              <i class="bi bi-check"></i>
+            </div>
+            <span id="texto-item-{{ item.id }}"
+                  style="cursor:pointer;{% if item.is_done %}text-decoration:line-through;color:var(--text-muted){% endif %}"
+                  onclick="abrirModalItem({{ item.id }})">
+              {{ item.conteudo }}
+            </span>
+            {% if item.is_fixo %}
+            <i class="bi bi-pin-fill" id="pin-item-{{ item.id }}" style="color:var(--gold-dark);font-size:0.6rem;flex-shrink:0;" title="Item fixo"></i>
+            {% else %}
+            <i class="bi bi-pin-fill" id="pin-item-{{ item.id }}" style="color:var(--gold-dark);font-size:0.6rem;flex-shrink:0;display:none;" title="Item fixo"></i>
+            {% endif %}
+            <i class="bi bi-x sca-item-excluir" onclick="excluirItemBloco({{ item.id }})"></i>
+          </div>
+          {% empty %}
+          <small class="text-muted" style="font-size:0.62rem;" id="vazio-bloco-{{ bloco.id }}">Nenhum item.</small>
+          {% endfor %}
+        </div>
+
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- ─── COLUNA DIREITA ─── -->
+    <div class="sca-right">
+
+      <!-- ─── DIAS ─── -->
+      <div class="sca-dias-wrapper">
+      <div class="sca-dias">
+        {% for dia_key, dia_nome in dias %}
+        <div class="sca-dia-col {% if dia_key == dia_atual %}dia-atual{% endif %}">
+          <div class="sca-dia-titulo">
+            {{ dia_nome }}{% if dia_key == dia_atual %} <span style="color:var(--gold);font-size:0.55rem;">● hoje</span>{% endif %}
+          </div>
+
+          <div class="sca-periodo-titulo"><i class="bi bi-brightness-high"></i> Manhã</div>
+          {% if dia_key == 'segunda' %}{% for execucao in execucoes.segunda.manha %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
+          {% elif dia_key == 'terca' %}{% for execucao in execucoes.terca.manha %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
+          {% elif dia_key == 'quarta' %}{% for execucao in execucoes.quarta.manha %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
+          {% elif dia_key == 'quinta' %}{% for execucao in execucoes.quinta.manha %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
+          {% elif dia_key == 'sexta' %}{% for execucao in execucoes.sexta.manha %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}{% endif %}
+
+          {% if perfil_usuario != 'gestor' %}
+          <button class="btn-add-tarefa" onclick="abrirModalCriar('{{ dia_key }}', 'manha')">
+            <i class="bi bi-plus"></i> tarefa
+          </button>
+          {% endif %}
+
+          <div class="sca-periodo-titulo"><i class="bi bi-moon-stars"></i> Tarde</div>
+          {% if dia_key == 'segunda' %}{% for execucao in execucoes.segunda.tarde %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
+          {% elif dia_key == 'terca' %}{% for execucao in execucoes.terca.tarde %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
+          {% elif dia_key == 'quarta' %}{% for execucao in execucoes.quarta.tarde %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
+          {% elif dia_key == 'quinta' %}{% for execucao in execucoes.quinta.tarde %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}
+          {% elif dia_key == 'sexta' %}{% for execucao in execucoes.sexta.tarde %}{% include 'controle_administrativo/componentes/card_tarefa.html' %}{% endfor %}{% endif %}
+
+          {% if perfil_usuario != 'gestor' %}
+          <button class="btn-add-tarefa" onclick="abrirModalCriar('{{ dia_key }}', 'tarde')">
+            <i class="bi bi-plus"></i> tarefa
+          </button>
+          {% endif %}
+
+        </div>
+        {% endfor %}
+      </div>
+      </div>
+
+      <!-- ─── DIVISÃO DE TAREFAS ─── -->
+      <div class="sca-divisao-wrapper">
+        {% for item in funcionarios_com_tarefas %}
+        {% if item.funcionario.perfil == 'operador' %}
+        <div class="sca-divisao">
+
+          <div class="sca-divisao-titulo">
+            <span><i class="bi bi-person-fill me-1"></i> {{ item.funcionario.nome }}</span>
+            {% if perfil_usuario != 'gestor' %}
+            <button class="btn-add-bloco" onclick="abrirModalNovaTarefaDivisao({{ item.funcionario.id }})" title="Adicionar tarefa">
+              <i class="bi bi-plus-lg"></i>
+            </button>
+            {% endif %}
+          </div>
+
+          <div class="sca-divisao-secao">Tarefas de hoje</div>
+          <div id="divisao-lista-hoje-{{ item.funcionario.id }}">
+            {% for tarefa in item.tarefas_divisao %}{% if tarefa.tipo == 'hoje' %}
+            <div class="sca-divisao-item" id="divisao-tarefa-{{ tarefa.id }}">
+              <i class="bi bi-circle" style="font-size:0.5rem;color:var(--gold-dark);flex-shrink:0;margin-top:2px;"></i>
+              <span id="divisao-texto-{{ tarefa.id }}" style="flex:1;cursor:pointer;"
+                    onclick="abrirDetalheTarefaDivisao({{ tarefa.id }})">{{ tarefa.conteudo }}</span>
+              {% if tarefa.prazo %}<small style="color:var(--text-muted);font-size:0.58rem;">{{ tarefa.prazo|date:"d/m/Y" }}</small>{% endif %}
+              {% if tarefa.is_fixo %}<i class="bi bi-pin-fill" id="pin-divisao-{{ tarefa.id }}" style="color:var(--gold-dark);font-size:0.6rem;flex-shrink:0;" title="Item fixo"></i>{% else %}<i class="bi bi-pin-fill" id="pin-divisao-{{ tarefa.id }}" style="color:var(--gold-dark);font-size:0.6rem;flex-shrink:0;display:none;" title="Item fixo"></i>{% endif %}
+              <i class="bi bi-x sca-item-excluir" onclick="excluirTarefaDivisao({{ tarefa.id }})"></i>
+            </div>
+            {% endif %}{% endfor %}
+            {% if not item.tarefas_divisao_hoje %}
+            <small style="font-size:0.62rem;color:#888;">Nenhuma tarefa ainda.</small>
+            {% endif %}
+          </div>
+
+          <div class="sca-divisao-secao">Tarefas da semana</div>
+          <div id="divisao-lista-semana-{{ item.funcionario.id }}">
+            {% for tarefa in item.tarefas_divisao %}{% if tarefa.tipo == 'semana' %}
+            <div class="sca-divisao-item" id="divisao-tarefa-{{ tarefa.id }}">
+              <i class="bi bi-circle" style="font-size:0.5rem;color:var(--gold-dark);flex-shrink:0;margin-top:2px;"></i>
+              <span id="divisao-texto-{{ tarefa.id }}" style="flex:1;cursor:pointer;"
+                    onclick="abrirDetalheTarefaDivisao({{ tarefa.id }})">{{ tarefa.conteudo }}</span>
+              {% if tarefa.prazo %}<small style="color:var(--text-muted);font-size:0.58rem;">{{ tarefa.prazo|date:"d/m/Y" }}</small>{% endif %}
+              {% if tarefa.is_fixo %}<i class="bi bi-pin-fill" id="pin-divisao-{{ tarefa.id }}" style="color:var(--gold-dark);font-size:0.6rem;flex-shrink:0;" title="Item fixo"></i>{% else %}<i class="bi bi-pin-fill" id="pin-divisao-{{ tarefa.id }}" style="color:var(--gold-dark);font-size:0.6rem;flex-shrink:0;display:none;" title="Item fixo"></i>{% endif %}
+              <i class="bi bi-x sca-item-excluir" onclick="excluirTarefaDivisao({{ tarefa.id }})"></i>
+            </div>
+            {% endif %}{% endfor %}
+            {% if not item.tarefas_divisao_semana %}
+            <small style="font-size:0.62rem;color:#888;">Nenhuma tarefa ainda.</small>
+            {% endif %}
+          </div>
+
+          <div class="sca-divisao-secao">Tarefas mensais</div>
+          <div id="divisao-lista-mensal-{{ item.funcionario.id }}">
+            {% for tarefa in item.tarefas_divisao %}{% if tarefa.tipo == 'mensal' %}
+            <div class="sca-divisao-item" id="divisao-tarefa-{{ tarefa.id }}">
+              <i class="bi bi-circle" style="font-size:0.5rem;color:var(--gold-dark);flex-shrink:0;margin-top:2px;"></i>
+              <span id="divisao-texto-{{ tarefa.id }}" style="flex:1;cursor:pointer;"
+                    onclick="abrirDetalheTarefaDivisao({{ tarefa.id }})">{{ tarefa.conteudo }}</span>
+              {% if tarefa.prazo %}<small style="color:var(--text-muted);font-size:0.58rem;">{{ tarefa.prazo|date:"d/m/Y" }}</small>{% endif %}
+              {% if tarefa.is_fixo %}<i class="bi bi-pin-fill" id="pin-divisao-{{ tarefa.id }}" style="color:var(--gold-dark);font-size:0.6rem;flex-shrink:0;" title="Item fixo"></i>{% else %}<i class="bi bi-pin-fill" id="pin-divisao-{{ tarefa.id }}" style="color:var(--gold-dark);font-size:0.6rem;flex-shrink:0;display:none;" title="Item fixo"></i>{% endif %}
+              <i class="bi bi-x sca-item-excluir" onclick="excluirTarefaDivisao({{ tarefa.id }})"></i>
+            </div>
+            {% endif %}{% endfor %}
+            {% if not item.tarefas_divisao_mensal %}
+            <small style="font-size:0.62rem;color:#888;">Nenhuma tarefa ainda.</small>
+            {% endif %}
+          </div>
+
+
+          <div class="sca-bloco-input" id="input-divisao-{{ item.funcionario.id }}">
+            <input type="text" placeholder="Nova tarefa..." id="texto-divisao-{{ item.funcionario.id }}"
+                   onkeydown="if(event.key==='Enter') salvarTarefaDivisao({{ item.funcionario.id }})">
+            <button onclick="salvarTarefaDivisao({{ item.funcionario.id }})"><i class="bi bi-check"></i></button>
+          </div>
+          <div style="font-size:0.58rem;color:var(--text-muted);margin-top:0.2rem;" id="prazo-divisao-{{ item.funcionario.id }}"></div>
+
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+
+    </div>

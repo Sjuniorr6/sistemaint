@@ -8,6 +8,12 @@ urlpatterns = [
     path('', views.painel, name='painel'),
     path('<int:semana_iso>/<int:ano>/', views.painel, name='painel_semana'),
 
+    # Atualização em tempo real via HTMX polling curto + versão (sem ASGI/Redis).
+    # Versão: endpoint leve chamado a cada 3s — devolve um hash do estado da semana.
+    path('tarefas/versao/<int:semana_iso>/<int:ano>/', views.tarefas_versao, name='tarefas_versao'),
+    # Parcial: só o bloco de tarefas (perfil do usuário logado), buscado quando a versão muda.
+    path('tarefas/partial/<int:semana_iso>/<int:ano>/', views.tarefas_partial, name='tarefas_partial'),
+
     # Histórico
     path('historico/', views.historico, name='historico'),
     path('historico/<int:semana_iso>/<int:ano>/', views.historico, name='historico_semana'),

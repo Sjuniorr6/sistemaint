@@ -4,6 +4,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.utils import timezone
 import zoneinfo
+import hashlib
 
 from .models import (
     ExecucaoTarefaAdministrativa,
@@ -11,6 +12,9 @@ from .models import (
     FuncionarioAdministrativo,
     StatusExecucao,
     TarefaDivisao,
+    ItemBlocoSemanal,
+    ComentarioItemBloco,
+    ComentarioTarefaDivisao,
 )
 from .selectors import (
     get_semana_atual,
@@ -59,20 +63,67 @@ def _semana_atual_check(semana_iso, ano):
     semana_atual, ano_atual = get_semana_atual()
     return semana_iso == semana_atual and ano == ano_atual
 
-@login_required
-def painel(request, semana_iso=None, ano=None):
-    semana_atual, ano_atual = get_semana_atual()
+def _versao_semana(semana_iso, ano):
+    """Hash leve do estado das tarefas da semana — muda a cada alteração.
 
-    if semana_iso is None or ano is None:
-        semana_iso = semana_atual
-        ano        = ano_atual
+    Usado pelo polling do HTMX (endpoint `tarefas_versao`) para detectar mudanças
+    feitas por outros usuários. Lê o banco, então é consistente entre os workers
+    do uwsgi e detecta criação, edição, conclusão e exclusão em todos os blocos do
+    painel — sem precisar de campo novo no model nem de ASGI/Redis.
+    """
+    semana_iso = int(semana_iso)
+    ano        = int(ano)
+    h = hashlib.md5()
+
+    for row in (ExecucaoTarefaAdministrativa.objects
+                .filter(semana_iso=semana_iso, ano=ano, oculta=False)
+                .order_by('id')
+                .values_list('id', 'is_done', 'status', 'prazo',
+                             'titulo_avulso', 'descricao_avulsa', 'atualizado_em')):
+        h.update(repr(row).encode())
+
+    for row in (ItemBlocoSemanal.objects
+                .filter(bloco__semana_iso=semana_iso, bloco__ano=ano, oculta=False)
+                .order_by('id')
+                .values_list('id', 'is_done', 'conteudo', 'prazo', 'is_fixo', 'responsavel_id')):
+        h.update(repr(row).encode())
+
+    for row in (TarefaDivisao.objects
+                .filter(semana_iso=semana_iso, ano=ano, oculta=False)
+                .order_by('id')
+                .values_list('id', 'is_done', 'conteudo', 'tipo', 'prazo', 'is_fixo')):
+        h.update(repr(row).encode())
+
+    # Contagem de comentários — detecta novos/excluídos (conteúdo só aparece no modal).
+    c1 = ComentarioTarefa.objects.filter(execucao__semana_iso=semana_iso, execucao__ano=ano).count()
+    c2 = ComentarioItemBloco.objects.filter(item__bloco__semana_iso=semana_iso, item__bloco__ano=ano).count()
+    c3 = ComentarioTarefaDivisao.objects.filter(tarefa__semana_iso=semana_iso, tarefa__ano=ano).count()
+    h.update(f'c{c1}-{c2}-{c3}'.encode())
+
+    return h.hexdigest()
+
+
+def _montar_contexto_painel(request, semana_iso, ano, gerar=True):
+    """Monta todo o contexto do painel para uma semana/ano.
+
+    Usado tanto pela página principal (`painel`) quanto pela view parcial
+    (`tarefas_partial`) chamada pelo HTMX ao receber o evento SSE — assim ambas
+    renderizam exatamente o mesmo estado, para o perfil do usuário logado.
+
+    `gerar`: quando True (carga normal da página), roda os geradores idempotentes
+    (marcar_atrasadas / gerar_execucoes_semana / gerar_blocos_semana). O parcial
+    reativo passa False para ser leitura pura — evita reprocessar a cada evento e
+    impede qualquer realimentação de signal → evento → GET → signal.
+    """
+    semana_atual, ano_atual = get_semana_atual()
 
     semana_iso = int(semana_iso)
     ano        = int(ano)
 
-    marcar_atrasadas(semana_atual, ano_atual)
-    gerar_execucoes_semana(semana_iso, ano)
-    gerar_blocos_semana(semana_iso, ano, request.user)
+    if gerar:
+        marcar_atrasadas(semana_atual, ano_atual)
+        gerar_execucoes_semana(semana_iso, ano)
+        gerar_blocos_semana(semana_iso, ano, request.user)
 
     execucoes    = get_execucoes_da_semana(semana_iso, ano, user=request.user)
     blocos       = get_blocos_da_semana(semana_iso, ano)
@@ -153,8 +204,38 @@ def painel(request, semana_iso=None, ano=None):
             ('quinta',  'Quinta-feira'),
             ('sexta',   'Sexta-feira'),
         ],
+        'tarefas_versao_inicial': _versao_semana(semana_iso, ano),
     }
+    return context
+
+
+@login_required
+def painel(request, semana_iso=None, ano=None):
+    if semana_iso is None or ano is None:
+        semana_iso, ano = get_semana_atual()
+    context = _montar_contexto_painel(request, semana_iso, ano)
     return render(request, 'controle_administrativo/painel.html', context)
+
+
+@login_required
+def tarefas_partial(request, semana_iso, ano):
+    """Retorna apenas o bloco HTML das tarefas (conteúdo interno de `.sca-main`).
+
+    Chamado pelo HTMX quando o evento SSE 'tarefas_atualizadas' chega — nunca
+    acessado diretamente pelo usuário. Sem base template, sem header/sidebar.
+    """
+    context = _montar_contexto_painel(request, semana_iso, ano, gerar=False)
+    return render(request, 'controle_administrativo/partials/tarefas_lista.html', context)
+
+
+@login_required
+def tarefas_versao(request, semana_iso, ano):
+    """Endpoint leve do polling: devolve a versão (hash) do estado da semana.
+
+    O HTMX chama a cada 3s e compara com a versão que tem; se mudou, busca o
+    parcial. Não acessado diretamente pelo usuário.
+    """
+    return JsonResponse({'versao': _versao_semana(semana_iso, ano)})
 
 
 @login_required
