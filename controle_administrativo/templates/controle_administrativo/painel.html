@@ -27,11 +27,45 @@
   .sca-wrapper {
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 55px);
+    /* Header agora é overlay (auto-hide) — ocupa a tela inteira. */
+    height: 100vh;
     padding: 0.3rem 0.5rem;
     gap: 0.4rem;
     overflow: hidden;
     margin-top: -2rem;
+  }
+
+  /* ============================================================
+     Header auto-hide — somente nesta página do Controle Administrativo.
+     O header real do sistema é .header-bottom (components/_header.html).
+     Este CSS é carregado apenas nesta página, portanto NÃO afeta
+     o header nas demais telas.
+     ============================================================ */
+  .header-bottom {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1100;
+    transform: translateY(-100%);
+    transition: transform 0.25s ease;
+    /* mantém todos os estilos visuais existentes do header */
+  }
+
+  .header-bottom:hover,
+  .header-bottom.visivel {
+    transform: translateY(0);
+  }
+
+  /* Zona de gatilho invisível no topo da tela */
+  #header-trigger {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 8px;
+    z-index: 1101;
+    cursor: default;
   }
 
   .sca-header {
@@ -1581,6 +1615,29 @@
     document.getElementById('modal-btn-avulsa').classList.toggle('active', tipo === 'avulsa');
     document.getElementById('modal-btn-recorrente').classList.toggle('active', tipo === 'recorrente');
   }
+
+  // ===== HEADER AUTO-HIDE =====
+  // Revela o header (.header-bottom) ao passar o mouse no topo da tela
+  // e o oculta novamente ao tirar o mouse. Sai silenciosamente se não
+  // encontrar o header.
+  (function () {
+    const header = document.querySelector('.header-bottom');
+    if (!header) return;
+
+    // Cria a zona de gatilho no topo se ainda não existir
+    let trigger = document.getElementById('header-trigger');
+    if (!trigger) {
+      trigger = document.createElement('div');
+      trigger.id = 'header-trigger';
+      document.body.prepend(trigger);
+    }
+
+    const mostrar = () => header.classList.add('visivel');
+    const ocultar = () => header.classList.remove('visivel');
+
+    trigger.addEventListener('mouseenter', mostrar);
+    header.addEventListener('mouseleave', ocultar);
+  }());
 </script>
 
 {% endblock %}

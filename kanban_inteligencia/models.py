@@ -26,6 +26,8 @@ class TarefaInteligencia(models.Model):
         ('joao', 'João'),
         ('julio', 'Julio'),
         ('murillo', 'Murillo'),
+        ('kethleen', 'Kethleen'),
+        ('nathalia', 'Nathalia'),
     ]
     
     COR_CHOICES = [
