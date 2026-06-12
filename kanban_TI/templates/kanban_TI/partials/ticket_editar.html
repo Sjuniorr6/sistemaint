@@ -1,0 +1,76 @@
+{# Partial puro — formulário de edição do ticket na triagem (abre pelo lápis). #}
+{# Campos: status, prazo, responsável, etiqueta visual (cor) e prioridade. #}
+
+<form hx-post="{% url 'kanban_TI:ticket_salvar_triagem' ticket.pk %}"
+      hx-target="#modal-inbox-body"
+      hx-swap="innerHTML"
+      hx-on::after-request="if(event.detail.successful) fecharModalEdicao()">
+
+    {% csrf_token %}
+
+    <p class="text-white-50 small mb-3">
+        <i class="bi bi-ticket-detailed me-1"></i>
+        #{{ ticket.pk }} — {{ ticket.titulo }}
+    </p>
+
+    <div class="mb-3">
+        <label class="form-label small fw-semibold">Status</label>
+        <select name="status" class="form-select form-select-sm" required>
+            <option value="" selected disabled>Selecionar status...</option>
+            <option value="a_fazer">A fazer</option>
+            <option value="em_progresso">Em andamento</option>
+            <option value="validacao">Em revisão</option>
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label small fw-semibold">
+            Prazo
+            <span class="text-white-50 fw-normal">(data limite)</span>
+        </label>
+        <input type="date"
+               name="prazo"
+               class="form-control form-control-sm"
+               value="{{ ticket.data_limite|date:'Y-m-d' }}">
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label small fw-semibold">Responsável</label>
+        <select name="responsavel" class="form-select form-select-sm" required>
+            <option value="" selected disabled>Selecione...</option>
+            {% for value, label in responsaveis %}
+            <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label small fw-semibold">Prioridade</label>
+        <select name="prioridade" class="form-select form-select-sm" required>
+            <option value="" selected disabled>Selecionar prioridade...</option>
+            {% for value, label in prioridades %}
+            <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label small fw-semibold">Etiqueta visual</label>
+        <select name="etiqueta" class="form-select form-select-sm">
+            {% for value, label in cores %}
+            <option value="{{ value }}"{% if value == 'azul' %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="d-flex gap-2 justify-content-end mt-4">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
+            Cancelar
+        </button>
+        <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-check-lg me-1"></i>
+            Incluir tarefa
+        </button>
+    </div>
+
+</form>

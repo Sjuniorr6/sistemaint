@@ -459,16 +459,22 @@ body {
 
             TI 
         </h2>
-        <div class="d-flex gap-2">
+        <div class="d-flex align-items-center gap-2">
             <a href="{% url 'kanban_TI:exportar_tarefas' %}" class="btn btn-success">
                 <i class="bi bi-file-earmark-spreadsheet"></i> Exportar
             </a>
+
+            <!-- Botão Tickets (inbox) — sempre visível; badge atualizado via include no reload -->
+            <div id="inbox-badge-container">
+                {% include 'kanban_TI/partials/inbox_badge.html' %}
+            </div>
+
             <button type="button" class="btn btn-primary" id="btnNovaTarefa">
                 <i class="bi bi-plus-circle"></i> Nova Tarefa
             </button>
         </div>
     </div>
-    
+
     <!-- Dashboard de Estatísticas -->
     <div class="stats-dashboard mb-4">
         <div class="kanban-scroll d-flex" style="justify-content: center;">
@@ -561,6 +567,9 @@ body {
                             <small>
                                 <span><i class="bi bi-hash"></i> ID: INT-{{ tarefa.id|stringformat:"03d" }}</span>
                                 <span><i class="bi bi-calendar-plus"></i> Criado: {{ tarefa.data_criacao|date:"d/m/Y" }}</span>
+                                {% if tarefa.usuario %}
+                                <span><i class="bi bi-person"></i> Criado por: {{ tarefa.usuario.get_full_name|default:tarefa.usuario.username }}</span>
+                                {% endif %}
                                 {% if tarefa.data_limite %}
                                 <span><i class="bi bi-calendar3"></i> Prazo: {{ tarefa.data_limite|date:"d/m/Y" }}</span>
                                 <span><i class="bi bi-clock-history"></i> {{ tarefa.data_limite|timeuntil:tarefa.data_criacao }}</span>
@@ -571,9 +580,11 @@ body {
                                 <span class="text-danger"><i class="bi bi-exclamation-circle-fill"></i> Atrasado</span>
                                 {% endif %}
                             </small>
+                            {% if tarefa.prioridade %}
                             <p class="fs-6" style="color: rgba(255, 255, 255, 0.7);">
                                 Prioridade: <span class="cor-paragraph-{{ tarefa.prioridade }}">{{ tarefa.get_prioridade_display }}</span>
                             </p>
+                            {% endif %}
                             <small>
                                 {% if tarefa.responsavel %}
                                 <span class="badge-responsavel cor-{{ tarefa.responsavel_cor }}">
@@ -616,6 +627,9 @@ body {
                             <small>
                                 <span><i class="bi bi-hash"></i> ID: INT-{{ tarefa.id|stringformat:"03d" }}</span>
                                 <span><i class="bi bi-calendar-plus"></i> Criado: {{ tarefa.data_criacao|date:"d/m/Y" }}</span>
+                                {% if tarefa.usuario %}
+                                <span><i class="bi bi-person"></i> Criado por: {{ tarefa.usuario.get_full_name|default:tarefa.usuario.username }}</span>
+                                {% endif %}
                                 {% if tarefa.data_limite %}
                                 <span><i class="bi bi-calendar3"></i> Prazo: {{ tarefa.data_limite|date:"d/m/Y" }}</span>
                                 <span><i class="bi bi-clock-history"></i> {{ tarefa.data_limite|timeuntil:tarefa.data_criacao }}</span>
@@ -626,9 +640,11 @@ body {
                                 <span class="text-danger"><i class="bi bi-exclamation-circle-fill"></i> Atrasado</span>
                                 {% endif %}
                             </small>
+                            {% if tarefa.prioridade %}
                             <p class="fs-6" style="color: rgba(255, 255, 255, 0.7);">
                                 Prioridade: <span class="cor-paragraph-{{ tarefa.prioridade }}">{{ tarefa.get_prioridade_display }}</span>
                             </p>
+                            {% endif %}
                             <small>
                                 {% if tarefa.responsavel %}
                                 <span class="badge-responsavel cor-{{ tarefa.responsavel_cor }}">
@@ -674,6 +690,9 @@ body {
                             <small>
                                 <span><i class="bi bi-hash"></i> ID: INT-{{ tarefa.id|stringformat:"03d" }}</span>
                                 <span><i class="bi bi-calendar-plus"></i> Criado: {{ tarefa.data_criacao|date:"d/m/Y" }}</span>
+                                {% if tarefa.usuario %}
+                                <span><i class="bi bi-person"></i> Criado por: {{ tarefa.usuario.get_full_name|default:tarefa.usuario.username }}</span>
+                                {% endif %}
                                 {% if tarefa.data_limite %}
                                 <span><i class="bi bi-calendar3"></i> Prazo: {{ tarefa.data_limite|date:"d/m/Y" }}</span>
                                 <span><i class="bi bi-clock-history"></i> {{ tarefa.data_limite|timeuntil:tarefa.data_criacao }}</span>
@@ -684,9 +703,11 @@ body {
                                 <span class="text-danger"><i class="bi bi-exclamation-circle-fill"></i> Atrasado</span>
                                 {% endif %}
                             </small>
+                            {% if tarefa.prioridade %}
                             <p class="fs-6" style="color: rgba(255, 255, 255, 0.7);">
                                 Prioridade: <span class="cor-paragraph-{{ tarefa.prioridade }}">{{ tarefa.get_prioridade_display }}</span>
                             </p>
+                            {% endif %}
                             <small>
                                 {% if tarefa.responsavel %}
                                 <span class="badge-responsavel cor-{{ tarefa.responsavel_cor }}">
@@ -729,6 +750,9 @@ body {
                             <small>
                                 <span><i class="bi bi-hash"></i> ID: INT-{{ tarefa.id|stringformat:"03d" }}</span>
                                 <span><i class="bi bi-calendar-plus"></i> Criado: {{ tarefa.data_criacao|date:"d/m/Y" }}</span>
+                                {% if tarefa.usuario %}
+                                <span><i class="bi bi-person"></i> Criado por: {{ tarefa.usuario.get_full_name|default:tarefa.usuario.username }}</span>
+                                {% endif %}
                                 {% if tarefa.data_conclusao %}
                                 <span class="text-success">
                                     <i class="bi-trophy"></i> Concluído em: {{ tarefa.data_conclusao|date:"d/m/Y" }}
@@ -739,9 +763,11 @@ body {
                                 </span>
                                 {% endif %}
                             </small>
+                            {% if tarefa.prioridade %}
                             <p class="fs-6" style="color: rgba(255, 255, 255, 0.7);">
                                 Prioridade: <span class="cor-paragraph-{{ tarefa.prioridade }}">{{ tarefa.get_prioridade_display }}</span>
                             </p>
+                            {% endif %}
                             <small>
                                 {% if tarefa.responsavel %}
                                 <span class="badge-responsavel cor-{{ tarefa.responsavel_cor }}">
@@ -773,12 +799,14 @@ body {
             </div>
             <div class="modal-body">
                 <h4 id="viewTitulo" class="mb-3"></h4>
+                <div id="viewMensagemStatus" class="mb-3"></div>
                 <div id="viewImagem" class="mb-3"></div>
                 <p id="viewDescricao" class="text-secondary"></p>
                 <hr>
                 <div class="row g-3">
                     <div class="col-md-4"><b>Status:</b> <span id="viewStatus"></span></div>
                     <div class="col-md-4"><b>Prioridade:</b> <span id="viewPrioridade"></span></div>
+                    <div class="col-md-4"><b>Criado por:</b> <span id="viewCriador"></span></div>
                     <div class="col-md-4"><b>Responsável:</b> <span id="viewResponsavel"></span></div>
                     <div class="col-md-4"><b>Prazo:</b> <span id="viewPrazo"></span></div>
                     <div class="col-md-4"><b>Status de Prazo:</b> <span id="viewAtraso"></span></div>
@@ -950,6 +978,63 @@ body {
         </div>
     </div>
 </div>
+
+<!-- Modal Inbox — Tickets aguardando triagem -->
+<div class="modal fade" id="modal-inbox-tickets" tabindex="-1"
+     aria-labelledby="modal-inbox-label" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="modal-inbox-label">
+                    <i class="bi bi-inbox-fill me-2 text-warning"></i>
+                    Tickets aguardando triagem
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="modal-inbox-body">
+                <div class="text-center py-4 text-white-50">
+                    <div class="spinner-border spinner-border-sm me-2"></div>
+                    Carregando tickets...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de edição do ticket de triagem (abre sobre o modal de triagem) -->
+<div class="modal fade" id="modal-editar-ticket" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-md modal-dialog-centered">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary py-2">
+                <h6 class="modal-title">
+                    <i class="bi bi-pencil me-2"></i>
+                    Definir ticket para A fazer
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="modal-editar-ticket-body">
+                {# Preenchido via HTMX ao clicar no lápis #}
+                <div class="text-center py-3 text-white-50">
+                    <div class="spinner-border spinner-border-sm"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- HTMX — usado pela triagem (lápis, edição e paginação do modal) -->
+<script src="https://unpkg.com/htmx.org@1.9.12"></script>
+
+<script>
+// Fecha o modal de edição após salvar (chamado pelo hx-on::after-request do form)
+// e recarrega para o novo card aparecer na coluna "A fazer" do board.
+function fecharModalEdicao() {
+    const modalEl = document.getElementById('modal-editar-ticket');
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    if (modal) modal.hide();
+    setTimeout(() => location.reload(), 200);
+}
+</script>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -1202,11 +1287,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 const t = data.tarefa;
                 document.getElementById('viewTitulo').innerText = t.titulo;
+
+                const _msgEl = document.getElementById('viewMensagemStatus');
+                if (t.mensagem_status) {
+                    const _cls = t.status === 'concluido' ? 'alert-success'
+                               : (t.status === 'a_fazer' || t.status === 'em_progresso' || t.status === 'validacao') ? 'alert-warning'
+                               : 'alert-info';
+                    const _ico = t.status === 'concluido' ? 'bi-check-circle-fill' : 'bi-clock-history';
+                    let _txt = t.mensagem_status;
+                    if ((t.status === 'a_fazer' || t.status === 'em_progresso' || t.status === 'validacao') && t.data_limite) {
+                        const _p = t.data_limite.split('-');
+                        if (_p.length === 3) _txt += ', Prazo: ' + _p[2] + '/' + _p[1] + '/' + _p[0];
+                    }
+                    _msgEl.innerHTML = `<div class="alert ${_cls} d-flex align-items-center gap-2 mb-0">
+                        <i class="bi ${_ico}"></i><span>${_txt}</span></div>`;
+                } else {
+                    _msgEl.innerHTML = '';
+                }
                 document.getElementById('viewDescricao').innerText = t.descricao || 'Sem descrição';
                 document.getElementById('viewStatus').innerText = t.status;
                 document.getElementById('viewPrioridade').innerText = t.prioridade;
-                document.getElementById('viewResponsavel').innerText = t.responsavel || '-';
-                document.getElementById('viewPrazo').innerText = t.data_limite || 'Sem prazo';
+                document.getElementById('viewCriador').innerText = t.criador || '-';
+                document.getElementById('viewResponsavel').innerText = t.responsavel_label || t.responsavel || '-';
+                document.getElementById('viewPrazo').innerText = t.data_limite ? t.data_limite.split('-').reverse().join('/') : 'Sem prazo';
                 document.getElementById('viewCriacao').innerText = t.data_criacao;
                 document.getElementById('viewConclusao').innerText = t.data_conclusao || '-';
                 document.getElementById('viewId').innerText = `INT-${String(t.id).padStart(3, '0')}`;
@@ -1283,6 +1386,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             try {
+                // Soltar o card move diretamente para a coluna destino — sem modal de prazo.
                 const response = await atualizarStatus(tarefaId, novoStatus);
                 const data = await response.json();
 
@@ -1302,6 +1406,86 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Inicializa estatísticas
     atualizarEstatisticas();
+
+    // ===== PAGINAÇÃO DAS COLUNAS (5 tarefas por página, em todas as colunas) =====
+    // Executa DEPOIS das estatísticas (que contam cards visíveis), para não
+    // afetar os totais ao ocultar cards das outras páginas.
+    (function paginarColunas() {
+        const PORPAGINA = 5;
+
+        document.querySelectorAll('.kanban-column').forEach(coluna => {
+            const col = coluna.querySelector('.kanban-cards');
+            if (!col) return;
+
+            const cards = Array.from(col.querySelectorAll('.kanban-card'));
+            const totalPaginas = Math.max(1, Math.ceil(cards.length / PORPAGINA));
+            let pagina = 0;
+
+            // Barra de paginação — sempre presente, mesmo com uma única página.
+            let nav = coluna.querySelector('.kanban-pagination');
+            if (!nav) {
+                nav = document.createElement('div');
+                nav.className = 'kanban-pagination d-flex justify-content-center align-items-center gap-2 px-2 pb-2';
+                col.insertAdjacentElement('afterend', nav);
+            }
+            nav.innerHTML = `
+                <button type="button" class="btn btn-sm btn-outline-light" data-prev>
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+                <span class="text-white-50 small" data-info></span>
+                <button type="button" class="btn btn-sm btn-outline-light" data-next>
+                    <i class="bi bi-chevron-right"></i>
+                </button>`;
+
+            const btnPrev = nav.querySelector('[data-prev]');
+            const btnNext = nav.querySelector('[data-next]');
+            const info = nav.querySelector('[data-info]');
+
+            function render() {
+                cards.forEach((card, i) => {
+                    card.style.display = (Math.floor(i / PORPAGINA) === pagina) ? '' : 'none';
+                });
+                info.textContent = `Página ${pagina + 1} de ${totalPaginas}`;
+                btnPrev.disabled = pagina === 0;
+                btnNext.disabled = pagina >= totalPaginas - 1;
+                col.scrollTop = 0;
+            }
+
+            btnPrev.addEventListener('click', () => { if (pagina > 0) { pagina--; render(); } });
+            btnNext.addEventListener('click', () => { if (pagina < totalPaginas - 1) { pagina++; render(); } });
+
+            render();
+        });
+    }());
+
+    // ===== INBOX – TICKETS DESTINADOS AO T.I =====
+    (function () {
+        const modalEl = document.getElementById('modal-inbox-tickets');
+        if (!modalEl) return;
+
+        const body = document.getElementById('modal-inbox-body');
+
+        const INBOX_PARTIAL_URL = '{% url "kanban_TI:inbox_partial" %}';
+
+        async function carregarInbox() {
+            body.innerHTML = `
+                <div class="text-center py-4 text-muted">
+                    <div class="spinner-border spinner-border-sm me-2"></div>
+                    Carregando tickets...
+                </div>`;
+            try {
+                const resp = await fetch(INBOX_PARTIAL_URL);
+                body.innerHTML = await resp.text();
+                // Ativa os atributos HTMX (lápis e paginação) no conteúdo injetado.
+                if (window.htmx) htmx.process(body);
+            } catch {
+                body.innerHTML = '<div class="text-danger text-center py-4">Erro ao carregar tickets.</div>';
+            }
+        }
+
+        // Carrega a lista sempre que o modal abre
+        modalEl.addEventListener('show.bs.modal', carregarInbox);
+    }());
 
     // ===== SPEC 2.0 – HEADER AUTO-HIDE =====
     // Revela o header (.header-bottom) ao passar o mouse no topo da tela

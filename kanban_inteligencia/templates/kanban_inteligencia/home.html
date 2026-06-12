@@ -643,6 +643,9 @@ body {
                         <small>
                                 <span><i class="bi bi-hash"></i> ID: INT-{{ tarefa.id|stringformat:"03d" }}</span>
                                 <span><i class="bi bi-calendar-plus"></i> Criado: {{ tarefa.data_criacao|date:"d/m/Y" }}</span>
+                                {% if tarefa.usuario %}
+                                <span><i class="bi bi-person"></i> Criado por: {{ tarefa.usuario.get_full_name|default:tarefa.usuario.username }}</span>
+                                {% endif %}
                                 {% if tarefa.data_limite %}
                                 <span><i class="bi bi-calendar3"></i> Prazo: {{ tarefa.data_limite|date:"d/m/Y" }}</span>
                                 <span><i class="bi bi-clock-history"></i> {{ tarefa.data_limite|timeuntil:tarefa.data_criacao }}</span>
@@ -707,6 +710,9 @@ body {
                         <small>
                                 <span><i class="bi bi-hash"></i> ID: INT-{{ tarefa.id|stringformat:"03d" }}</span>
                                 <span><i class="bi bi-calendar-plus"></i> Criado: {{ tarefa.data_criacao|date:"d/m/Y" }}</span>
+                                {% if tarefa.usuario %}
+                                <span><i class="bi bi-person"></i> Criado por: {{ tarefa.usuario.get_full_name|default:tarefa.usuario.username }}</span>
+                                {% endif %}
                                 {% if tarefa.data_limite %}
                                 <span><i class="bi bi-calendar3"></i> Prazo: {{ tarefa.data_limite|date:"d/m/Y" }}</span>
                                 <span><i class="bi bi-clock-history"></i> {{ tarefa.data_limite|timeuntil:tarefa.data_criacao }}</span>
@@ -772,6 +778,9 @@ body {
                             <small>
                                 <span><i class="bi bi-hash"></i> ID: INT-{{ tarefa.id|stringformat:"03d" }}</span>
                                 <span><i class="bi bi-calendar-plus"></i> Criado: {{ tarefa.data_criacao|date:"d/m/Y" }}</span>
+                                {% if tarefa.usuario %}
+                                <span><i class="bi bi-person"></i> Criado por: {{ tarefa.usuario.get_full_name|default:tarefa.usuario.username }}</span>
+                                {% endif %}
                                 {% if tarefa.data_limite %}
                                 <span><i class="bi bi-calendar3"></i> Prazo: {{ tarefa.data_limite|date:"d/m/Y" }}</span>
                                 <span><i class="bi bi-clock-history"></i> {{ tarefa.data_limite|timeuntil:tarefa.data_criacao }}</span>
@@ -843,6 +852,9 @@ body {
                     <small>
                         <span><i class="bi bi-hash"></i> ID: INT-{{ tarefa.id|stringformat:"03d" }}</span>
                         <span><i class="bi bi-calendar-plus"></i> Criado: {{ tarefa.data_criacao|date:"d/m/Y" }}</span>
+                                {% if tarefa.usuario %}
+                                <span><i class="bi bi-person"></i> Criado por: {{ tarefa.usuario.get_full_name|default:tarefa.usuario.username }}</span>
+                                {% endif %}
                         {% if tarefa.data_limite %}
                         <span><i class="bi bi-calendar3"></i> Prazo: {{ tarefa.data_limite|date:"d/m/Y" }}</span>
                         <span><i class="bi bi-clock-history"></i> {{ tarefa.data_limite|timeuntil:tarefa.data_criacao }}</span>
@@ -912,6 +924,9 @@ body {
                     <small>
                         <span><i class="bi bi-hash"></i> ID: INT-{{ tarefa.id|stringformat:"03d" }}</span>
                         <span><i class="bi bi-calendar-plus"></i> Criado: {{ tarefa.data_criacao|date:"d/m/Y" }}</span>
+                                {% if tarefa.usuario %}
+                                <span><i class="bi bi-person"></i> Criado por: {{ tarefa.usuario.get_full_name|default:tarefa.usuario.username }}</span>
+                                {% endif %}
                         
                         {# 🔥 NOVO: Mostra data de conclusão se existir #}
                         {% if tarefa.data_conclusao %}
@@ -964,6 +979,8 @@ body {
 
                 <h4 id="viewTitulo" class="mb-3"></h4>
 
+                <div id="viewMensagemStatus" class="mb-3"></div>
+
                 <div id="viewImagem" class="mb-3"></div>
 
                 <p id="viewDescricao" class="text-secondary"></p>
@@ -975,6 +992,7 @@ body {
                     <div class="col-md-4"><b>Prioridade:</b> <span id="viewPrioridade"></span></div>
                     <div class="col-md-4"><b>Destinado:</b> <span id="viewDestinado"></span></div>
 
+                    <div class="col-md-4"><b>Criado por:</b> <span id="viewCriador"></span></div>
                     <div class="col-md-4"><b>Responsável:</b> <span id="viewResponsavel"></span></div>
                     <div class="col-md-4"><b>Prazo:</b> <span id="viewPrazo"></span></div>
                     <div class="col-md-4"><b>Status de Prazo:</b> <span id="viewAtraso"></span></div>
@@ -1617,7 +1635,6 @@ async function atualizarStatus(tarefaId, status) {
 }
 </script>
 
-
 <script>
     function ordenarPorPrioridade(coluna) {
         const prioridadePeso = {
@@ -1730,6 +1747,7 @@ async function atualizarStatus(tarefaId, status) {
                 }
 
                 try {
+                    // Soltar o card move diretamente para a coluna destino — sem modal de prazo.
                     const response = await atualizarStatus(tarefaId, novoStatus);
                     const data = await response.json();
 
@@ -1831,11 +1849,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('viewTitulo').innerText = t.titulo;
                     document.getElementById('viewDescricao').innerText = t.descricao || 'Sem descrição';
 
+                    // Mensagem de status do ciclo de vida (atualiza conforme a coluna)
+                    const _msgEl = document.getElementById('viewMensagemStatus');
+                    if (t.mensagem_status) {
+                        const _cls = t.status === 'concluido' ? 'alert-success'
+                                   : (t.status === 'a_fazer' || t.status === 'em_progresso' || t.status === 'validacao') ? 'alert-warning'
+                                   : 'alert-info';
+                        const _ico = t.status === 'concluido' ? 'bi-check-circle-fill' : 'bi-clock-history';
+                        let _txt = t.mensagem_status;
+                        if ((t.status === 'a_fazer' || t.status === 'em_progresso' || t.status === 'validacao') && t.data_limite) {
+                            const _p = t.data_limite.split('-');
+                            if (_p.length === 3) _txt += ', Prazo: ' + _p[2] + '/' + _p[1] + '/' + _p[0];
+                        }
+                        _msgEl.innerHTML = `<div class="alert ${_cls} d-flex align-items-center gap-2 mb-0">
+                            <i class="bi ${_ico}"></i><span>${_txt}</span></div>`;
+                    } else {
+                        _msgEl.innerHTML = '';
+                    }
+
                     document.getElementById('viewStatus').innerText = t.status;
                     document.getElementById('viewPrioridade').innerText = t.prioridade;
                     document.getElementById('viewDestinado').innerText = t.destinado;
-                    document.getElementById('viewResponsavel').innerText = t.responsavel || '-';
-                    document.getElementById('viewPrazo').innerText = t.data_limite || 'Sem prazo';
+                    document.getElementById('viewCriador').innerText = t.criador || '-';
+                    document.getElementById('viewResponsavel').innerText = t.responsavel_label || '-';
+                    document.getElementById('viewPrazo').innerText = t.data_limite ? t.data_limite.split('-').reverse().join('/') : 'Sem prazo';
                     document.getElementById('viewCriacao').innerText = t.data_criacao;
                     document.getElementById('viewConclusao').innerText = t.data_conclusao || '-';
                     document.getElementById('viewId').innerText = `INT-${String(t.id).padStart(3, '0')}`;
@@ -1960,6 +1997,57 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Erro ao aprovar tarefa: ' + error);
             }
         });
+    });
+});
+</script>
+
+<script>
+// ===== PAGINAÇÃO DAS COLUNAS (5 tarefas por página, em todas as colunas) =====
+document.addEventListener('DOMContentLoaded', function paginarColunas() {
+    const PORPAGINA = 5;
+
+    document.querySelectorAll('.kanban-column').forEach(coluna => {
+        const col = coluna.querySelector('.kanban-cards');
+        if (!col) return;
+
+        const cards = Array.from(col.querySelectorAll('.kanban-card'));
+        const totalPaginas = Math.max(1, Math.ceil(cards.length / PORPAGINA));
+        let pagina = 0;
+
+        // Barra de paginação — sempre presente, mesmo com uma única página.
+        let nav = coluna.querySelector('.kanban-pagination');
+        if (!nav) {
+            nav = document.createElement('div');
+            nav.className = 'kanban-pagination d-flex justify-content-center align-items-center gap-2 px-2 pb-2';
+            col.insertAdjacentElement('afterend', nav);
+        }
+        nav.innerHTML = `
+            <button type="button" class="btn btn-sm btn-outline-light" data-prev>
+                <i class="bi bi-chevron-left"></i>
+            </button>
+            <span class="text-white-50 small" data-info></span>
+            <button type="button" class="btn btn-sm btn-outline-light" data-next>
+                <i class="bi bi-chevron-right"></i>
+            </button>`;
+
+        const btnPrev = nav.querySelector('[data-prev]');
+        const btnNext = nav.querySelector('[data-next]');
+        const info = nav.querySelector('[data-info]');
+
+        function render() {
+            cards.forEach((card, i) => {
+                card.style.display = (Math.floor(i / PORPAGINA) === pagina) ? '' : 'none';
+            });
+            info.textContent = `Página ${pagina + 1} de ${totalPaginas}`;
+            btnPrev.disabled = pagina === 0;
+            btnNext.disabled = pagina >= totalPaginas - 1;
+            col.scrollTop = 0;
+        }
+
+        btnPrev.addEventListener('click', () => { if (pagina > 0) { pagina--; render(); } });
+        btnNext.addEventListener('click', () => { if (pagina < totalPaginas - 1) { pagina++; render(); } });
+
+        render();
     });
 });
 </script>

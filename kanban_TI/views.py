@@ -4,13 +4,37 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from datetime import datetime
 
 from django.contrib.auth.decorators import login_required, permission_required
+from django.core.paginator import Paginator
 from django.db.models import Case, When, IntegerField
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from kanban_inteligencia.models import TarefaInteligencia
 from .models import TarefaTI
+
+
+# ===== INBOX DE TICKETS DESTINADOS AO T.I =====
+
+# Mapeia a prioridade da TarefaInteligencia (que possui 'avaliar') para os
+# valores aceitos pela TarefaTI (baixa/media/alta).
+PRIORIDADE_TICKET_PARA_TI = {
+    'avaliar': 'media',
+    'baixa': 'baixa',
+    'media': 'media',
+    'alta': 'alta',
+}
+
+
+def tickets_inbox_ti():
+    """Tickets destinados ao T.I aguardando triagem (ainda não enviados ao board)."""
+    return (
+        TarefaInteligencia.objects
+        .filter(destinado='TI', enviado_kanban_ti=False)
+        .select_related('usuario')
+        .order_by('-data_criacao', '-id')
+    )
 
 
 # ===== UTILITÁRIOS =====
@@ -40,6 +64,40 @@ def aplicar_conclusao(tarefa, status):
         tarefa.data_limite = None
     else:
         tarefa.data_conclusao = None
+
+
+def sincronizar_ticket_origem(tarefa):
+    """
+    Reflete a conclusão/reabertura de uma TarefaTI no ticket original
+    (TarefaInteligencia destinado ao T.I), para que a central de tickets some
+    o chamado quando a tarefa é movida para "Concluído" — e o traga de volta
+    caso seja reaberta.
+    """
+    origem = tarefa.ticket_origem
+    if not origem:
+        return
+
+    if tarefa.status == 'concluido':
+        origem.status = 'concluido'
+        if not origem.data_conclusao:
+            origem.data_conclusao = tarefa.data_conclusao or timezone.now().date()
+        origem.data_limite = None
+        origem.mensagem_status = 'Ticket concluído.'
+        origem.save(update_fields=['status', 'data_conclusao', 'data_limite', 'mensagem_status'])
+    elif tarefa.status in ('em_progresso', 'validacao'):
+        # Em execução no board TI → "Em andamento" (amarelo) na central,
+        # refletindo o prazo definido na edição do card.
+        origem.status = 'em_progresso'
+        origem.data_conclusao = None
+        origem.data_limite = tarefa.data_limite
+        origem.mensagem_status = 'Ticket em andamento'
+        origem.save(update_fields=['status', 'data_conclusao', 'data_limite', 'mensagem_status'])
+    elif origem.status == 'concluido':
+        # Tarefa reaberta no board → o ticket volta a aparecer na central.
+        origem.status = 'a_fazer'
+        origem.data_conclusao = None
+        origem.mensagem_status = 'Ticket avaliado'
+        origem.save(update_fields=['status', 'data_conclusao', 'mensagem_status'])
 
 
 def json_error(message, status=400):
@@ -85,6 +143,7 @@ def home(request):
             'taxa_conclusao': taxa_conclusao,
         },
         'destinado_filter': destinado_filter or 'all',
+        'tickets_inbox_count': tickets_inbox_ti().count(),
     }
 
     return render(request, 'kanban_TI/home.html', context)
@@ -128,6 +187,8 @@ def obter_tarefa(request, tarefa_id):
             'responsavel': tarefa.responsavel or '',
             'responsavel_label': tarefa.get_responsavel_display() if tarefa.responsavel else '',
             'responsavel_cor': tarefa.responsavel_cor,
+            'mensagem_status': tarefa.ticket_origem.mensagem_status if tarefa.ticket_origem else '',
+            'criador': (tarefa.usuario.get_full_name() or tarefa.usuario.username) if tarefa.usuario else '',
             'cor': tarefa.cor,
             'prioridade': tarefa.prioridade,
         })
@@ -160,6 +221,7 @@ def atualizar_tarefa(request, tarefa_id):
             tarefa.imagem = request.FILES.get('imagem')
 
         tarefa.save()
+        sincronizar_ticket_origem(tarefa)
         return json_success()
 
     except TarefaTI.DoesNotExist:
@@ -177,8 +239,14 @@ def atualizar_status(request, tarefa_id):
         novo_status = request.POST.get('status')
 
         tarefa.status = novo_status
+        # Prazo definido no popup ao mover para "Em progresso"/"Validação".
+        if novo_status in ('em_progresso', 'validacao'):
+            prazo_data = request.POST.get('data_limite')
+            if prazo_data:
+                tarefa.data_limite = prazo_data
         aplicar_conclusao(tarefa, novo_status)
         tarefa.save()
+        sincronizar_ticket_origem(tarefa)
 
         sla_dias = None
         if tarefa.data_conclusao:
@@ -210,7 +278,152 @@ def deletar_tarefa(request, tarefa_id):
 
     except Exception as e:
         return json_error(str(e))
-    
+
+
+# ===== VIEWS DA INBOX (TICKETS DESTINADOS AO T.I) =====
+
+# Máximo de tickets exibidos por página dentro do modal de triagem.
+TICKETS_POR_PAGINA_MODAL = 5
+
+
+def _contexto_triagem(extra=None):
+    """Choices reutilizadas pelos formulários da triagem (definir como TarefaTI)."""
+    ctx = {
+        'responsaveis': TarefaTI.RESPONSAVEL_CHOICES,
+        'cores': TarefaTI.COR_CHOICES,
+        'prioridades': TarefaTI.PRIORIDADE_CHOICES,
+        'status_choices': TarefaTI.STATUS_CHOICES,
+    }
+    if extra:
+        ctx.update(extra)
+    return ctx
+
+
+@login_required
+def inbox_tickets_partial(request):
+    """Tickets aguardando triagem (corpo do modal), paginados — 5 por página."""
+    try:
+        pagina_num = int(request.GET.get('pagina', 1))
+    except (TypeError, ValueError):
+        pagina_num = 1
+
+    paginator = Paginator(tickets_inbox_ti(), TICKETS_POR_PAGINA_MODAL)
+    page_obj = paginator.get_page(pagina_num)
+
+    return render(request, 'kanban_TI/partials/inbox_tickets.html', _contexto_triagem({
+        'tickets_inbox': page_obj.object_list,
+        'page_obj': page_obj,
+    }))
+
+
+@login_required
+def inbox_badge(request):
+    """Retorna apenas o badge com a contagem atualizada da inbox."""
+    return render(request, 'kanban_TI/partials/inbox_badge.html', {
+        'tickets_inbox_count': tickets_inbox_ti().count(),
+    })
+
+
+@login_required
+@require_POST
+def ticket_mover_para_afazer(request, pk):
+    """
+    Move um ticket da inbox para a coluna "A fazer" do Kanban TI.
+
+    Cria uma TarefaTI a partir do ticket (TarefaInteligencia) e marca o ticket
+    de origem como já enviado, removendo-o da inbox. Retorna a lista atualizada
+    para o modal.
+    """
+    ticket = get_object_or_404(
+        TarefaInteligencia, pk=pk, destinado='TI', enviado_kanban_ti=False
+    )
+
+    TarefaTI.objects.create(
+        titulo=ticket.titulo,
+        descricao=ticket.descricao or '',
+        status='a_fazer',
+        prioridade=PRIORIDADE_TICKET_PARA_TI.get(ticket.prioridade, 'media'),
+        data_limite=ticket.data_limite,
+        imagem=ticket.imagem or None,
+        usuario=ticket.usuario,
+        ticket_origem=ticket,
+    )
+
+    ticket.enviado_kanban_ti = True
+    ticket.save(update_fields=['enviado_kanban_ti'])
+
+    return render(request, 'kanban_TI/partials/inbox_tickets.html', _contexto_triagem({
+        'tickets_inbox': tickets_inbox_ti(),
+    }))
+
+
+@login_required
+def ticket_editar_partial(request, pk):
+    """Formulário de edição do ticket de triagem — carregado pelo lápis (HTMX)."""
+    ticket = get_object_or_404(
+        TarefaInteligencia, pk=pk, destinado='TI', enviado_kanban_ti=False
+    )
+    return render(request, 'kanban_TI/partials/ticket_editar.html', _contexto_triagem({
+        'ticket': ticket,
+    }))
+
+
+@login_required
+@require_POST
+def ticket_salvar_triagem(request, pk):
+    """
+    Cria a TarefaTI a partir do ticket de triagem com os dados do formulário
+    (status, prazo, responsável, etiqueta/cor e prioridade) e remove o ticket da
+    inbox. Reflete o andamento no ticket de origem (central de tickets) e
+    devolve a inbox atualizada para o HTMX substituir o corpo do modal.
+    """
+    ticket = get_object_or_404(
+        TarefaInteligencia, pk=pk, destinado='TI', enviado_kanban_ti=False
+    )
+
+    status = request.POST.get('status') or 'a_fazer'
+    if status not in dict(TarefaTI.STATUS_CHOICES):
+        status = 'a_fazer'
+    prioridade = request.POST.get('prioridade') or None
+    responsavel = request.POST.get('responsavel') or None
+    etiqueta = request.POST.get('etiqueta') or 'azul'
+    # Prazo agora é uma data (calendário, formato YYYY-MM-DD). Vazio mantém o atual.
+    prazo = (request.POST.get('prazo') or '').strip()
+    data_limite = prazo or ticket.data_limite or None
+
+    tarefa = TarefaTI.objects.create(
+        titulo=ticket.titulo,
+        descricao=ticket.descricao or '',
+        status=status,
+        prioridade=prioridade,
+        responsavel=responsavel,
+        responsavel_cor=etiqueta,
+        cor=etiqueta,
+        data_limite=data_limite,
+        imagem=ticket.imagem or None,
+        usuario=ticket.usuario,
+        ticket_origem=ticket,
+    )
+
+    # Reflete o andamento no ticket de origem (central) e remove da inbox.
+    # O prazo (data_limite) aparece na central junto da mensagem de status.
+    ticket.status = status
+    ticket.data_limite = data_limite
+    ticket.mensagem_status = 'Ticket avaliado' if status == 'a_fazer' else 'Ticket em andamento'
+    ticket.enviado_kanban_ti = True
+    ticket.save(update_fields=[
+        'status', 'data_limite', 'mensagem_status', 'enviado_kanban_ti',
+    ])
+
+    # Caso entre direto como concluído, aplica conclusão/SLA de forma consistente.
+    if status == 'concluido':
+        aplicar_conclusao(tarefa, status)
+        tarefa.save()
+        sincronizar_ticket_origem(tarefa)
+
+    return inbox_tickets_partial(request)
+
+
 @login_required
 def exportar_tarefas(request):
 
