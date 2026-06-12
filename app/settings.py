@@ -87,6 +87,7 @@ INSTALLED_APPS = [
     "acompanhamentos.apps.AcompanhamentosConfig",
     'kanban_marketing',
     'controle_administrativo',
+    'controle_acionamentos',
     'django_celery_beat',
 ]
 

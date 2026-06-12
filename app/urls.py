@@ -50,5 +50,6 @@ urlpatterns = [
     path("api/", include("acompanhamentos.api.urls")),
     path('marketing/kanban/', include('kanban_marketing.urls')),
     path('controle-administrativo/', include('controle_administrativo.urls')),
+    path('controle-acionamentos/', include('controle_acionamentos.urls')),
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
