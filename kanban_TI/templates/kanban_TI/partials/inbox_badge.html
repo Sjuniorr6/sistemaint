@@ -1,0 +1,16 @@
+{# Botão Tickets — sempre visível; badge vermelho só quando há tickets em aberto. #}
+<button type="button"
+        id="btn-inbox-tickets"
+        class="btn btn-warning position-relative"
+        data-bs-toggle="modal"
+        data-bs-target="#modal-inbox-tickets">
+    <i class="bi bi-inbox me-1"></i>
+    Tickets
+    {% if tickets_inbox_count > 0 %}
+    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+          style="font-size: 0.65rem;">
+        {{ tickets_inbox_count }}
+        <span class="visually-hidden">tickets em aberto</span>
+    </span>
+    {% endif %}
+</button>

@@ -23,17 +23,9 @@ class ticketCreateView(LoginRequiredMixin, CreateView):
         # 👤 USUÁRIO CRIADOR DO TICKET
         form.instance.usuario = user
 
-        # 🔐 PRIORIDADE DEFINIDA PELO GRUPO
-        if user.groups.filter(name='diretoriamaster').exists():
-            form.instance.prioridade = 'alta'
-        else:
-            form.instance.prioridade = 'avaliar'
-
-        # 🔐 PRIORIDADE DEFINIDA PELO GRUPO
-        if user.groups.filter(name='diretoriamaster').exists():
-            form.instance.status = 'alta'
-        else:
-            form.instance.status = 'avaliar'
+        # 🔐 PRIORIDADE: ticket nasce SEM prioridade definida ('avaliar').
+        # A prioridade é atribuída depois, na triagem do Kanban.
+        form.instance.prioridade = 'avaliar'
 
         # ⏰ PRAZO AUTOMÁTICO (48 HORAS)
         form.instance.data_limite = timezone.now().date() + timedelta(days=2)
@@ -60,6 +52,8 @@ class ticketListView(LoginRequiredMixin, ListView):
     ordering = ['-data_criacao', '-id']
 
     def get_queryset(self):
+        # Tickets concluídos permanecem na central com visual de "Concluído"
+        # (badge verde + mensagem) — não são mais removidos da lista.
         qs = super().get_queryset().filter(usuario=self.request.user)
 
         for ticket in qs:

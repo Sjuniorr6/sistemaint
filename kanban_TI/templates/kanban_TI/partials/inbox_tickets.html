@@ -1,0 +1,100 @@
+{# Partial puro — lista de tickets destinados ao T.I aguardando triagem. #}
+{% for ticket in tickets_inbox %}
+<div class="card mb-3 text-white border-secondary border-start border-warning border-3"
+     style="background-color: #1e1e1e;">
+    <div class="card-body">
+
+        <div class="d-flex justify-content-between align-items-start">
+            <div class="flex-grow-1">
+                <span class="text-white-50 small">#{{ ticket.pk }}</span>
+                <h6 class="mb-1 mt-1 text-white">{{ ticket.titulo }}</h6>
+
+                {# Horário real de abertura: usa criado_em (data+hora); tickets #}
+                {# antigos sem esse campo caem no fallback de data_criacao. #}
+                <p class="text-white-50 small mb-1">
+                    Aberto por: <strong class="text-white">{{ ticket.usuario|default:"—" }}</strong>
+                    · <span class="font-monospace">
+                        {% if ticket.criado_em %}
+                            {{ ticket.criado_em|date:"d/m/Y" }} às {{ ticket.criado_em|date:"H:i" }}
+                        {% else %}
+                            {{ ticket.data_criacao|date:"d/m/Y" }}
+                        {% endif %}
+                    </span>
+                </p>
+
+                {# Prioridade: exibir SOMENTE se já definida (não na triagem). #}
+                {# 'avaliar' é o estado "a definir" → não renderiza badge. #}
+                {% if ticket.prioridade and ticket.prioridade != 'avaliar' %}
+                <span class="badge
+                    {% if ticket.prioridade == 'alta' %}bg-danger
+                    {% elif ticket.prioridade == 'media' %}bg-warning text-dark
+                    {% else %}bg-secondary{% endif %}">
+                    {{ ticket.get_prioridade_display }}
+                </span>
+                {% endif %}
+            </div>
+
+            {# Ícone lápis — abre o modal de edição (substitui "Incluir no A fazer"). #}
+            <button type="button"
+                    class="btn btn-link text-warning p-1 ms-2 flex-shrink-0"
+                    title="Editar e incluir no A fazer"
+                    hx-get="{% url 'kanban_TI:ticket_editar_partial' ticket.pk %}"
+                    hx-target="#modal-editar-ticket-body"
+                    hx-swap="innerHTML"
+                    data-bs-toggle="modal"
+                    data-bs-target="#modal-editar-ticket">
+                <i class="bi bi-pencil-fill fs-5"></i>
+            </button>
+        </div>
+
+        {% if ticket.descricao %}
+        <p class="mt-2 mb-0 small text-white-50">
+            {{ ticket.descricao|truncatechars:120 }}
+        </p>
+        {% endif %}
+
+    </div>
+</div>
+
+{% empty %}
+<div class="text-center py-4 text-white-50">
+    <i class="bi bi-check-circle fs-2 text-success"></i>
+    <p class="mt-2">Nenhum ticket aguardando triagem.</p>
+</div>
+{% endfor %}
+
+{# Paginação do modal — 5 por página; só aparece quando há mais de uma página. #}
+{% if page_obj.paginator.num_pages > 1 %}
+<div class="d-flex justify-content-center align-items-center gap-1 mt-3">
+
+    <button class="btn btn-outline-light btn-sm px-2"
+            {% if not page_obj.has_previous %}disabled{% endif %}
+            hx-get="{% url 'kanban_TI:inbox_partial' %}?pagina={% if page_obj.has_previous %}{{ page_obj.previous_page_number }}{% else %}1{% endif %}"
+            hx-target="#modal-inbox-body"
+            hx-swap="innerHTML">
+        <i class="bi bi-chevron-left"></i>
+    </button>
+
+    {% for num in page_obj.paginator.page_range %}
+    <button class="btn btn-sm px-2
+            {% if num == page_obj.number %}btn-warning{% else %}btn-outline-light{% endif %}"
+            hx-get="{% url 'kanban_TI:inbox_partial' %}?pagina={{ num }}"
+            hx-target="#modal-inbox-body"
+            hx-swap="innerHTML">
+        {{ num }}
+    </button>
+    {% endfor %}
+
+    <button class="btn btn-outline-light btn-sm px-2"
+            {% if not page_obj.has_next %}disabled{% endif %}
+            hx-get="{% url 'kanban_TI:inbox_partial' %}?pagina={% if page_obj.has_next %}{{ page_obj.next_page_number }}{% else %}{{ page_obj.paginator.num_pages }}{% endif %}"
+            hx-target="#modal-inbox-body"
+            hx-swap="innerHTML">
+        <i class="bi bi-chevron-right"></i>
+    </button>
+
+</div>
+<div class="text-center text-white-50 small mt-1">
+    Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+</div>
+{% endif %}

@@ -13,7 +13,9 @@ def home(request):
     """
     Kanban de Inteligência
     """
-    tarefas = TarefaInteligencia.objects.all()
+    # Tickets destinados ao T.I não pertencem a este board — aparecem apenas
+    # no Kanban TI (inbox) e na central de tickets.
+    tarefas = TarefaInteligencia.objects.exclude(destinado='TI')
 
     # Filtrar por 'destinado' se parâmetro GET for passado
     destinado_filter = request.GET.get('destinado')
@@ -109,9 +111,11 @@ def obter_tarefa(request, tarefa_id):
                 'responsavel': tarefa.responsavel or '',
                 'responsavel_label': tarefa.get_responsavel_display() if tarefa.responsavel else '',
                 'responsavel_cor': tarefa.responsavel_cor,
+                'criador': (tarefa.usuario.get_full_name() or tarefa.usuario.username) if tarefa.usuario else '',
                 'cor': tarefa.cor,
                 'prioridade': tarefa.prioridade,
                 'data_criacao': tarefa.data_criacao.strftime('%d/%m/%Y'),
+                'mensagem_status': tarefa.mensagem_status or '',
             }
         })
     except TarefaInteligencia.DoesNotExist:
@@ -143,12 +147,17 @@ def atualizar_tarefa(request, tarefa_id):
                 tarefa.data_conclusao = timezone.now().date()
             # 🔥 ZERA O PRAZO
             tarefa.data_limite = None
+            tarefa.mensagem_status = 'Ticket concluído.'
         else:
             # Se voltar para outro status:
             tarefa.data_conclusao = None
             # Se voltou, restaura o prazo (se tiver sido preenchido)
             if data_limite:
                 tarefa.data_limite = data_limite
+            if tarefa.status == 'a_fazer':
+                tarefa.mensagem_status = 'Ticket avaliado'
+            elif tarefa.status in ('em_progresso', 'validacao'):
+                tarefa.mensagem_status = 'Ticket em andamento'
 
         # ATUALIZA IMAGEM SE ENVIAR
         if request.FILES.get('imagem'):
@@ -186,9 +195,25 @@ def atualizar_status(request, tarefa_id):
             tarefa.data_conclusao = timezone.now().date()
         # 🔥 ZERA O PRAZO
         tarefa.data_limite = None
+        tarefa.mensagem_status = 'Ticket concluído.'
     else:
         tarefa.data_conclusao = None
         # Mantém o prazo como estava
+
+        # Mesma dinâmica do Kanban TI: a mudança de coluna atualiza o status;
+        # o prazo é definido editando o card (data_limite), não em popup.
+        if novo_status == 'a_fazer':
+            # Prazo definido no popup ao mover o card.
+            prazo_data = request.POST.get('data_limite')
+            if prazo_data:
+                tarefa.data_limite = prazo_data
+            tarefa.mensagem_status = 'Ticket avaliado'
+        elif novo_status in ('em_progresso', 'validacao'):
+            # Prazo definido no popup ao mover o card.
+            prazo_data = request.POST.get('data_limite')
+            if prazo_data:
+                tarefa.data_limite = prazo_data
+            tarefa.mensagem_status = 'Ticket em andamento'
 
     tarefa.save()
 

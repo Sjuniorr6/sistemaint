@@ -10,14 +10,15 @@ class TarefaInteligencia(models.Model):
         ('em_progresso', 'Em Progresso'),
         ('validacao', 'Aguardando Validação'),
         ('concluido', 'Concluído'),
-       
+    
     ]
 
     DESTINADO_CHOICES = [
         ('desenvolvimento', 'Desenvolvimento'),
         ('inteligencia', 'Inteligência'),
+        ('TI', 'T.I'),
     ]
-
+    
     RESPONSAVEL_CHOICES = [
         ('analia', 'Anália'),
         ('eurico', 'Eurico'),
@@ -52,12 +53,31 @@ class TarefaInteligencia(models.Model):
     responsavel = models.CharField(max_length=50, choices=RESPONSAVEL_CHOICES, blank=True, null=True, verbose_name='Responsável')
     responsavel_cor = models.CharField(max_length=20, null=True, blank=True,default='azul', verbose_name='Cor do Responsável')
     data_criacao = models.DateField(auto_now_add=True, verbose_name='Data de Criação')
+    # Data e hora reais de abertura (data_criacao é só data). Nulo para tickets
+    # antigos criados antes deste campo — o template faz fallback para data_criacao.
+    criado_em = models.DateTimeField(auto_now_add=True, null=True, blank=True, verbose_name='Criado em')
     data_conclusao = models.DateField(null=True, blank=True, verbose_name='Data de Conclusão')
     data_limite = models.DateField(null=True, blank=True, verbose_name='Prazo')
     prioridade = models.CharField(max_length=20, choices=PRIORIDADE_CHOICES, default='avaliar', verbose_name='Prioridade')
     cor = models.CharField(max_length=20, choices=COR_CHOICES, default='azul', verbose_name='Cor')
     imagem = models.ImageField(upload_to='imagens/kanban/', null=True, blank=True)
     usuario = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    # Tickets destinados ao T.I não entram direto no board; ficam na "inbox" do
+    # Kanban TI até serem triados. Este flag marca os já movidos para "A fazer".
+    enviado_kanban_ti = models.BooleanField(default=False, verbose_name='Enviado ao Kanban TI')
+    # Mensagem de acompanhamento exibida ao criador na central de tickets,
+    # atualizada ao longo do ciclo de vida (criado → avaliado → concluído).
+    mensagem_status = models.TextField(
+        blank=True,
+        default='Ticket criado, retornaremos em até 48h.',
+        verbose_name='Mensagem de status',
+    )
+    prazo_resposta = models.CharField(
+        max_length=100,
+        blank=True,
+        default='48h',
+        verbose_name='Prazo de resposta',
+    )
 
     class Meta:
         verbose_name = 'Tarefa de Inteligência'

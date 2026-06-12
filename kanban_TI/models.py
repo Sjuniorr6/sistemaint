@@ -41,10 +41,19 @@ class TarefaTI(models.Model):
     data_criacao = models.DateField(auto_now_add=True, verbose_name='Data de Criação')
     data_conclusao = models.DateField(null=True, blank=True, verbose_name='Data de Conclusão')
     data_limite = models.DateField(null=True, blank=True, verbose_name='Prazo')
-    prioridade = models.CharField(max_length=20, choices=PRIORIDADE_CHOICES, verbose_name='Prioridade')
+    prioridade = models.CharField(max_length=20, choices=PRIORIDADE_CHOICES, blank=True, null=True, verbose_name='Prioridade')
     cor = models.CharField(max_length=20, choices=COR_CHOICES, default='azul', verbose_name='Cor')
     imagem = models.ImageField(upload_to='imagens/kanban/', null=True, blank=True)
     usuario = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    # Ticket de origem (quando esta tarefa nasceu da triagem de um chamado
+    # destinado ao T.I). Usado para refletir a conclusão na central de tickets.
+    ticket_origem = models.ForeignKey(
+        'kanban_inteligencia.TarefaInteligencia',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='tarefas_ti',
+        verbose_name='Ticket de origem',
+    )
 
     class Meta:
         verbose_name = 'Tarefa de TI'
