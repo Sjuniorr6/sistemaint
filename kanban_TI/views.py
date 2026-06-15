@@ -369,6 +369,50 @@ def ticket_editar_partial(request, pk):
 
 
 @login_required
+def ticket_recusar_partial(request, pk):
+    """Formulário de recusa do ticket de triagem — carregado pelo botão recusar."""
+    ticket = get_object_or_404(
+        TarefaInteligencia, pk=pk, destinado='TI', enviado_kanban_ti=False
+    )
+    return render(request, 'kanban_TI/partials/ticket_recusar.html', {
+        'ticket': ticket,
+    })
+
+
+@login_required
+@require_POST
+def ticket_recusar(request, pk):
+    """
+    Recusa um ticket da inbox de triagem informando o motivo.
+
+    Marca o ticket de origem (TarefaInteligencia) como recusado, guarda o
+    motivo (exibido ao criador na central de tickets), remove-o da inbox e
+    devolve a inbox atualizada para o HTMX substituir o corpo do modal.
+    """
+    ticket = get_object_or_404(
+        TarefaInteligencia, pk=pk, destinado='TI', enviado_kanban_ti=False
+    )
+
+    motivo = (request.POST.get('motivo') or '').strip()
+
+    ticket.status = 'recusado'
+    ticket.motivo_recusa = motivo
+    ticket.mensagem_status = (
+        f'Ticket recusado: {motivo}' if motivo else 'Ticket recusado.'
+    )
+    ticket.data_limite = None
+    ticket.data_conclusao = None
+    # Sai da inbox de triagem — não volta a aparecer para nova avaliação.
+    ticket.enviado_kanban_ti = True
+    ticket.save(update_fields=[
+        'status', 'motivo_recusa', 'mensagem_status',
+        'data_limite', 'data_conclusao', 'enviado_kanban_ti',
+    ])
+
+    return inbox_tickets_partial(request)
+
+
+@login_required
 @require_POST
 def ticket_salvar_triagem(request, pk):
     """

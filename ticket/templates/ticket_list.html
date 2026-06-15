@@ -514,10 +514,12 @@
             </h5>
             <span class="badge ms-2 flex-shrink-0
                 {% if ticket.status == 'concluido' %}bg-success
+                {% elif ticket.status == 'recusado' %}bg-danger
                 {% elif ticket.status == 'em_progresso' or ticket.status == 'validacao' %}bg-warning text-dark
                 {% elif ticket.status == 'a_fazer' %}bg-info text-dark
                 {% else %}bg-secondary{% endif %}">
               {% if ticket.status == 'concluido' %}<i class="bi bi-check-circle-fill me-1"></i>Concluído
+              {% elif ticket.status == 'recusado' %}<i class="bi bi-x-circle-fill me-1"></i>Recusado
               {% elif ticket.status == 'em_progresso' or ticket.status == 'validacao' %}Em andamento
               {% elif ticket.status == 'a_fazer' %}Avaliado
               {% else %}Aberto{% endif %}
@@ -535,7 +537,15 @@
           </p>
            <p class="text-secondary">{{ ticket.descricao|truncatewords:15 }}</p>
 
-          {% if ticket.mensagem_status %}
+          {% if ticket.status == 'recusado' %}
+          <div class="alert alert-danger mt-auto mb-0 py-2 px-3 small d-flex align-items-start gap-2" role="alert">
+            <i class="bi bi-x-circle-fill flex-shrink-0 mt-1"></i>
+            <span>
+              <strong>Ticket recusado.</strong>
+              {% if ticket.motivo_recusa %}<br>Motivo: {{ ticket.motivo_recusa }}{% endif %}
+            </span>
+          </div>
+          {% elif ticket.mensagem_status %}
           <div class="alert mt-auto mb-0 py-2 px-3 small d-flex align-items-center gap-2
               {% if ticket.status == 'concluido' %}alert-success
               {% elif ticket.status == 'a_fazer' or ticket.status == 'em_progresso' or ticket.status == 'validacao' %}alert-warning

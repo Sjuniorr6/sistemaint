@@ -10,7 +10,7 @@ class TarefaInteligencia(models.Model):
         ('em_progresso', 'Em Progresso'),
         ('validacao', 'Aguardando Validação'),
         ('concluido', 'Concluído'),
-    
+        ('recusado', 'Recusado'),
     ]
 
     DESTINADO_CHOICES = [
@@ -77,6 +77,13 @@ class TarefaInteligencia(models.Model):
         blank=True,
         default='48h',
         verbose_name='Prazo de resposta',
+    )
+    # Motivo informado pelo T.I ao recusar o ticket na triagem. Exibido ao
+    # criador na central de tickets quando o ticket é recusado.
+    motivo_recusa = models.TextField(
+        blank=True,
+        default='',
+        verbose_name='Motivo da recusa',
     )
 
     class Meta:
