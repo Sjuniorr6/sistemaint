@@ -1,0 +1,22 @@
+{# Partial do conteúdo do laudo — carregado via HTMX no corpo do modal. #}
+{# Partial puro: SEM extends, SEM block. Exclusivo para superuser. #}
+
+{% if erro %}
+<div class="alert alert-warning d-flex align-items-center gap-2">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <span>{{ erro }}</span>
+</div>
+{% elif tipo == 'pdf' %}
+<div style="height: 70vh;">
+    <iframe src="{% url 'manutencao_laudo_visualizar_pdf' registro.id %}"
+            width="100%"
+            height="100%"
+            style="border: none;"
+            title="Laudo {{ registro.id }}">
+        <p class="text-muted">
+            Seu navegador não suporta visualização de PDF inline.
+            <a href="{% url 'download_pdfmanutencao' registro.id %}" target="_blank">Abrir em nova aba</a>
+        </p>
+    </iframe>
+</div>
+{% endif %}
