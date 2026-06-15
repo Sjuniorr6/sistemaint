@@ -28,7 +28,9 @@ from .views import (
     download_protocolo_entrada,
     editado_manutencao,
     atualizar_status_tratativa,
-    backupListView
+    backupListView,
+    laudo_visualizar,
+    laudo_visualizar_pdf,
 )
 urlpatterns = [
     path('configlist/historico', historico_manutencaoListView.as_view(), name='historico_manutencaoListView'),
@@ -47,6 +49,8 @@ urlpatterns = [
     path('editado/<int:pk>/', editado_manutencao, name='editado_manutencao'),
     path('manutencaonova/<int:id>/', CreateView.as_view(), name='manutencaonova'),
     path('download-pdf/<int:pk>/', download_pdf, name='download_pdfmanutencao'),
+    path('registros/<int:pk>/laudo/visualizar/', laudo_visualizar, name='manutencao_laudo_visualizar'),
+    path('registros/<int:pk>/laudo/visualizar/pdf/', laudo_visualizar_pdf, name='manutencao_laudo_visualizar_pdf'),
     path('lista_retornos/', ListaRetornosView.as_view(), name='lista_retornos'),
     path('criar_retorno/', CriarRetornoView.as_view(), name='criar_retorno'),
     path('download_pdf/<int:pk>/', DownloadPDFView.as_view(), name='download_pdf'),

@@ -15,6 +15,8 @@ from django.conf import settings
 from .models import registrodemanutencao, registro_manutencao_backup
 from django.views.generic import ListView, CreateView, DetailView, DeleteView, UpdateView
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.core.mail import send_mail
@@ -664,16 +666,12 @@ from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib import colors
-def download_pdf(request, pk):
-    try:
-        registro = registrodemanutencao.objects.get(pk=pk)
-    except registrodemanutencao.DoesNotExist:
-        return HttpResponse("Registro não encontrado.", status=404)
+def _gerar_laudo_pdf_bytes(registro):
+    """Gera e retorna os bytes do PDF do laudo de manutenção do registro.
 
-    # Configuração do PDF
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="registro-manutencao-{pk}.pdf"'
-
+    Lógica extraída de download_pdf para ser reutilizada pela visualização
+    inline em modal (laudo_visualizar_pdf) sem duplicar a montagem do PDF.
+    """
     buffer = BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -853,9 +851,60 @@ Estamos à disposição para fornecer qualquer esclarecimento adicional. Recomen
     doc.build(elements)
     pdf = buffer.getvalue()
     buffer.close()
-    response.write(pdf)
+    return pdf
 
+
+def download_pdf(request, pk):
+    try:
+        registro = registrodemanutencao.objects.get(pk=pk)
+    except registrodemanutencao.DoesNotExist:
+        return HttpResponse("Registro não encontrado.", status=404)
+
+    pdf = _gerar_laudo_pdf_bytes(registro)
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="registro-manutencao-{pk}.pdf"'
     return response
+
+
+@login_required
+def laudo_visualizar(request, pk):
+    """Retorna o partial HTML do laudo para visualização em modal.
+
+    EXCLUSIVO para superuser — lança 403 (PermissionDenied) para qualquer
+    outro usuário, mesmo que ele conheça e acesse a URL diretamente.
+    """
+    if not request.user.is_superuser:
+        raise PermissionDenied
+
+    registro = get_object_or_404(registrodemanutencao, pk=pk)
+    return render(request, 'partials/laudo_visualizar.html', {
+        'registro': registro,
+        'tipo': 'pdf',
+        'erro': None,
+    })
+
+
+@xframe_options_sameorigin
+@login_required
+def laudo_visualizar_pdf(request, pk):
+    """Serve o PDF do laudo de forma inline (alvo do iframe do modal).
+
+    EXCLUSIVO para superuser — o laudo é gerado dinamicamente e devolvido
+    com Content-Disposition inline para ser exibido sem download.
+
+    @xframe_options_sameorigin sobrepõe o X_FRAME_OPTIONS=DENY global apenas
+    nesta resposta, permitindo que o PDF seja exibido no <iframe> do modal
+    (mesma origem). As demais respostas seguem protegidas contra clickjacking.
+    """
+    if not request.user.is_superuser:
+        raise PermissionDenied
+
+    registro = get_object_or_404(registrodemanutencao, pk=pk)
+    pdf = _gerar_laudo_pdf_bytes(registro)
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="registro-manutencao-{pk}.pdf"'
+    return response
+
 
 class CriarRetornoView(CreateView):
     model = retorno
