@@ -18,4 +18,6 @@ urlpatterns = [
     path('inbox/<int:pk>/mover-afazer/', views.ticket_mover_para_afazer, name='ticket_mover_para_afazer'),
     path('inbox/<int:pk>/editar-partial/', views.ticket_editar_partial, name='ticket_editar_partial'),
     path('inbox/<int:pk>/salvar-triagem/', views.ticket_salvar_triagem, name='ticket_salvar_triagem'),
+    path('inbox/<int:pk>/recusar-partial/', views.ticket_recusar_partial, name='ticket_recusar_partial'),
+    path('inbox/<int:pk>/recusar/', views.ticket_recusar, name='ticket_recusar'),
 ]

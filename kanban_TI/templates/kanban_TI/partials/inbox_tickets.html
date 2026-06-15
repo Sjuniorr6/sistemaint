@@ -34,17 +34,32 @@
                 {% endif %}
             </div>
 
-            {# Ícone lápis — abre o modal de edição (substitui "Incluir no A fazer"). #}
-            <button type="button"
-                    class="btn btn-link text-warning p-1 ms-2 flex-shrink-0"
-                    title="Editar e incluir no A fazer"
-                    hx-get="{% url 'kanban_TI:ticket_editar_partial' ticket.pk %}"
-                    hx-target="#modal-editar-ticket-body"
-                    hx-swap="innerHTML"
-                    data-bs-toggle="modal"
-                    data-bs-target="#modal-editar-ticket">
-                <i class="bi bi-pencil-fill fs-5"></i>
-            </button>
+            {# Ações no canto superior direito: lápis (editar) e, abaixo, recusar. #}
+            <div class="d-flex flex-column align-items-center ms-2 flex-shrink-0">
+                {# Ícone lápis — abre o modal de edição (substitui "Incluir no A fazer"). #}
+                <button type="button"
+                        class="btn btn-link text-warning p-1"
+                        title="Editar e incluir no A fazer"
+                        hx-get="{% url 'kanban_TI:ticket_editar_partial' ticket.pk %}"
+                        hx-target="#modal-editar-ticket-body"
+                        hx-swap="innerHTML"
+                        data-bs-toggle="modal"
+                        data-bs-target="#modal-editar-ticket">
+                    <i class="bi bi-pencil-fill fs-5"></i>
+                </button>
+
+                {# Recusar ticket — abre o modal para informar o motivo da recusa. #}
+                <button type="button"
+                        class="btn btn-link text-danger p-1"
+                        title="Recusar ticket"
+                        hx-get="{% url 'kanban_TI:ticket_recusar_partial' ticket.pk %}"
+                        hx-target="#modal-editar-ticket-body"
+                        hx-swap="innerHTML"
+                        data-bs-toggle="modal"
+                        data-bs-target="#modal-editar-ticket">
+                    <i class="bi bi-x-circle-fill fs-5"></i>
+                </button>
+            </div>
         </div>
 
         {% if ticket.descricao %}

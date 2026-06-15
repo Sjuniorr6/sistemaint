@@ -1,0 +1,40 @@
+{# Partial puro — formulário de recusa do ticket na triagem (abre pelo botão recusar). #}
+{# O motivo informado aparece para o criador na central de tickets. #}
+
+<form hx-post="{% url 'kanban_TI:ticket_recusar' ticket.pk %}"
+      hx-target="#modal-inbox-body"
+      hx-swap="innerHTML"
+      hx-on::after-request="if(event.detail.successful) fecharModalEdicao()">
+
+    {% csrf_token %}
+
+    <p class="text-white-50 small mb-3">
+        <i class="bi bi-ticket-detailed me-1"></i>
+        #{{ ticket.pk }} — {{ ticket.titulo }}
+    </p>
+
+    <div class="alert alert-danger d-flex align-items-center gap-2 py-2 px-3 small" role="alert">
+        <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
+        <span>O ticket será recusado e o motivo abaixo ficará visível para quem o abriu.</span>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label small fw-semibold">Motivo da recusa</label>
+        <textarea name="motivo"
+                  class="form-control form-control-sm"
+                  rows="4"
+                  placeholder="Descreva o motivo da recusa do ticket..."
+                  required></textarea>
+    </div>
+
+    <div class="d-flex gap-2 justify-content-end mt-4">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
+            Cancelar
+        </button>
+        <button type="submit" class="btn btn-danger btn-sm">
+            <i class="bi bi-x-circle me-1"></i>
+            Recusar ticket
+        </button>
+    </div>
+
+</form>
