@@ -1,5 +1,6 @@
 from controle_acionamentos.services import validar_cpf
 from controle_acionamentos.services import validar_cpf, validar_cnpj
+from controle_acionamentos.services import validar_cpf, validar_cnpj, validar_cnh
 
 
 def test_cpf_valido_retorna_true():
@@ -39,3 +40,23 @@ def test_cnpj_tamanho_errado_retorna_false():
     """CNPJ com número de dígitos diferente de 14 é inválido."""
     assert validar_cnpj('123') is False
     assert validar_cnpj('') is False
+
+def test_cnh_valido_retorna_true():
+    """Uma CNH válida conhecida deve ser aceita (RN-03)."""
+    assert validar_cnh('19960271686') is True
+
+
+def test_cnh_digito_invalido_retorna_false():
+    """Uma CNH com dígito verificador errado deve ser rejeitada."""
+    assert validar_cnh('19960271687') is False
+
+
+def test_cnh_digitos_repetidos_retorna_false():
+    """CNH com todos os dígitos iguais é inválida, mesmo passando na conta."""
+    assert validar_cnh('11111111111') is False
+
+
+def test_cnh_tamanho_errado_retorna_false():
+    """CNH com número de dígitos diferente de 11 é inválida."""
+    assert validar_cnh('123') is False
+    assert validar_cnh('') is False
