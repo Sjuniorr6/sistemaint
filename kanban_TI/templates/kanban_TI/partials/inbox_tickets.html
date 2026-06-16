@@ -35,6 +35,8 @@
             </div>
 
             {# Ações no canto superior direito: lápis (editar) e, abaixo, recusar. #}
+            {# Somente usuários autorizados podem triar; viewers só leem. #}
+            {% if pode_editar %}
             <div class="d-flex flex-column align-items-center ms-2 flex-shrink-0">
                 {# Ícone lápis — abre o modal de edição (substitui "Incluir no A fazer"). #}
                 <button type="button"
@@ -60,6 +62,7 @@
                     <i class="bi bi-x-circle-fill fs-5"></i>
                 </button>
             </div>
+            {% endif %}
         </div>
 
         {% if ticket.descricao %}

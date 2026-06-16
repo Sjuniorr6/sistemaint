@@ -11,6 +11,7 @@ from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from app.permissions import usuario_autorizado
 from kanban_inteligencia.models import TarefaInteligencia
 from .models import TarefaTI
 
@@ -144,6 +145,7 @@ def home(request):
         },
         'destinado_filter': destinado_filter or 'all',
         'tickets_inbox_count': tickets_inbox_ti().count(),
+        'pode_editar': usuario_autorizado(request.user),
     }
 
     return render(request, 'kanban_TI/home.html', context)
@@ -313,6 +315,7 @@ def inbox_tickets_partial(request):
     return render(request, 'kanban_TI/partials/inbox_tickets.html', _contexto_triagem({
         'tickets_inbox': page_obj.object_list,
         'page_obj': page_obj,
+        'pode_editar': usuario_autorizado(request.user),
     }))
 
 
@@ -354,6 +357,7 @@ def ticket_mover_para_afazer(request, pk):
 
     return render(request, 'kanban_TI/partials/inbox_tickets.html', _contexto_triagem({
         'tickets_inbox': tickets_inbox_ti(),
+        'pode_editar': usuario_autorizado(request.user),
     }))
 
 

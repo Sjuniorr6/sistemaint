@@ -1038,6 +1038,21 @@ function fecharModalEdicao() {
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // ===== CONTROLE DE PERMISSÃO (somente leitura para não autorizados) =====
+    const PODE_EDITAR = {{ pode_editar|yesno:"true,false" }};
+    if (!PODE_EDITAR) {
+        // Desabilita arrastar cards
+        document.querySelectorAll('[draggable="true"]').forEach(el => {
+            el.setAttribute('draggable', 'false');
+            el.style.cursor = 'default';
+        });
+        // Esconde os controles de edição (mantém no DOM para não quebrar o JS)
+        document.querySelectorAll(
+            '#btnNovaTarefa, .btn-editar-tarefa, .btn-aprovar-tarefa, ' +
+            '#btnSalvarTarefa, #btnAtualizarTarefa, #btnDeletarTarefa'
+        ).forEach(el => { el.style.display = 'none'; });
+    }
+
     // ===== ELEMENTOS =====
     const btnNovaTarefa = document.getElementById('btnNovaTarefa');
     const modalNovaTarefa = new bootstrap.Modal(document.getElementById('modalNovaTarefa'));
@@ -1358,6 +1373,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         column.addEventListener('drop', async () => {
+            if (!PODE_EDITAR) return;
             if (!draggedCard) return;
 
             const origem = draggedCard.closest('.kanban-cards');
