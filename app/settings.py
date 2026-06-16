@@ -99,8 +99,6 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    # Após AuthenticationMiddleware: request.user já está disponível.
-    'app.middleware.LoginObrigatorioMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # Adicione este middleware
@@ -269,11 +267,6 @@ os.makedirs(MISSION_PHOTOS_TMP_ABS, exist_ok=True)
 LOGIN_REDIRECT_URL = 'home'  # Nome da URL para redirecionar após login
 LOGOUT_REDIRECT_URL = 'login'  # Nome da URL para redirecionar após logout
 LOGIN_URL = 'login'
-
-# Acesso restrito: somente estes usuários (username) podem usar o sistema.
-# Qualquer outro usuário, mesmo autenticado, recebe 403.
-# Deixe a lista vazia para liberar para todos os usuários autenticados.
-USUARIOS_AUTORIZADOS = ['Mayara_TI', 'Zezinho_TI', 'teste_ti_keth']
 # Verifique se 'login' está corretamente configurado e inclui a URL para login.
 ROLESPERMISSIONS_MODULE = 'app.roles'  # Certifique-se de que o caminho está correto
 
