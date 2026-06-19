@@ -7,7 +7,7 @@ from controle_acionamentos.models import ResponsavelAgente
 from datetime import timedelta
 from django.core.exceptions import ValidationError
 from django.utils import timezone
-from controle_acionamentos.models import ResponsavelAgente, Cliente
+from controle_acionamentos.models import ResponsavelAgente, Cliente, Agente
 
 def test_cpf_valido_retorna_true():
     """Um CPF válido conhecido deve ser aceito."""
@@ -122,3 +122,56 @@ def test_cliente_cnpj_duplicado_e_rejeitado():
 
     with pytest.raises(ValidationError):
         Cliente(nome_empresa="Outra Empresa", cnpj="11222333000181").full_clean()
+
+@pytest.mark.django_db
+def test_agente_persiste_com_dados_validos():
+    agente = Agente.objects.create(nome="João Agente", cpf="52998224725")
+
+    assert agente.pk is not None
+    assert Agente.objects.count() == 1
+    assert Agente.objects.get(pk=agente.pk).nome == "João Agente"
+
+
+@pytest.mark.django_db
+def test_agente_nome_vazio_e_rejeitado():
+    with pytest.raises(ValidationError):
+        Agente(nome="   ", cpf="52998224725").full_clean()
+
+
+@pytest.mark.django_db
+def test_agente_cpf_invalido_e_rejeitado():
+    with pytest.raises(ValidationError):
+        Agente(nome="João", cpf="52998224724").full_clean()
+
+
+@pytest.mark.django_db
+def test_agente_cpf_duplicado_e_rejeitado():
+    Agente.objects.create(nome="João", cpf="52998224725")
+
+    with pytest.raises(ValidationError):
+        Agente(nome="Outro", cpf="52998224725").full_clean()
+
+
+@pytest.mark.django_db
+def test_agente_cnh_opcional_aceita_vazia():
+    agente = Agente(nome="Maria", cpf="52998224725", cnh="")
+    agente.full_clean()  # não deve levantar
+
+    assert agente.cnh == ""
+
+
+@pytest.mark.django_db
+def test_agente_cnh_invalida_e_rejeitada():
+    with pytest.raises(ValidationError):
+        Agente(nome="Maria", cpf="52998224725", cnh="11111111111").full_clean()
+
+
+@pytest.mark.django_db
+def test_agente_vincula_clientes():
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    agente = Agente.objects.create(nome="João", cpf="52998224725")
+
+    agente.clientes_vinculados.add(cliente)
+
+    assert cliente in agente.clientes_vinculados.all()
+    assert agente in cliente.agentes_vinculados.all()
