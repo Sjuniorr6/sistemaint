@@ -1,13 +1,14 @@
 from django.urls import path
 from .views import (
-    FaturamentoListView, update_status_faturamento, contratosListView, 
-    formularioCreateView, FinanceirohListViews, atualizar_observacoes, 
-    external_vouchers_list, FaturamentoInterativoView, FaturamentoSaveView, 
+    FaturamentoListView, update_status_faturamento, contratosListView,
+    formularioCreateView, FinanceirohListViews, atualizar_observacoes,
+    external_vouchers_list, FaturamentoInterativoView, FaturamentoSaveView,
     FaturamentoDeleteView, FaturamentoGetDataView, FaturamentoGetClientesView,
     FaturamentoGetComerciaisView, FaturamentoGetNomesFantasiaView,
     FaturamentoGetSistemasOmieView, FaturamentoGetEmpresasView,
     FaturamentoGetEmailsView, FaturamentoGetFormasPagamentoView,
-    FaturamentoGetNextIdView, FaturamentoGetMultipleIdsView
+    FaturamentoGetNextIdView, FaturamentoGetMultipleIdsView,
+    faturamento_export_excel
 )
 
 urlpatterns = [
@@ -32,5 +33,5 @@ urlpatterns = [
        path('get-formas-pagamento/', FaturamentoGetFormasPagamentoView.as_view(), name='faturamento_get_formas_pagamento'),
        path('get-next-id/', FaturamentoGetNextIdView.as_view(), name='faturamento_get_next_id'),
        path('get-multiple-ids/', FaturamentoGetMultipleIdsView.as_view(), name='faturamento_get_multiple_ids'),
-    
+    path('export-excel/', faturamento_export_excel, name='faturamento_export_excel'),
 ]
