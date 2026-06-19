@@ -129,17 +129,16 @@ M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → M10
 ## ⏳ MÓDULO 9 — Gestão de tarefas (CRUD)
 > Movido para pós-feedback — avaliar após uso em produção
 
-- [ ] Avaliar necessidade real após uso em produção
-- [ ] Tela para criar/editar tarefas recorrentes sem usar o admin Django
-- [ ] Definir perfil de acesso do gestor no sistema
-- [ ] Commit: `feat(sca): gestão de tarefas`
+- [x] Avaliar necessidade real após uso em produção
+- [x] Tela para criar/editar tarefas recorrentes sem usar o admin Django
+- [x] Definir perfil de acesso do gestor no sistema
+- [x] Commit: `feat(sca): gestão de tarefas`
 
 ---
 
 ## ⏳ MÓDULO 10 — Melhorias pós-feedback
 
 - [x] Modo dark/light com alternância por botão
-- [ ] Itens fixos que carregam entre semanas
 - [ ] Filtros no painel por responsável
 - [ ] Indicadores individuais por funcionário
 - [ ] Ajustes do uso real
