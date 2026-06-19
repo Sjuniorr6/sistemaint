@@ -4,11 +4,10 @@ from controle_acionamentos.services import validar_cpf
 from controle_acionamentos.services import validar_cpf, validar_cnpj
 from controle_acionamentos.services import validar_cpf, validar_cnpj, validar_cnh
 from controle_acionamentos.models import ResponsavelAgente
-
 from datetime import timedelta
-
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from controle_acionamentos.models import ResponsavelAgente, Cliente
 
 def test_cpf_valido_retorna_true():
     """Um CPF válido conhecido deve ser aceito."""
@@ -92,3 +91,34 @@ def test_responsavel_agente_lista_ordenada_por_criacao_desc():
     )
 
     assert list(ResponsavelAgente.objects.all()) == [recente, antigo]
+
+@pytest.mark.django_db
+def test_cliente_persiste_com_dados_validos():
+    cliente = Cliente.objects.create(
+        nome_empresa="ACME Logística",
+        cnpj="11222333000181",
+    )
+
+    assert cliente.pk is not None
+    assert Cliente.objects.count() == 1
+    assert Cliente.objects.get(pk=cliente.pk).nome_empresa == "ACME Logística"
+
+
+@pytest.mark.django_db
+def test_cliente_nome_empresa_vazio_e_rejeitado():
+    with pytest.raises(ValidationError):
+        Cliente(nome_empresa="   ", cnpj="11222333000181").full_clean()
+
+
+@pytest.mark.django_db
+def test_cliente_cnpj_invalido_e_rejeitado():
+    with pytest.raises(ValidationError):
+        Cliente(nome_empresa="ACME", cnpj="11222333000180").full_clean()
+
+
+@pytest.mark.django_db
+def test_cliente_cnpj_duplicado_e_rejeitado():
+    Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+
+    with pytest.raises(ValidationError):
+        Cliente(nome_empresa="Outra Empresa", cnpj="11222333000181").full_clean()
