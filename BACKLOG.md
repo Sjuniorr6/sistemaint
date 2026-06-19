@@ -138,7 +138,7 @@ M1 → M2 → M3 → M4 → M5 → M6 → M7 → M8 → M9 → M10
 
 ## ⏳ MÓDULO 10 — Melhorias pós-feedback
 
-- [ ] Modo dark/light com alternância por botão
+- [x] Modo dark/light com alternância por botão
 - [ ] Itens fixos que carregam entre semanas
 - [ ] Filtros no painel por responsável
 - [ ] Indicadores individuais por funcionário

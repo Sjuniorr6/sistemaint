@@ -357,9 +357,12 @@
                                         <option value="-nome__nome" {% if request.GET.ordenacao == '-nome__nome' %}selected{% endif %}>Nome do Cliente (Z-A)</option>
                                     </select>
                                 </div>
-                                <div class="col-md-3 col-6 mb-2 d-flex gap-2">
+                                <div class="col-md-3 col-6 mb-2 d-flex gap-2 flex-wrap">
                                     <button class="btn btn-success px-3 rounded-pill flex-fill" type="submit">Filtrar</button>
                                     <a href="{% url 'faturamento_list' %}" class="btn btn-outline-secondary px-3 rounded-pill flex-fill">Limpar</a>
+                                    <button type="button" class="btn btn-outline-success px-3 rounded-pill flex-fill" style="white-space:nowrap;" data-bs-toggle="modal" data-bs-target="#modalExcelColunas">
+                                        <i class="bi bi-file-earmark-excel"></i> Extrair Excel
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -537,6 +540,45 @@
     </div>
 </div>
 
+<!-- Modal seleção de colunas Excel -->
+<div class="modal fade" id="modalExcelColunas" tabindex="-1" aria-labelledby="modalExcelColunasLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content" style="border-radius:12px;">
+            <div class="modal-header" style="background:#343a40; color:#fff; border-radius:12px 12px 0 0;">
+                <h5 class="modal-title" id="modalExcelColunasLabel">
+                    <i class="bi bi-file-earmark-excel me-2" style="color:#1e7e34;"></i>Selecionar colunas para exportar
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="background:#fff;">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <small class="text-muted">Marque as colunas que deseja incluir no Excel</small>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" id="btn-marcar-todas">Marcar todas</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" id="btn-desmarcar-todas">Desmarcar todas</button>
+                    </div>
+                </div>
+                <div class="row g-2" id="lista-colunas-excel">
+                    {% for col in colunas_exportacao %}
+                    <div class="col-6 col-md-4">
+                        <div class="form-check">
+                            <input style="margin-right: 0.5rem; color: black;" class="form-check-input coluna-check" type="checkbox" value="{{ col }}" id="col-{{ forloop.counter }}" checked>
+                            <label style="margin-right: 0.5rem; color: black;" class="form-check-label" for="col-{{ forloop.counter }}" style="font-size:0.85rem;">{{ col }}</label>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="modal-footer" style="background:#f8f9fa; border-radius:0 0 12px 12px;">
+                <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success rounded-pill" id="btn-confirmar-excel">
+                    <i class="bi bi-download me-1"></i> Baixar Excel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Botão voltar ao topo -->
 <button class="back-to-top" onclick="scrollToTop()" title="Voltar ao topo">
     <i class="fas fa-arrow-up"></i>
@@ -559,6 +601,30 @@
             behavior: 'smooth'
         });
     }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Marcar / desmarcar todas as colunas
+        document.getElementById('btn-marcar-todas').addEventListener('click', function() {
+            document.querySelectorAll('.coluna-check').forEach(cb => cb.checked = true);
+        });
+        document.getElementById('btn-desmarcar-todas').addEventListener('click', function() {
+            document.querySelectorAll('.coluna-check').forEach(cb => cb.checked = false);
+        });
+
+        // Baixar Excel com colunas selecionadas + filtros ativos
+        document.getElementById('btn-confirmar-excel').addEventListener('click', function() {
+            const selecionadas = Array.from(document.querySelectorAll('.coluna-check:checked')).map(cb => cb.value);
+            if (selecionadas.length === 0) {
+                alert('Selecione ao menos uma coluna.');
+                return;
+            }
+            const baseUrl = "{% url 'faturamento_export_excel' %}";
+            const currentParams = new URLSearchParams(window.location.search);
+            currentParams.delete('page');
+            selecionadas.forEach(col => currentParams.append('colunas', col));
+            window.location.href = baseUrl + '?' + currentParams.toString();
+        });
+    });
 
     // Melhorar a experiência de scroll na tabela
     document.addEventListener('DOMContentLoaded', function() {

@@ -6,10 +6,11 @@ from datetime import datetime
 from django.contrib.auth.decorators import login_required, permission_required
 from django.core.paginator import Paginator
 from django.db.models import Case, When, IntegerField
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
+from functools import wraps
 
 from kanban_inteligencia.models import TarefaInteligencia
 from .models import TarefaTI
@@ -110,9 +111,22 @@ def json_success(**kwargs):
     return JsonResponse({'success': True, **kwargs})
 
 
+def ti_or_superuser_required(view_func):
+    """Permite acesso apenas para superusers ou usuários do grupo 'TI'."""
+    @wraps(view_func)
+    @login_required
+    def _wrapped(request, *args, **kwargs):
+        user = request.user
+        if user.is_superuser or user.groups.filter(name='TI').exists():
+            return view_func(request, *args, **kwargs)
+        return HttpResponseForbidden('Acesso negado')
+
+    return _wrapped
+
+
 # ===== VIEWS =====
 
-@login_required
+@ti_or_superuser_required
 def home(request):
     tarefas = TarefaTI.objects.all()
 
@@ -149,7 +163,7 @@ def home(request):
     return render(request, 'kanban_TI/home.html', context)
 
 
-@login_required
+@ti_or_superuser_required
 @require_POST
 def adicionar_tarefa(request):
     try:
@@ -169,7 +183,7 @@ def adicionar_tarefa(request):
         return json_error(str(e))
 
 
-@login_required
+@ti_or_superuser_required
 def obter_tarefa(request, tarefa_id):
     try:
         tarefa = TarefaTI.objects.get(id=tarefa_id)
@@ -197,7 +211,7 @@ def obter_tarefa(request, tarefa_id):
         return json_error('Tarefa não encontrada', status=404)
 
 
-@login_required
+@ti_or_superuser_required
 @require_POST
 def atualizar_tarefa(request, tarefa_id):
     try:
@@ -231,7 +245,7 @@ def atualizar_tarefa(request, tarefa_id):
         return json_error(str(e))
 
 
-@login_required
+@ti_or_superuser_required
 @require_POST
 def atualizar_status(request, tarefa_id):
     try:
@@ -265,7 +279,7 @@ def atualizar_status(request, tarefa_id):
         return json_error(str(e))
 
 
-@login_required
+@ti_or_superuser_required
 @require_POST
 def deletar_tarefa(request, tarefa_id):
     try:
@@ -299,7 +313,7 @@ def _contexto_triagem(extra=None):
     return ctx
 
 
-@login_required
+@ti_or_superuser_required
 def inbox_tickets_partial(request):
     """Tickets aguardando triagem (corpo do modal), paginados — 5 por página."""
     try:
@@ -316,7 +330,7 @@ def inbox_tickets_partial(request):
     }))
 
 
-@login_required
+@ti_or_superuser_required
 def inbox_badge(request):
     """Retorna apenas o badge com a contagem atualizada da inbox."""
     return render(request, 'kanban_TI/partials/inbox_badge.html', {
@@ -324,7 +338,7 @@ def inbox_badge(request):
     })
 
 
-@login_required
+@ti_or_superuser_required
 @require_POST
 def ticket_mover_para_afazer(request, pk):
     """
@@ -357,7 +371,7 @@ def ticket_mover_para_afazer(request, pk):
     }))
 
 
-@login_required
+@ti_or_superuser_required
 def ticket_editar_partial(request, pk):
     """Formulário de edição do ticket de triagem — carregado pelo lápis (HTMX)."""
     ticket = get_object_or_404(
@@ -368,7 +382,7 @@ def ticket_editar_partial(request, pk):
     }))
 
 
-@login_required
+@ti_or_superuser_required
 def ticket_recusar_partial(request, pk):
     """Formulário de recusa do ticket de triagem — carregado pelo botão recusar."""
     ticket = get_object_or_404(
@@ -379,7 +393,7 @@ def ticket_recusar_partial(request, pk):
     })
 
 
-@login_required
+@ti_or_superuser_required
 @require_POST
 def ticket_recusar(request, pk):
     """
@@ -412,7 +426,7 @@ def ticket_recusar(request, pk):
     return inbox_tickets_partial(request)
 
 
-@login_required
+@ti_or_superuser_required
 @require_POST
 def ticket_salvar_triagem(request, pk):
     """
@@ -468,7 +482,7 @@ def ticket_salvar_triagem(request, pk):
     return inbox_tickets_partial(request)
 
 
-@login_required
+@ti_or_superuser_required
 def exportar_tarefas(request):
 
     tarefas = TarefaTI.objects.all().order_by('-data_criacao')

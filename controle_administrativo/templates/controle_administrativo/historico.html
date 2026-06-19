@@ -5,20 +5,57 @@
 {% block content %}
 
 <style>
+  /* Tema visual GoldenSat — Light / Dark. Espelha o painel: Light é o padrão
+     (bege/creme); o dark é ativado pela classe .dark no <body>. Navy e âmbar
+     são identidade da marca e não mudam. Tokens reaproveitam nomes antigos. */
   :root {
-    --gold:       #ffd700;
-    --gold-dark:  #665b1d;
-    --bg-card:    #1e1e2e;
-    --bg-panel:   #16161e;
-    --border:     #2a2a3e;
-    --text-light: #e0e0e0;
-    --text-muted: #888;
+    /* — Identidade da marca (fixos) — */
+    --gold-dark:  #1a2332;
+    --navy:       #1a2332;
     --green:      #4caf50;
     --radius:     10px;
+
+    /* — LIGHT MODE (padrão) — greige quente e fechado, tons que ornam entre si — */
+    --bg-panel:   #e4dfce;   /* greige mais neutro, menos quente */
+    --bg-card:    #ece7d6;
+    --card-2:     #f1ecdd;
+    --border:     #d2cbb6;
+    --divider:    #d9d2bf;
+    --text-light: #2c3140;
+    --text-muted: #6a6457;
+    --hover:      #e6e0cf;
+    --input-bg:   #e8e2d1;
+    /* No light, TODOS os amarelos usam o mesmo tom: dourado mais intenso que orna com o bege */
+    --amber:      #E8B81C;
+    --gold:       #E8B81C;
+    --label-amber:#E8B81C;
   }
 
-  body { background: var(--bg-panel) !important; }
+  /* — DARK MODE — */
+  body.dark {
+    --bg-panel:   #0f1117;
+    --bg-card:    #1a1f2e;
+    --card-2:     #1f2535;
+    --border:     #2d3748;
+    --divider:    #232b3b;
+    --text-light: #e5e7eb;
+    --text-muted: #9ca3af;
+    --hover:      #1f2535;
+    --input-bg:   #1f2535;
+    /* No dark, âmbar/amarelo da marca em tom forte */
+    --amber:      #F5C400;
+    --gold:       #F5C400;
+    --label-amber:#F5C400;
+  }
+
+  .sca-wrapper, .sca-wrapper *, .modal-content, .modal-content * {
+    transition: background-color 0.25s ease, border-color 0.25s ease, color 0.15s ease;
+  }
+
+  body { background: var(--bg-panel) !important; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
   .container { max-width: 100% !important; padding: 0 !important; }
+
+  body.dark .btn-close { filter: invert(1); }
 
   .sca-wrapper {
     display: flex;
@@ -65,8 +102,9 @@
   }
 
   .sca-header {
-    background: linear-gradient(135deg, #1e1e2e, #2a2a3e);
-    border: 2px solid var(--gold-dark);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-bottom: 3px solid var(--amber);
     padding: 0.5rem 1rem;
     border-radius: var(--radius);
     display: flex;
@@ -75,12 +113,13 @@
     flex-shrink: 0;
   }
 
-  .sca-header h4 { color: var(--gold); font-weight: 700; margin: 0; font-size: 0.95rem; }
+  .sca-header h4 { color: var(--text-light); font-weight: 700; margin: 0; font-size: 0.95rem; }
+  .sca-header h4 .bi { color: var(--amber); }
   .sca-header small { color: var(--text-muted); font-size: 0.7rem; }
 
-  .progress-track { height: 7px; background: var(--border); border-radius: 10px; overflow: hidden; width: 180px; }
-  .progress-bar-sca { height: 7px; border-radius: 10px; background: var(--gold); transition: width 0.4s ease; }
-  .progress-label { color: var(--gold); font-weight: 700; font-size: 0.9rem; }
+  .progress-track { height: 7px; background: var(--divider); border-radius: 10px; overflow: hidden; width: 180px; }
+  .progress-bar-sca { height: 7px; border-radius: 10px; background: var(--amber); transition: width 0.4s ease; }
+  .progress-label { color: var(--text-light); font-weight: 700; font-size: 0.9rem; }
 
   .nav-semana {
     display: flex;
@@ -89,7 +128,7 @@
   }
 
   .nav-semana a {
-    background: #25253a;
+    background: var(--card-2);
     border: 1px solid var(--border);
     color: var(--text-muted);
     border-radius: 5px;
@@ -99,12 +138,12 @@
     transition: all 0.2s;
   }
 
-  .nav-semana a:hover { border-color: var(--gold-dark); color: var(--gold); }
+  .nav-semana a:hover { border-color: var(--amber); color: var(--text-light); }
   .nav-semana a.disabled { opacity: 0.3; pointer-events: none; }
 
   .badge-semana-atual {
-    background: var(--gold-dark);
-    color: var(--gold);
+    background: var(--amber);
+    color: var(--navy);
     font-size: 0.65rem;
     font-weight: 700;
     padding: 0.15rem 0.4rem;
@@ -133,7 +172,7 @@
 
   .sca-bloco {
     background: var(--bg-card);
-    border: 2px solid var(--border);
+    border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 0.45rem;
     flex: 1;
@@ -144,14 +183,14 @@
   }
 
   .sca-bloco-titulo {
-    color: var(--gold);
+    color: var(--text-light);
     font-weight: 700;
     font-size: 0.62rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 0.35rem;
     padding-bottom: 0.25rem;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 2px solid var(--amber);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -163,7 +202,7 @@
     align-items: flex-start;
     gap: 0.3rem;
     padding: 0.2rem 0;
-    border-bottom: 1px solid #2a2a3e;
+    border-bottom: 1px solid var(--divider);
     font-size: 0.65rem;
     color: var(--text-light);
     line-height: 1.3;
@@ -192,7 +231,7 @@
 
   .sca-dia-col {
     background: var(--bg-card);
-    border: 2px solid var(--border);
+    border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 0.45rem;
     overflow-y: auto;
@@ -201,19 +240,19 @@
   }
 
   .sca-dia-titulo {
-    color: var(--gold);
+    color: var(--text-light);
     font-weight: 700;
     font-size: 0.68rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 0.4rem;
     padding-bottom: 0.3rem;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 2px solid var(--amber);
     flex-shrink: 0;
   }
 
   .sca-periodo-titulo {
-    color: var(--text-muted);
+    color: var(--label-amber);
     font-size: 0.6rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -225,7 +264,7 @@
   }
 
   .sca-tarefa {
-    background: #25253a;
+    background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 5px;
     padding: 0.3rem 0.4rem;
@@ -244,7 +283,7 @@
 
   .sca-check {
     width: 13px; height: 13px; min-width: 13px;
-    border: 2px solid var(--gold-dark);
+    border: 2px solid var(--text-muted);
     border-radius: 3px;
     display: flex; align-items: center; justify-content: center;
     background: transparent; margin-top: 1px;
@@ -265,7 +304,7 @@
 
   .sca-divisao {
     background: var(--bg-card);
-    border: 2px solid var(--border);
+    border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 0.45rem;
     height: 100%;
@@ -275,17 +314,20 @@
   }
 
   .sca-divisao-titulo {
-    color: var(--gold);
+    color: var(--text-light);
     font-weight: 700;
     font-size: 0.65rem;
     text-transform: uppercase;
-    background: #2a2a3e;
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--amber);
     padding: 0.25rem 0.5rem;
     border-radius: 4px;
     margin-bottom: 0.4rem;
     text-align: center;
     flex-shrink: 0;
   }
+  .sca-divisao-titulo .bi-person-fill { color: var(--amber); }
 
   .sca-divisao-item {
     font-size: 0.65rem;
@@ -298,17 +340,17 @@
   }
 
   .sca-divisao-item:last-child { border-bottom: none; }
-  .sca-divisao-secao { color: var(--gold-dark); font-size: 0.58rem; font-weight: 700; text-transform: uppercase; margin: 0.3rem 0 0.15rem; flex-shrink: 0; }
+  .sca-divisao-secao { color: var(--label-amber); font-size: 0.58rem; font-weight: 700; text-transform: uppercase; margin: 0.3rem 0 0.15rem; flex-shrink: 0; }
 
   .badge-status { padding: 0.2rem 0.4rem; border-radius: 20px; font-size: 0.6rem; font-weight: 700; }
-  .badge-pendente     { background: #333; color: #aaa; }
-  .badge-em_andamento { background: #1a3a5c; color: #4a9eda; }
-  .badge-concluida    { background: #1a3a1a; color: #4caf50; }
-  .badge-atrasada     { background: #3a1a1a; color: #ef5350; }
-  .badge-cancelada    { background: #2a2a2a; color: #666; }
+  .badge-pendente     { background: #eceff1; color: #607d8b; }
+  .badge-em_andamento { background: #e3f0fb; color: #1976d2; }
+  .badge-concluida    { background: #e6f4ea; color: #2e7d32; }
+  .badge-atrasada     { background: #fdecea; color: #d32f2f; }
+  .badge-cancelada    { background: #f0f0f0; color: #9e9e9e; }
 
   .readonly-badge {
-    background: #2a2a3e;
+    background: var(--hover);
     color: var(--text-muted);
     font-size: 0.6rem;
     padding: 0.15rem 0.4rem;
@@ -316,18 +358,18 @@
     border: 1px solid var(--border);
   }
 
-  .modal-content { background: #1e1e2e; border: 2px solid var(--gold-dark); border-radius: var(--radius); color: var(--text-light); }
+  .modal-content { background: var(--bg-card); border: 1px solid var(--border); border-top: 4px solid var(--amber); border-radius: var(--radius); color: var(--text-light); }
   .modal-header { border-bottom: 1px solid var(--border); padding: 0.75rem 1rem; }
-  .modal-title { color: var(--gold); font-weight: 700; font-size: 0.95rem; }
-  .btn-close { filter: invert(1); }
+  .modal-title { color: var(--text-light); font-weight: 700; font-size: 0.95rem; }
+  .btn-close { filter: none; }
   .modal-body { padding: 1rem; }
-  .modal-secao-titulo { color: var(--gold); font-weight: 700; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin: 0.75rem 0 0.4rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--border); }
+  .modal-secao-titulo { color: var(--text-light); font-weight: 700; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; margin: 0.75rem 0 0.4rem; padding-bottom: 0.25rem; border-bottom: 2px solid var(--amber); }
   .modal-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin-bottom: 0.75rem; }
   .modal-meta-item label { color: var(--text-muted); font-size: 0.65rem; text-transform: uppercase; display: block; }
   .modal-meta-item span { color: var(--text-light); font-size: 0.82rem; font-weight: 600; }
-  .modal-descricao { background: #25253a; border-radius: 8px; padding: 0.6rem 0.75rem; font-size: 0.82rem; color: var(--text-light); margin-bottom: 0.75rem; line-height: 1.6; }
-  .comentario-item { background: #25253a; border-radius: 6px; padding: 0.5rem 0.6rem; margin-bottom: 0.4rem; font-size: 0.78rem; }
-  .comentario-autor { color: var(--gold); font-weight: 700; font-size: 0.7rem; }
+  .modal-descricao { background: var(--hover); border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.75rem; font-size: 0.82rem; color: var(--text-light); margin-bottom: 0.75rem; line-height: 1.6; }
+  .comentario-item { background: var(--hover); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.6rem; margin-bottom: 0.4rem; font-size: 0.78rem; }
+  .comentario-autor { color: var(--text-light); font-weight: 700; font-size: 0.7rem; }
   .comentario-data  { color: var(--text-muted); font-size: 0.65rem; }
   .comentario-texto { color: var(--text-light); margin-top: 0.2rem; }
 </style>
@@ -369,15 +411,21 @@
         <small class="text-muted">({{ resumo.concluidas }}/{{ resumo.total }})</small>
       </div>
 
+      <!-- Alternar tema -->
+      <button type="button" id="gs-btn-tema" onclick="gsTema.alternar()" title="Alternar tema claro/escuro"
+              style="background:transparent;color:var(--text-light);border:1px solid var(--border);border-radius:6px;padding:0.25rem 0.5rem;font-size:0.85rem;cursor:pointer;line-height:1;">
+        <i class="bi bi-moon-stars" id="gs-icone-tema"></i>
+      </button>
+
       <!-- Exportar Excel -->
       <a href="{% url 'controle_administrativo:exportar_excel' semana_iso ano %}"
-         style="background:#1a3a1a;color:#4caf50;font-size:0.72rem;font-weight:700;padding:0.25rem 0.6rem;border-radius:5px;text-decoration:none;border:1px solid #4caf50;">
+         style="background:#e6f4ea;color:#2e7d32;font-size:0.72rem;font-weight:700;padding:0.25rem 0.6rem;border-radius:5px;text-decoration:none;border:1px solid #2e7d32;">
         <i class="bi bi-file-earmark-excel me-1"></i>Excel
       </a>
       
       <!-- Link para o painel -->
       <a href="{% url 'controle_administrativo:painel' %}"
-         style="background:var(--gold-dark);color:var(--gold);font-size:0.72rem;font-weight:700;padding:0.25rem 0.6rem;border-radius:5px;text-decoration:none;">
+         style="background:var(--amber);color:var(--navy);font-size:0.72rem;font-weight:700;padding:0.25rem 0.6rem;border-radius:5px;text-decoration:none;">
         <i class="bi bi-layout-wtf me-1"></i>Painel atual
       </a>
 
@@ -536,7 +584,7 @@
           <div>
             {% for tarefa in item.tarefas_divisao %}
             <div class="sca-divisao-item">
-              <i class="bi bi-circle" style="font-size:0.5rem;color:var(--gold-dark);flex-shrink:0;margin-top:2px;"></i>
+              <i class="bi bi-circle" style="font-size:0.5rem;color:var(--label-amber);flex-shrink:0;margin-top:2px;"></i>
               {{ tarefa.conteudo }}
             </div>
             {% empty %}
@@ -640,6 +688,47 @@
     trigger.addEventListener('mouseenter', mostrar);
     header.addEventListener('mouseleave', ocultar);
   }());
+</script>
+
+<!-- ─── ALTERNÂNCIA DE TEMA LIGHT/DARK (GoldenSat — exclusivo do Controle Administrativo) ─── -->
+<script>
+(function () {
+  // Light é o padrão; o dark é aplicado pela classe .dark no <body> (apenas
+  // nesta página). Os modais ficam fora do .sca-wrapper, por isso a classe vai
+  // no <body> — assim eles também acompanham o tema. Preferência em localStorage.
+  const CHAVE = 'gs-ca-tema';
+  const icone = document.getElementById('gs-icone-tema');
+
+  const gsTema = {
+    aplicar: function (tema) {
+      if (tema === 'dark') {
+        document.body.classList.add('dark');
+        if (icone) icone.className = 'bi bi-sun';
+      } else {
+        document.body.classList.remove('dark');
+        if (icone) icone.className = 'bi bi-moon-stars';
+      }
+      localStorage.setItem(CHAVE, tema);
+    },
+    alternar: function () {
+      const atual = localStorage.getItem(CHAVE)
+        || (document.body.classList.contains('dark') ? 'dark' : 'light');
+      this.aplicar(atual === 'dark' ? 'light' : 'dark');
+    },
+    init: function () {
+      const salvo = localStorage.getItem(CHAVE);
+      if (salvo) {
+        this.aplicar(salvo);
+      } else {
+        const prefereDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        this.aplicar(prefereDark ? 'dark' : 'light');
+      }
+    }
+  };
+
+  window.gsTema = gsTema;
+  gsTema.init();
+}());
 </script>
 
 {% endblock %}

@@ -29,7 +29,11 @@ from django.utils.dateparse import parse_datetime
 import requests
 from django.shortcuts import render
 from django.utils.dateparse import parse_datetime
-# Removido import de Clientes pois não é mais necessário   
+# Removido import de Clientes pois não é mais necessário
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
+import io
 
 class FaturamentoListView(PermissionRequiredMixin, LoginRequiredMixin, ListView):
     model = Requisicoes
@@ -172,8 +176,198 @@ class FaturamentoListView(PermissionRequiredMixin, LoginRequiredMixin, ListView)
         
         # Adicionar os valores atuais dos filtros para preservar no formulário
         context['current_filters'] = self.request.GET
-        
+
+        context['colunas_exportacao'] = [
+            "ID", "Data", "Nome", "Status", "Data Atualização Status",
+            "Contrato", "CNPJ", "Início do Contrato", "Vigência", "Motivo",
+            "Envio", "Comercial", "Produto", "Quantidade", "Qtd Expedida",
+            "Fatura", "Valor Unitário", "Valor Total", "Formas de Pagamento",
+            "Taxa de Envio", "Observações", "Status Faturamento",
+        ]
+
         return context
+
+def _build_faturamento_queryset(request):
+    """Reconstrói o mesmo queryset da FaturamentoListView a partir dos parâmetros GET."""
+    from datetime import datetime, time, timedelta
+    from django.utils import timezone
+
+    queryset = Requisicoes.objects.exclude(status='Reprovado pelo CEO')
+
+    ordenacao = request.GET.get('ordenacao')
+    queryset = queryset.order_by(ordenacao) if ordenacao else queryset.order_by('-id')
+
+    def to_aware(dt):
+        try:
+            if timezone.is_naive(dt) and timezone.is_aware(timezone.now()):
+                return timezone.make_aware(dt, timezone.get_current_timezone())
+        except Exception:
+            pass
+        return dt
+
+    data = request.GET.get('data')
+    data_inicio = request.GET.get('data_inicio')
+    data_fim = request.GET.get('data_fim')
+
+    if data:
+        try:
+            d = datetime.strptime(data, '%Y-%m-%d').date()
+            queryset = queryset.filter(data__gte=to_aware(datetime.combine(d, time.min)),
+                                       data__lt=to_aware(datetime.combine(d + timedelta(days=1), time.min)))
+        except ValueError:
+            pass
+    elif data_inicio and data_fim:
+        try:
+            di = datetime.strptime(data_inicio, '%Y-%m-%d').date()
+            df = datetime.strptime(data_fim, '%Y-%m-%d').date()
+            queryset = queryset.filter(data__gte=to_aware(datetime.combine(di, time.min)),
+                                       data__lt=to_aware(datetime.combine(df + timedelta(days=1), time.min)))
+        except ValueError:
+            pass
+    elif data_inicio:
+        try:
+            di = datetime.strptime(data_inicio, '%Y-%m-%d').date()
+            queryset = queryset.filter(data__gte=to_aware(datetime.combine(di, time.min)))
+        except ValueError:
+            pass
+    elif data_fim:
+        try:
+            df = datetime.strptime(data_fim, '%Y-%m-%d').date()
+            queryset = queryset.filter(data__lt=to_aware(datetime.combine(df + timedelta(days=1), time.min)))
+        except ValueError:
+            pass
+
+    status_faturamento = request.GET.get('status_faturamento_filtro')
+    cliente = request.GET.get('cliente_filtro')
+    motivo = request.GET.get('motivo_filtro')
+    tipo_produto = request.GET.get('tipo_produto_filtro')
+    contrato_tipo = request.GET.get('contrato_tipo_filtro')
+    fatura_tipo = request.GET.get('fatura_tipo_filtro')
+    status = request.GET.get('status')
+    comercial = request.GET.get('comercial')
+    cnpj = request.GET.get('cnpj')
+    busca = request.GET.get('busca')
+
+    if status_faturamento:
+        queryset = queryset.filter(status_faturamento=status_faturamento)
+    if cliente:
+        queryset = queryset.filter(nome_id=cliente)
+    if motivo:
+        queryset = queryset.filter(motivo=motivo)
+    if tipo_produto:
+        queryset = queryset.filter(tipo_produto_id=tipo_produto)
+    if contrato_tipo:
+        queryset = queryset.filter(contrato=contrato_tipo)
+    if fatura_tipo:
+        queryset = queryset.filter(tipo_fatura=fatura_tipo)
+    if status:
+        queryset = queryset.filter(status=status)
+    if comercial:
+        queryset = queryset.filter(comercial=comercial)
+    if cnpj:
+        queryset = queryset.filter(cnpj__icontains=cnpj)
+    if busca:
+        queryset = queryset.filter(nome__nome__icontains=busca)
+
+    return queryset
+
+
+_TODAS_COLUNAS = [
+    ("ID",                      "id",                    8),
+    ("Data",                    "data",                  16),
+    ("Nome",                    "nome__nome",            30),
+    ("Status",                  "status",                18),
+    ("Data Atualização Status", "data_alteracao",        20),
+    ("Contrato",                "contrato",              14),
+    ("CNPJ",                    "cnpj",                  18),
+    ("Início do Contrato",      "inicio_de_contrato",    16),
+    ("Vigência",                "vigencia",              10),
+    ("Motivo",                  "motivo",                18),
+    ("Envio",                   "envio",                 12),
+    ("Comercial",               "comercial",             16),
+    ("Produto",                 "tipo_produto__nome",    20),
+    ("Quantidade",              "numero_de_equipamentos",12),
+    ("Qtd Expedida",            "quantidade_expedida",   12),
+    ("Fatura",                  "tipo_fatura",           14),
+    ("Valor Unitário",          "valor_unitario",        14),
+    ("Valor Total",             "valor_total",           14),
+    ("Formas de Pagamento",     "forma_pagamento",       20),
+    ("Taxa de Envio",           "taxa_envio",            12),
+    ("Observações",             "observacoes",           30),
+    ("Status Faturamento",      "status_faturamento",    18),
+]
+
+
+def _get_cell_value(registro, field):
+    if field == "data":
+        val = registro.data
+        return val.strftime('%d/%m/%Y %H:%M') if val else ''
+    if field == "inicio_de_contrato":
+        val = registro.inicio_de_contrato
+        return val.strftime('%d/%m/%Y') if val else ''
+    if field == "data_alteracao":
+        val = registro.data_alteracao
+        return str(val) if val else ''
+    if field == "nome__nome":
+        return str(registro.nome) if registro.nome else ''
+    if field == "tipo_produto__nome":
+        return registro.tipo_produto.nome if registro.tipo_produto else ''
+    if field == "quantidade_expedida":
+        return registro.quantidade_expedida if registro.quantidade_expedida is not None else 0
+    return getattr(registro, field, '') or ''
+
+
+def faturamento_export_excel(request):
+    queryset = _build_faturamento_queryset(request)
+
+    colunas_selecionadas = request.GET.getlist('colunas')
+    if colunas_selecionadas:
+        colunas_nomes = set(colunas_selecionadas)
+        colunas = [(label, field, width) for label, field, width in _TODAS_COLUNAS if label in colunas_nomes]
+    else:
+        colunas = _TODAS_COLUNAS
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Faturamento"
+
+    header_fill = PatternFill(start_color="343A40", end_color="343A40", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=10)
+    thin = Side(style='thin')
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    center = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+    ws.append([label for label, _, _ in colunas])
+    for col_idx in range(1, len(colunas) + 1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = center
+        cell.border = border
+
+    for registro in queryset.select_related('nome', 'tipo_produto'):
+        ws.append([_get_cell_value(registro, field) for _, field, _ in colunas])
+        for col_idx in range(1, len(colunas) + 1):
+            cell = ws.cell(row=ws.max_row, column=col_idx)
+            cell.alignment = Alignment(vertical='center', wrap_text=True)
+            cell.border = border
+
+    for i, (_, _, width) in enumerate(colunas, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = width
+
+    ws.freeze_panes = "A2"
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output.read(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename="faturamento.xlsx"'
+    return response
+
 
 def update_status_faturamento(request, id):
     if request.method == 'POST':
