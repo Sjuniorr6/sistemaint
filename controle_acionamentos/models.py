@@ -1,4 +1,7 @@
+from decimal import Decimal
+
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import models
 
 from controle_acionamentos.services import validar_cnpj, validar_cpf, validar_cnh
@@ -95,3 +98,65 @@ class Agente(models.Model):
 
     def __str__(self):
         return self.nome
+    
+class FranquiaAgente(models.Model):
+    cliente = models.ForeignKey(
+        Cliente,
+        on_delete=models.PROTECT,
+        related_name="franquias",
+        verbose_name="Cliente",
+    )
+    nome = models.CharField(max_length=120, verbose_name="Nome")
+    valor_acionamento = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal("0"))],
+        verbose_name="Valor do acionamento",
+    )
+    franquia_km = models.PositiveIntegerField(
+        validators=[MinValueValidator(1)],
+        verbose_name="Franquia de KM",
+    )
+    franquia_horas = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal("0"))],
+        verbose_name="Franquia de horas",
+    )
+    valor_km_excedente = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal("0"))],
+        verbose_name="Valor por KM excedente",
+    )
+    valor_hora_excedente = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal("0"))],
+        verbose_name="Valor por hora excedente",
+    )
+    escalonamento_automatico = models.BooleanField(
+        default=False,
+        verbose_name="Escalonamento automático",
+    )
+    criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+
+    class Meta:
+        verbose_name = "Franquia de Agente"
+        verbose_name_plural = "Franquias de Agente"
+        ordering = ["-criado_em"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["cliente", "nome"],
+                name="unique_franquia_cliente_nome",
+            )
+        ]
+
+    def clean(self):
+        super().clean()
+        self.nome = (self.nome or "").strip()
+        if not self.nome:
+            raise ValidationError({"nome": "O nome não pode ficar vazio."})
+
+    def __str__(self):
+        return f"{self.nome} ({self.cliente.nome_empresa})"

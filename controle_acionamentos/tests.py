@@ -1,13 +1,12 @@
 import pytest
-
-from controle_acionamentos.services import validar_cpf
-from controle_acionamentos.services import validar_cpf, validar_cnpj
-from controle_acionamentos.services import validar_cpf, validar_cnpj, validar_cnh
-from controle_acionamentos.models import ResponsavelAgente
 from datetime import timedelta
+from decimal import Decimal
+
 from django.core.exceptions import ValidationError
 from django.utils import timezone
-from controle_acionamentos.models import ResponsavelAgente, Cliente, Agente
+
+from controle_acionamentos.services import validar_cpf, validar_cnpj, validar_cnh
+from controle_acionamentos.models import ResponsavelAgente, Cliente, Agente, FranquiaAgente
 
 def test_cpf_valido_retorna_true():
     """Um CPF válido conhecido deve ser aceito."""
@@ -175,3 +174,72 @@ def test_agente_vincula_clientes():
 
     assert cliente in agente.clientes_vinculados.all()
     assert agente in cliente.agentes_vinculados.all()
+
+
+def _dados_franquia(cliente, **overrides):
+    dados = dict(
+        cliente=cliente,
+        nome="Franquia Moto 80km/4h",
+        valor_acionamento=Decimal("150.00"),
+        franquia_km=80,
+        franquia_horas=Decimal("4.00"),
+        valor_km_excedente=Decimal("2.50"),
+        valor_hora_excedente=Decimal("30.00"),
+    )
+    dados.update(overrides)
+    return dados
+
+
+@pytest.mark.django_db
+def test_franquia_persiste_com_dados_validos():
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    franquia = FranquiaAgente.objects.create(**_dados_franquia(cliente))
+
+    assert franquia.pk is not None
+    assert FranquiaAgente.objects.count() == 1
+    assert franquia.escalonamento_automatico is False
+
+
+@pytest.mark.django_db
+def test_franquia_nome_vazio_e_rejeitado():
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    with pytest.raises(ValidationError):
+        FranquiaAgente(**_dados_franquia(cliente, nome="   ")).full_clean()
+
+
+@pytest.mark.django_db
+def test_franquia_km_zero_e_rejeitado():
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    with pytest.raises(ValidationError):
+        FranquiaAgente(**_dados_franquia(cliente, franquia_km=0)).full_clean()
+
+
+@pytest.mark.django_db
+def test_franquia_valor_negativo_e_rejeitado():
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    with pytest.raises(ValidationError):
+        FranquiaAgente(
+            **_dados_franquia(cliente, valor_acionamento=Decimal("-1.00"))
+        ).full_clean()
+
+
+@pytest.mark.django_db
+def test_franquia_unicidade_cliente_nome():
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    FranquiaAgente.objects.create(**_dados_franquia(cliente, nome="Franquia Padrão"))
+
+    with pytest.raises(ValidationError):
+        FranquiaAgente(**_dados_franquia(cliente, nome="Franquia Padrão")).full_clean()
+
+
+@pytest.mark.django_db
+def test_franquia_mesmo_nome_clientes_diferentes_e_permitido():
+    cliente_a = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    cliente_b = Cliente.objects.create(nome_empresa="Globex", cnpj="11444777000161")
+
+    FranquiaAgente.objects.create(**_dados_franquia(cliente_a, nome="Franquia Padrão"))
+    franquia_b = FranquiaAgente(**_dados_franquia(cliente_b, nome="Franquia Padrão"))
+    franquia_b.full_clean()  # não deve levantar — unicidade é por (cliente, nome)
+    franquia_b.save()
+
+    assert FranquiaAgente.objects.count() == 2
