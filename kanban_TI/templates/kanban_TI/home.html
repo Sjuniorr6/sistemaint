@@ -1594,6 +1594,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ── Som de notificação (gerado via Web Audio API, sem arquivo) ────────
     let _audioCtx = null;
+
+    // Desbloqueia o AudioContext na primeira interação do usuário (política de
+    // autoplay dos browsers modernos impede reprodução sem gesto do usuário).
+    function _desbloquearAudio() {
+        if (_audioCtx && _audioCtx.state === 'suspended') {
+            _audioCtx.resume();
+        } else if (!_audioCtx) {
+            _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+    }
+    ['click', 'keydown', 'touchstart'].forEach(ev =>
+        document.addEventListener(ev, _desbloquearAudio, { once: false, passive: true })
+    );
+
     function tocarSomNotificacao() {
         try {
             _audioCtx = _audioCtx || new (window.AudioContext || window.webkitAudioContext)();
