@@ -449,6 +449,31 @@ body {
 .kanban-page.com-header {
     padding-top: calc(20px + var(--header-altura, 60px)) !important;
 }
+
+/* ============================================================
+   SPEC – Notificação de novo ticket (toast canto inferior direito)
+   ============================================================ */
+/* Barra de progresso do toast — mostra o tempo restante */
+@keyframes toast-shrink {
+    from { width: 100%; }
+    to   { width: 0%;   }
+}
+
+/* Animação de entrada do toast */
+#toast-container .toast {
+    animation: toast-slide-in 0.3s ease;
+}
+
+@keyframes toast-slide-in {
+    from {
+        transform: translateX(120%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
 </style>
 
 <div class="kanban-page">
@@ -1521,6 +1546,186 @@ document.addEventListener('DOMContentLoaded', function() {
         header.addEventListener('mouseleave', ocultar);
     }());
 });
+</script>
+
+<!-- Container de toasts — fixo no canto inferior direito -->
+<div id="toast-container"
+     class="toast-container position-fixed bottom-0 end-0 p-3"
+     style="z-index: 9999;">
+    <!-- Toasts injetados dinamicamente pelo JS -->
+</div>
+
+<!-- ===== Notificação de novo ticket em tempo real (polling leve) ===== -->
+<script>
+(function () {
+
+    // Cursor de tempo controlado pelo servidor (epoch ms). Começa nulo: a
+    // primeira chamada apenas estabelece a linha de base, sem mostrar tickets
+    // antigos. Usar o relógio do servidor evita problemas de diferença de
+    // horário quando o board é acessado de outra máquina na rede.
+    let _desde = null;
+
+    // Intervalo de verificação em ms
+    const INTERVALO = 5000;
+
+    // Duração do toast em ms (some automaticamente)
+    const DURACAO_TOAST = 6000;
+
+    // ── Polling ───────────────────────────────────────────────────────────
+    function verificarTicketsNovos() {
+        const url = _desde === null
+            ? `{% url 'kanban_TI:tickets_novos' %}`
+            : `{% url 'kanban_TI:tickets_novos' %}?desde=${_desde}`;
+        fetch(url)
+            .then(r => r.json())
+            .then(data => {
+                // Só exibe toasts a partir da segunda verificação (quando já
+                // temos uma linha de base do servidor).
+                if (_desde !== null && data.tickets && data.tickets.length > 0) {
+                    data.tickets.forEach(ticket => exibirToast(ticket));
+                }
+                // Avança o cursor com o horário do próprio servidor.
+                if (data.servidor_agora) {
+                    _desde = data.servidor_agora;
+                }
+            })
+            .catch(() => {});  // silencioso em caso de falha de rede
+    }
+
+    // ── Som de notificação (gerado via Web Audio API, sem arquivo) ────────
+    let _audioCtx = null;
+
+    // Desbloqueia o AudioContext na primeira interação do usuário (política de
+    // autoplay dos browsers modernos impede reprodução sem gesto do usuário).
+    function _desbloquearAudio() {
+        if (_audioCtx && _audioCtx.state === 'suspended') {
+            _audioCtx.resume();
+        } else if (!_audioCtx) {
+            _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+    }
+    ['click', 'keydown', 'touchstart'].forEach(ev =>
+        document.addEventListener(ev, _desbloquearAudio, { once: false, passive: true })
+    );
+
+    function tocarSomNotificacao() {
+        try {
+            _audioCtx = _audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+            const ctx = _audioCtx;
+            if (ctx.state === 'suspended') ctx.resume();
+
+            // Dois "blips" curtos em sequência (ding-dong)
+            const notas = [
+                { freq: 880, inicio: 0.00, dur: 0.18 },  // Lá
+                { freq: 1175, inicio: 0.16, dur: 0.30 },  // Ré agudo
+            ];
+            notas.forEach(n => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = n.freq;
+                const t0 = ctx.currentTime + n.inicio;
+                gain.gain.setValueAtTime(0.0001, t0);
+                gain.gain.exponentialRampToValueAtTime(0.35, t0 + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.0001, t0 + n.dur);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(t0);
+                osc.stop(t0 + n.dur + 0.02);
+            });
+        } catch (e) { /* navegador sem suporte ou áudio bloqueado */ }
+    }
+
+    // ── Criar e exibir o toast ────────────────────────────────────────────
+    function exibirToast(ticket) {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+
+        // Toque de notificação
+        tocarSomNotificacao();
+
+        const toastEl = document.createElement('div');
+        toastEl.className = 'toast align-items-center border-0 shadow-lg';
+        toastEl.setAttribute('role', 'alert');
+        toastEl.setAttribute('aria-live', 'assertive');
+        toastEl.style.cssText = `
+            background: #1a2332;
+            color: #fff;
+            min-width: 560px;
+            max-width: 640px;
+            border-left: 8px solid #F5C400 !important;
+        `;
+
+        toastEl.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body py-3 px-3" style="flex:1;">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <i class="bi bi-ticket-perforated-fill"
+                           style="color:#F5C400; font-size:1.9rem;"></i>
+                        <span class="fw-semibold" style="font-size:1.4rem; color:#F5C400;">
+                            Novo ticket
+                        </span>
+                    </div>
+                    <div class="fw-bold mb-1" style="font-size:1.6rem; color:#fff;">
+                        ${_escaparHtml(ticket.titulo)}
+                    </div>
+                    <div style="font-size:1.2rem; color:#9ca3af;">
+                        Aberto por <strong style="color:#d1d5db;">
+                            ${_escaparHtml(ticket.criado_por)}
+                        </strong> · agora
+                    </div>
+                </div>
+                <button type="button"
+                        class="btn-close btn-close-white me-2 m-auto"
+                        data-bs-dismiss="toast"
+                        style="font-size:0.7rem; opacity:0.6;">
+                </button>
+            </div>
+            <!-- Barra de progresso do tempo restante -->
+            <div class="toast-progress" style="
+                height: 3px;
+                background: #F5C400;
+                border-radius: 0 0 4px 0;
+                animation: toast-shrink ${DURACAO_TOAST}ms linear forwards;
+            "></div>
+        `;
+
+        container.appendChild(toastEl);
+
+        // Inicializar e mostrar via Bootstrap Toast
+        const bsToast = new bootstrap.Toast(toastEl, {
+            autohide: true,
+            delay:    DURACAO_TOAST,
+        });
+        bsToast.show();
+
+        // Remover do DOM após esconder para não acumular
+        toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+    }
+
+    // ── Escape HTML para segurança ────────────────────────────────────────
+    function _escaparHtml(texto) {
+        const div = document.createElement('div');
+        div.appendChild(document.createTextNode(texto || ''));
+        return div.innerHTML;
+    }
+
+    // ── Reapresentar ao voltar para a aba ─────────────────────────────────
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) {
+            // Aba voltou ao foco — verifica imediatamente para mostrar os
+            // tickets que chegaram enquanto estava em segundo plano.
+            verificarTicketsNovos();
+        }
+    });
+
+    // ── Iniciar polling ───────────────────────────────────────────────────
+    setInterval(verificarTicketsNovos, INTERVALO);
+
+    // Verificar logo após o carregamento (após 1s para não sobrecarregar o init)
+    setTimeout(verificarTicketsNovos, 1000);
+
+}());
 </script>
 
 {% endblock %}
