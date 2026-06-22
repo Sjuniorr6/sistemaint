@@ -12,6 +12,9 @@ urlpatterns = [
     path("atualizar-status/<int:tarefa_id>/", views.atualizar_status, name='atualizar_status'),
     path('exportar/', views.exportar_tarefas, name='exportar_tarefas'),
 
+    # Notificação em tempo real (polling leve) de novos tickets destinados ao T.I
+    path('tickets/novos/', views.tickets_novos, name='tickets_novos'),
+
     # Inbox de tickets destinados ao T.I
     path('inbox/partial/', views.inbox_tickets_partial, name='inbox_partial'),
     path('inbox/badge/', views.inbox_badge, name='inbox_badge'),

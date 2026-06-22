@@ -449,6 +449,31 @@ body {
 .kanban-page.com-header {
     padding-top: calc(20px + var(--header-altura, 60px)) !important;
 }
+
+/* ============================================================
+   SPEC – Notificação de novo ticket (toast canto inferior direito)
+   ============================================================ */
+/* Barra de progresso do toast — mostra o tempo restante */
+@keyframes toast-shrink {
+    from { width: 100%; }
+    to   { width: 0%;   }
+}
+
+/* Animação de entrada do toast */
+#toast-container .toast {
+    animation: toast-slide-in 0.3s ease;
+}
+
+@keyframes toast-slide-in {
+    from {
+        transform: translateX(120%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
 </style>
 
 <div class="kanban-page">
@@ -1521,6 +1546,129 @@ document.addEventListener('DOMContentLoaded', function() {
         header.addEventListener('mouseleave', ocultar);
     }());
 });
+</script>
+
+<!-- Container de toasts — fixo no canto inferior direito -->
+<div id="toast-container"
+     class="toast-container position-fixed bottom-0 end-0 p-3"
+     style="z-index: 9999;">
+    <!-- Toasts injetados dinamicamente pelo JS -->
+</div>
+
+<!-- ===== Notificação de novo ticket em tempo real (polling leve) ===== -->
+<script>
+(function () {
+
+    // Timestamp de início da sessão — não mostrar tickets anteriores
+    let _desde = Date.now();
+
+    // Intervalo de verificação em ms
+    const INTERVALO = 5000;
+
+    // Duração do toast em ms (some automaticamente)
+    const DURACAO_TOAST = 6000;
+
+    // ── Polling ───────────────────────────────────────────────────────────
+    function verificarTicketsNovos() {
+        fetch(`{% url 'kanban_TI:tickets_novos' %}?desde=${_desde}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.tickets && data.tickets.length > 0) {
+                    data.tickets.forEach(ticket => exibirToast(ticket));
+                    // Atualizar timestamp para não mostrar os mesmos novamente
+                    _desde = Date.now();
+                }
+            })
+            .catch(() => {});  // silencioso em caso de falha de rede
+    }
+
+    // ── Criar e exibir o toast ────────────────────────────────────────────
+    function exibirToast(ticket) {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+
+        const toastEl = document.createElement('div');
+        toastEl.className = 'toast align-items-center border-0 shadow-lg';
+        toastEl.setAttribute('role', 'alert');
+        toastEl.setAttribute('aria-live', 'assertive');
+        toastEl.style.cssText = `
+            background: #1a2332;
+            color: #fff;
+            min-width: 300px;
+            max-width: 340px;
+            border-left: 4px solid #F5C400 !important;
+        `;
+
+        toastEl.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body py-3 px-3" style="flex:1;">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <i class="bi bi-ticket-perforated-fill"
+                           style="color:#F5C400; font-size:1rem;"></i>
+                        <span class="fw-semibold" style="font-size:0.82rem; color:#F5C400;">
+                            Novo ticket
+                        </span>
+                    </div>
+                    <div class="fw-bold mb-1" style="font-size:0.88rem; color:#fff;">
+                        ${_escaparHtml(ticket.titulo)}
+                    </div>
+                    <div style="font-size:0.75rem; color:#9ca3af;">
+                        Aberto por <strong style="color:#d1d5db;">
+                            ${_escaparHtml(ticket.criado_por)}
+                        </strong> · agora
+                    </div>
+                </div>
+                <button type="button"
+                        class="btn-close btn-close-white me-2 m-auto"
+                        data-bs-dismiss="toast"
+                        style="font-size:0.7rem; opacity:0.6;">
+                </button>
+            </div>
+            <!-- Barra de progresso do tempo restante -->
+            <div class="toast-progress" style="
+                height: 3px;
+                background: #F5C400;
+                border-radius: 0 0 4px 0;
+                animation: toast-shrink ${DURACAO_TOAST}ms linear forwards;
+            "></div>
+        `;
+
+        container.appendChild(toastEl);
+
+        // Inicializar e mostrar via Bootstrap Toast
+        const bsToast = new bootstrap.Toast(toastEl, {
+            autohide: true,
+            delay:    DURACAO_TOAST,
+        });
+        bsToast.show();
+
+        // Remover do DOM após esconder para não acumular
+        toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+    }
+
+    // ── Escape HTML para segurança ────────────────────────────────────────
+    function _escaparHtml(texto) {
+        const div = document.createElement('div');
+        div.appendChild(document.createTextNode(texto || ''));
+        return div.innerHTML;
+    }
+
+    // ── Pausar quando a aba está inativa ──────────────────────────────────
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) {
+            // Aba voltou ao foco — atualizar timestamp para não mostrar
+            // tickets que chegaram enquanto estava em segundo plano
+            _desde = Date.now();
+        }
+    });
+
+    // ── Iniciar polling ───────────────────────────────────────────────────
+    setInterval(verificarTicketsNovos, INTERVALO);
+
+    // Verificar logo após o carregamento (após 1s para não sobrecarregar o init)
+    setTimeout(verificarTicketsNovos, 1000);
+
+}());
 </script>
 
 {% endblock %}

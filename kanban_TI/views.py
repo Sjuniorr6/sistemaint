@@ -1,7 +1,7 @@
 import io
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.contrib.auth.decorators import login_required, permission_required
 from django.core.paginator import Paginator
@@ -335,6 +335,48 @@ def inbox_badge(request):
     """Retorna apenas o badge com a contagem atualizada da inbox."""
     return render(request, 'kanban_TI/partials/inbox_badge.html', {
         'tickets_inbox_count': tickets_inbox_ti().count(),
+    })
+
+
+@ti_or_superuser_required
+def tickets_novos(request):
+    """
+    Retorna tickets destinados ao T.I criados após o timestamp informado.
+
+    Consumido por polling leve (a cada 5s) pelo JS do board para exibir um toast
+    de "Novo ticket" no canto inferior direito. Endpoint enxuto — devolve apenas
+    o necessário para montar a notificação.
+    """
+    desde_ts = request.GET.get('desde')
+
+    try:
+        desde = timezone.datetime.fromtimestamp(
+            int(desde_ts) / 1000,
+            tz=timezone.get_current_timezone(),
+        )
+    except (TypeError, ValueError):
+        desde = timezone.now() - timedelta(seconds=10)
+
+    tickets = (
+        TarefaInteligencia.objects
+        .filter(destinado='TI', criado_em__gt=desde)
+        .select_related('usuario')
+        .order_by('criado_em')
+    )
+
+    return JsonResponse({
+        'tickets': [
+            {
+                'id': str(t.pk),
+                'titulo': t.titulo,
+                'criado_por': (
+                    (t.usuario.get_full_name() or t.usuario.username)
+                    if t.usuario else 'Desconhecido'
+                ),
+                'criado_em': t.criado_em.isoformat() if t.criado_em else '',
+            }
+            for t in tickets
+        ]
     })
 
 
