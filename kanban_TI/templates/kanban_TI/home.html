@@ -1559,8 +1559,11 @@ document.addEventListener('DOMContentLoaded', function() {
 <script>
 (function () {
 
-    // Timestamp de início da sessão — não mostrar tickets anteriores
-    let _desde = Date.now();
+    // Cursor de tempo controlado pelo servidor (epoch ms). Começa nulo: a
+    // primeira chamada apenas estabelece a linha de base, sem mostrar tickets
+    // antigos. Usar o relógio do servidor evita problemas de diferença de
+    // horário quando o board é acessado de outra máquina na rede.
+    let _desde = null;
 
     // Intervalo de verificação em ms
     const INTERVALO = 5000;
@@ -1570,22 +1573,62 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ── Polling ───────────────────────────────────────────────────────────
     function verificarTicketsNovos() {
-        fetch(`{% url 'kanban_TI:tickets_novos' %}?desde=${_desde}`)
+        const url = _desde === null
+            ? `{% url 'kanban_TI:tickets_novos' %}`
+            : `{% url 'kanban_TI:tickets_novos' %}?desde=${_desde}`;
+        fetch(url)
             .then(r => r.json())
             .then(data => {
-                if (data.tickets && data.tickets.length > 0) {
+                // Só exibe toasts a partir da segunda verificação (quando já
+                // temos uma linha de base do servidor).
+                if (_desde !== null && data.tickets && data.tickets.length > 0) {
                     data.tickets.forEach(ticket => exibirToast(ticket));
-                    // Atualizar timestamp para não mostrar os mesmos novamente
-                    _desde = Date.now();
+                }
+                // Avança o cursor com o horário do próprio servidor.
+                if (data.servidor_agora) {
+                    _desde = data.servidor_agora;
                 }
             })
             .catch(() => {});  // silencioso em caso de falha de rede
+    }
+
+    // ── Som de notificação (gerado via Web Audio API, sem arquivo) ────────
+    let _audioCtx = null;
+    function tocarSomNotificacao() {
+        try {
+            _audioCtx = _audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+            const ctx = _audioCtx;
+            if (ctx.state === 'suspended') ctx.resume();
+
+            // Dois "blips" curtos em sequência (ding-dong)
+            const notas = [
+                { freq: 880, inicio: 0.00, dur: 0.18 },  // Lá
+                { freq: 1175, inicio: 0.16, dur: 0.30 },  // Ré agudo
+            ];
+            notas.forEach(n => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = n.freq;
+                const t0 = ctx.currentTime + n.inicio;
+                gain.gain.setValueAtTime(0.0001, t0);
+                gain.gain.exponentialRampToValueAtTime(0.35, t0 + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.0001, t0 + n.dur);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(t0);
+                osc.stop(t0 + n.dur + 0.02);
+            });
+        } catch (e) { /* navegador sem suporte ou áudio bloqueado */ }
     }
 
     // ── Criar e exibir o toast ────────────────────────────────────────────
     function exibirToast(ticket) {
         const container = document.getElementById('toast-container');
         if (!container) return;
+
+        // Toque de notificação
+        tocarSomNotificacao();
 
         const toastEl = document.createElement('div');
         toastEl.className = 'toast align-items-center border-0 shadow-lg';
@@ -1594,9 +1637,9 @@ document.addEventListener('DOMContentLoaded', function() {
         toastEl.style.cssText = `
             background: #1a2332;
             color: #fff;
-            min-width: 300px;
-            max-width: 340px;
-            border-left: 4px solid #F5C400 !important;
+            min-width: 560px;
+            max-width: 640px;
+            border-left: 8px solid #F5C400 !important;
         `;
 
         toastEl.innerHTML = `
@@ -1604,15 +1647,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="toast-body py-3 px-3" style="flex:1;">
                     <div class="d-flex align-items-center gap-2 mb-1">
                         <i class="bi bi-ticket-perforated-fill"
-                           style="color:#F5C400; font-size:1rem;"></i>
-                        <span class="fw-semibold" style="font-size:0.82rem; color:#F5C400;">
+                           style="color:#F5C400; font-size:1.9rem;"></i>
+                        <span class="fw-semibold" style="font-size:1.4rem; color:#F5C400;">
                             Novo ticket
                         </span>
                     </div>
-                    <div class="fw-bold mb-1" style="font-size:0.88rem; color:#fff;">
+                    <div class="fw-bold mb-1" style="font-size:1.6rem; color:#fff;">
                         ${_escaparHtml(ticket.titulo)}
                     </div>
-                    <div style="font-size:0.75rem; color:#9ca3af;">
+                    <div style="font-size:1.2rem; color:#9ca3af;">
                         Aberto por <strong style="color:#d1d5db;">
                             ${_escaparHtml(ticket.criado_por)}
                         </strong> · agora
@@ -1653,12 +1696,12 @@ document.addEventListener('DOMContentLoaded', function() {
         return div.innerHTML;
     }
 
-    // ── Pausar quando a aba está inativa ──────────────────────────────────
+    // ── Reapresentar ao voltar para a aba ─────────────────────────────────
     document.addEventListener('visibilitychange', function () {
         if (!document.hidden) {
-            // Aba voltou ao foco — atualizar timestamp para não mostrar
-            // tickets que chegaram enquanto estava em segundo plano
-            _desde = Date.now();
+            // Aba voltou ao foco — verifica imediatamente para mostrar os
+            // tickets que chegaram enquanto estava em segundo plano.
+            verificarTicketsNovos();
         }
     });
 

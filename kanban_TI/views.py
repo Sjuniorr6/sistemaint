@@ -348,23 +348,34 @@ def tickets_novos(request):
     o necessário para montar a notificação.
     """
     desde_ts = request.GET.get('desde')
+    agora = timezone.now()
 
-    try:
-        desde = timezone.datetime.fromtimestamp(
-            int(desde_ts) / 1000,
-            tz=timezone.get_current_timezone(),
+    # O cursor é controlado pelo servidor (campo 'servidor_agora' devolvido
+    # abaixo), evitando divergência de relógio entre o navegador e o servidor
+    # quando o board é acessado de outra máquina na rede.
+    if desde_ts:
+        try:
+            desde = timezone.datetime.fromtimestamp(
+                int(desde_ts) / 1000,
+                tz=timezone.get_current_timezone(),
+            )
+        except (TypeError, ValueError):
+            desde = agora
+        tickets = list(
+            TarefaInteligencia.objects
+            .filter(destinado='TI', criado_em__gt=desde)
+            .select_related('usuario')
+            .order_by('criado_em')
         )
-    except (TypeError, ValueError):
-        desde = timezone.now() - timedelta(seconds=10)
-
-    tickets = (
-        TarefaInteligencia.objects
-        .filter(destinado='TI', criado_em__gt=desde)
-        .select_related('usuario')
-        .order_by('criado_em')
-    )
+    else:
+        # Primeira chamada (sem cursor): apenas estabelece a linha de base,
+        # sem disparar toasts de tickets antigos.
+        tickets = []
 
     return JsonResponse({
+        # Horário atual do servidor (epoch ms) — o JS reenvia este valor na
+        # próxima verificação, tornando o corte imune a diferença de relógio.
+        'servidor_agora': int(agora.timestamp() * 1000),
         'tickets': [
             {
                 'id': str(t.pk),
