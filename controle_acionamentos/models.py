@@ -114,7 +114,7 @@ class FranquiaAgente(models.Model):
         verbose_name="Valor do acionamento",
     )
     franquia_km = models.PositiveIntegerField(
-        validators=[MinValueValidator(1)],
+        validators=[MinValueValidator(0)],
         verbose_name="Franquia de KM",
     )
     franquia_horas = models.DecimalField(
@@ -157,6 +157,12 @@ class FranquiaAgente(models.Model):
         self.nome = (self.nome or "").strip()
         if not self.nome:
             raise ValidationError({"nome": "O nome não pode ficar vazio."})
+        if self.escalonamento_automatico and self.franquia_km == 0:
+            raise ValidationError(
+                {"franquia_km": "Franquia escalonável exige franquia_km ≥ 1 (evita divisão por zero no escalonamento)."}
+            )
 
     def __str__(self):
         return f"{self.nome} ({self.cliente.nome_empresa})"
+    
+        

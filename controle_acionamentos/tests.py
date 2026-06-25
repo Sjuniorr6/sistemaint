@@ -208,10 +208,27 @@ def test_franquia_nome_vazio_e_rejeitado():
 
 
 @pytest.mark.django_db
-def test_franquia_km_zero_e_rejeitado():
+def test_franquia_km_zero_sem_escalonamento_e_aceito():
+    """Decisão do tech lead: franquia_km passa a aceitar 0 (piso 0) quando não há
+    escalonamento. Sem escalonamento não existe divisão por franquia_km, então 0 é válido."""
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    franquia = FranquiaAgente(**_dados_franquia(cliente, franquia_km=0))
+    franquia.full_clean()  # não deve levantar
+    franquia.save()
+
+    assert franquia.pk is not None
+    assert franquia.franquia_km == 0
+
+
+@pytest.mark.django_db
+def test_franquia_km_zero_com_escalonamento_e_rejeitado():
+    """franquia_km=0 com escalonamento_automatico=True é rejeitado no clean(): o §8.3
+    divide por franquia_km_base, então zero causaria divisão por zero no escalonamento."""
     cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
     with pytest.raises(ValidationError):
-        FranquiaAgente(**_dados_franquia(cliente, franquia_km=0)).full_clean()
+        FranquiaAgente(
+            **_dados_franquia(cliente, franquia_km=0, escalonamento_automatico=True)
+        ).full_clean()
 
 
 @pytest.mark.django_db
