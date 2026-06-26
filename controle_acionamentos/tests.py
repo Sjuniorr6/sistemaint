@@ -434,3 +434,48 @@ def test_calcular_c4_franquia_escalonamento_dois_blocos_com_excedente_e_pedagio(
     assert resultado.km_excedente == 5
     assert resultado.hora_excedente == Decimal("1.00")
     assert resultado.valor_agente == Decimal("1045.50")
+
+
+def test_calcular_c5_franquia_escalonamento_desativado():
+    """§11.1 Cenário 5 — franquia IDÊNTICA ao C3, mas com escalonamento
+    DESATIVADO. Mesmo km_total=240, porém sem escalonar: a franquia não cresce,
+    e o que passa do limite base vira excedente (cobrado às tarifas da franquia).
+
+    Entrada (franquia 200km/4h, R$660, tarifas 3,30/55, escalonamento DESLIGADO):
+        escalonamento_ativo=False, km_total=240, horas_total=5, pedagio=0.
+
+    Então (cai no else do §8.3 — *_ajustada == base — e §8.4/§8.5 fecham):
+        blocos == 0
+        franquia_km_ajustada    == 200 (sem ajuste)
+        franquia_horas_ajustada == 4   (sem ajuste)
+        valor_acionamento_ajustado == 660,00 (sem ajuste)
+        km_excedente   == max(0, 240−200) == 40
+        hora_excedente == max(0, 5−4)     == 1
+        valor_agente   == 660 + (40×3,30) + (1×55) + 0 == 847,00
+    """
+    from controle_acionamentos.services import (
+        EntradaCalculoAgente,
+        calcular_valor_agente,
+    )
+
+    entrada = EntradaCalculoAgente(
+        valor_acionamento=Decimal("660.00"),
+        franquia_km=200,
+        franquia_horas=Decimal("4.00"),
+        valor_km_excedente=Decimal("3.30"),
+        valor_hora_excedente=Decimal("55.00"),
+        escalonamento_ativo=False,
+        km_total=240,
+        horas_total=Decimal("5.00"),
+        pedagio=Decimal("0.00"),
+    )
+
+    resultado = calcular_valor_agente(entrada)
+
+    assert resultado.blocos == 0
+    assert resultado.franquia_km_ajustada == 200
+    assert resultado.franquia_horas_ajustada == Decimal("4.00")
+    assert resultado.valor_acionamento_ajustado == Decimal("660.00")
+    assert resultado.km_excedente == 40
+    assert resultado.hora_excedente == Decimal("1.00")
+    assert resultado.valor_agente == Decimal("847.00")
