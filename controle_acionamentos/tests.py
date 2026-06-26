@@ -260,3 +260,133 @@ def test_franquia_mesmo_nome_clientes_diferentes_e_permitido():
     franquia_b.save()
 
     assert FranquiaAgente.objects.count() == 2
+
+
+# ---------------------------------------------------------------------------
+# CalculadoraValorAgente — cenários de cálculo do §11.1 do PRD
+# (lógica pura em services.py, sem banco; contrato Entrada → Resultado)
+# ---------------------------------------------------------------------------
+
+
+def test_calcular_c1_sem_franquia_dentro_do_limite_sem_excedente():
+    """§11.1 Cenário 1 — sem franquia vinculada, serviço inline, dentro dos
+    limites (km e horas abaixo da franquia), sem pedágio.
+
+    Entrada (km_total=60 já derivado de km_inicio=0/km_final=60, por §8.2;
+    a calculadora recebe km_total e horas_total prontos):
+        valor_acionamento=100, franquia_km=80, franquia_horas=4,
+        valor_km_excedente=2, valor_hora_excedente=30,
+        km_total=60, horas_total=3, pedagio=0, sem escalonamento.
+
+    Então (§8.4/§8.5): km_excedente == 0, hora_excedente == 0,
+    valor_agente == 100,00 (não há excedente nem pedágio que somem ao valor base).
+    """
+    # Import local: enquanto o contrato/função não existem, o Red fica isolado
+    # neste teste e não derruba a coleção dos demais (32 testes seguem verdes).
+    from controle_acionamentos.services import (
+        EntradaCalculoAgente,
+        calcular_valor_agente,
+    )
+
+    entrada = EntradaCalculoAgente(
+        valor_acionamento=Decimal("100.00"),
+        franquia_km=80,
+        franquia_horas=Decimal("4.00"),
+        valor_km_excedente=Decimal("2.00"),
+        valor_hora_excedente=Decimal("30.00"),
+        escalonamento_ativo=False,
+        km_total=60,
+        horas_total=Decimal("3.00"),
+        pedagio=Decimal("0.00"),
+    )
+
+    resultado = calcular_valor_agente(entrada)
+
+    assert resultado.km_excedente == 0
+    assert resultado.hora_excedente == Decimal("0.00")
+    assert resultado.valor_agente == Decimal("100.00")
+
+
+def test_calcular_c2_sem_franquia_com_excedente_inline():
+    """§11.1 Cenário 2 — mesmo serviço inline do C1, mas agora ESTOURANDO a
+    franquia inline: km e horas acima do limite, sem pedágio.
+
+    Entrada (mesmas tarifas/limites do C1; muda só o uso):
+        valor_acionamento=100, franquia_km=80, franquia_horas=4,
+        valor_km_excedente=2, valor_hora_excedente=30,
+        km_total=100, horas_total=5, pedagio=0, sem escalonamento.
+
+    Então (§8.4/§8.5):
+        km_excedente   == max(0, 100−80) == 20
+        hora_excedente == max(0, 5−4)    == 1
+        valor_agente   == 100 + (20×2) + (1×30) + 0 == 170,00
+    """
+    from controle_acionamentos.services import (
+        EntradaCalculoAgente,
+        calcular_valor_agente,
+    )
+
+    entrada = EntradaCalculoAgente(
+        valor_acionamento=Decimal("100.00"),
+        franquia_km=80,
+        franquia_horas=Decimal("4.00"),
+        valor_km_excedente=Decimal("2.00"),
+        valor_hora_excedente=Decimal("30.00"),
+        escalonamento_ativo=False,
+        km_total=100,
+        horas_total=Decimal("5.00"),
+        pedagio=Decimal("0.00"),
+    )
+
+    resultado = calcular_valor_agente(entrada)
+
+    assert resultado.km_excedente == 20
+    assert resultado.hora_excedente == Decimal("1.00")
+    assert resultado.valor_agente == Decimal("170.00")
+
+
+def test_calcular_c3_franquia_escalonamento_um_bloco_exato():
+    """§11.1 Cenário 3 — com franquia vinculada e escalonamento ATIVO, 1 bloco
+    exato (km estoura a franquia base em 40 = um bloco redondo), sem excedente
+    residual e sem pedágio.
+
+    Entrada (franquia 200km/4h, R$660, tarifas 3,30/55, escalonamento ligado):
+        valor_acionamento=660, franquia_km=200, franquia_horas=4,
+        valor_km_excedente=3.30, valor_hora_excedente=55,
+        escalonamento_ativo=True, km_total=240, horas_total=5, pedagio=0.
+
+    Então (§8.3 escalona, §8.4/§8.5 fecham):
+        blocos == floor((240−200)/40) == 1
+        franquia_km_ajustada    == 200 + 1×40 == 240
+        franquia_horas_ajustada == 4 + 1      == 5
+        valor_acionamento_ajustado == 660 × (240/200) == 660 × 1,2 == 792,00
+        km_excedente   == max(0, 240−240) == 0
+        hora_excedente == max(0, 5−5)     == 0
+        valor_agente   == 792,00 (sem excedente, sem pedágio)
+    """
+    from controle_acionamentos.services import (
+        EntradaCalculoAgente,
+        calcular_valor_agente,
+    )
+
+    entrada = EntradaCalculoAgente(
+        valor_acionamento=Decimal("660.00"),
+        franquia_km=200,
+        franquia_horas=Decimal("4.00"),
+        valor_km_excedente=Decimal("3.30"),
+        valor_hora_excedente=Decimal("55.00"),
+        escalonamento_ativo=True,
+        km_total=240,
+        horas_total=Decimal("5.00"),
+        pedagio=Decimal("0.00"),
+    )
+
+    resultado = calcular_valor_agente(entrada)
+
+    assert resultado.blocos == 1
+    assert resultado.franquia_km_ajustada == 240
+    assert resultado.franquia_horas_ajustada == Decimal("5.00")
+    assert resultado.valor_acionamento_ajustado == Decimal("792.00")
+    assert resultado.km_excedente == 0
+    assert resultado.hora_excedente == Decimal("0.00")
+    assert resultado.valor_agente == Decimal("792.00")

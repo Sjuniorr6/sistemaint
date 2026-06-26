@@ -3,6 +3,9 @@
 Funções puras (sem dependência de models/banco), testáveis em isolamento.
 """
 
+from dataclasses import dataclass
+from decimal import ROUND_HALF_UP, Decimal
+
 
 def _so_digitos(documento: str) -> list[int]:
     """Extrai apenas os dígitos de um documento, como lista de inteiros.
@@ -131,3 +134,113 @@ def validar_cnh(cnh: str) -> bool:
 
     # A CNH é válida se os dois dígitos calculados batem com os informados.
     return numeros[9] == dv1 and numeros[10] == dv2
+
+
+# ---------------------------------------------------------------------------
+# CalculadoraValorAgente — cálculo do valor pago ao agente (§8 e §11 do PRD)
+# ---------------------------------------------------------------------------
+
+# Dinheiro e horas são sempre apresentados com 2 casas decimais. Centralizamos
+# o quantum num lugar só para a regra de arredondamento não se espalhar.
+_DOIS_CASAS = Decimal("0.01")
+
+
+def _quantizar(valor: Decimal) -> Decimal:
+    """Arredonda um Decimal para 2 casas, meio-para-cima (ROUND_HALF_UP).
+
+    É o arredondamento contábil esperado em valor monetário. O default do
+    Python para Decimal é ROUND_HALF_EVEN ("banker's rounding"), que
+    arredondaria 2,005 para 2,00 — não é o que queremos aqui.
+    """
+    return valor.quantize(_DOIS_CASAS, rounding=ROUND_HALF_UP)
+
+
+@dataclass(frozen=True)
+class EntradaCalculoAgente:
+    """Entrada do cálculo do valor do agente — os 9 campos-fonte do contrato.
+
+    Dado puro, sem Django/model: a calculadora recebe ``km_total`` e
+    ``horas_total`` JÁ resolvidos (a derivação do §8.2 é feita por quem chama).
+    Campos de exibição como ``nome_servico`` não entram aqui — não participam de
+    nenhuma conta. ``frozen=True`` porque a entrada de um cálculo é imutável:
+    montou, não muda mais.
+    """
+
+    valor_acionamento: Decimal
+    franquia_km: int
+    franquia_horas: Decimal
+    valor_km_excedente: Decimal
+    valor_hora_excedente: Decimal
+    escalonamento_ativo: bool
+    km_total: int
+    horas_total: Decimal
+    pedagio: Decimal
+
+
+@dataclass(frozen=True)
+class ResultadoCalculoAgente:
+    """Resultado do cálculo — todos os campos derivados do contrato.
+
+    Além do ``valor_agente`` final, expõe os passos intermediários do
+    escalonamento (``blocos`` e os ``*_ajustada``) para a auditoria do PRD
+    (§8.6/§8.7) poder conferir cada etapa, não só o número final. ``frozen=True``
+    para o resultado de um cálculo não ser alterado depois de produzido.
+    """
+
+    blocos: int
+    franquia_km_ajustada: int
+    franquia_horas_ajustada: Decimal
+    valor_acionamento_ajustado: Decimal
+    km_excedente: int
+    hora_excedente: Decimal
+    valor_agente: Decimal
+
+
+def calcular_valor_agente(entrada: EntradaCalculoAgente) -> ResultadoCalculoAgente:
+    """Calcula o valor a pagar ao agente a partir dos campos-fonte (§8.4/§8.5).
+
+    Escopo atual (Green do Cenário 1): SEM escalonamento — os valores ajustados
+    são iguais aos de base e ``blocos == 0``. A lógica do §8.3 (escalonamento)
+    entra nos Cenários 3 e 4 e só vai alterar o bloco de ajuste abaixo; a soma
+    final do §8.5 já está na forma definitiva (usa ``valor_acionamento_ajustado``).
+    """
+    # §8.3 — escalonamento: a cada 40 km acima da franquia base soma-se um
+    # "bloco" à franquia (km e horas) e o valor é escalado na MESMA proporção do
+    # km. A razão é calculada em Decimal/Decimal para nunca passar por float —
+    # dinheiro não tolera o erro binário do float.
+    if entrada.escalonamento_ativo and entrada.km_total > entrada.franquia_km:
+        blocos = (entrada.km_total - entrada.franquia_km) // 40
+        franquia_km_ajustada = entrada.franquia_km + blocos * 40
+        franquia_horas_ajustada = entrada.franquia_horas + blocos
+        razao = Decimal(franquia_km_ajustada) / Decimal(entrada.franquia_km)
+        valor_acionamento_ajustado = _quantizar(entrada.valor_acionamento * razao)
+    else:
+        # Sem escalonamento (ou km dentro da franquia): o "ajustado" é o de base.
+        blocos = 0
+        franquia_km_ajustada = entrada.franquia_km
+        franquia_horas_ajustada = entrada.franquia_horas
+        valor_acionamento_ajustado = entrada.valor_acionamento
+
+    # §8.4 — excedente é o que passou da franquia ajustada (nunca negativo).
+    km_excedente = max(0, entrada.km_total - franquia_km_ajustada)
+    hora_excedente = _quantizar(
+        max(Decimal("0"), entrada.horas_total - franquia_horas_ajustada)
+    )
+
+    # §8.5 — valor final = base ajustada + excedentes às tarifas + pedágio.
+    valor_agente = _quantizar(
+        valor_acionamento_ajustado
+        + (km_excedente * entrada.valor_km_excedente)
+        + (hora_excedente * entrada.valor_hora_excedente)
+        + entrada.pedagio
+    )
+
+    return ResultadoCalculoAgente(
+        blocos=blocos,
+        franquia_km_ajustada=franquia_km_ajustada,
+        franquia_horas_ajustada=franquia_horas_ajustada,
+        valor_acionamento_ajustado=valor_acionamento_ajustado,
+        km_excedente=km_excedente,
+        hora_excedente=hora_excedente,
+        valor_agente=valor_agente,
+    )
