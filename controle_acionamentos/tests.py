@@ -479,3 +479,35 @@ def test_calcular_c5_franquia_escalonamento_desativado():
     assert resultado.km_excedente == 40
     assert resultado.hora_excedente == Decimal("1.00")
     assert resultado.valor_agente == Decimal("847.00")
+
+
+def test_calcular_franquia_km_zero_com_escalonamento_levanta_valueerror():
+    """Guard defensivo (cinto-e-suspensório do §11.1 C9) — a calculadora PURA
+    protege a divisão do §8.3 contra franquia_km=0 com escalonamento ativo.
+
+    O model FranquiaAgente já proíbe salvar essa combinação (testado no M1), mas
+    a calculadora não pode confiar só nisso: chamada à mão com franquia_km=0 +
+    escalonamento_ativo=True, deve recusar ANTES da divisão razao = km/franquia_km.
+
+    É ValueError PURO do Python (não ValidationError do Django) — a calculadora
+    vive em services.py sem importar Django, justamente para ser testável sem banco.
+    """
+    from controle_acionamentos.services import (
+        EntradaCalculoAgente,
+        calcular_valor_agente,
+    )
+
+    entrada = EntradaCalculoAgente(
+        valor_acionamento=Decimal("660.00"),
+        franquia_km=0,
+        franquia_horas=Decimal("4.00"),
+        valor_km_excedente=Decimal("3.30"),
+        valor_hora_excedente=Decimal("55.00"),
+        escalonamento_ativo=True,
+        km_total=240,
+        horas_total=Decimal("5.00"),
+        pedagio=Decimal("0.00"),
+    )
+
+    with pytest.raises(ValueError):
+        calcular_valor_agente(entrada)

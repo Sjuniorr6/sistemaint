@@ -204,6 +204,17 @@ def calcular_valor_agente(entrada: EntradaCalculoAgente) -> ResultadoCalculoAgen
     entra nos Cenários 3 e 4 e só vai alterar o bloco de ajuste abaixo; a soma
     final do §8.5 já está na forma definitiva (usa ``valor_acionamento_ajustado``).
     """
+    # Guard defensivo (cinto-e-suspensório do §11.1 C9): o escalonamento do §8.3
+    # divide por franquia_km. O model FranquiaAgente já proíbe salvar
+    # franquia_km=0 com escalonamento, mas a calculadora pura não pode confiar só
+    # nisso — recusa explicitamente ANTES da divisão, com erro claro. ValueError
+    # puro do Python (não ValidationError): este módulo não importa Django.
+    if entrada.escalonamento_ativo and entrada.franquia_km == 0:
+        raise ValueError(
+            "Escalonamento ativo exige franquia_km maior que zero "
+            "(divisão por zero no §8.3)."
+        )
+
     # §8.3 — escalonamento: a cada 40 km acima da franquia base soma-se um
     # "bloco" à franquia (km e horas) e o valor é escalado na MESMA proporção do
     # km. A razão é calculada em Decimal/Decimal para nunca passar por float —
