@@ -390,3 +390,47 @@ def test_calcular_c3_franquia_escalonamento_um_bloco_exato():
     assert resultado.km_excedente == 0
     assert resultado.hora_excedente == Decimal("0.00")
     assert resultado.valor_agente == Decimal("792.00")
+
+
+def test_calcular_c4_franquia_escalonamento_dois_blocos_com_excedente_e_pedagio():
+    """§11.1 Cenário 4 — mesma franquia do C3 (escalonamento ATIVO), mas agora
+    com 2 blocos E excedente residual após o escalonamento E pedágio somando.
+
+    Entrada (franquia 200km/4h, R$660, tarifas 3,30/55, escalonamento ligado):
+        escalonamento_ativo=True, km_total=285, horas_total=7, pedagio=50.
+
+    Então (§8.3 escalona em 2 blocos, sobra excedente, §8.5 soma pedágio):
+        blocos == floor((285−200)/40) == 2
+        franquia_km_ajustada    == 200 + 2×40 == 280
+        franquia_horas_ajustada == 4 + 2      == 6
+        valor_acionamento_ajustado == 660 × (280/200) == 660 × 1,4 == 924,00
+        km_excedente   == max(0, 285−280) == 5
+        hora_excedente == max(0, 7−6)     == 1
+        valor_agente   == 924 + (5×3,30) + (1×55) + 50 == 1.045,50
+    """
+    from controle_acionamentos.services import (
+        EntradaCalculoAgente,
+        calcular_valor_agente,
+    )
+
+    entrada = EntradaCalculoAgente(
+        valor_acionamento=Decimal("660.00"),
+        franquia_km=200,
+        franquia_horas=Decimal("4.00"),
+        valor_km_excedente=Decimal("3.30"),
+        valor_hora_excedente=Decimal("55.00"),
+        escalonamento_ativo=True,
+        km_total=285,
+        horas_total=Decimal("7.00"),
+        pedagio=Decimal("50.00"),
+    )
+
+    resultado = calcular_valor_agente(entrada)
+
+    assert resultado.blocos == 2
+    assert resultado.franquia_km_ajustada == 280
+    assert resultado.franquia_horas_ajustada == Decimal("6.00")
+    assert resultado.valor_acionamento_ajustado == Decimal("924.00")
+    assert resultado.km_excedente == 5
+    assert resultado.hora_excedente == Decimal("1.00")
+    assert resultado.valor_agente == Decimal("1045.50")
