@@ -164,5 +164,200 @@ class FranquiaAgente(models.Model):
 
     def __str__(self):
         return f"{self.nome} ({self.cliente.nome_empresa})"
-    
-        
+
+
+class Acionamento(models.Model):
+    # — Relacionamentos —
+    # on_delete=PROTECT: cadastro referenciado (cliente, responsável, agente,
+    # franquia) não pode sumir por baixo de um acionamento já registrado. Toda
+    # FK já ganha índice automático do Django (cobre cliente/agente/franquia do §9).
+    cliente = models.ForeignKey(
+        Cliente,
+        on_delete=models.PROTECT,
+        related_name="acionamentos",
+        verbose_name="Cliente",
+    )
+    responsavel_agente = models.ForeignKey(
+        ResponsavelAgente,
+        on_delete=models.PROTECT,
+        related_name="acionamentos",
+        verbose_name="Responsável de agente",
+    )
+    agente = models.ForeignKey(
+        Agente,
+        on_delete=models.PROTECT,
+        related_name="acionamentos",
+        verbose_name="Agente",
+    )
+    franquia_agente = models.ForeignKey(
+        FranquiaAgente,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="acionamentos",
+        verbose_name="Franquia de agente",
+    )
+
+    # — Serviço inline —
+    # O que o operador digita no acionamento; é a fonte default do cálculo
+    # (§8.1). Quando uma franquia é vinculada, ela faz override destes valores,
+    # mas eles permanecem registrados para auditoria.
+    nome_servico = models.CharField(max_length=120, verbose_name="Nome do serviço")
+    valor_acionamento = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal("0"))],
+        verbose_name="Valor do acionamento",
+    )
+    franquia_km = models.PositiveIntegerField(
+        # PRD §5.1.5 pede "> 0"; piso 1 (pendente de confirmação do tech lead).
+        validators=[MinValueValidator(1)],
+        verbose_name="Franquia de KM",
+    )
+    franquia_horas = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal("0"))],
+        verbose_name="Franquia de horas",
+    )
+    valor_km_excedente = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal("0"))],
+        verbose_name="Valor por KM excedente",
+    )
+    valor_hora_excedente = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal("0"))],
+        verbose_name="Valor por hora excedente",
+    )
+
+    # — Localização —
+    origem = models.CharField(max_length=200, verbose_name="Origem")
+    destino = models.CharField(max_length=200, blank=True, verbose_name="Destino")
+
+    # — Pessoas —
+    placa_agente = models.CharField(
+        max_length=8, blank=True, verbose_name="Placa do agente"
+    )
+    motorista = models.CharField(
+        max_length=120, blank=True, verbose_name="Motorista"
+    )
+    placa_motorista = models.CharField(
+        max_length=8, blank=True, verbose_name="Placa do motorista"
+    )
+    numero_motorista = models.CharField(
+        max_length=20, blank=True, verbose_name="Número do motorista"
+    )
+
+    # — Tempo / KM —
+    data_hora_solicitado = models.DateTimeField(
+        db_index=True,  # §9: índice explícito (não é FK, não ganha índice de graça)
+        verbose_name="Data/hora solicitado",
+    )
+    data_hora_inicio = models.DateTimeField(verbose_name="Data/hora de início")
+    data_hora_final = models.DateTimeField(verbose_name="Data/hora final")
+    km_inicio = models.PositiveIntegerField(
+        validators=[MinValueValidator(0)],
+        verbose_name="KM inicial",
+    )
+    km_final = models.PositiveIntegerField(
+        validators=[MinValueValidator(0)],
+        verbose_name="KM final",
+    )
+    pedagio = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("0"),
+        blank=True,
+        validators=[MinValueValidator(Decimal("0"))],
+        verbose_name="Pedágio",
+    )
+
+    # — Calculados (RN-07) —
+    # Nunca editáveis pelo usuário; populados só pelo service no marco 7. Nascem
+    # null porque o acionamento existe antes do cálculo rodar.
+    km_total = models.PositiveIntegerField(
+        null=True, blank=True, editable=False, verbose_name="KM total"
+    )
+    horas_total = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        editable=False,
+        verbose_name="Horas totais",
+    )
+    km_excedente = models.PositiveIntegerField(
+        null=True, blank=True, editable=False, verbose_name="KM excedente"
+    )
+    hora_excedente = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        editable=False,
+        verbose_name="Hora excedente",
+    )
+    valor_agente = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        editable=False,
+        verbose_name="Valor do agente",
+    )
+
+    # — Auditoria —
+    criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+    atualizado_em = models.DateTimeField(auto_now=True, verbose_name="Atualizado em")
+
+    class Meta:
+        verbose_name = "Acionamento"
+        verbose_name_plural = "Acionamentos"
+        ordering = ["-data_hora_solicitado"]  # AC-08.3: default por solicitação DESC
+
+    def clean(self):
+        super().clean()
+
+        # nome_servico: Trim + obrigatório (§5.1.5), no estilo da FranquiaAgente.
+        self.nome_servico = (self.nome_servico or "").strip()
+        if not self.nome_servico:
+            raise ValidationError(
+                {"nome_servico": "O nome do serviço não pode ficar vazio."}
+            )
+
+        # RN-04 — coerência temporal: solicitado ≤ início < final.
+        # Guard de None: o clean() roda mesmo quando clean_fields() já acusou um
+        # datetime obrigatório ausente; sem o guard, comparar None com datetime
+        # estouraria TypeError e mascararia o erro real do campo.
+        if self.data_hora_solicitado and self.data_hora_inicio:
+            if self.data_hora_inicio < self.data_hora_solicitado:
+                raise ValidationError(
+                    {"data_hora_inicio": "O início não pode ser anterior à solicitação."}
+                )
+        if self.data_hora_inicio and self.data_hora_final:
+            if self.data_hora_final <= self.data_hora_inicio:
+                raise ValidationError(
+                    {"data_hora_final": "O término deve ser posterior ao início."}
+                )
+
+        # RN-05 — coerência de quilometragem: km_inicio ≤ km_final.
+        if self.km_inicio is not None and self.km_final is not None:
+            if self.km_inicio > self.km_final:
+                raise ValidationError(
+                    {"km_final": "O KM final não pode ser menor que o KM inicial."}
+                )
+
+        # RN-06 — coerência de franquia × acionamento: a franquia vinculada tem
+        # de pertencer ao MESMO cliente do acionamento. Comparo pelos *_id para
+        # não disparar query desnecessária quando não há franquia/cliente.
+        if self.franquia_agente_id and self.cliente_id:
+            if self.franquia_agente.cliente_id != self.cliente_id:
+                raise ValidationError(
+                    {"franquia_agente": "A franquia deve pertencer ao mesmo cliente do acionamento."}
+                )
+
+    def __str__(self):
+        return f"{self.nome_servico} ({self.cliente.nome_empresa})"

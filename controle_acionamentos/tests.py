@@ -6,7 +6,13 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from controle_acionamentos.services import validar_cpf, validar_cnpj, validar_cnh
-from controle_acionamentos.models import ResponsavelAgente, Cliente, Agente, FranquiaAgente
+from controle_acionamentos.models import (
+    ResponsavelAgente,
+    Cliente,
+    Agente,
+    FranquiaAgente,
+    Acionamento,
+)
 
 def test_cpf_valido_retorna_true():
     """Um CPF válido conhecido deve ser aceito."""
@@ -511,3 +517,176 @@ def test_calcular_franquia_km_zero_com_escalonamento_levanta_valueerror():
 
     with pytest.raises(ValueError):
         calcular_valor_agente(entrada)
+
+
+# ---------------------------------------------------------------------------
+# Acionamento.clean() — validações de coerência do model (RN-04/05/06 + §5.1.5)
+# full_clean() (NÃO .clean()/.save()): só ele dispara os field validators E o
+# Model.clean() juntos, que é o que estamos testando.
+# ---------------------------------------------------------------------------
+
+
+def _acionamento_valido(cliente, responsavel, agente, **overrides):
+    """Monta um Acionamento VÁLIDO em tudo, com os FKs já persistidos.
+
+    Cada teste sobrescreve só o campo da regra sob teste, de modo que um
+    ValidationError só pode vir dessa regra — não de um campo obrigatório
+    faltando. Espelha o padrão de `_dados_franquia`.
+    """
+    base = timezone.now()
+    dados = dict(
+        cliente=cliente,
+        responsavel_agente=responsavel,
+        agente=agente,
+        franquia_agente=None,
+        nome_servico="Reboque leve",
+        valor_acionamento=Decimal("150.00"),
+        franquia_km=80,
+        franquia_horas=Decimal("4.00"),
+        valor_km_excedente=Decimal("2.50"),
+        valor_hora_excedente=Decimal("30.00"),
+        origem="São Paulo - SP",
+        destino="Campinas - SP",
+        data_hora_solicitado=base,
+        data_hora_inicio=base + timedelta(minutes=30),
+        data_hora_final=base + timedelta(hours=3),
+        km_inicio=1000,
+        km_final=1120,
+        pedagio=Decimal("0.00"),
+    )
+    dados.update(overrides)
+    return Acionamento(**dados)
+
+
+@pytest.fixture
+def _fks_acionamento(db):
+    """FKs persistidos compartilhados pelos testes do Acionamento."""
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    responsavel = ResponsavelAgente.objects.create(nome="João Supervisor")
+    agente = Agente.objects.create(nome="Carlos Agente", cpf="52998224725")
+    return cliente, responsavel, agente
+
+
+# — Rejeições (cada uma asserta o CAMPO específico no message_dict) —
+
+
+@pytest.mark.django_db
+def test_acionamento_inicio_antes_da_solicitacao_e_rejeitado(_fks_acionamento):
+    """RN-04 — o início não pode ser anterior à solicitação."""
+    cliente, responsavel, agente = _fks_acionamento
+    base = timezone.now()
+    ac = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        data_hora_solicitado=base,
+        data_hora_inicio=base - timedelta(minutes=1),
+        data_hora_final=base + timedelta(hours=3),
+    )
+
+    with pytest.raises(ValidationError) as exc:
+        ac.full_clean()
+    assert "data_hora_inicio" in exc.value.message_dict
+
+
+@pytest.mark.django_db
+def test_acionamento_final_menor_igual_inicio_e_rejeitado(_fks_acionamento):
+    """RN-04 — o término deve ser posterior ao início (≤ é rejeitado)."""
+    cliente, responsavel, agente = _fks_acionamento
+    base = timezone.now()
+    ac = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        data_hora_solicitado=base,
+        data_hora_inicio=base + timedelta(minutes=30),
+        data_hora_final=base + timedelta(minutes=30),  # igual ao início
+    )
+
+    with pytest.raises(ValidationError) as exc:
+        ac.full_clean()
+    assert "data_hora_final" in exc.value.message_dict
+
+
+@pytest.mark.django_db
+def test_acionamento_km_final_menor_que_inicio_e_rejeitado(_fks_acionamento):
+    """RN-05 — o KM final não pode ser menor que o KM inicial."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(
+        cliente, responsavel, agente, km_inicio=1120, km_final=1000
+    )
+
+    with pytest.raises(ValidationError) as exc:
+        ac.full_clean()
+    assert "km_final" in exc.value.message_dict
+
+
+@pytest.mark.django_db
+def test_acionamento_franquia_de_outro_cliente_e_rejeitada(_fks_acionamento):
+    """RN-06 — a franquia vinculada deve pertencer ao mesmo cliente."""
+    cliente, responsavel, agente = _fks_acionamento
+    outro_cliente = Cliente.objects.create(
+        nome_empresa="Globex", cnpj="11444777000161"
+    )
+    franquia_alheia = FranquiaAgente.objects.create(
+        **_dados_franquia(outro_cliente)
+    )
+    ac = _acionamento_valido(
+        cliente, responsavel, agente, franquia_agente=franquia_alheia
+    )
+
+    with pytest.raises(ValidationError) as exc:
+        ac.full_clean()
+    assert "franquia_agente" in exc.value.message_dict
+
+
+@pytest.mark.django_db
+def test_acionamento_nome_servico_vazio_e_rejeitado(_fks_acionamento):
+    """§5.1.5 — nome do serviço é obrigatório (só espaços = vazio após trim)."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente, nome_servico="   ")
+
+    with pytest.raises(ValidationError) as exc:
+        ac.full_clean()
+    assert "nome_servico" in exc.value.message_dict
+
+
+# — Casos felizes (full_clean passa sem erro) —
+
+
+@pytest.mark.django_db
+def test_acionamento_valido_sem_franquia_passa(_fks_acionamento):
+    """Acionamento completo, sem franquia vinculada, passa no full_clean."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente, franquia_agente=None)
+
+    ac.full_clean()  # não deve levantar
+
+
+@pytest.mark.django_db
+def test_acionamento_valido_com_franquia_mesmo_cliente_passa(_fks_acionamento):
+    """RN-06 — franquia do MESMO cliente é aceita."""
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(**_dados_franquia(cliente))
+    ac = _acionamento_valido(
+        cliente, responsavel, agente, franquia_agente=franquia
+    )
+
+    ac.full_clean()  # não deve levantar
+
+
+@pytest.mark.django_db
+def test_acionamento_inicio_igual_solicitado_passa(_fks_acionamento):
+    """RN-04 (limite ≤) — início == solicitação é VÁLIDO; só anterior é rejeitado."""
+    cliente, responsavel, agente = _fks_acionamento
+    base = timezone.now()
+    ac = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        data_hora_solicitado=base,
+        data_hora_inicio=base,  # igual — está no limite permitido
+        data_hora_final=base + timedelta(hours=3),
+    )
+
+    ac.full_clean()  # não deve levantar
