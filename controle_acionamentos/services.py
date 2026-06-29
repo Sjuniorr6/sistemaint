@@ -255,3 +255,62 @@ def calcular_valor_agente(entrada: EntradaCalculoAgente) -> ResultadoCalculoAgen
         hora_excedente=hora_excedente,
         valor_agente=valor_agente,
     )
+
+
+def recalcular_valor_agente(acionamento) -> None:
+    """Preenche os 5 campos calculados de um Acionamento (RN-07, §8).
+
+    Ponte entre o model e a calculadora pura: deriva km/horas totais (§8.2),
+    resolve a fonte dos valores (§8.1 — franquia faz override do inline), chama
+    ``calcular_valor_agente`` e grava o resultado de volta na instância. Lê a
+    instância por duck-typing (NÃO importa models) — este módulo segue puro e
+    testável sem banco. Não persiste: quem chama (``Acionamento.save``) é que faz
+    o ``super().save()``.
+    """
+    # §8.2 — derivação dos totais. Tudo em Decimal puro (sem float): o timedelta
+    # já vem decomposto em days/seconds/microseconds, que montamos em segundos e
+    # convertemos para horas com o mesmo arredondamento contábil dos valores.
+    acionamento.km_total = acionamento.km_final - acionamento.km_inicio
+    delta = acionamento.data_hora_final - acionamento.data_hora_inicio
+    segundos = (
+        Decimal(delta.days) * 86400
+        + Decimal(delta.seconds)
+        + Decimal(delta.microseconds) / Decimal(1_000_000)
+    )
+    acionamento.horas_total = _quantizar(segundos / Decimal(3600))
+
+    # §8.1 — fonte dos valores: havendo franquia vinculada, ela faz OVERRIDE do
+    # serviço inline (e só ela pode escalonar); sem franquia, usa-se o inline do
+    # próprio acionamento, sem escalonamento.
+    if acionamento.franquia_agente:
+        fonte = acionamento.franquia_agente
+        entrada = EntradaCalculoAgente(
+            valor_acionamento=fonte.valor_acionamento,
+            franquia_km=fonte.franquia_km,
+            franquia_horas=fonte.franquia_horas,
+            valor_km_excedente=fonte.valor_km_excedente,
+            valor_hora_excedente=fonte.valor_hora_excedente,
+            escalonamento_ativo=fonte.escalonamento_automatico,  # única tradução de nome
+            km_total=acionamento.km_total,
+            horas_total=acionamento.horas_total,
+            pedagio=acionamento.pedagio,
+        )
+    else:
+        entrada = EntradaCalculoAgente(
+            valor_acionamento=acionamento.valor_acionamento,
+            franquia_km=acionamento.franquia_km,
+            franquia_horas=acionamento.franquia_horas,
+            valor_km_excedente=acionamento.valor_km_excedente,
+            valor_hora_excedente=acionamento.valor_hora_excedente,
+            escalonamento_ativo=False,
+            km_total=acionamento.km_total,
+            horas_total=acionamento.horas_total,
+            pedagio=acionamento.pedagio,
+        )
+
+    resultado = calcular_valor_agente(entrada)
+
+    # km_total/horas_total já vieram do passo §8.2 — aqui só os derivados da conta.
+    acionamento.km_excedente = resultado.km_excedente
+    acionamento.hora_excedente = resultado.hora_excedente
+    acionamento.valor_agente = resultado.valor_agente

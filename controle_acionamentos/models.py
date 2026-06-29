@@ -4,7 +4,12 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
 
-from controle_acionamentos.services import validar_cnpj, validar_cpf, validar_cnh
+from controle_acionamentos.services import (
+    validar_cnpj,
+    validar_cpf,
+    validar_cnh,
+    recalcular_valor_agente,
+)
 
 
 class ResponsavelAgente(models.Model):
@@ -358,6 +363,12 @@ class Acionamento(models.Model):
                 raise ValidationError(
                     {"franquia_agente": "A franquia deve pertencer ao mesmo cliente do acionamento."}
                 )
+
+    def save(self, *args, **kwargs):
+        # RN-07/§8: os 5 campos calculados são populados pelo service a cada save,
+        # nunca digitados. O save fica fino — só delega o cálculo e persiste.
+        recalcular_valor_agente(self)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.nome_servico} ({self.cliente.nome_empresa})"

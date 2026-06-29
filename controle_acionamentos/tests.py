@@ -690,3 +690,87 @@ def test_acionamento_inicio_igual_solicitado_passa(_fks_acionamento):
     )
 
     ac.full_clean()  # não deve levantar
+
+
+# ---------------------------------------------------------------------------
+# Acionamento.save() — integração: o save dispara recalcular_valor_agente e
+# persiste os 5 campos calculados (RN-07, §8). create() chama o save; conferimos
+# com refresh_from_db para garantir que o valor foi de fato ao banco e voltou.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_save_sem_franquia_persiste_calculados_cenario2(_fks_acionamento):
+    """§11.1 Cenário 2 pela porta do model — sem franquia, valores inline estouram
+    a franquia. O save deve derivar km_total/horas_total (§8.2) e gravar os
+    excedentes e o valor_agente (§8.4/§8.5).
+
+    Inline: valor=100, franquia 80km/4h, tarifas 2/30, pedágio 0.
+    km_total=100 (0→100); horas_total=5 (início→final 5h depois).
+    """
+    cliente, responsavel, agente = _fks_acionamento
+    base = timezone.now()
+    ac = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        franquia_agente=None,
+        valor_acionamento=Decimal("100.00"),
+        franquia_km=80,
+        franquia_horas=Decimal("4.00"),
+        valor_km_excedente=Decimal("2.00"),
+        valor_hora_excedente=Decimal("30.00"),
+        pedagio=Decimal("0.00"),
+        km_inicio=0,
+        km_final=100,
+        data_hora_solicitado=base,
+        data_hora_inicio=base,
+        data_hora_final=base + timedelta(hours=5),
+    )
+    ac.save()  # dispara recalcular_valor_agente (build + save = mesmo caminho do create)
+    ac.refresh_from_db()
+
+    assert ac.km_total == 100
+    assert ac.horas_total == Decimal("5.00")
+    assert ac.km_excedente == 20
+    assert ac.hora_excedente == Decimal("1.00")
+    assert ac.valor_agente == Decimal("170.00")
+
+
+@pytest.mark.django_db
+def test_save_com_franquia_faz_override_cenario3(_fks_acionamento):
+    """§11.1 Cenário 3 pela porta do model — franquia vinculada do MESMO cliente,
+    escalonamento ativo. A franquia faz OVERRIDE do serviço inline: o
+    valor_acionamento inline (999, errado de propósito) é IGNORADO; usa-se o 660
+    da franquia. km_total=240, horas_total=5, pedágio 0 → valor_agente 792,00.
+    """
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(
+        **_dados_franquia(
+            cliente,
+            valor_acionamento=Decimal("660.00"),
+            franquia_km=200,
+            franquia_horas=Decimal("4.00"),
+            valor_km_excedente=Decimal("3.30"),
+            valor_hora_excedente=Decimal("55.00"),
+            escalonamento_automatico=True,
+        )
+    )
+    base = timezone.now()
+    ac = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        franquia_agente=franquia,
+        valor_acionamento=Decimal("999.00"),  # inline divergente de propósito
+        pedagio=Decimal("0.00"),
+        km_inicio=0,
+        km_final=240,
+        data_hora_solicitado=base,
+        data_hora_inicio=base,
+        data_hora_final=base + timedelta(hours=5),
+    )
+    ac.save()  # dispara recalcular_valor_agente (build + save = mesmo caminho do create)
+    ac.refresh_from_db()
+
+    assert ac.valor_agente == Decimal("792.00")  # prova o override: usou 660, não 999
