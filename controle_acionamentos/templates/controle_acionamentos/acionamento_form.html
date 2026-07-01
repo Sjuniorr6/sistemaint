@@ -1,0 +1,249 @@
+{% extends 'base.html' %}
+
+{% block title %}| Novo Acionamento |{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+
+  {# — Cabeçalho — #}
+  <h3 class="mb-1">Novo acionamento</h3>
+  <p class="text-muted">Registre o serviço executado e confira o valor a pagar.</p>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    {# Erros que não pertencem a um campo específico (ex.: RN-04/05/06 do clean) #}
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    {# ============================================================
+       Seção 1 — CLIENTE
+       ============================================================ #}
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center">
+        <span class="badge rounded-pill bg-primary me-2">1</span>
+        <span class="fw-semibold">CLIENTE</span>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            {{ form.cliente.label_tag }}{% if form.cliente.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.cliente }}
+            {% if form.cliente.help_text %}<div class="form-text">{{ form.cliente.help_text }}</div>{% endif %}
+            {% if form.cliente.errors %}<div class="text-danger small">{{ form.cliente.errors }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ============================================================
+       Seção 2 — SERVIÇO
+       ============================================================ #}
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <span class="d-flex align-items-center">
+          <span class="badge rounded-pill bg-primary me-2">2</span>
+          <span class="fw-semibold">SERVIÇO</span>
+        </span>
+        <span class="text-warning small">Franquia vinculada substitui estes valores no cálculo (RN-08)</span>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            {{ form.nome_servico.label_tag }}{% if form.nome_servico.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.nome_servico }}
+            {% if form.nome_servico.help_text %}<div class="form-text">{{ form.nome_servico.help_text }}</div>{% endif %}
+            {% if form.nome_servico.errors %}<div class="text-danger small">{{ form.nome_servico.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 mb-3">
+            {{ form.valor_acionamento.label_tag }}{% if form.valor_acionamento.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.valor_acionamento }}
+            {% if form.valor_acionamento.help_text %}<div class="form-text">{{ form.valor_acionamento.help_text }}</div>{% endif %}
+            {% if form.valor_acionamento.errors %}<div class="text-danger small">{{ form.valor_acionamento.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 mb-3">
+            {{ form.franquia_km.label_tag }}{% if form.franquia_km.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.franquia_km }}
+            {% if form.franquia_km.help_text %}<div class="form-text">{{ form.franquia_km.help_text }}</div>{% endif %}
+            {% if form.franquia_km.errors %}<div class="text-danger small">{{ form.franquia_km.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 mb-3">
+            {{ form.franquia_horas.label_tag }}{% if form.franquia_horas.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.franquia_horas }}
+            {% if form.franquia_horas.help_text %}<div class="form-text">{{ form.franquia_horas.help_text }}</div>{% endif %}
+            {% if form.franquia_horas.errors %}<div class="text-danger small">{{ form.franquia_horas.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 mb-3">
+            {{ form.valor_km_excedente.label_tag }}{% if form.valor_km_excedente.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.valor_km_excedente }}
+            {% if form.valor_km_excedente.help_text %}<div class="form-text">{{ form.valor_km_excedente.help_text }}</div>{% endif %}
+            {% if form.valor_km_excedente.errors %}<div class="text-danger small">{{ form.valor_km_excedente.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 mb-3">
+            {{ form.valor_hora_excedente.label_tag }}{% if form.valor_hora_excedente.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.valor_hora_excedente }}
+            {% if form.valor_hora_excedente.help_text %}<div class="form-text">{{ form.valor_hora_excedente.help_text }}</div>{% endif %}
+            {% if form.valor_hora_excedente.errors %}<div class="text-danger small">{{ form.valor_hora_excedente.errors }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ============================================================
+       Seção 3 — LOCALIZAÇÃO
+       ============================================================ #}
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center">
+        <span class="badge rounded-pill bg-primary me-2">3</span>
+        <span class="fw-semibold">LOCALIZAÇÃO</span>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            {{ form.origem.label_tag }}{% if form.origem.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.origem }}
+            {% if form.origem.help_text %}<div class="form-text">{{ form.origem.help_text }}</div>{% endif %}
+            {% if form.origem.errors %}<div class="text-danger small">{{ form.origem.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 mb-3">
+            {{ form.destino.label_tag }}{% if form.destino.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.destino }}
+            {% if form.destino.help_text %}<div class="form-text">{{ form.destino.help_text }}</div>{% endif %}
+            {% if form.destino.errors %}<div class="text-danger small">{{ form.destino.errors }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ============================================================
+       Seção 4 — PESSOAS
+       ============================================================ #}
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center">
+        <span class="badge rounded-pill bg-primary me-2">4</span>
+        <span class="fw-semibold">PESSOAS</span>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            {{ form.responsavel_agente.label_tag }}{% if form.responsavel_agente.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.responsavel_agente }}
+            {% if form.responsavel_agente.help_text %}<div class="form-text">{{ form.responsavel_agente.help_text }}</div>{% endif %}
+            {% if form.responsavel_agente.errors %}<div class="text-danger small">{{ form.responsavel_agente.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 mb-3">
+            {{ form.agente.label_tag }}{% if form.agente.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.agente }}
+            {% if form.agente.help_text %}<div class="form-text">{{ form.agente.help_text }}</div>{% endif %}
+            {% if form.agente.errors %}<div class="text-danger small">{{ form.agente.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 mb-3">
+            {{ form.placa_agente.label_tag }}{% if form.placa_agente.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.placa_agente }}
+            {% if form.placa_agente.help_text %}<div class="form-text">{{ form.placa_agente.help_text }}</div>{% endif %}
+            {% if form.placa_agente.errors %}<div class="text-danger small">{{ form.placa_agente.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 mb-3">
+            {{ form.motorista.label_tag }}{% if form.motorista.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.motorista }}
+            {% if form.motorista.help_text %}<div class="form-text">{{ form.motorista.help_text }}</div>{% endif %}
+            {% if form.motorista.errors %}<div class="text-danger small">{{ form.motorista.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 mb-3">
+            {{ form.placa_motorista.label_tag }}{% if form.placa_motorista.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.placa_motorista }}
+            {% if form.placa_motorista.help_text %}<div class="form-text">{{ form.placa_motorista.help_text }}</div>{% endif %}
+            {% if form.placa_motorista.errors %}<div class="text-danger small">{{ form.placa_motorista.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 mb-3">
+            {{ form.numero_motorista.label_tag }}{% if form.numero_motorista.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.numero_motorista }}
+            {% if form.numero_motorista.help_text %}<div class="form-text">{{ form.numero_motorista.help_text }}</div>{% endif %}
+            {% if form.numero_motorista.errors %}<div class="text-danger small">{{ form.numero_motorista.errors }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ============================================================
+       Seção 5 — TEMPO E QUILOMETRAGEM
+       ============================================================ #}
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center">
+        <span class="badge rounded-pill bg-primary me-2">5</span>
+        <span class="fw-semibold">TEMPO E QUILOMETRAGEM</span>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            {{ form.data_hora_solicitado.label_tag }}{% if form.data_hora_solicitado.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.data_hora_solicitado }}
+            {% if form.data_hora_solicitado.help_text %}<div class="form-text">{{ form.data_hora_solicitado.help_text }}</div>{% endif %}
+            {% if form.data_hora_solicitado.errors %}<div class="text-danger small">{{ form.data_hora_solicitado.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 mb-3">
+            {{ form.data_hora_inicio.label_tag }}{% if form.data_hora_inicio.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.data_hora_inicio }}
+            {% if form.data_hora_inicio.help_text %}<div class="form-text">{{ form.data_hora_inicio.help_text }}</div>{% endif %}
+            {% if form.data_hora_inicio.errors %}<div class="text-danger small">{{ form.data_hora_inicio.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 mb-3">
+            {{ form.data_hora_final.label_tag }}{% if form.data_hora_final.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.data_hora_final }}
+            {% if form.data_hora_final.help_text %}<div class="form-text">{{ form.data_hora_final.help_text }}</div>{% endif %}
+            {% if form.data_hora_final.errors %}<div class="text-danger small">{{ form.data_hora_final.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 mb-3">
+            {{ form.km_inicio.label_tag }}{% if form.km_inicio.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.km_inicio }}
+            {% if form.km_inicio.help_text %}<div class="form-text">{{ form.km_inicio.help_text }}</div>{% endif %}
+            {% if form.km_inicio.errors %}<div class="text-danger small">{{ form.km_inicio.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 mb-3">
+            {{ form.km_final.label_tag }}{% if form.km_final.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.km_final }}
+            {% if form.km_final.help_text %}<div class="form-text">{{ form.km_final.help_text }}</div>{% endif %}
+            {% if form.km_final.errors %}<div class="text-danger small">{{ form.km_final.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 mb-3">
+            {{ form.pedagio.label_tag }}{% if form.pedagio.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.pedagio }}
+            {% if form.pedagio.help_text %}<div class="form-text">{{ form.pedagio.help_text }}</div>{% endif %}
+            {% if form.pedagio.errors %}<div class="text-danger small">{{ form.pedagio.errors }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ============================================================
+       Seção 6 — FRANQUIA (OPCIONAL)
+       ============================================================ #}
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center">
+        <span class="badge rounded-pill bg-primary me-2">6</span>
+        <span class="fw-semibold">FRANQUIA (OPCIONAL)</span>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            {{ form.franquia_agente.label_tag }}{% if form.franquia_agente.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.franquia_agente }}
+            {% if form.franquia_agente.help_text %}<div class="form-text">{{ form.franquia_agente.help_text }}</div>{% endif %}
+            {% if form.franquia_agente.errors %}<div class="text-danger small">{{ form.franquia_agente.errors }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# — Rodapé — #}
+    <div class="mt-4">
+      <button type="submit" class="btn btn-primary">Salvar acionamento</button>
+      <a href="{% url 'controle_acionamentos:index' %}" class="btn btn-outline-secondary">Cancelar</a>
+    </div>
+
+  </form>
+</div>
+{% endblock %}
