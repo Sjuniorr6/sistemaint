@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(findstr /i \"seo\\\\|sitemap\\\\|meta\\\\|cdn\\\\|cache\")",
-      "Bash(python manage.py makemigrations acompanhamentos --name=\"remove_plate_validation_fields\")"
-    ]
-  }
-}
