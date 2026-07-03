@@ -95,3 +95,9 @@ class AcionamentoForm(forms.ModelForm):
         # input_formats. Sem isto, datas válidas seriam rejeitadas.
         for campo in ("data_hora_solicitado", "data_hora_inicio", "data_hora_final"):
             self.fields[campo].input_formats = ["%Y-%m-%dT%H:%M", "%Y-%m-%dT%H:%M:%S"]
+
+
+class PedagioUpdateForm(forms.Form):
+    """Valida a entrada do endpoint inline de pedágio (DD-014/M3); min_value=0 implementa AC-07.3."""
+
+    pedagio = forms.DecimalField(min_value=0, max_digits=10, decimal_places=2)

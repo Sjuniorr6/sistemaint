@@ -898,3 +898,167 @@ def test_acionamento_list_lista_ordenada_para_usuario_autorizado(
 
     assert response.status_code == 200
     assert [a.pk for a in response.context["acionamentos"]] == [hoje.pk, ontem.pk]
+
+
+# ---------------------------------------------------------------------------
+# views.acionamento_pedagio_update — recálculo inline, DD-014/M3 subtask 4
+# Endpoint POST que atualiza SÓ o pedágio de um acionamento e recalcula o
+# valor_agente (pedágio soma; os excedentes não mudam). Protegido por
+# change_acionamento (ver != mexer). Fase Red: a rota ainda não existe →
+# reverse() levanta NoReverseMatch nos cinco testes.
+# ---------------------------------------------------------------------------
+
+
+def _user_com_perms(django_user_model, *codenames):
+    """Cria um usuário e adiciona as Permissions do app pelos codenames.
+
+    Evita repetir o bloco de Permission.objects.get(...) em cada teste.
+    """
+    user = django_user_model.objects.create_user(
+        username=f"user_{'_'.join(codenames) or 'sem'}", password="x"
+    )
+    for codename in codenames:
+        perm = Permission.objects.get(
+            codename=codename,
+            content_type__app_label="controle_acionamentos",
+        )
+        user.user_permissions.add(perm)
+    return user
+
+
+@pytest.mark.django_db
+def test_pedagio_update_anonimo_redireciona_para_login(client, _fks_acionamento):
+    """Sem autenticação, o POST redireciona para o login (@login_required)."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()
+
+    url = reverse("controle_acionamentos:acionamento_pedagio_update", args=[ac.pk])
+    response = client.post(url, {"pedagio": "50.00"})
+
+    assert response.status_code == 302
+    assert "login" in response.url
+
+
+@pytest.mark.django_db
+def test_pedagio_update_com_view_mas_sem_change_retorna_403(
+    client, django_user_model, _fks_acionamento
+):
+    """Granularidade: quem só tem view_acionamento NÃO pode alterar (403).
+    Ver não é mexer — o endpoint exige change_acionamento."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_pedagio_update", args=[ac.pk])
+    response = client.post(url, {"pedagio": "50.00"})
+
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_pedagio_update_get_retorna_405(client, django_user_model, _fks_acionamento):
+    """O endpoint é POST-only: GET com permissão devolve 405 (método não permitido)."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()
+
+    user = _user_com_perms(django_user_model, "change_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_pedagio_update", args=[ac.pk])
+    response = client.get(url)
+
+    assert response.status_code == 405
+
+
+@pytest.mark.django_db
+def test_pedagio_update_valido_recalcula_valor_agente_cenario6(
+    client, django_user_model, _fks_acionamento
+):
+    """§11.1 Cenário 6 — mesmo setup do Cenário 3 (valor_agente persiste 792,00
+    com pedágio 0), agora atualizando o pedágio para 50,00 via endpoint.
+
+    O pedágio SOMA ao valor_agente (§8.5) sem mexer nos excedentes já calculados:
+    792,00 + 50,00 == 842,00. O JSON traz os valores como string; o banco, Decimal.
+    """
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(
+        **_dados_franquia(
+            cliente,
+            valor_acionamento=Decimal("660.00"),
+            franquia_km=200,
+            franquia_horas=Decimal("4.00"),
+            valor_km_excedente=Decimal("3.30"),
+            valor_hora_excedente=Decimal("55.00"),
+            escalonamento_automatico=True,
+        )
+    )
+    base = timezone.now()
+    ac = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        franquia_agente=franquia,
+        valor_acionamento=Decimal("999.00"),  # inline divergente de propósito
+        pedagio=Decimal("0.00"),
+        km_inicio=0,
+        km_final=240,
+        data_hora_solicitado=base,
+        data_hora_inicio=base,
+        data_hora_final=base + timedelta(hours=5),
+    )
+    ac.save()
+    ac.refresh_from_db()
+
+    # Guardados ANTES do update: excedentes e valor_agente base do Cenário 3.
+    km_excedente_antes = ac.km_excedente
+    hora_excedente_antes = ac.hora_excedente
+    assert ac.valor_agente == Decimal("792.00")
+
+    user = _user_com_perms(django_user_model, "change_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_pedagio_update", args=[ac.pk])
+    response = client.post(url, {"pedagio": "50.00"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["pedagio"] == "50.00"
+    assert data["valor_agente"] == "842.00"
+
+    ac.refresh_from_db()
+    assert ac.pedagio == Decimal("50.00")
+    assert ac.valor_agente == Decimal("842.00")
+    # Pedágio só soma: os excedentes calculados não podem ter mudado.
+    assert ac.km_excedente == km_excedente_antes
+    assert ac.hora_excedente == hora_excedente_antes
+
+
+@pytest.mark.django_db
+def test_pedagio_update_negativo_retorna_400_e_nao_persiste(
+    client, django_user_model, _fks_acionamento
+):
+    """AC-07.3 — pedágio negativo é rejeitado (400) e nada é persistido:
+    pedágio e valor_agente ficam exatamente como estavam."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente, pedagio=Decimal("0.00"))
+    ac.save()
+    ac.refresh_from_db()
+
+    pedagio_antes = ac.pedagio
+    valor_agente_antes = ac.valor_agente
+
+    user = _user_com_perms(django_user_model, "change_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_pedagio_update", args=[ac.pk])
+    response = client.post(url, {"pedagio": "-10.00"})
+
+    assert response.status_code == 400
+    ac.refresh_from_db()
+    assert ac.pedagio == pedagio_antes
+    assert ac.valor_agente == valor_agente_antes

@@ -1,7 +1,9 @@
 from django.contrib.auth.decorators import login_required, permission_required
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
-from .forms import AcionamentoForm
+from .forms import AcionamentoForm, PedagioUpdateForm
 from .models import Acionamento
 from .selectors import listar_acionamentos
 
@@ -66,4 +68,29 @@ def acionamento_detail(request, pk):
         request,
         "controle_acionamentos/acionamento_detail.html",
         {"acionamento": acionamento},
+    )
+
+
+@login_required
+@permission_required("controle_acionamentos.change_acionamento", raise_exception=True)
+@require_POST
+def acionamento_pedagio_update(request, pk):
+    """Atualiza SÓ o pedágio de um Acionamento e recalcula (DD-014/M3) — view FINA.
+
+    require_POST embaixo do login/permissão: anônimo cai no login (302), quem não
+    tem change_acionamento leva 403, e só então GET vira 405. O save() já dispara
+    recalcular_valor_agente (pedágio soma ao valor_agente, §8.5); nada extra aqui.
+    """
+    ac = get_object_or_404(Acionamento, pk=pk)
+    form = PedagioUpdateForm(request.POST)
+    if not form.is_valid():
+        # AC-07.3: entrada inválida (ex.: pedágio negativo) não toca no banco.
+        return JsonResponse({"erros": form.errors}, status=400)
+
+    ac.pedagio = form.cleaned_data["pedagio"]
+    ac.save()  # o save() do model recalcula os campos derivados
+    ac.refresh_from_db()
+
+    return JsonResponse(
+        {"pedagio": str(ac.pedagio), "valor_agente": str(ac.valor_agente)}
     )
