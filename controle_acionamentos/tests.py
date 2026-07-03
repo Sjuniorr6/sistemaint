@@ -977,6 +977,133 @@ def test_vincular_franquia_em_lote_cross_cliente_desfaz_tudo_cenario8(_fks_acion
         assert ac.valor_agente == originais[ac.pk]
 
 
+@pytest.mark.django_db
+def test_vincular_franquia_em_lote_sem_flag_nao_sobrescreve_ac065(_fks_acionamento):
+    """DD-015/M4 (AC-06.5) — item que já possui franquia vinculada só pode ser
+    sobrescrito com confirmação explícita: sem sobrescrever=True, o service
+    levanta ValidationError e nada persiste (nem os itens sem franquia)."""
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(
+        **_dados_franquia(
+            cliente,
+            valor_acionamento=Decimal("660.00"),
+            franquia_km=200,
+            franquia_horas=Decimal("4.00"),
+            valor_km_excedente=Decimal("3.30"),
+            valor_hora_excedente=Decimal("55.00"),
+            escalonamento_automatico=True,
+        )
+    )
+    base = timezone.now()
+
+    def _cria(franquia_agente=None):
+        ac = _acionamento_valido(
+            cliente,
+            responsavel,
+            agente,
+            franquia_agente=franquia_agente,
+            km_inicio=0,
+            km_final=240,
+            data_hora_solicitado=base,
+            data_hora_inicio=base,
+            data_hora_final=base + timedelta(hours=5),
+        )
+        ac.save()
+        ac.refresh_from_db()
+        return ac
+
+    livre1 = _cria()
+    livre2 = _cria()
+    ja_vinculado = _cria(franquia_agente=franquia)  # já nasce com a franquia
+
+    # valor_agente original dos 2 SEM franquia, antes do lote.
+    originais = {ac.pk: ac.valor_agente for ac in (livre1, livre2)}
+
+    from controle_acionamentos.services import vincular_franquia_em_lote
+
+    # SEM sobrescrever: o default deve ser o caminho seguro (recusa e desfaz tudo).
+    with pytest.raises(ValidationError):
+        vincular_franquia_em_lote([livre1.pk, livre2.pk, ja_vinculado.pk], franquia)
+
+    # Nada persistiu: nem os livres, nem alteração no já vinculado.
+    for ac in (livre1, livre2):
+        ac.refresh_from_db()
+        assert ac.franquia_agente_id is None
+        assert ac.valor_agente == originais[ac.pk]
+
+    ja_vinculado.refresh_from_db()
+    assert ja_vinculado.franquia_agente_id == franquia.pk
+
+
+@pytest.mark.django_db
+def test_vincular_franquia_em_lote_com_flag_sobrescreve_ac065(_fks_acionamento):
+    """DD-015/M4 (AC-06.5) — com sobrescrever=True, itens que já possuem
+    franquia são re-vinculados e recalculados junto com os demais."""
+    cliente, responsavel, agente = _fks_acionamento
+
+    # Duas franquias do MESMO cliente; nomes distintos (unicidade cliente+nome).
+    # A nova muda só o valor_acionamento (700), para o recálculo ser observável.
+    franquia_antiga = FranquiaAgente.objects.create(
+        **_dados_franquia(
+            cliente,
+            valor_acionamento=Decimal("660.00"),
+            franquia_km=200,
+            franquia_horas=Decimal("4.00"),
+            valor_km_excedente=Decimal("3.30"),
+            valor_hora_excedente=Decimal("55.00"),
+            escalonamento_automatico=True,
+        )
+    )
+    franquia_nova = FranquiaAgente.objects.create(
+        **_dados_franquia(
+            cliente,
+            nome="Franquia Nova 200km/4h",
+            valor_acionamento=Decimal("700.00"),
+            franquia_km=200,
+            franquia_horas=Decimal("4.00"),
+            valor_km_excedente=Decimal("3.30"),
+            valor_hora_excedente=Decimal("55.00"),
+            escalonamento_automatico=True,
+        )
+    )
+    base = timezone.now()
+
+    def _cria(franquia_agente=None):
+        ac = _acionamento_valido(
+            cliente,
+            responsavel,
+            agente,
+            franquia_agente=franquia_agente,
+            km_inicio=0,
+            km_final=240,
+            data_hora_solicitado=base,
+            data_hora_inicio=base,
+            data_hora_final=base + timedelta(hours=5),
+        )
+        ac.save()
+        ac.refresh_from_db()
+        return ac
+
+    livre1 = _cria()
+    livre2 = _cria()
+    ja_vinculado = _cria(franquia_agente=franquia_antiga)
+
+    from controle_acionamentos.services import vincular_franquia_em_lote
+
+    resultado = vincular_franquia_em_lote(
+        [livre1.pk, livre2.pk, ja_vinculado.pk],
+        franquia_nova,
+        sobrescrever=True,
+    )
+
+    assert resultado == 3
+    # Escalonamento da franquia_nova: 700 × (240/200) == 840,00, sem excedentes.
+    for ac in (livre1, livre2, ja_vinculado):
+        ac.refresh_from_db()
+        assert ac.franquia_agente_id == franquia_nova.pk
+        assert ac.valor_agente == Decimal("840.00")
+
+
 # ---------------------------------------------------------------------------
 # views.acionamento_list — listagem base, DD-014/M3 subtask 2
 # View fina: login + permissão view_acionamento; consome listar_acionamentos()

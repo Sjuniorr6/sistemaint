@@ -8,6 +8,7 @@ vincular_franquia_em_lote) tocam a persistência por natureza.
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
+from django.core.exceptions import ValidationError
 from django.db import transaction
 
 
@@ -320,11 +321,15 @@ def recalcular_valor_agente(acionamento) -> None:
     acionamento.valor_agente = resultado.valor_agente
 
 
-def vincular_franquia_em_lote(pks, franquia):
+def vincular_franquia_em_lote(pks, franquia, sobrescrever=False):
     """DD-015/M4 (AC-06.4) — vincula `franquia` a todos os acionamentos de
     `pks` e recalcula os campos derivados de cada um, em transação atômica:
     falha em qualquer item desfaz o lote inteiro (AC-06.6). Retorna a
     contagem de acionamentos atualizados.
+
+    `sobrescrever` (default False = caminho seguro): com False, se algum item do
+    lote já tiver franquia vinculada, o lote é recusado (AC-06.5); com True,
+    esses itens são re-vinculados e recalculados.
 
     Import local de Acionamento: evita import circular (models importa
     recalcular_valor_agente deste módulo).
@@ -332,6 +337,16 @@ def vincular_franquia_em_lote(pks, franquia):
     from controle_acionamentos.models import Acionamento
 
     with transaction.atomic():
+        if not sobrescrever:
+            ja_vinculados = Acionamento.objects.filter(
+                pk__in=pks, franquia_agente__isnull=False
+            )
+            if ja_vinculados.exists():
+                raise ValidationError(
+                    "Há acionamentos com franquia já vinculada no lote; "
+                    "a sobrescrita exige confirmação explícita (AC-06.5)."
+                )
+
         atualizados = 0
         for acionamento in Acionamento.objects.filter(pk__in=pks):
             acionamento.franquia_agente = franquia
