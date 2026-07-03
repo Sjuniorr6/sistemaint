@@ -791,3 +791,43 @@ def test_save_com_franquia_faz_override_cenario3(_fks_acionamento):
     ac.refresh_from_db()
 
     assert ac.valor_agente == Decimal("792.00")  # prova o override: usou 660, não 999
+
+
+# ---------------------------------------------------------------------------
+# selectors.listar_acionamentos — listagem base (DD-014/M3, §9): leitura pela
+# camada de selectors, ordenada por data_hora_solicitado DESC (mesmo default do
+# Meta.ordering do model). Testa só o contrato de leitura, sem filtros ainda.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_listar_acionamentos_ordena_por_solicitacao_desc(_fks_acionamento):
+    """DD-014/M3 — listar_acionamentos() devolve todos os acionamentos do mais
+    recente para o mais antigo por data_hora_solicitado (§9 / AC-08.3).
+
+    Fase Red do TDD: a função ainda não existe em selectors.py, então o import
+    local levanta ImportError e este teste FALHA de propósito (import local para
+    isolar o erro e não derrubar a coleta dos demais testes).
+    """
+    cliente, responsavel, agente = _fks_acionamento
+    base = timezone.now()
+
+    # Criados fora de ordem de propósito, para provar que quem ordena é o selector.
+    ac_semana = _acionamento_valido(
+        cliente, responsavel, agente, data_hora_solicitado=base - timedelta(days=7)
+    )
+    ac_semana.save()
+    ac_hoje = _acionamento_valido(
+        cliente, responsavel, agente, data_hora_solicitado=base
+    )
+    ac_hoje.save()
+    ac_ontem = _acionamento_valido(
+        cliente, responsavel, agente, data_hora_solicitado=base - timedelta(days=1)
+    )
+    ac_ontem.save()
+
+    from controle_acionamentos.selectors import listar_acionamentos
+
+    resultado = listar_acionamentos()
+
+    assert [a.pk for a in resultado] == [ac_hoje.pk, ac_ontem.pk, ac_semana.pk]
