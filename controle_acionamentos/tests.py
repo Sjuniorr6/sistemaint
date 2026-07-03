@@ -835,6 +835,26 @@ def test_listar_acionamentos_ordena_por_solicitacao_desc(_fks_acionamento):
     assert [a.pk for a in resultado] == [ac_hoje.pk, ac_ontem.pk, ac_semana.pk]
 
 
+@pytest.mark.django_db
+def test_listar_acionamentos_filtra_por_cliente(_fks_acionamento):
+    """DD-015/M4 (AC-06.1) — listar_acionamentos(cliente=...) devolve só os
+    acionamentos do cliente pedido."""
+    cliente_a, responsavel, agente = _fks_acionamento
+    cliente_b = Cliente.objects.create(nome_empresa="Globex", cnpj="11444777000161")
+
+    # 2 acionamentos para o cliente_a e 1 para o cliente_b.
+    _acionamento_valido(cliente_a, responsavel, agente).save()
+    _acionamento_valido(cliente_a, responsavel, agente).save()
+    _acionamento_valido(cliente_b, responsavel, agente).save()
+
+    from controle_acionamentos.selectors import listar_acionamentos
+
+    resultado = listar_acionamentos(cliente=cliente_a)
+
+    assert resultado.count() == 2
+    assert all(a.cliente_id == cliente_a.pk for a in resultado) is True
+
+
 # ---------------------------------------------------------------------------
 # views.acionamento_list — listagem base, DD-014/M3 subtask 2
 # View fina: login + permissão view_acionamento; consome listar_acionamentos()
