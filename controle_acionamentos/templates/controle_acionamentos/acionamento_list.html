@@ -1,4 +1,6 @@
 {% extends 'base.html' %}
+{% load static %}
+{% load l10n %}
 
 {% block title %}| Acionamentos |{% endblock %}
 
@@ -7,6 +9,9 @@
 
   <h3 class="mb-1">Acionamentos</h3>
   <p class="text-muted">Serviços registrados, do mais recente ao mais antigo.</p>
+
+  {# Token lido pelo JS (header X-CSRFToken); fica fora da tabela. #}
+  {% csrf_token %}
 
   <div class="table-responsive">
     <table class="table table-striped align-middle">
@@ -25,10 +30,19 @@
             <td>{{ a.cliente }}</td>
             <td>{{ a.agente }}</td>
             <td>{{ a.data_hora_solicitado|date:"d/m/Y H:i" }}</td>
-            <td class="text-end">
+            <td class="text-end" data-valor-agente="{{ a.pk }}">
               {% if a.valor_agente is not None %}{{ a.valor_agente|floatformat:2 }}{% else %}—{% endif %}
             </td>
-            <td class="text-end">{{ a.pedagio|floatformat:2 }}</td>
+            <td class="text-end">
+              {% if perms.controle_acionamentos.change_acionamento %}
+                <input type="number" step="0.01" min="0"
+                       class="form-control form-control-sm text-end js-pedagio-input"
+                       value="{{ a.pedagio|unlocalize }}"
+                       data-url="{% url 'controle_acionamentos:acionamento_pedagio_update' a.pk %}">
+              {% else %}
+                {{ a.pedagio|floatformat:2 }}
+              {% endif %}
+            </td>
           </tr>
         {% empty %}
           <tr>
@@ -40,4 +54,6 @@
   </div>
 
 </div>
+
+<script src="{% static 'controle_acionamentos/js/acionamento_list.js' %}"></script>
 {% endblock %}
