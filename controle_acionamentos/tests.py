@@ -1062,3 +1062,42 @@ def test_pedagio_update_negativo_retorna_400_e_nao_persiste(
     ac.refresh_from_db()
     assert ac.pedagio == pedagio_antes
     assert ac.valor_agente == valor_agente_antes
+
+
+@pytest.mark.django_db
+def test_pedagio_update_nao_afeta_outras_linhas_ac074(
+    client, django_user_model, _fks_acionamento
+):
+    """AC-07.4 — o update de pedágio é isolado por linha: atualizar um acionamento
+    não pode tocar em nenhum outro. Dois acionamentos; só o alvo recebe o POST, e
+    o vizinho tem de sair exatamente como entrou (pedágio e valor_agente)."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac_alvo = _acionamento_valido(
+        cliente, responsavel, agente, pedagio=Decimal("0.00")
+    )
+    ac_alvo.save()
+    ac_vizinho = _acionamento_valido(
+        cliente, responsavel, agente, pedagio=Decimal("0.00")
+    )
+    ac_vizinho.save()
+
+    ac_alvo.refresh_from_db()
+    ac_vizinho.refresh_from_db()
+    pedagio_vizinho_antes = ac_vizinho.pedagio
+    valor_agente_vizinho_antes = ac_vizinho.valor_agente
+
+    user = _user_com_perms(django_user_model, "change_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_pedagio_update", args=[ac_alvo.pk])
+    response = client.post(url, {"pedagio": "50.00"})
+
+    assert response.status_code == 200
+
+    ac_alvo.refresh_from_db()
+    ac_vizinho.refresh_from_db()
+    # A linha alvo mudou...
+    assert ac_alvo.pedagio == Decimal("50.00")
+    # ...e a vizinha ficou intocada (coração do AC-07.4).
+    assert ac_vizinho.pedagio == pedagio_vizinho_antes
+    assert ac_vizinho.valor_agente == valor_agente_vizinho_antes
