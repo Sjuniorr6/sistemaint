@@ -2,7 +2,9 @@ import pytest
 from datetime import timedelta
 from decimal import Decimal
 
+from django.contrib.auth.models import Permission
 from django.core.exceptions import ValidationError
+from django.urls import reverse
 from django.utils import timezone
 
 from controle_acionamentos.services import validar_cpf, validar_cnpj, validar_cnh
@@ -831,3 +833,68 @@ def test_listar_acionamentos_ordena_por_solicitacao_desc(_fks_acionamento):
     resultado = listar_acionamentos()
 
     assert [a.pk for a in resultado] == [ac_hoje.pk, ac_ontem.pk, ac_semana.pk]
+
+
+# ---------------------------------------------------------------------------
+# views.acionamento_list — listagem base, DD-014/M3 subtask 2
+# View fina: login + permissão view_acionamento; consome listar_acionamentos()
+# e entrega a lista ordenada no contexto ("acionamentos"). Fase Red: a rota
+# "acionamento_list" ainda não existe → reverse() levanta NoReverseMatch.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_acionamento_list_anonimo_redireciona_para_login(client):
+    """Sem autenticação, a listagem redireciona para o login (@login_required)."""
+    url = reverse("controle_acionamentos:acionamento_list")
+    response = client.get(url)
+
+    assert response.status_code == 302
+    assert "login" in response.url
+
+
+@pytest.mark.django_db
+def test_acionamento_list_sem_permissao_retorna_403(client, django_user_model):
+    """Autenticado mas sem a permissão view_acionamento → 403 (raise_exception)."""
+    user = django_user_model.objects.create_user(username="comum", password="x")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_list")
+    response = client.get(url)
+
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_acionamento_list_lista_ordenada_para_usuario_autorizado(
+    client, django_user_model, _fks_acionamento
+):
+    """Com a permissão, a view responde 200 e entrega os acionamentos no contexto,
+    do mais recente ao mais antigo por data_hora_solicitado (DD-014/M3)."""
+    cliente, responsavel, agente = _fks_acionamento
+    base = timezone.now()
+
+    # Criados FORA da ordem de exibição (ontem antes de hoje) para provar que
+    # a ordenação vem do selector, não da ordem de criação.
+    ontem = _acionamento_valido(
+        cliente, responsavel, agente, data_hora_solicitado=base - timedelta(days=1)
+    )
+    ontem.save()
+    hoje = _acionamento_valido(
+        cliente, responsavel, agente, data_hora_solicitado=base
+    )
+    hoje.save()
+
+    user = django_user_model.objects.create_user(username="autorizado", password="x")
+    perm = Permission.objects.get(
+        codename="view_acionamento",
+        content_type__app_label="controle_acionamentos",
+    )
+    user.user_permissions.add(perm)
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_list")
+    response = client.get(url)
+
+    assert response.status_code == 200
+    assert [a.pk for a in response.context["acionamentos"]] == [hoje.pk, ontem.pk]

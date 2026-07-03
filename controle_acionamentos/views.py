@@ -3,6 +3,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import AcionamentoForm
 from .models import Acionamento
+from .selectors import listar_acionamentos
 
 
 @login_required
@@ -13,6 +14,22 @@ def index(request):
     o encanamento URL -> view -> template. Sem regra de negócio aqui.
     """
     return render(request, 'controle_acionamentos/index.html')
+
+
+@login_required
+@permission_required("controle_acionamentos.view_acionamento", raise_exception=True)
+def acionamento_list(request):
+    """Listagem base de Acionamentos (DD-014/M3) — view FINA.
+
+    Quem ordena e resolve os joins é o selector (listar_acionamentos); a view só
+    entrega o queryset ao template. raise_exception=True: sem a permissão de
+    leitura, devolve 403 em vez de mandar pro login.
+    """
+    return render(
+        request,
+        "controle_acionamentos/acionamento_list.html",
+        {"acionamentos": listar_acionamentos()},
+    )
 
 
 @login_required
