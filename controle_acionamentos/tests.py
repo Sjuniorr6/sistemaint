@@ -917,6 +917,66 @@ def test_vincular_franquia_em_lote_vincula_e_recalcula_cenario7(_fks_acionamento
         assert ac.valor_agente == Decimal("792.00")
 
 
+@pytest.mark.django_db
+def test_vincular_franquia_em_lote_cross_cliente_desfaz_tudo_cenario8(_fks_acionamento):
+    """DD-015/M4 (cenário 8, RN-06) — franquia de cliente diferente é rejeitada
+    e NADA persiste: a falha de um item desfaz o lote inteiro (AC-06.6). A prova
+    determinística do rollback de escritas já efetuadas é do teste de falha no
+    meio do lote (critério global 5, §12)."""
+    cliente_a, responsavel, agente = _fks_acionamento
+    cliente_b = Cliente.objects.create(nome_empresa="Globex", cnpj="11444777000161")
+
+    # Franquia do cliente_a (mesmo arranjo do cenário 7).
+    franquia = FranquiaAgente.objects.create(
+        **_dados_franquia(
+            cliente_a,
+            valor_acionamento=Decimal("660.00"),
+            franquia_km=200,
+            franquia_horas=Decimal("4.00"),
+            valor_km_excedente=Decimal("3.30"),
+            valor_hora_excedente=Decimal("55.00"),
+            escalonamento_automatico=True,
+        )
+    )
+    base = timezone.now()
+
+    def _cria(cli):
+        ac = _acionamento_valido(
+            cli,
+            responsavel,
+            agente,
+            franquia_agente=None,
+            km_inicio=0,
+            km_final=240,
+            data_hora_solicitado=base,
+            data_hora_inicio=base,
+            data_hora_final=base + timedelta(hours=5),
+        )
+        ac.save()
+        ac.refresh_from_db()
+        return ac
+
+    valido1 = _cria(cliente_a)
+    valido2 = _cria(cliente_a)
+    invalido = _cria(cliente_b)  # cross-cliente: viola RN-06 ao receber a franquia
+
+    # valor_agente original de cada um ANTES do lote (todos SEM franquia ainda).
+    originais = {ac.pk: ac.valor_agente for ac in (valido1, valido2, invalido)}
+
+    from controle_acionamentos.services import vincular_franquia_em_lote
+
+    # A ordem de iteração não é garantida (o filter segue o ordering do model),
+    # mas o resultado é o mesmo em qualquer ordem: ao primeiro erro, nada persiste.
+    with pytest.raises(ValidationError):
+        vincular_franquia_em_lote([valido1.pk, valido2.pk, invalido.pk], franquia)
+
+    # Nada persistiu — nem os válidos processados antes da falha (rollback do lote).
+    for ac in (valido1, valido2, invalido):
+        ac.refresh_from_db()
+        assert ac.franquia_agente_id is None
+        assert ac.valor_agente == originais[ac.pk]
+
+
 # ---------------------------------------------------------------------------
 # views.acionamento_list — listagem base, DD-014/M3 subtask 2
 # View fina: login + permissão view_acionamento; consome listar_acionamentos()
