@@ -215,8 +215,9 @@ class Acionamento(models.Model):
         verbose_name="Valor do acionamento",
     )
     franquia_km = models.PositiveIntegerField(
-        # PRD §5.1.5 pede "> 0"; piso 1 (pendente de confirmação do tech lead).
-        validators=[MinValueValidator(1)],
+        # PRD v1.4 (AC-04.3): aceita 0 no inline — sem flag de escalonamento aqui,
+        # nunca há divisão por franquia_km (guard no services.py cobre o caso com franquia).
+        validators=[MinValueValidator(0)],
         verbose_name="Franquia de KM",
     )
     franquia_horas = models.DecimalField(

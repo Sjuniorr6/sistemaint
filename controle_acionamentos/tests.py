@@ -692,6 +692,23 @@ def test_acionamento_inicio_igual_solicitado_passa(_fks_acionamento):
     ac.full_clean()  # não deve levantar
 
 
+@pytest.mark.django_db
+def test_acionamento_aceita_franquia_km_zero_no_inline(_fks_acionamento):
+    """DD-031 — franquia_km=0 no caminho inline (sem franquia vinculada) deve ser
+    aceito. Sem franquia/escalonamento não há divisão por franquia_km, então 0 é
+    válido — espelha a decisão já aplicada em FranquiaAgente (piso 0).
+
+    Fase Red do TDD: hoje o model ainda tem MinValueValidator(1) em franquia_km,
+    então full_clean() levanta ValidationError e este teste FALHA de propósito.
+    """
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(
+        cliente, responsavel, agente, franquia_agente=None, franquia_km=0
+    )
+
+    ac.full_clean()  # não deve levantar
+
+
 # ---------------------------------------------------------------------------
 # Acionamento.save() — integração: o save dispara recalcular_valor_agente e
 # persiste os 5 campos calculados (RN-07, §8). create() chama o save; conferimos
