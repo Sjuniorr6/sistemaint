@@ -856,6 +856,68 @@ def test_listar_acionamentos_filtra_por_cliente(_fks_acionamento):
 
 
 # ---------------------------------------------------------------------------
+# services.vincular_franquia_em_lote — vínculo de franquia em lote (DD-015/M4
+# subtask 3). Vincula uma FranquiaAgente a vários acionamentos de uma vez e
+# recalcula os campos derivados de cada um (override da franquia), em transação
+# atômica: falha em qualquer item desfaz o lote inteiro (AC-06.6).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_vincular_franquia_em_lote_vincula_e_recalcula_cenario7(_fks_acionamento):
+    """DD-015/M4 (AC-06.4, cenário 7) — o lote vincula a franquia a todos os
+    acionamentos e recalcula km_excedente/hora_excedente/valor_agente de cada um.
+
+    Franquia e valores esperados espelham o cenário 3 (override → 792,00, sem
+    excedentes): cada acionamento nasce SEM franquia e, após o lote, passa a
+    apontar para ela e recalcula pelo override.
+    """
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(
+        **_dados_franquia(
+            cliente,
+            valor_acionamento=Decimal("660.00"),
+            franquia_km=200,
+            franquia_horas=Decimal("4.00"),
+            valor_km_excedente=Decimal("3.30"),
+            valor_hora_excedente=Decimal("55.00"),
+            escalonamento_automatico=True,
+        )
+    )
+    base = timezone.now()
+
+    # 3 acionamentos SEM franquia, mas com km/tempo do cenário 3 (240 km, 5 h),
+    # para que o override recalcule cada um para 792,00 sem excedentes.
+    acionamentos = []
+    for _ in range(3):
+        ac = _acionamento_valido(
+            cliente,
+            responsavel,
+            agente,
+            franquia_agente=None,
+            km_inicio=0,
+            km_final=240,
+            data_hora_solicitado=base,
+            data_hora_inicio=base,
+            data_hora_final=base + timedelta(hours=5),
+        )
+        ac.save()
+        acionamentos.append(ac)
+
+    from controle_acionamentos.services import vincular_franquia_em_lote
+
+    resultado = vincular_franquia_em_lote([a.pk for a in acionamentos], franquia)
+
+    assert resultado == 3
+    for ac in acionamentos:
+        ac.refresh_from_db()
+        assert ac.franquia_agente_id == franquia.pk
+        assert ac.km_excedente == 0
+        assert ac.hora_excedente == Decimal("0.00")
+        assert ac.valor_agente == Decimal("792.00")
+
+
+# ---------------------------------------------------------------------------
 # views.acionamento_list — listagem base, DD-014/M3 subtask 2
 # View fina: login + permissão view_acionamento; consome listar_acionamentos()
 # e entrega a lista ordenada no contexto ("acionamentos"). Fase Red: a rota

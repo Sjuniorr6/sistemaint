@@ -1,10 +1,14 @@
-﻿"""Serviços de regra de negócio do app de Acionamentos.
+﻿"""Regras de negócio do controle_acionamentos.
 
-Funções puras (sem dependência de models/banco), testáveis em isolamento.
+A CalculadoraValorAgente e os validadores de documentos são funções puras (sem
+models/banco, testáveis sem DB); os serviços de orquestração (ex.:
+vincular_franquia_em_lote) tocam a persistência por natureza.
 """
 
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
+
+from django.db import transaction
 
 
 def _so_digitos(documento: str) -> list[int]:
@@ -314,3 +318,24 @@ def recalcular_valor_agente(acionamento) -> None:
     acionamento.km_excedente = resultado.km_excedente
     acionamento.hora_excedente = resultado.hora_excedente
     acionamento.valor_agente = resultado.valor_agente
+
+
+def vincular_franquia_em_lote(pks, franquia):
+    """DD-015/M4 (AC-06.4) — vincula `franquia` a todos os acionamentos de
+    `pks` e recalcula os campos derivados de cada um, em transação atômica:
+    falha em qualquer item desfaz o lote inteiro (AC-06.6). Retorna a
+    contagem de acionamentos atualizados.
+
+    Import local de Acionamento: evita import circular (models importa
+    recalcular_valor_agente deste módulo).
+    """
+    from controle_acionamentos.models import Acionamento
+
+    with transaction.atomic():
+        atualizados = 0
+        for acionamento in Acionamento.objects.filter(pk__in=pks):
+            acionamento.franquia_agente = franquia
+            acionamento.full_clean()
+            acionamento.save()
+            atualizados += 1
+        return atualizados
