@@ -1,11 +1,15 @@
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
+from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from .forms import AcionamentoForm, PedagioUpdateForm
+from .forms import AcionamentoForm, PedagioUpdateForm, VincularFranquiaLoteForm
 from .models import Acionamento
 from .selectors import listar_acionamentos
+from .services import vincular_franquia_em_lote
 
 
 @login_required
@@ -100,7 +104,27 @@ def acionamento_pedagio_update(request, pk):
 @permission_required("controle_acionamentos.change_acionamento", raise_exception=True)
 @require_POST
 def acionamento_vincular_franquia_lote(request):
-    """DD-015/M4 (subtask 5) — recebe a seleção de acionamentos + franquia e
-    delega ao service vincular_franquia_em_lote. Corpo provisório (Ciclo 1):
-    só a casca de segurança; comportamento cresce nos próximos ciclos."""
-    return redirect("controle_acionamentos:acionamento_list")
+    """DD-015/M4 (subtask 5) — valida a seleção via VincularFranquiaLoteForm,
+    delega o vínculo ao service vincular_franquia_em_lote (atômico) e traduz
+    o resultado em messages + redirect preservando o filtro por cliente
+    (?cliente=<pk do cliente da franquia>)."""
+    form = VincularFranquiaLoteForm(request.POST)
+    url_list = reverse("controle_acionamentos:acionamento_list")
+
+    if not form.is_valid():
+        messages.error(request, "Seleção inválida para o vínculo em lote.")
+        return redirect(url_list)
+
+    franquia = form.cleaned_data["franquia"]
+    pks = [a.pk for a in form.cleaned_data["acionamentos"]]
+
+    try:
+        atualizados = vincular_franquia_em_lote(
+            pks, franquia, sobrescrever=form.cleaned_data["sobrescrever"]
+        )
+    except ValidationError as exc:
+        messages.error(request, " ".join(exc.messages))
+        return redirect(f"{url_list}?cliente={franquia.cliente_id}")
+
+    messages.success(request, f"{atualizados} acionamentos atualizados.")
+    return redirect(f"{url_list}?cliente={franquia.cliente_id}")

@@ -1489,3 +1489,73 @@ def test_vincular_franquia_lote_get_retorna_405(client, django_user_model):
     response = client.get(url)
 
     assert response.status_code == 405
+
+
+@pytest.mark.django_db
+def test_vincular_franquia_lote_post_valido_vincula_e_redireciona_com_filtro(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-015/M4 (AC-06.6 + subtask 5) — POST válido vincula via service,
+    redireciona para a listagem PRESERVANDO o filtro por cliente na
+    querystring (?cliente=<pk da franquia.cliente>) e emite message de
+    sucesso com a contagem."""
+    from django.contrib.messages import get_messages
+
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(
+        **_dados_franquia(
+            cliente,
+            valor_acionamento=Decimal("660.00"),
+            franquia_km=200,
+            franquia_horas=Decimal("4.00"),
+            valor_km_excedente=Decimal("3.30"),
+            valor_hora_excedente=Decimal("55.00"),
+            escalonamento_automatico=True,
+        )
+    )
+    base = timezone.now()
+
+    # 3 acionamentos SEM franquia (240 km, 5 h) → override recalcula p/ 792,00.
+    acionamentos = []
+    for _ in range(3):
+        ac = _acionamento_valido(
+            cliente,
+            responsavel,
+            agente,
+            franquia_agente=None,
+            km_inicio=0,
+            km_final=240,
+            data_hora_solicitado=base,
+            data_hora_inicio=base,
+            data_hora_final=base + timedelta(hours=5),
+        )
+        ac.save()
+        acionamentos.append(ac)
+    a1, a2, a3 = acionamentos
+
+    user = _user_com_perms(django_user_model, "change_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_vincular_franquia_lote")
+    response = client.post(
+        url,
+        {
+            "acionamentos": [a1.pk, a2.pk, a3.pk],
+            "franquia": franquia.pk,
+        },
+    )
+
+    assert response.status_code == 302
+    assert response.url == (
+        reverse("controle_acionamentos:acionamento_list")
+        + f"?cliente={franquia.cliente_id}"
+    )
+
+    for ac in acionamentos:
+        ac.refresh_from_db()
+        assert ac.franquia_agente_id == franquia.pk
+        assert ac.valor_agente == Decimal("792.00")
+
+    mensagens = list(get_messages(response.wsgi_request))
+    assert len(mensagens) == 1
+    assert "3" in str(mensagens[0])

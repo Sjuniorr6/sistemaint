@@ -1,7 +1,7 @@
 # controle_acionamentos/forms.py
 from django import forms
 
-from controle_acionamentos.models import Acionamento
+from controle_acionamentos.models import Acionamento, FranquiaAgente
 
 
 class AcionamentoForm(forms.ModelForm):
@@ -101,3 +101,14 @@ class PedagioUpdateForm(forms.Form):
     """Valida a entrada do endpoint inline de pedágio (DD-014/M3); min_value=0 implementa AC-07.3."""
 
     pedagio = forms.DecimalField(min_value=0, max_digits=10, decimal_places=2)
+
+
+class VincularFranquiaLoteForm(forms.Form):
+    """DD-015/M4 (subtask 5) — valida a entrada do vínculo em lote:
+    seleção de acionamentos, franquia e flag de sobrescrita (AC-06.5)."""
+
+    acionamentos = forms.ModelMultipleChoiceField(
+        queryset=Acionamento.objects.all()
+    )
+    franquia = forms.ModelChoiceField(queryset=FranquiaAgente.objects.all())
+    sobrescrever = forms.BooleanField(required=False)
