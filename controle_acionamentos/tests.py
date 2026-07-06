@@ -1315,6 +1315,60 @@ def test_acionamento_list_filtro_invalido_e_tolerante(
     assert response.context["cliente_filtrado"] is None
 
 
+@pytest.mark.django_db
+def test_acionamento_list_com_cliente_filtrado_expoe_franquias_do_cliente(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-015/M4 (AC-06.2/06.3) — com cliente filtrado, a view expõe as
+    franquias daquele cliente (via listar_franquias_por_cliente) para o
+    select do vínculo em lote."""
+    cliente_a, responsavel, agente = _fks_acionamento
+    cliente_b = Cliente.objects.create(nome_empresa="Globex", cnpj="11444777000161")
+
+    franquia_a = FranquiaAgente.objects.create(
+        **_dados_franquia(cliente_a, nome="Franquia A")
+    )
+    FranquiaAgente.objects.create(**_dados_franquia(cliente_b, nome="Franquia B"))
+
+    ac = _acionamento_valido(cliente_a, responsavel, agente)
+    ac.save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_list")
+    response = client.get(url, {"cliente": cliente_a.pk})
+
+    assert response.status_code == 200
+    # Só a franquia do cliente A no select (comparar pks, nunca HTML).
+    assert [f.pk for f in response.context["franquias"]] == [franquia_a.pk]
+
+
+@pytest.mark.django_db
+def test_acionamento_list_sem_cliente_filtrado_franquias_vazio(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-015/M4 — caracterização do contrato de contexto (decisão registrada):
+    sem cliente filtrado, "franquias" é queryset vazio; quem liga a UI de lote é
+    cliente_filtrado, não a presença da chave."""
+    cliente, responsavel, agente = _fks_acionamento
+
+    FranquiaAgente.objects.create(**_dados_franquia(cliente, nome="Franquia X"))
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_list")
+    response = client.get(url)  # SEM querystring
+
+    assert response.status_code == 200
+    assert response.context["cliente_filtrado"] is None
+    # A chave existe e está vazia, mesmo havendo franquia no banco.
+    assert list(response.context["franquias"]) == []
+
+
 # ---------------------------------------------------------------------------
 # views.acionamento_pedagio_update — recálculo inline, DD-014/M3 subtask 4
 # Endpoint POST que atualiza SÓ o pedágio de um acionamento e recalcula o

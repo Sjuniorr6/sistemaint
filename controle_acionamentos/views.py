@@ -12,8 +12,8 @@ from .forms import (
     PedagioUpdateForm,
     VincularFranquiaLoteForm,
 )
-from .models import Acionamento
-from .selectors import listar_acionamentos
+from .models import Acionamento, FranquiaAgente
+from .selectors import listar_acionamentos, listar_franquias_por_cliente
 from .services import vincular_franquia_em_lote
 
 
@@ -38,15 +38,26 @@ def acionamento_list(request):
     get_object_or_404. Quem ordena e resolve os joins é o selector; a view só
     entrega o queryset e o cliente escolhido ao template. raise_exception=True:
     sem a permissão de leitura, devolve 403 em vez de mandar pro login.
+
+    AC-06.2/06.3: com cliente filtrado, expõe as franquias daquele cliente para
+    o select do vínculo em lote. Sem cliente, franquias = none() (contrato de
+    contexto consistente; quem liga a UI de lote é cliente_filtrado, não a
+    presença da chave).
     """
     form = FiltroAcionamentosForm(request.GET)
     cliente = form.cleaned_data.get("cliente") if form.is_valid() else None
+    franquias = (
+        listar_franquias_por_cliente(cliente)
+        if cliente is not None
+        else FranquiaAgente.objects.none()
+    )
     return render(
         request,
         "controle_acionamentos/acionamento_list.html",
         {
             "acionamentos": listar_acionamentos(cliente=cliente),
             "cliente_filtrado": cliente,
+            "franquias": franquias,
         },
     )
 
