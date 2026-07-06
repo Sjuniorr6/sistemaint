@@ -1460,3 +1460,32 @@ def test_vincular_franquia_lote_anonimo_redireciona_para_login(client, db):
 
     assert response.status_code == 302
     assert "login" in response.url
+
+
+@pytest.mark.django_db
+def test_vincular_franquia_lote_com_view_mas_sem_change_retorna_403(
+    client, django_user_model
+):
+    """DD-015/M4 (subtask 5) — usuário com view_acionamento mas sem
+    change_acionamento recebe 403 (ver ≠ mexer)."""
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_vincular_franquia_lote")
+    response = client.post(url)
+
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_vincular_franquia_lote_get_retorna_405(client, django_user_model):
+    """DD-015/M4 (subtask 5) — GET no endpoint de lote retorna 405
+    (@require_POST; ordem dos decorators garante 403 antes de 405 para
+    quem não tem permissão)."""
+    user = _user_com_perms(django_user_model, "change_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_vincular_franquia_lote")
+    response = client.get(url)
+
+    assert response.status_code == 405
