@@ -1239,6 +1239,34 @@ def test_acionamento_list_lista_ordenada_para_usuario_autorizado(
     assert [a.pk for a in response.context["acionamentos"]] == [hoje.pk, ontem.pk]
 
 
+@pytest.mark.django_db
+def test_acionamento_list_filtra_por_cliente_via_get(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-015/M4 (AC-06.1) — a listagem aceita ?cliente=<pk> no GET e devolve só
+    os acionamentos daquele cliente, expondo o cliente escolhido no contexto
+    (cliente_filtrado) para a UI marcar o filtro ativo."""
+    cliente_a, responsavel, agente = _fks_acionamento
+    cliente_b = Cliente.objects.create(nome_empresa="Globex", cnpj="11444777000161")
+
+    ac_a = _acionamento_valido(cliente_a, responsavel, agente)
+    ac_a.save()
+    ac_b = _acionamento_valido(cliente_b, responsavel, agente)
+    ac_b.save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_list")
+    response = client.get(url, {"cliente": cliente_a.pk})
+
+    assert response.status_code == 200
+    # Só o acionamento do cliente A (comparar pks, nunca HTML).
+    assert [a.pk for a in response.context["acionamentos"]] == [ac_a.pk]
+    # E a view expõe qual cliente está filtrando.
+    assert response.context["cliente_filtrado"] == cliente_a
+
+
 # ---------------------------------------------------------------------------
 # views.acionamento_pedagio_update — recálculo inline, DD-014/M3 subtask 4
 # Endpoint POST que atualiza SÓ o pedágio de um acionamento e recalcula o

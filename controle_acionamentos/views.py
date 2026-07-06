@@ -6,7 +6,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from .forms import AcionamentoForm, PedagioUpdateForm, VincularFranquiaLoteForm
+from .forms import (
+    AcionamentoForm,
+    FiltroAcionamentosForm,
+    PedagioUpdateForm,
+    VincularFranquiaLoteForm,
+)
 from .models import Acionamento
 from .selectors import listar_acionamentos
 from .services import vincular_franquia_em_lote
@@ -27,14 +32,22 @@ def index(request):
 def acionamento_list(request):
     """Listagem base de Acionamentos (DD-014/M3) — view FINA.
 
-    Quem ordena e resolve os joins é o selector (listar_acionamentos); a view só
-    entrega o queryset ao template. raise_exception=True: sem a permissão de
-    leitura, devolve 403 em vez de mandar pro login.
+    Aceita o filtro opcional por cliente (AC-06.1) via querystring. O
+    FiltroAcionamentosForm valida o GET de forma TOLERANTE: valor inválido ou
+    ausente vira cliente=None (sem filtro), nunca erro — por isso NÃO usamos
+    get_object_or_404. Quem ordena e resolve os joins é o selector; a view só
+    entrega o queryset e o cliente escolhido ao template. raise_exception=True:
+    sem a permissão de leitura, devolve 403 em vez de mandar pro login.
     """
+    form = FiltroAcionamentosForm(request.GET)
+    cliente = form.cleaned_data.get("cliente") if form.is_valid() else None
     return render(
         request,
         "controle_acionamentos/acionamento_list.html",
-        {"acionamentos": listar_acionamentos()},
+        {
+            "acionamentos": listar_acionamentos(cliente=cliente),
+            "cliente_filtrado": cliente,
+        },
     )
 
 
