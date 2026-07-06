@@ -1344,6 +1344,31 @@ def test_acionamento_list_com_cliente_filtrado_expoe_franquias_do_cliente(
     assert [f.pk for f in response.context["franquias"]] == [franquia_a.pk]
 
 
+@pytest.mark.django_db
+def test_acionamento_list_sem_cliente_filtrado_franquias_vazio(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-015/M4 — caracterização do contrato de contexto (decisão registrada):
+    sem cliente filtrado, "franquias" é queryset vazio; quem liga a UI de lote é
+    cliente_filtrado, não a presença da chave."""
+    cliente, responsavel, agente = _fks_acionamento
+
+    FranquiaAgente.objects.create(**_dados_franquia(cliente, nome="Franquia X"))
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_list")
+    response = client.get(url)  # SEM querystring
+
+    assert response.status_code == 200
+    assert response.context["cliente_filtrado"] is None
+    # A chave existe e está vazia, mesmo havendo franquia no banco.
+    assert list(response.context["franquias"]) == []
+
+
 # ---------------------------------------------------------------------------
 # views.acionamento_pedagio_update — recálculo inline, DD-014/M3 subtask 4
 # Endpoint POST que atualiza SÓ o pedágio de um acionamento e recalcula o
