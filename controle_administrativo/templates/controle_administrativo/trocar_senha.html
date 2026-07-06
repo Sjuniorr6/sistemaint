@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Trocar senha | Controle Administrativo{% endblock %}
+
+{% block content %}
+<style>
+  /* Tela de troca obrigatória de senha (1º acesso) — tema greige GoldenSat,
+     coerente com o painel administrativo. Sem CDN externo. */
+  :root {
+    --ts-bg:      #e4dfce;
+    --ts-card:    #ece7d6;
+    --ts-border:  #d2cbb6;
+    --ts-text:    #2c3140;
+    --ts-muted:   #6a6457;
+    --ts-input:   #e8e2d1;
+    --ts-amber:   #E8B81C;
+    --ts-navy:    #1a2332;
+    --ts-danger:  #b3261e;
+  }
+  body { background: var(--ts-bg) !important; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  .ts-wrap { min-height: 78vh; display: flex; align-items: center; justify-content: center; padding: 1.5rem; }
+  .ts-card {
+    width: 100%; max-width: 440px; background: var(--ts-card);
+    border: 1px solid var(--ts-border); border-radius: 14px;
+    padding: 2rem 1.9rem; box-shadow: 0 10px 30px rgba(26,35,50,.08);
+  }
+  .ts-badge {
+    display: inline-flex; align-items: center; gap: .4rem;
+    background: var(--ts-amber); color: var(--ts-navy);
+    font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    padding: .28rem .6rem; border-radius: 999px; margin-bottom: 1rem;
+  }
+  .ts-card h1 { color: var(--ts-text); font-size: 1.35rem; font-weight: 700; margin: 0 0 .35rem; }
+  .ts-sub { color: var(--ts-muted); font-size: .9rem; margin-bottom: 1.4rem; line-height: 1.45; }
+  .ts-field { margin-bottom: 1.05rem; }
+  .ts-field label { display: block; color: var(--ts-text); font-weight: 600; font-size: .85rem; margin-bottom: .4rem; }
+  .ts-field input {
+    width: 100%; background: var(--ts-input); border: 1px solid var(--ts-border);
+    border-radius: 9px; padding: .7rem .85rem; color: var(--ts-text); font-size: .95rem;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .ts-field input:focus { outline: none; border-color: var(--ts-amber); box-shadow: 0 0 0 3px rgba(232,184,28,.22); }
+  .ts-help { color: var(--ts-muted); font-size: .78rem; margin-top: .35rem; line-height: 1.4; }
+  .ts-help ul { margin: .3rem 0 0; padding-left: 1.1rem; }
+  .ts-errors { list-style: none; margin: .4rem 0 0; padding: 0; }
+  .ts-errors li { color: var(--ts-danger); font-size: .8rem; margin-top: .25rem; }
+  .ts-btn {
+    width: 100%; background: var(--ts-navy); color: #fff; border: none;
+    border-radius: 9px; padding: .8rem; font-size: .98rem; font-weight: 700;
+    cursor: pointer; margin-top: .3rem; transition: filter .15s ease;
+  }
+  .ts-btn:hover { filter: brightness(1.15); }
+  .ts-alert { border-radius: 9px; padding: .7rem .85rem; font-size: .85rem; margin-bottom: 1rem; }
+  .ts-alert.success { background: #e2efda; color: #375623; }
+  .ts-alert.error { background: #f8d7da; color: #842029; }
+</style>
+
+<div class="ts-wrap">
+  <div class="ts-card">
+    <span class="ts-badge">🔒 Primeiro acesso</span>
+    <h1>Defina sua nova senha</h1>
+    <p class="ts-sub">
+      Olá{% if funcionario %}, <strong>{{ funcionario.nome }}</strong>{% endif %}! Você está usando uma
+      senha provisória. Para continuar e liberar o acesso ao painel, cadastre uma nova senha pessoal.
+    </p>
+
+    {% if messages %}
+      {% for message in messages %}
+        <div class="ts-alert {% if message.tags %}{{ message.tags }}{% endif %}">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+
+    {% if form.non_field_errors %}
+      <div class="ts-alert error">
+        {% for err in form.non_field_errors %}{{ err }}{% endfor %}
+      </div>
+    {% endif %}
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      <div class="ts-field">
+        <label for="{{ form.new_password1.id_for_label }}">Nova senha</label>
+        {{ form.new_password1 }}
+        {% if form.new_password1.help_text %}
+          <div class="ts-help">{{ form.new_password1.help_text|safe }}</div>
+        {% endif %}
+        {% if form.new_password1.errors %}
+          <ul class="ts-errors">
+            {% for err in form.new_password1.errors %}<li>{{ err }}</li>{% endfor %}
+          </ul>
+        {% endif %}
+      </div>
+
+      <div class="ts-field">
+        <label for="{{ form.new_password2.id_for_label }}">Confirme a nova senha</label>
+        {{ form.new_password2 }}
+        {% if form.new_password2.errors %}
+          <ul class="ts-errors">
+            {% for err in form.new_password2.errors %}<li>{{ err }}</li>{% endfor %}
+          </ul>
+        {% endif %}
+      </div>
+
+      <button type="submit" class="ts-btn">Salvar e acessar o painel</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

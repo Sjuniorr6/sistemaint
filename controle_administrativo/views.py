@@ -1,6 +1,10 @@
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import SetPasswordForm
+from django.contrib.auth import update_session_auth_hash
+from django.contrib import messages
 from django.http import JsonResponse
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 from django.utils import timezone
 import zoneinfo
@@ -57,6 +61,20 @@ def _pode_editar(request):
     except FuncionarioAdministrativo.DoesNotExist:
         return False
     
+def _funcionario_do_usuario(request):
+    """Retorna o FuncionarioAdministrativo do usuário logado, ou None."""
+    try:
+        return FuncionarioAdministrativo.objects.get(usuario=request.user)
+    except FuncionarioAdministrativo.DoesNotExist:
+        return None
+
+
+def _precisa_trocar_senha(request):
+    """True se o usuário logado ainda está com senha provisória (1º acesso)."""
+    func = _funcionario_do_usuario(request)
+    return bool(func and func.senha_provisoria)
+
+
 def _semana_atual_check(semana_iso, ano):
     """Retorna True se a semana informada é a semana atual."""
     from .selectors import get_semana_atual
@@ -211,10 +229,48 @@ def _montar_contexto_painel(request, semana_iso, ano, gerar=True):
 
 @login_required
 def painel(request, semana_iso=None, ano=None):
+    # Primeiro acesso com senha provisória: bloqueia o painel até a troca de senha.
+    if _precisa_trocar_senha(request):
+        return redirect('controle_administrativo:trocar_senha')
     if semana_iso is None or ano is None:
         semana_iso, ano = get_semana_atual()
     context = _montar_contexto_painel(request, semana_iso, ano)
     return render(request, 'controle_administrativo/painel.html', context)
+
+
+@login_required
+def trocar_senha(request):
+    """Troca obrigatória de senha no primeiro acesso (senha provisória).
+
+    Enquanto o FuncionarioAdministrativo tiver senha_provisoria=True, o painel
+    redireciona para cá. Ao definir uma nova senha válida (validadores do Django),
+    a flag é baixada, registra-se a data da troca e a senha provisória deixa de
+    valer. A sessão é mantida via update_session_auth_hash.
+    """
+    func = _funcionario_do_usuario(request)
+
+    # Já não precisa trocar — volta ao painel (evita ficar preso na tela).
+    if func is None or not func.senha_provisoria:
+        return redirect('controle_administrativo:painel')
+
+    if request.method == 'POST':
+        form = SetPasswordForm(request.user, request.POST)
+        if form.is_valid():
+            form.save()  # aplica os validadores de AUTH_PASSWORD_VALIDATORS
+            func.senha_provisoria = False
+            func.senha_alterada_em = timezone.now()
+            func.save(update_fields=['senha_provisoria', 'senha_alterada_em'])
+            # Mantém o usuário logado após a troca de senha.
+            update_session_auth_hash(request, request.user)
+            messages.success(request, 'Senha alterada com sucesso. Bem-vinda!')
+            return redirect('controle_administrativo:painel')
+    else:
+        form = SetPasswordForm(request.user)
+
+    return render(request, 'controle_administrativo/trocar_senha.html', {
+        'form': form,
+        'funcionario': func,
+    })
 
 
 @login_required
@@ -598,6 +654,9 @@ def excluir_tarefa_divisao_view(request, tarefa_id):
 @login_required
 def historico(request, semana_iso=None, ano=None):
     """Visualização somente leitura de qualquer semana."""
+    # Primeiro acesso com senha provisória: bloqueia até a troca de senha.
+    if _precisa_trocar_senha(request):
+        return redirect('controle_administrativo:trocar_senha')
     semana_atual, ano_atual = get_semana_atual()
 
     # Se não foi passada semana, usa a atual
