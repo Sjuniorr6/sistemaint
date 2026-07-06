@@ -855,6 +855,29 @@ def test_listar_acionamentos_filtra_por_cliente(_fks_acionamento):
     assert all(a.cliente_id == cliente_a.pk for a in resultado) is True
 
 
+@pytest.mark.django_db
+def test_listar_franquias_por_cliente_filtra_e_ordena_por_nome(_fks_acionamento):
+    """DD-015/M4 (AC-06.3) — select de franquias do vínculo em lote mostra só
+    franquias do cliente filtrado, em ordem alfabética (ordering explícito no
+    selector, nunca Meta.ordering)."""
+    cliente_a, responsavel, agente = _fks_acionamento
+    cliente_b = Cliente.objects.create(nome_empresa="Globex", cnpj="11444777000161")
+
+    # No cliente A, duas franquias fora de ordem alfabética (Zeta antes de Alfa),
+    # para provar que a ordenação vem do selector, não da ordem de criação.
+    zeta = FranquiaAgente.objects.create(**_dados_franquia(cliente_a, nome="Zeta"))
+    alfa = FranquiaAgente.objects.create(**_dados_franquia(cliente_a, nome="Alfa"))
+    # No cliente B, uma franquia qualquer (não pode aparecer no resultado de A).
+    FranquiaAgente.objects.create(**_dados_franquia(cliente_b, nome="Beta"))
+
+    from controle_acionamentos.selectors import listar_franquias_por_cliente
+
+    resultado = listar_franquias_por_cliente(cliente_a)
+
+    # Só as franquias do cliente A, em ordem alfabética por nome.
+    assert [f.pk for f in resultado] == [alfa.pk, zeta.pk]
+
+
 # ---------------------------------------------------------------------------
 # services.vincular_franquia_em_lote — vínculo de franquia em lote (DD-015/M4
 # subtask 3). Vincula uma FranquiaAgente a vários acionamentos de uma vez e

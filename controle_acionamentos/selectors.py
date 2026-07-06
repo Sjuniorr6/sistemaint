@@ -2,7 +2,7 @@
 
 As views consomem os dados a partir daqui — nunca fazem query direta ao model.
 """
-from controle_acionamentos.models import Acionamento
+from controle_acionamentos.models import Acionamento, FranquiaAgente
 
 
 def listar_acionamentos(cliente=None):
@@ -22,3 +22,14 @@ def listar_acionamentos(cliente=None):
     if cliente is not None:
         qs = qs.filter(cliente=cliente)
     return qs
+
+
+def listar_franquias_por_cliente(cliente):
+    """DD-015/M4 (AC-06.3) — alimenta o select de franquias do vínculo em lote:
+    só as franquias do cliente filtrado, em ordem alfabética por nome.
+
+    Ordering EXPLÍCITO aqui (regra da casa: nunca Meta.ordering). É um dropdown
+    de escolha humana, não uma listagem cronológica — por isso ordena por nome,
+    e não por data como o listar_acionamentos.
+    """
+    return FranquiaAgente.objects.filter(cliente=cliente).order_by("nome")
