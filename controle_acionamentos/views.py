@@ -94,3 +94,13 @@ def acionamento_pedagio_update(request, pk):
     return JsonResponse(
         {"pedagio": str(ac.pedagio), "valor_agente": str(ac.valor_agente)}
     )
+
+
+@login_required
+@permission_required("controle_acionamentos.change_acionamento", raise_exception=True)
+@require_POST
+def acionamento_vincular_franquia_lote(request):
+    """DD-015/M4 (subtask 5) — recebe a seleção de acionamentos + franquia e
+    delega ao service vincular_franquia_em_lote. Corpo provisório (Ciclo 1):
+    só a casca de segurança; comportamento cresce nos próximos ciclos."""
+    return redirect("controle_acionamentos:acionamento_list")

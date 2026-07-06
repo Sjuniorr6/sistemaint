@@ -1440,3 +1440,23 @@ def test_pedagio_update_nao_afeta_outras_linhas_ac074(
     # ...e a vizinha ficou intocada (coração do AC-07.4).
     assert ac_vizinho.pedagio == pedagio_vizinho_antes
     assert ac_vizinho.valor_agente == valor_agente_vizinho_antes
+
+
+# ---------------------------------------------------------------------------
+# views.acionamento_vincular_franquia_lote — vínculo em lote, DD-015/M4 subtask 5
+# Endpoint POST que vincula uma franquia a vários acionamentos de uma vez,
+# delegando ao service vincular_franquia_em_lote (atômico). Ação de lote: a
+# rota NÃO tem <pk>. Fase Red: a rota ainda não existe → reverse() levanta
+# NoReverseMatch.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_vincular_franquia_lote_anonimo_redireciona_para_login(client, db):
+    """DD-015/M4 (subtask 5) — POST anônimo no endpoint de vínculo em lote
+    redireciona para login (@login_required)."""
+    url = reverse("controle_acionamentos:acionamento_vincular_franquia_lote")
+    response = client.post(url)
+
+    assert response.status_code == 302
+    assert "login" in response.url
