@@ -10,6 +10,24 @@
   <h3 class="mb-1">Acionamentos</h3>
   <p class="text-muted">Serviços registrados, do mais recente ao mais antigo.</p>
 
+  {# Filtro por cliente (AC-06.1). GET não precisa de csrf; sem JS. #}
+  <form method="get" class="row g-2 mb-3 align-items-end">
+    <div class="col-md-4">
+      <label for="{{ filtro_form.cliente.id_for_label }}" class="form-label">Cliente</label>
+      {{ filtro_form.cliente }}
+    </div>
+
+    <div class="col-md-4 d-flex gap-2">
+      <button type="submit" class="btn btn-warning">
+        <i class="bi bi-funnel-fill"></i> Filtrar
+      </button>
+
+      <a href="{% url 'controle_acionamentos:acionamento_list' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-x-circle"></i> Limpar
+      </a>
+    </div>
+  </form>
+
   {# Token lido pelo JS (header X-CSRFToken); fica fora da tabela. #}
   {% csrf_token %}
 

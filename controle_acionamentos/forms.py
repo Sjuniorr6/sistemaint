@@ -120,5 +120,7 @@ class FiltroAcionamentosForm(forms.Form):
     campo é required=False; a view trata form inválido como cliente=None."""
 
     cliente = forms.ModelChoiceField(
-        queryset=Cliente.objects.all(), required=False
+        queryset=Cliente.objects.all(),
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
     )

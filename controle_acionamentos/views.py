@@ -58,6 +58,7 @@ def acionamento_list(request):
             "acionamentos": listar_acionamentos(cliente=cliente),
             "cliente_filtrado": cliente,
             "franquias": franquias,
+            "filtro_form": form,
         },
     )
 
