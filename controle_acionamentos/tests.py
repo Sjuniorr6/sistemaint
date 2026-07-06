@@ -1267,6 +1267,31 @@ def test_acionamento_list_filtra_por_cliente_via_get(
     assert response.context["cliente_filtrado"] == cliente_a
 
 
+@pytest.mark.django_db
+@pytest.mark.parametrize("valor_querystring", ["9999", "abc"])
+def test_acionamento_list_filtro_invalido_e_tolerante(
+    client, django_user_model, _fks_acionamento, valor_querystring
+):
+    """DD-015/M4 — caracterização do filtro TOLERANTE (decisão registrada):
+    querystring inválida (pk inexistente ou não numérica) = sem filtro, nunca
+    erro. A view responde 200 com a lista completa e cliente_filtrado None."""
+    cliente, responsavel, agente = _fks_acionamento
+
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_list")
+    response = client.get(url, {"cliente": valor_querystring})
+
+    assert response.status_code == 200  # nunca 404
+    # Filtro ignorado → lista completa (o acionamento existente aparece).
+    assert [a.pk for a in response.context["acionamentos"]] == [ac.pk]
+    assert response.context["cliente_filtrado"] is None
+
+
 # ---------------------------------------------------------------------------
 # views.acionamento_pedagio_update — recálculo inline, DD-014/M3 subtask 4
 # Endpoint POST que atualiza SÓ o pedágio de um acionamento e recalcula o
