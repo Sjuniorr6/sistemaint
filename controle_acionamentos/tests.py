@@ -1638,3 +1638,34 @@ def test_vincular_franquia_lote_erro_de_dominio_redireciona_com_filtro_e_message
     mensagens = list(get_messages(response.wsgi_request))
     assert len(mensagens) == 1
     assert mensagens[0].level == message_constants.ERROR
+
+
+@pytest.mark.django_db
+def test_vincular_franquia_lote_entrada_invalida_redireciona_com_message_de_erro(
+    client, django_user_model
+):
+    """DD-015/M4 (subtask 5) — POST com payload inválido (ids inexistentes)
+    não estoura 500: o form rejeita, a view emite message de erro e
+    redireciona para a listagem (sem querystring — sem franquia válida,
+    não há cliente para derivar o filtro)."""
+    from django.contrib.messages import get_messages, constants as message_constants
+
+    user = _user_com_perms(django_user_model, "change_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_vincular_franquia_lote")
+    response = client.post(
+        url,
+        {
+            "acionamentos": [99991, 99992],  # pks inexistentes de propósito
+            "franquia": 99999,
+        },
+    )
+
+    assert response.status_code == 302
+    # Sem franquia válida não há cliente para derivar o filtro → redirect seco.
+    assert response.url == reverse("controle_acionamentos:acionamento_list")
+
+    mensagens = list(get_messages(response.wsgi_request))
+    assert len(mensagens) == 1
+    assert mensagens[0].level == message_constants.ERROR
