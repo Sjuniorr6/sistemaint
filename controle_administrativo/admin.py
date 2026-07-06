@@ -16,9 +16,10 @@ from .models import (
 
 @admin.register(FuncionarioAdministrativo)
 class FuncionarioAdministrativoAdmin(admin.ModelAdmin):
-    list_display  = ['nome', 'usuario', 'perfil', 'ativo']
-    list_filter   = ['perfil', 'ativo']
+    list_display  = ['nome', 'usuario', 'perfil', 'ativo', 'senha_provisoria', 'senha_alterada_em']
+    list_filter   = ['perfil', 'ativo', 'senha_provisoria']
     search_fields = ['nome', 'usuario__username']
+    readonly_fields = ['senha_alterada_em']
 
 
 @admin.register(CategoriaTarefaAdministrativa)

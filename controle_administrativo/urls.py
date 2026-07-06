@@ -8,6 +8,9 @@ urlpatterns = [
     path('', views.painel, name='painel'),
     path('<int:semana_iso>/<int:ano>/', views.painel, name='painel_semana'),
 
+    # Troca obrigatória de senha no 1º acesso (senha provisória)
+    path('trocar-senha/', views.trocar_senha, name='trocar_senha'),
+
     # Atualização em tempo real via HTMX polling curto + versão (sem ASGI/Redis).
     # Versão: endpoint leve chamado a cada 3s — devolve um hash do estado da semana.
     path('tarefas/versao/<int:semana_iso>/<int:ano>/', views.tarefas_versao, name='tarefas_versao'),

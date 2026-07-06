@@ -68,6 +68,17 @@ class FuncionarioAdministrativo(models.Model):
         verbose_name='Perfil'
     )
     ativo = models.BooleanField(default=True, verbose_name='Ativo')
+    senha_provisoria = models.BooleanField(
+        default=False,
+        verbose_name='Senha provisória',
+        help_text='Quando True, o funcionário é obrigado a trocar a senha no próximo acesso '
+                  'antes de usar o painel. Marcado ao criar/redefinir com senha padrão temporária.'
+    )
+    senha_alterada_em = models.DateTimeField(
+        null=True, blank=True,
+        verbose_name='Senha alterada em',
+        help_text='Registra a conclusão da troca de senha inicial (primeiro acesso).'
+    )
 
     class Meta:
         verbose_name = 'Funcionário Administrativo'
