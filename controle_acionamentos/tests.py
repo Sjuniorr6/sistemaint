@@ -1104,6 +1104,76 @@ def test_vincular_franquia_em_lote_com_flag_sobrescreve_ac065(_fks_acionamento):
         assert ac.valor_agente == Decimal("840.00")
 
 
+@pytest.mark.django_db
+def test_vincular_franquia_em_lote_falha_no_meio_desfaz_tudo(_fks_acionamento, monkeypatch):
+    """DD-015/M4 (critério global 5, §12) — prova determinística do rollback:
+    o 1º item do lote é salvo com sucesso DENTRO da transação; o 2º save
+    explode; o atomic desfaz tudo, inclusive a escrita já efetuada."""
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(
+        **_dados_franquia(
+            cliente,
+            valor_acionamento=Decimal("660.00"),
+            franquia_km=200,
+            franquia_horas=Decimal("4.00"),
+            valor_km_excedente=Decimal("3.30"),
+            valor_hora_excedente=Decimal("55.00"),
+            escalonamento_automatico=True,
+        )
+    )
+    base = timezone.now()
+
+    # 3 acionamentos SEM franquia (mesmo arranjo dos testes de lote: 240 km, 5 h).
+    acionamentos = []
+    for _ in range(3):
+        ac = _acionamento_valido(
+            cliente,
+            responsavel,
+            agente,
+            franquia_agente=None,
+            km_inicio=0,
+            km_final=240,
+            data_hora_solicitado=base,
+            data_hora_inicio=base,
+            data_hora_final=base + timedelta(hours=5),
+        )
+        ac.save()
+        ac.refresh_from_db()
+        acionamentos.append(ac)
+
+    a1, a2, a3 = acionamentos
+    # valor_agente original dos 3 (todos SEM franquia), antes do lote.
+    originais = {ac.pk: ac.valor_agente for ac in acionamentos}
+
+    # Sabotagem: só DEPOIS do arrange (os saves acima não podem contar). Embrulha
+    # Acionamento.save para explodir na 2ª chamada — a 1ª executa o save real,
+    # provando que houve escrita dentro da transação antes da falha.
+    save_original = Acionamento.save
+    chamadas = {"n": 0}
+
+    def save_sabotado(self, *args, **kwargs):
+        chamadas["n"] += 1
+        if chamadas["n"] == 2:
+            raise RuntimeError("falha simulada no meio do lote")
+        return save_original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Acionamento, "save", save_sabotado)
+
+    from controle_acionamentos.services import vincular_franquia_em_lote
+
+    with pytest.raises(RuntimeError):
+        vincular_franquia_em_lote([a1.pk, a2.pk, a3.pk], franquia)
+
+    # O 1º save real aconteceu (chamada 1) e a 2ª disparou a falha.
+    assert chamadas["n"] == 2
+
+    # Nada persistiu: a 1ª escrita foi desfeita junto com o lote inteiro.
+    for ac in acionamentos:
+        ac.refresh_from_db()
+        assert ac.franquia_agente_id is None
+        assert ac.valor_agente == originais[ac.pk]
+
+
 # ---------------------------------------------------------------------------
 # views.acionamento_list — listagem base, DD-014/M3 subtask 2
 # View fina: login + permissão view_acionamento; consome listar_acionamentos()
