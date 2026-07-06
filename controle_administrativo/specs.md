@@ -105,12 +105,14 @@ Após o login inicial, o sistema deve obrigar a usuária a alterar essa senha pa
 
 ## 9. Implementação (registro)
 
-A Ellen **substitui a Laysa no cadastro existente** (o MESMO `User` + `FuncionarioAdministrativo`): apenas o nome/login mudam. Por ser o mesmo registro, **todas as permissões, grupos, roles e acessos ao sistema int da Laysa são mantidos** — não há criação de usuário novo, não há perda de histórico nem de vínculos. Só troca o nome e define a senha provisória.
+A Ellen **substitui a Láyza.Rodrigues no cadastro existente** (o MESMO `User` + `FuncionarioAdministrativo`): apenas o nome/login mudam. Por ser o mesmo registro, **todas as permissões, grupos, roles e acessos ao sistema int são mantidos** — não há criação de usuário novo, não há perda de histórico nem de vínculos. Só troca o nome e define a senha provisória.
+
+> ⚠️ O login real de saída é `Láyza.Rodrigues` (com acento e "z"), não "Laysa". Por isso o comando busca por `--de` **ignorando acento e pontuação** (`. _ -` viram espaço), casando por username **ou** pelo nome de exibição. Use `--listar` para ver os cadastros exatos.
 
 **Decisões acordadas:**
 
-- Ellen = Laysa renomeada. Login: `Ellen.Costa` · Senha provisória: `ggs@2026` (trocada obrigatoriamente no 1º acesso). Mesmas permissões/acessos.
-- "Trocar o nome em todos os locais": o nome da Laysa só aparece via dados (`User` e `FuncionarioAdministrativo.nome`) — não há "Laysa" fixo em código/templates —, então renomear esses registros atualiza a exibição em todas as telas e no rodapé do painel.
+- Ellen = Láyza.Rodrigues renomeada. Login: `Ellen.Costa` · Nome na board: `Ellen Costa` · Senha provisória: `ggs@2026` (trocada obrigatoriamente no 1º acesso). Mesmas permissões/acessos.
+- "Trocar o nome em todos os locais": o nome só aparece via dados (`User.username` no admin e `FuncionarioAdministrativo.nome` no painel) — não há nome fixo em código/templates —, então renomear esses registros atualiza a exibição no admin, em todas as telas e no rodapé do painel.
 - Bloqueio de 1º acesso restrito ao **painel administrativo** (`controle_administrativo`).
 
 **Rodapé do painel (cards por operador):**
@@ -121,14 +123,17 @@ A Ellen **substitui a Laysa no cadastro existente** (o MESMO `User` + `Funcionar
 **Como aplicar (rodar na base de produção):**
 
 ```bash
-python manage.py substituir_usuario --dry-run     # pré-visualiza (Laysa -> Ellen Costa)
-python manage.py substituir_usuario               # renomeia Laysa mantendo acessos + senha provisória
+git pull && python manage.py migrate            # traz o código novo + migration 0012
 
-python manage.py vincular_operador --dry-run      # pré-visualiza (André Simão)
-python manage.py vincular_operador                # vincula o André existente ao rodapé (senha/permissões intactas)
+python manage.py substituir_usuario --listar     # (opcional) confere o nome/login exatos
+python manage.py substituir_usuario --dry-run    # pré-visualiza (Láyza.Rodrigues -> Ellen.Costa)
+python manage.py substituir_usuario              # renomeia mantendo acessos + senha provisória
+
+python manage.py vincular_operador --dry-run     # pré-visualiza (André Simão)
+python manage.py vincular_operador               # vincula o André existente ao rodapé (senha/permissões intactas)
 ```
 
-Ambos são idempotentes e seguros. `substituir_usuario` aceita `--de`, `--login`, `--nome`, `--senha`; `vincular_operador` aceita `--login`, `--nome`.
+Ambos são idempotentes e seguros. `substituir_usuario` aceita `--de`, `--login`, `--nome`, `--senha`, `--listar`; `vincular_operador` aceita `--login`, `--nome`.
 
 **Artefatos:**
 
