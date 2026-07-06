@@ -1559,3 +1559,82 @@ def test_vincular_franquia_lote_post_valido_vincula_e_redireciona_com_filtro(
     mensagens = list(get_messages(response.wsgi_request))
     assert len(mensagens) == 1
     assert "3" in str(mensagens[0])
+
+
+@pytest.mark.django_db
+def test_vincular_franquia_lote_erro_de_dominio_redireciona_com_filtro_e_message(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-015/M4 (subtask 5) — quando o service recusa o lote (aqui: item já
+    vinculado sem sobrescrever, AC-06.5), a view traduz em message de erro e
+    redireciona PRESERVANDO o filtro (?cliente=...); nada persiste."""
+    from django.contrib.messages import get_messages, constants as message_constants
+
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(
+        **_dados_franquia(
+            cliente,
+            valor_acionamento=Decimal("660.00"),
+            franquia_km=200,
+            franquia_horas=Decimal("4.00"),
+            valor_km_excedente=Decimal("3.30"),
+            valor_hora_excedente=Decimal("55.00"),
+            escalonamento_automatico=True,
+        )
+    )
+    base = timezone.now()
+
+    def _cria(franquia_agente=None):
+        ac = _acionamento_valido(
+            cliente,
+            responsavel,
+            agente,
+            franquia_agente=franquia_agente,
+            km_inicio=0,
+            km_final=240,
+            data_hora_solicitado=base,
+            data_hora_inicio=base,
+            data_hora_final=base + timedelta(hours=5),
+        )
+        ac.save()
+        ac.refresh_from_db()
+        return ac
+
+    livre1 = _cria()
+    livre2 = _cria()
+    ja_vinculado = _cria(franquia_agente=franquia)  # já nasce com a franquia
+
+    # valor_agente original dos 2 livres, antes do POST.
+    originais = {ac.pk: ac.valor_agente for ac in (livre1, livre2)}
+
+    user = _user_com_perms(django_user_model, "change_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_vincular_franquia_lote")
+    response = client.post(
+        url,
+        {
+            "acionamentos": [livre1.pk, livre2.pk, ja_vinculado.pk],
+            "franquia": franquia.pk,
+        },  # SEM sobrescrever → o service recusa (AC-06.5)
+    )
+
+    assert response.status_code == 302
+    assert response.url == (
+        reverse("controle_acionamentos:acionamento_list")
+        + f"?cliente={franquia.cliente_id}"
+    )
+
+    # Nada persistiu: os livres seguem sem franquia e com o valor original.
+    for ac in (livre1, livre2):
+        ac.refresh_from_db()
+        assert ac.franquia_agente_id is None
+        assert ac.valor_agente == originais[ac.pk]
+
+    # E o já vinculado continua exatamente como estava.
+    ja_vinculado.refresh_from_db()
+    assert ja_vinculado.franquia_agente_id == franquia.pk
+
+    mensagens = list(get_messages(response.wsgi_request))
+    assert len(mensagens) == 1
+    assert mensagens[0].level == message_constants.ERROR
