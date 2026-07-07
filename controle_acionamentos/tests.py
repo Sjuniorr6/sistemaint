@@ -936,6 +936,63 @@ def test_listar_acionamentos_filtra_por_status_de_franquia(
 
 
 @pytest.mark.django_db
+def test_listar_acionamentos_combina_todos_os_filtros_preservando_desc(_fks_acionamento):
+    """DD-016/M5 (AC-08.1/08.3) — caracterização do contrato de composição: os
+    quatro filtros aplicados juntos fazem interseção (AND) e a ordenação DESC
+    sobrevive ao encadeamento. Fecha as pendências anotadas nos ciclos 1-3 da
+    subtask 1."""
+    cliente_a, responsavel, agente_x = _fks_acionamento
+    cliente_b = Cliente.objects.create(nome_empresa="Globex", cnpj="11444777000161")
+    agente_y = Agente.objects.create(nome="Agente Y", cpf="11144477735")
+    franquia_a = FranquiaAgente.objects.create(**_dados_franquia(cliente_a, nome="Franquia A"))
+    # Franquia do cliente B: deixa o quase-alvo "outro cliente" ser COM franquia
+    # (RN-06 proíbe franquia de A em acionamento de B), diferindo só pelo cliente.
+    franquia_b = FranquiaAgente.objects.create(**_dados_franquia(cliente_b, nome="Franquia B"))
+
+    base = timezone.now()
+
+    def _cria(cli, ag, solicitado, franquia):
+        ac = _acionamento_valido(
+            cli,
+            responsavel,
+            ag,
+            franquia_agente=franquia,
+            data_hora_solicitado=solicitado,
+            data_hora_inicio=solicitado + timedelta(minutes=30),
+            data_hora_final=solicitado + timedelta(hours=3),
+        )
+        ac.save()
+        return ac
+
+    # Alvo (cliente A + agente X + dentro do intervalo + COM franquia): o mais
+    # recente é criado AGORA; o mais antigo é criado por ÚLTIMO (ordem invertida
+    # à cronológica) para provar que a ordem vem do order_by, não da inserção.
+    alvo_recente = _cria(cliente_a, agente_x, base, franquia_a)
+
+    # Quase-alvos — cada um difere do recorte por UM único critério:
+    _cria(cliente_b, agente_x, base, franquia_b)                      # outro cliente
+    _cria(cliente_a, agente_y, base, franquia_a)                      # outro agente
+    _cria(cliente_a, agente_x, base - timedelta(days=5), franquia_a)  # fora do intervalo
+    _cria(cliente_a, agente_x, base, None)                            # sem franquia
+
+    # ...e só agora o mais antigo do par alvo (criado por último de propósito).
+    alvo_antigo = _cria(cliente_a, agente_x, base - timedelta(days=1), franquia_a)
+
+    from controle_acionamentos.selectors import listar_acionamentos
+
+    resultado = listar_acionamentos(
+        cliente=cliente_a,
+        agente=agente_x,
+        data_de=(base - timedelta(days=2)).date(),
+        data_ate=base.date(),
+        com_franquia=True,
+    )
+
+    # Só o par alvo (interseção AND), na ordem DESC (mais recente primeiro).
+    assert [a.pk for a in resultado] == [alvo_recente.pk, alvo_antigo.pk]
+
+
+@pytest.mark.django_db
 def test_listar_franquias_por_cliente_filtra_e_ordena_por_nome(_fks_acionamento):
     """DD-015/M4 (AC-06.3) — select de franquias do vínculo em lote mostra só
     franquias do cliente filtrado, em ordem alfabética (ordering explícito no
