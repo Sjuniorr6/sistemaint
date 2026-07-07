@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% load l10n %}
+
+{% block title %}| Confirmar sobrescrita |{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+
+  <h3 class="mb-3">Confirmar sobrescrita de franquia</h3>
+
+  {# AC-06.5: etapa 1 de 2. Nada foi executado ainda — a sobrescrita só
+     acontece se o usuário confirmar. Padrão delete-confirm do admin. #}
+  <div class="alert alert-warning" role="alert">
+    Alguns dos acionamentos selecionados <strong>já possuem uma franquia vinculada</strong>.
+    Ao confirmar, a franquia <strong>{{ franquia.nome }}</strong> substituirá a atual
+    nesses registros e os valores serão recalculados. Esta ação sobrescreve o vínculo
+    existente. Nada será alterado enquanto você não confirmar.
+  </div>
+
+  <p class="text-muted">Registros que já têm franquia e serão sobrescritos:</p>
+
+  <div class="table-responsive">
+    <table class="table table-striped align-middle">
+      <thead>
+        <tr>
+          <th>Cliente</th>
+          <th>Agente</th>
+          <th>Data solicitação</th>
+          <th>Franquia atual</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in conflitantes %}
+          <tr>
+            <td>{{ a.cliente }}</td>
+            <td>{{ a.agente }}</td>
+            <td>{{ a.data_hora_solicitado|date:"d/m/Y H:i" }}</td>
+            <td>{{ a.franquia_agente.nome }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <form method="post" action="{% url 'controle_acionamentos:acionamento_vincular_franquia_lote' %}">
+    {% csrf_token %}
+    {% for a in acionamentos_selecionados %}
+      <input type="hidden" name="acionamentos" value="{{ a.pk }}">
+    {% endfor %}
+    <input type="hidden" name="franquia" value="{{ franquia.pk }}">
+    <input type="hidden" name="sobrescrever" value="on">
+
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-danger">
+        <i class="bi bi-exclamation-triangle-fill"></i> Confirmar sobrescrita
+      </button>
+      <a href="{% url 'controle_acionamentos:acionamento_list' %}?cliente={{ cliente }}"
+         class="btn btn-outline-secondary">
+        <i class="bi bi-x-circle"></i> Cancelar
+      </a>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

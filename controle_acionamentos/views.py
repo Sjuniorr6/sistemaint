@@ -132,7 +132,14 @@ def acionamento_vincular_franquia_lote(request):
     """DD-015/M4 (subtask 5) — valida a seleção via VincularFranquiaLoteForm,
     delega o vínculo ao service vincular_franquia_em_lote (atômico) e traduz
     o resultado em messages + redirect preservando o filtro por cliente
-    (?cliente=<pk do cliente da franquia>)."""
+    (?cliente=<pk do cliente da franquia>).
+
+    AC-06.5 (subtask 4): sem a flag sobrescrever, se algum dos selecionados já
+    tiver franquia, NÃO executa — renderiza a página de confirmação em duas
+    etapas (padrão delete-confirm). A checagem aqui é roteamento de UX; a
+    enforcement (recusar sem flag) permanece no service. Cross-cliente (RN-06)
+    segue erro terminal via ValidationError.
+    """
     form = VincularFranquiaLoteForm(request.POST)
     url_list = reverse("controle_acionamentos:acionamento_list")
 
@@ -141,7 +148,28 @@ def acionamento_vincular_franquia_lote(request):
         return redirect(url_list)
 
     franquia = form.cleaned_data["franquia"]
-    pks = [a.pk for a in form.cleaned_data["acionamentos"]]
+    acionamentos_selecionados = form.cleaned_data["acionamentos"]
+    pks = [a.pk for a in acionamentos_selecionados]
+
+    # AC-06.5 — etapa 1: conflito de sobrescrita sem confirmação não executa
+    # nada; renderiza a página de confirmação. Roteamento de UX (a enforcement
+    # segue no service). Cross-cliente NÃO cai aqui: só olha franquia já vinculada.
+    if not form.cleaned_data["sobrescrever"]:
+        conflitantes = (
+            Acionamento.objects.select_related("cliente", "agente", "franquia_agente")
+            .filter(pk__in=pks, franquia_agente__isnull=False)
+        )
+        if conflitantes.exists():
+            return render(
+                request,
+                "controle_acionamentos/acionamento_vincular_confirmar.html",
+                {
+                    "franquia": franquia,
+                    "acionamentos_selecionados": acionamentos_selecionados,
+                    "conflitantes": conflitantes,
+                    "cliente": franquia.cliente_id,
+                },
+            )
 
     try:
         atualizados = vincular_franquia_em_lote(

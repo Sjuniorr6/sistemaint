@@ -1695,9 +1695,10 @@ def test_vincular_franquia_lote_post_valido_vincula_e_redireciona_com_filtro(
 def test_vincular_franquia_lote_erro_de_dominio_redireciona_com_filtro_e_message(
     client, django_user_model, _fks_acionamento
 ):
-    """DD-015/M4 (subtask 5) — quando o service recusa o lote (aqui: item já
-    vinculado sem sobrescrever, AC-06.5), a view traduz em message de erro e
-    redireciona PRESERVANDO o filtro (?cliente=...); nada persiste."""
+    """DD-015/M4 (subtask 5) — quando o service recusa o lote por erro TERMINAL
+    (aqui: franquia de outro cliente, RN-06), a view traduz em message de erro e
+    redireciona PRESERVANDO o filtro (?cliente=...); nada persiste. (O conflito
+    de sobrescrita sem flag NÃO é erro terminal — vira confirmação, AC-06.5.)"""
     from django.contrib.messages import get_messages, constants as message_constants
 
     cliente, responsavel, agente = _fks_acionamento
@@ -1712,14 +1713,15 @@ def test_vincular_franquia_lote_erro_de_dominio_redireciona_com_filtro_e_message
             escalonamento_automatico=True,
         )
     )
+    cliente_b = Cliente.objects.create(nome_empresa="Globex", cnpj="11444777000161")
     base = timezone.now()
 
-    def _cria(franquia_agente=None):
+    def _cria(cli):
         ac = _acionamento_valido(
-            cliente,
+            cli,
             responsavel,
             agente,
-            franquia_agente=franquia_agente,
+            franquia_agente=None,
             km_inicio=0,
             km_final=240,
             data_hora_solicitado=base,
@@ -1730,12 +1732,11 @@ def test_vincular_franquia_lote_erro_de_dominio_redireciona_com_filtro_e_message
         ac.refresh_from_db()
         return ac
 
-    livre1 = _cria()
-    livre2 = _cria()
-    ja_vinculado = _cria(franquia_agente=franquia)  # já nasce com a franquia
+    valido = _cria(cliente)       # mesmo cliente da franquia
+    invalido = _cria(cliente_b)   # cross-cliente: viola RN-06 ao receber a franquia
 
-    # valor_agente original dos 2 livres, antes do POST.
-    originais = {ac.pk: ac.valor_agente for ac in (livre1, livre2)}
+    # valor_agente original de cada um (ambos SEM franquia), antes do POST.
+    originais = {ac.pk: ac.valor_agente for ac in (valido, invalido)}
 
     user = _user_com_perms(django_user_model, "change_acionamento")
     client.force_login(user)
@@ -1744,9 +1745,9 @@ def test_vincular_franquia_lote_erro_de_dominio_redireciona_com_filtro_e_message
     response = client.post(
         url,
         {
-            "acionamentos": [livre1.pk, livre2.pk, ja_vinculado.pk],
+            "acionamentos": [valido.pk, invalido.pk],
             "franquia": franquia.pk,
-        },  # SEM sobrescrever → o service recusa (AC-06.5)
+        },  # SEM sobrescrever; erro TERMINAL é o cross-cliente (RN-06), não sobrescrita
     )
 
     assert response.status_code == 302
@@ -1755,15 +1756,11 @@ def test_vincular_franquia_lote_erro_de_dominio_redireciona_com_filtro_e_message
         + f"?cliente={franquia.cliente_id}"
     )
 
-    # Nada persistiu: os livres seguem sem franquia e com o valor original.
-    for ac in (livre1, livre2):
+    # Nada persistiu: rollback atômico do lote (AC-06.6) — nem o válido.
+    for ac in (valido, invalido):
         ac.refresh_from_db()
         assert ac.franquia_agente_id is None
         assert ac.valor_agente == originais[ac.pk]
-
-    # E o já vinculado continua exatamente como estava.
-    ja_vinculado.refresh_from_db()
-    assert ja_vinculado.franquia_agente_id == franquia.pk
 
     mensagens = list(get_messages(response.wsgi_request))
     assert len(mensagens) == 1
@@ -1799,3 +1796,59 @@ def test_vincular_franquia_lote_entrada_invalida_redireciona_com_message_de_erro
     mensagens = list(get_messages(response.wsgi_request))
     assert len(mensagens) == 1
     assert mensagens[0].level == message_constants.ERROR
+
+
+@pytest.mark.django_db
+def test_vincular_franquia_lote_conflito_sem_flag_renderiza_confirmacao(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-015/M4 (AC-06.5) — conflito de sobrescrita sem flag não executa nem
+    redireciona: renderiza página de confirmação em duas etapas (padrão
+    delete-confirm)."""
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(**_dados_franquia(cliente, nome="Franquia"))
+    base = timezone.now()
+
+    def _cria(franquia_agente=None):
+        ac = _acionamento_valido(
+            cliente,
+            responsavel,
+            agente,
+            franquia_agente=franquia_agente,
+            km_inicio=0,
+            km_final=240,
+            data_hora_solicitado=base,
+            data_hora_inicio=base,
+            data_hora_final=base + timedelta(hours=5),
+        )
+        ac.save()
+        ac.refresh_from_db()
+        return ac
+
+    ja_vinculado = _cria(franquia_agente=franquia)  # já nasce com a franquia
+    livre = _cria()  # sem franquia
+
+    user = _user_com_perms(
+        django_user_model, "view_acionamento", "change_acionamento"
+    )
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_vincular_franquia_lote")
+    response = client.post(
+        url,
+        {
+            "acionamentos": [ja_vinculado.pk, livre.pk],
+            "franquia": franquia.pk,
+        },  # SEM sobrescrever → conflito exige confirmação
+    )
+
+    # Não redireciona (comportamento novo): renderiza a confirmação.
+    assert response.status_code == 200
+    assert (
+        "controle_acionamentos/acionamento_vincular_confirmar.html"
+        in [t.name for t in response.templates]
+    )
+
+    # Nada foi executado ainda: o livre continua sem franquia.
+    livre.refresh_from_db()
+    assert livre.franquia_agente_id is None
