@@ -116,10 +116,10 @@ class GridInternacional(ListView):
         if cliente_nome:
             # Pegar todos os registros do cliente
             qs = list(GridInternacionalModel.objects.filter(cliente__icontains=cliente_nome))
-            # Contar equipamentos (excluindo Reversa Finalizada, mas incluindo Extraviado)
+            # Contar equipamentos no grid (exclui Reversa Finalizada, Extraviado e Danificado)
             equipamentos_count = len([
                 obj for obj in qs
-                if obj.get_status_automatico() != 'Reversa Finalizada' or obj.get_status_automatico() == 'Extraviado'
+                if obj.get_status_automatico() not in ('Reversa Finalizada', 'Extraviado', 'Danificado')
             ])
             context['equipamentos_count'] = equipamentos_count
             
