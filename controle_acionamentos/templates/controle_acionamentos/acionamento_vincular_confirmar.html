@@ -8,8 +8,10 @@
 
   <h3 class="mb-3">Confirmar sobrescrita de franquia</h3>
 
-  {# AC-06.5: etapa 1 de 2. Nada foi executado ainda — a sobrescrita só
-     acontece se o usuário confirmar. Padrão delete-confirm do admin. #}
+  {% comment %}
+    AC-06.5: etapa 1 de 2. Nada foi executado ainda — a sobrescrita só
+    acontece se o usuário confirmar. Padrão delete-confirm do admin.
+  {% endcomment %}
   <div class="alert alert-warning" role="alert">
     Alguns dos acionamentos selecionados <strong>já possuem uma franquia vinculada</strong>.
     Ao confirmar, a franquia <strong>{{ franquia.nome }}</strong> substituirá a atual
