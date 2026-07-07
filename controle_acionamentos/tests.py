@@ -912,6 +912,30 @@ def test_listar_acionamentos_filtra_por_intervalo_de_data(_fks_acionamento):
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("com_franquia", [True, False])
+def test_listar_acionamentos_filtra_por_status_de_franquia(
+    _fks_acionamento, com_franquia
+):
+    """DD-016/M5 (AC-08.1) — filtro por status de franquia no selector via
+    booleano de domínio; None = todos (comportamento default já coberto pelos
+    demais testes)."""
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(**_dados_franquia(cliente, nome="Franquia"))
+
+    com = _acionamento_valido(cliente, responsavel, agente, franquia_agente=franquia)
+    com.save()
+    sem = _acionamento_valido(cliente, responsavel, agente, franquia_agente=None)
+    sem.save()
+
+    from controle_acionamentos.selectors import listar_acionamentos
+
+    resultado = listar_acionamentos(com_franquia=com_franquia)
+
+    esperado = com.pk if com_franquia else sem.pk
+    assert [a.pk for a in resultado] == [esperado]
+
+
+@pytest.mark.django_db
 def test_listar_franquias_por_cliente_filtra_e_ordena_por_nome(_fks_acionamento):
     """DD-015/M4 (AC-06.3) — select de franquias do vínculo em lote mostra só
     franquias do cliente filtrado, em ordem alfabética (ordering explícito no
