@@ -10,6 +10,15 @@
   <h3 class="mb-1">Acionamentos</h3>
   <p class="text-muted">Serviços registrados, do mais recente ao mais antigo.</p>
 
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
   {# Filtro por cliente (AC-06.1). GET não precisa de csrf; sem JS. #}
   <form method="get" class="row g-2 mb-3 align-items-end">
     <div class="col-md-4">
@@ -31,10 +40,38 @@
   {# Token lido pelo JS (header X-CSRFToken); fica fora da tabela. #}
   {% csrf_token %}
 
+  {% comment %}
+    Vínculo de franquia em lote (AC-06.2/06.3): só com cliente filtrado e permissão.
+    O form abraça a tabela; o pedágio (input sem name) não é enviado por ele.
+  {% endcomment %}
+  {% if cliente_filtrado and perms.controle_acionamentos.change_acionamento %}
+  <form method="post" action="{% url 'controle_acionamentos:acionamento_vincular_franquia_lote' %}">
+    {% csrf_token %}
+    <div class="row g-2 mb-3 align-items-end">
+      <div class="col-md-4">
+        <label for="franquia-lote" class="form-label">Franquia</label>
+        <select name="franquia" id="franquia-lote" class="form-select">
+          <option value="">Selecione a franquia…</option>
+          {% for f in franquias %}
+            <option value="{{ f.pk }}">{{ f.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4 d-flex align-items-end">
+        <button type="submit" class="btn btn-warning">
+          <i class="bi bi-link-45deg"></i> Vincular franquia às selecionadas
+        </button>
+      </div>
+    </div>
+  {% endif %}
+
   <div class="table-responsive">
     <table class="table table-striped align-middle">
       <thead>
         <tr>
+          {% if cliente_filtrado and perms.controle_acionamentos.change_acionamento %}
+            <th></th>
+          {% endif %}
           <th>Cliente</th>
           <th>Agente</th>
           <th>Data solicitação</th>
@@ -45,6 +82,12 @@
       <tbody>
         {% for a in acionamentos %}
           <tr>
+            {% if cliente_filtrado and perms.controle_acionamentos.change_acionamento %}
+              <td>
+                <input type="checkbox" class="form-check-input"
+                       name="acionamentos" value="{{ a.pk }}">
+              </td>
+            {% endif %}
             <td>{{ a.cliente }}</td>
             <td>{{ a.agente }}</td>
             <td>{{ a.data_hora_solicitado|date:"d/m/Y H:i" }}</td>
@@ -64,12 +107,17 @@
           </tr>
         {% empty %}
           <tr>
-            <td colspan="5" class="text-center text-muted">Nenhum acionamento registrado</td>
+            <td colspan="{% if cliente_filtrado and perms.controle_acionamentos.change_acionamento %}6{% else %}5{% endif %}"
+                class="text-center text-muted">Nenhum acionamento registrado</td>
           </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+
+  {% if cliente_filtrado and perms.controle_acionamentos.change_acionamento %}
+  </form>
+  {% endif %}
 
 </div>
 
