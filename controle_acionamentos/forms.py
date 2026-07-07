@@ -133,3 +133,14 @@ class FiltroAcionamentosForm(forms.Form):
         required=False,
         widget=forms.Select(attrs={"class": "form-select"}),
     )
+    # ISO = o que o <input type="date"> envia; dd/mm/aaaa = URL digitada à brasileira.
+    data_de = forms.DateField(
+        required=False,
+        input_formats=["%Y-%m-%d", "%d/%m/%Y"],
+        widget=forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+    )
+    data_ate = forms.DateField(
+        required=False,
+        input_formats=["%Y-%m-%d", "%d/%m/%Y"],
+        widget=forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+    )

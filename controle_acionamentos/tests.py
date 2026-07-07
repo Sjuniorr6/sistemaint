@@ -1454,6 +1454,52 @@ def test_acionamento_list_filtra_por_agente_via_get(
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize(
+    "data_de_str, data_ate_str",
+    [
+        ("2026-06-23", "2026-06-25"),   # ISO — o <input type="date"> sempre envia assim
+        ("23/06/2026", "25/06/2026"),   # dd/mm/aaaa — URL digitada à brasileira
+    ],
+)
+def test_acionamento_list_filtra_por_intervalo_de_data_via_get(
+    client, django_user_model, _fks_acionamento, data_de_str, data_ate_str
+):
+    """DD-016/M5 (AC-08.1) — intervalo de data via GET aceita ISO (input
+    type=date do navegador) e dd/mm/aaaa (URL manual); validação no form,
+    repasse ao selector com fronteira inclusiva já testada."""
+    from datetime import datetime
+
+    cliente, responsavel, agente = _fks_acionamento
+
+    def _cria(solicitado):
+        ac = _acionamento_valido(
+            cliente,
+            responsavel,
+            agente,
+            data_hora_solicitado=solicitado,
+            data_hora_inicio=solicitado + timedelta(minutes=30),
+            data_hora_final=solicitado + timedelta(hours=3),
+        )
+        ac.save()
+        return ac
+
+    # 24/06/2026 às 14h (aware): dentro do intervalo [23..25]. O outro, 10 dias
+    # antes, fica de fora.
+    dentro = _cria(timezone.make_aware(datetime(2026, 6, 24, 14, 0)))
+    fora = _cria(timezone.make_aware(datetime(2026, 6, 14, 14, 0)))
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_list")
+    response = client.get(url, {"data_de": data_de_str, "data_ate": data_ate_str})
+
+    assert response.status_code == 200
+    # Só o acionamento de dentro do intervalo (comparar pks, nunca HTML).
+    assert [a.pk for a in response.context["acionamentos"]] == [dentro.pk]
+
+
+@pytest.mark.django_db
 @pytest.mark.parametrize("valor_querystring", ["9999", "abc"])
 def test_acionamento_list_filtro_invalido_e_tolerante(
     client, django_user_model, _fks_acionamento, valor_querystring
