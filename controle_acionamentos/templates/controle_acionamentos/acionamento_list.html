@@ -143,6 +143,36 @@
   </form>
   {% endif %}
 
+  {% comment %}
+    Rodapé de paginação (AC-08.2) — FORA do form de lote. Links preservam os
+    filtros via filtros_querystring; quando ela está vazia, o link fica limpo
+    (?page=N, sem ?&page=N). Anterior/Próxima viram <span> desabilitado nas bordas.
+  {% endcomment %}
+  {% if acionamentos %}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="text-muted small">
+      Mostrando {{ acionamentos.start_index }}–{{ acionamentos.end_index }}
+      de {{ acionamentos.paginator.count }} · {{ acionamentos.paginator.per_page }} por página
+    </div>
+
+    <div class="d-flex gap-2">
+      {% if acionamentos.has_previous %}
+        <a class="btn btn-outline-secondary btn-sm"
+           href="?{% if filtros_querystring %}{{ filtros_querystring }}&{% endif %}page={{ acionamentos.previous_page_number }}">‹ Anterior</a>
+      {% else %}
+        <span class="btn btn-outline-secondary btn-sm disabled" aria-disabled="true">‹ Anterior</span>
+      {% endif %}
+
+      {% if acionamentos.has_next %}
+        <a class="btn btn-outline-secondary btn-sm"
+           href="?{% if filtros_querystring %}{{ filtros_querystring }}&{% endif %}page={{ acionamentos.next_page_number }}">Próxima ›</a>
+      {% else %}
+        <span class="btn btn-outline-secondary btn-sm disabled" aria-disabled="true">Próxima ›</span>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
 </div>
 
 <script src="{% static 'controle_acionamentos/js/acionamento_list.js' %}"></script>
