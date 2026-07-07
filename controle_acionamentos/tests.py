@@ -1527,6 +1527,50 @@ def test_acionamento_list_filtra_por_status_de_franquia_via_get(
 
 
 @pytest.mark.django_db
+def test_acionamento_list_pagina_com_25_por_pagina(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-016/M5 (AC-08.2) — paginação default de 25/página com get_page
+    tolerante; ordenação DESC preservada entre páginas."""
+    cliente, responsavel, agente = _fks_acionamento
+    base = timezone.now()
+
+    # 30 acionamentos com data_hora_solicitado decrescente (i=0 é o mais recente),
+    # para ordenação determinística que atravessa a paginação.
+    mais_recente = None
+    for i in range(30):
+        solicitado = base - timedelta(minutes=i)
+        ac = _acionamento_valido(
+            cliente,
+            responsavel,
+            agente,
+            data_hora_solicitado=solicitado,
+            data_hora_inicio=solicitado + timedelta(minutes=30),
+            data_hora_final=solicitado + timedelta(hours=3),
+        )
+        ac.save()
+        if i == 0:
+            mais_recente = ac
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_list")
+
+    # Página 1 (default): 25 itens, começando pelo mais recente dos 30.
+    resp1 = client.get(url)
+    assert resp1.status_code == 200
+    pagina1 = resp1.context["acionamentos"]
+    assert len(pagina1) == 25
+    assert list(pagina1)[0].pk == mais_recente.pk
+
+    # Página 2: os 5 restantes.
+    resp2 = client.get(url, {"page": 2})
+    assert resp2.status_code == 200
+    assert len(resp2.context["acionamentos"]) == 5
+
+
+@pytest.mark.django_db
 @pytest.mark.parametrize("valor_querystring", ["9999", "abc"])
 def test_acionamento_list_filtro_invalido_e_tolerante(
     client, django_user_model, _fks_acionamento, valor_querystring

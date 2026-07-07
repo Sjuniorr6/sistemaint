@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
 from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -43,6 +44,11 @@ def acionamento_list(request):
     o select do vínculo em lote. Sem cliente, franquias = none() (contrato de
     contexto consistente; quem liga a UI de lote é cliente_filtrado, não a
     presença da chave).
+
+    DD-016/M5 (AC-08.2): paginação de 25/página com get_page TOLERANTE (page
+    inválido → 1, fora do alcance → última), aplicada DEPOIS dos filtros e da
+    ordenação do selector. O contexto "acionamentos" passa a ser o Page object,
+    que é iterável — o template (tabela + form de lote) segue igual.
     """
     form = FiltroAcionamentosForm(request.GET)
     cliente = form.cleaned_data.get("cliente") if form.is_valid() else None
@@ -57,17 +63,20 @@ def acionamento_list(request):
         if cliente is not None
         else FranquiaAgente.objects.none()
     )
+    acionamentos = listar_acionamentos(
+        cliente=cliente,
+        agente=agente,
+        data_de=data_de,
+        data_ate=data_ate,
+        com_franquia=com_franquia,
+    )
+    paginator = Paginator(acionamentos, 25)
+    pagina = paginator.get_page(request.GET.get("page"))
     return render(
         request,
         "controle_acionamentos/acionamento_list.html",
         {
-            "acionamentos": listar_acionamentos(
-                cliente=cliente,
-                agente=agente,
-                data_de=data_de,
-                data_ate=data_ate,
-                com_franquia=com_franquia,
-            ),
+            "acionamentos": pagina,
             "cliente_filtrado": cliente,
             "franquias": franquias,
             "filtro_form": form,
