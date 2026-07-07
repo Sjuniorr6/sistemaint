@@ -1852,3 +1852,85 @@ def test_vincular_franquia_lote_conflito_sem_flag_renderiza_confirmacao(
     # Nada foi executado ainda: o livre continua sem franquia.
     livre.refresh_from_db()
     assert livre.franquia_agente_id is None
+
+
+@pytest.mark.django_db
+def test_vincular_franquia_lote_confirmado_sobrescreve_e_redireciona(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-015/M4 (AC-06.5, etapa 2) — POST confirmado com sobrescrever executa a
+    troca de franquia, recalcula e redireciona com sucesso. Fecha o teste
+    pendente registrado: sobrescrever=True pela view."""
+    from django.contrib.messages import get_messages, constants as message_constants
+
+    cliente, responsavel, agente = _fks_acionamento
+    franquia_antiga = FranquiaAgente.objects.create(
+        **_dados_franquia(
+            cliente,
+            nome="Franquia Antiga",
+            valor_acionamento=Decimal("660.00"),
+            franquia_km=200,
+            franquia_horas=Decimal("4.00"),
+            valor_km_excedente=Decimal("3.30"),
+            valor_hora_excedente=Decimal("55.00"),
+            escalonamento_automatico=True,
+        )
+    )
+    franquia_nova = FranquiaAgente.objects.create(
+        **_dados_franquia(
+            cliente,
+            nome="Franquia Nova",
+            valor_acionamento=Decimal("700.00"),
+            franquia_km=200,
+            franquia_horas=Decimal("4.00"),
+            valor_km_excedente=Decimal("3.30"),
+            valor_hora_excedente=Decimal("55.00"),
+            escalonamento_automatico=True,
+        )
+    )
+    base = timezone.now()
+
+    ac = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        franquia_agente=franquia_antiga,  # já vinculado à ANTIGA
+        km_inicio=0,
+        km_final=240,
+        data_hora_solicitado=base,
+        data_hora_inicio=base,
+        data_hora_final=base + timedelta(hours=5),
+    )
+    ac.save()
+    ac.refresh_from_db()
+    valor_original = ac.valor_agente
+
+    user = _user_com_perms(
+        django_user_model, "view_acionamento", "change_acionamento"
+    )
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_vincular_franquia_lote")
+    response = client.post(
+        url,
+        {
+            "acionamentos": [ac.pk],
+            "franquia": franquia_nova.pk,
+            "sobrescrever": "on",  # simula o submit da página de confirmação
+        },
+    )
+
+    assert response.status_code == 302
+    assert response.url == (
+        reverse("controle_acionamentos:acionamento_list")
+        + f"?cliente={franquia_nova.cliente_id}"
+    )
+
+    ac.refresh_from_db()
+    assert ac.franquia_agente_id == franquia_nova.pk
+    # Recálculo executado: o valor mudou em relação ao da franquia antiga.
+    assert ac.valor_agente != valor_original
+
+    mensagens = list(get_messages(response.wsgi_request))
+    assert len(mensagens) == 1
+    assert mensagens[0].level == message_constants.SUCCESS
