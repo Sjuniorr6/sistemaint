@@ -72,6 +72,11 @@ def acionamento_list(request):
     )
     paginator = Paginator(acionamentos, 25)
     pagina = paginator.get_page(request.GET.get("page"))
+    # Base da navegação de páginas: o template injeta &page=N sobre esta base;
+    # sem o pop, o page antigo viajaria duplicado no link.
+    params = request.GET.copy()
+    params.pop("page", None)
+    filtros_querystring = params.urlencode()
     return render(
         request,
         "controle_acionamentos/acionamento_list.html",
@@ -80,6 +85,7 @@ def acionamento_list(request):
             "cliente_filtrado": cliente,
             "franquias": franquias,
             "filtro_form": form,
+            "filtros_querystring": filtros_querystring,
         },
     )
 

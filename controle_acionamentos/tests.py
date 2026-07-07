@@ -1571,6 +1571,31 @@ def test_acionamento_list_pagina_com_25_por_pagina(
 
 
 @pytest.mark.django_db
+def test_acionamento_list_expoe_querystring_dos_filtros_sem_page(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-016/M5 (AC-08.2) — contrato da navegação de páginas: a querystring dos
+    filtros sobrevive ao clique de Anterior/Próxima; o page é removido da base
+    para o template injetar o novo valor."""
+    cliente, responsavel, agente = _fks_acionamento
+    _acionamento_valido(cliente, responsavel, agente).save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_list")
+    # Filtros + page juntos, de propósito: o page precisa ser retirado da base.
+    response = client.get(url, {"cliente": cliente.pk, "status": "com", "page": 2})
+
+    assert response.status_code == 200
+    querystring = response.context["filtros_querystring"]
+    assert f"cliente={cliente.pk}" in querystring
+    assert "status=com" in querystring
+    # O page NÃO entra na base — o template o injeta com o valor novo.
+    assert "page=" not in querystring
+
+
+@pytest.mark.django_db
 @pytest.mark.parametrize("valor_querystring", ["9999", "abc"])
 def test_acionamento_list_filtro_invalido_e_tolerante(
     client, django_user_model, _fks_acionamento, valor_querystring
