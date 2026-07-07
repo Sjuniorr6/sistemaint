@@ -1934,3 +1934,116 @@ def test_vincular_franquia_lote_confirmado_sobrescreve_e_redireciona(
     mensagens = list(get_messages(response.wsgi_request))
     assert len(mensagens) == 1
     assert mensagens[0].level == message_constants.SUCCESS
+
+
+@pytest.mark.django_db
+def test_confirmacao_etapa1_reenvia_hidden_fieis_para_etapa2(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-015/M4 (subtask 6) — contrato etapa 1 → etapa 2: os hidden do template
+    de confirmação reproduzem fielmente o POST que executa a sobrescrita. Fecha
+    a lacuna 5 da auditoria de cobertura."""
+    import re
+    from collections import defaultdict
+    from django.contrib.messages import get_messages, constants as message_constants
+
+    cliente, responsavel, agente = _fks_acionamento
+    franquia_antiga = FranquiaAgente.objects.create(
+        **_dados_franquia(
+            cliente,
+            nome="Franquia Antiga",
+            valor_acionamento=Decimal("660.00"),
+            franquia_km=200,
+            franquia_horas=Decimal("4.00"),
+            valor_km_excedente=Decimal("3.30"),
+            valor_hora_excedente=Decimal("55.00"),
+            escalonamento_automatico=True,
+        )
+    )
+    franquia_nova = FranquiaAgente.objects.create(
+        **_dados_franquia(
+            cliente,
+            nome="Franquia Nova",
+            valor_acionamento=Decimal("700.00"),
+            franquia_km=200,
+            franquia_horas=Decimal("4.00"),
+            valor_km_excedente=Decimal("3.30"),
+            valor_hora_excedente=Decimal("55.00"),
+            escalonamento_automatico=True,
+        )
+    )
+    base = timezone.now()
+
+    def _cria(franquia_agente=None):
+        ac = _acionamento_valido(
+            cliente,
+            responsavel,
+            agente,
+            franquia_agente=franquia_agente,
+            km_inicio=0,
+            km_final=240,
+            data_hora_solicitado=base,
+            data_hora_inicio=base,
+            data_hora_final=base + timedelta(hours=5),
+        )
+        ac.save()
+        ac.refresh_from_db()
+        return ac
+
+    ja_vinculado = _cria(franquia_agente=franquia_antiga)
+    livre = _cria()
+
+    user = _user_com_perms(
+        django_user_model, "view_acionamento", "change_acionamento"
+    )
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_vincular_franquia_lote")
+
+    # Etapa 1: conflito sem flag → página de confirmação (200).
+    resp1 = client.post(
+        url,
+        {"acionamentos": [ja_vinculado.pk, livre.pk], "franquia": franquia_nova.pk},
+    )
+    assert resp1.status_code == 200
+
+    # Extrai os <input type="hidden"> de DENTRO do form de confirmação (escopo
+    # pelo action, para não pegar o csrf de header/outros forms da página).
+    html = resp1.content.decode()
+    form_m = re.search(
+        r'<form[^>]*action="' + re.escape(url) + r'"[^>]*>(.*?)</form>',
+        html,
+        re.DOTALL,
+    )
+    assert form_m, "form de confirmação não encontrado no HTML"
+    form_html = form_m.group(1)
+
+    dados_etapa2 = defaultdict(list)
+    for tag in re.findall(r'<input[^>]*type="hidden"[^>]*>', form_html):
+        nome = re.search(r'name="([^"]+)"', tag)
+        valor = re.search(r'value="([^"]*)"', tag)
+        if nome:
+            dados_etapa2[nome.group(1)].append(valor.group(1) if valor else "")
+
+    # Assert intermediário: os hidden reproduzem o POST de execução.
+    assert set(dados_etapa2["acionamentos"]) == {str(ja_vinculado.pk), str(livre.pk)}
+    assert dados_etapa2["franquia"] == [str(franquia_nova.pk)]
+    assert "sobrescrever" in dados_etapa2
+
+    # Etapa 2: reenvia EXATAMENTE o extraído (não montado à mão).
+    resp2 = client.post(url, dict(dados_etapa2))
+
+    assert resp2.status_code == 302
+    assert resp2.url == (
+        reverse("controle_acionamentos:acionamento_list")
+        + f"?cliente={franquia_nova.cliente_id}"
+    )
+
+    # Os DOIS acionamentos passaram para a franquia nova (sobrescrita executada).
+    for ac in (ja_vinculado, livre):
+        ac.refresh_from_db()
+        assert ac.franquia_agente_id == franquia_nova.pk
+
+    mensagens = list(get_messages(resp2.wsgi_request))
+    assert len(mensagens) == 1
+    assert mensagens[0].level == message_constants.SUCCESS
