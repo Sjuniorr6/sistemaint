@@ -1428,6 +1428,32 @@ def test_acionamento_list_filtra_por_cliente_via_get(
 
 
 @pytest.mark.django_db
+def test_acionamento_list_filtra_por_agente_via_get(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-016/M5 (AC-08.1) — a view lê ?agente= do GET, valida pelo
+    FiltroAcionamentosForm e repassa ao selector; espelho do filtro por cliente
+    do M4, mesma filosofia tolerante."""
+    cliente, responsavel, agente_a = _fks_acionamento
+    agente_b = Agente.objects.create(nome="Segundo Agente", cpf="11144477735")
+
+    ac_a = _acionamento_valido(cliente, responsavel, agente_a)
+    ac_a.save()
+    ac_b = _acionamento_valido(cliente, responsavel, agente_b)
+    ac_b.save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_list")
+    response = client.get(url, {"agente": agente_a.pk})
+
+    assert response.status_code == 200
+    # Só o acionamento do agente A (comparar pks, nunca HTML).
+    assert [a.pk for a in response.context["acionamentos"]] == [ac_a.pk]
+
+
+@pytest.mark.django_db
 @pytest.mark.parametrize("valor_querystring", ["9999", "abc"])
 def test_acionamento_list_filtro_invalido_e_tolerante(
     client, django_user_model, _fks_acionamento, valor_querystring

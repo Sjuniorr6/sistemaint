@@ -1,7 +1,7 @@
 # controle_acionamentos/forms.py
 from django import forms
 
-from controle_acionamentos.models import Acionamento, Cliente, FranquiaAgente
+from controle_acionamentos.models import Acionamento, Agente, Cliente, FranquiaAgente
 
 
 class AcionamentoForm(forms.ModelForm):
@@ -117,10 +117,19 @@ class VincularFranquiaLoteForm(forms.Form):
 class FiltroAcionamentosForm(forms.Form):
     """DD-015/M4 (AC-06.1) — valida o querystring da listagem. Filtro TOLERANTE:
     valor inválido ou ausente significa "sem filtro", nunca erro. Por isso o
-    campo é required=False; a view trata form inválido como cliente=None."""
+    campo é required=False; a view trata form inválido como cliente=None.
+
+    DD-016/M5 (AC-08.1) — o form é a alfândega da querystring: cada campo novo
+    de filtro entra aqui mantendo a filosofia tolerante (inválido/ausente = sem
+    filtro), e a view repassa o valor limpo ao selector."""
 
     cliente = forms.ModelChoiceField(
         queryset=Cliente.objects.all(),
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    agente = forms.ModelChoiceField(
+        queryset=Agente.objects.all(),
         required=False,
         widget=forms.Select(attrs={"class": "form-select"}),
     )

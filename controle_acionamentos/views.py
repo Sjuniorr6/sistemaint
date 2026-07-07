@@ -46,6 +46,7 @@ def acionamento_list(request):
     """
     form = FiltroAcionamentosForm(request.GET)
     cliente = form.cleaned_data.get("cliente") if form.is_valid() else None
+    agente = form.cleaned_data.get("agente") if form.is_valid() else None
     franquias = (
         listar_franquias_por_cliente(cliente)
         if cliente is not None
@@ -55,7 +56,7 @@ def acionamento_list(request):
         request,
         "controle_acionamentos/acionamento_list.html",
         {
-            "acionamentos": listar_acionamentos(cliente=cliente),
+            "acionamentos": listar_acionamentos(cliente=cliente, agente=agente),
             "cliente_filtrado": cliente,
             "franquias": franquias,
             "filtro_form": form,
