@@ -856,6 +856,24 @@ def test_listar_acionamentos_filtra_por_cliente(_fks_acionamento):
 
 
 @pytest.mark.django_db
+def test_listar_acionamentos_filtra_por_agente(_fks_acionamento):
+    """DD-016/M5 (AC-08.1) — a listagem filtra por agente no selector; combina
+    com os demais filtros sem quebrar a ordenação DESC."""
+    cliente, responsavel, agente_a = _fks_acionamento
+    agente_b = Agente.objects.create(nome="Segundo Agente", cpf="11144477735")
+
+    # Um acionamento para cada agente, mesmo cliente.
+    _acionamento_valido(cliente, responsavel, agente_a).save()
+    _acionamento_valido(cliente, responsavel, agente_b).save()
+
+    from controle_acionamentos.selectors import listar_acionamentos
+
+    resultado = listar_acionamentos(agente=agente_a)
+
+    assert [a.agente_id for a in resultado] == [agente_a.pk]
+
+
+@pytest.mark.django_db
 def test_listar_franquias_por_cliente_filtra_e_ordena_por_nome(_fks_acionamento):
     """DD-015/M4 (AC-06.3) — select de franquias do vínculo em lote mostra só
     franquias do cliente filtrado, em ordem alfabética (ordering explícito no

@@ -5,11 +5,15 @@ As views consomem os dados a partir daqui — nunca fazem query direta ao model.
 from controle_acionamentos.models import Acionamento, FranquiaAgente
 
 
-def listar_acionamentos(cliente=None):
+def listar_acionamentos(cliente=None, agente=None):
     """DD-014/M3 — lista base de acionamentos, do mais recente ao mais antigo.
 
     Aceita um filtro opcional por cliente (AC-06.1, DD-015/M4): quando `cliente`
     é informado, restringe a listagem àquele cliente; None devolve todos.
+
+    DD-016/M5 (AC-08.1): filtro opcional por agente. Os filtros são composáveis
+    (aplicados em cascata sobre o mesmo queryset) e a ordenação DESC por
+    data_hora_solicitado é aplicada independentemente deles.
 
     select_related em cliente/agente: o template exibe esses dois por linha;
     sem o join, seria uma query por FK por linha (N+1) na renderização.
@@ -21,6 +25,8 @@ def listar_acionamentos(cliente=None):
     )
     if cliente is not None:
         qs = qs.filter(cliente=cliente)
+    if agente is not None:
+        qs = qs.filter(agente=agente)
     return qs
 
 
