@@ -874,6 +874,44 @@ def test_listar_acionamentos_filtra_por_agente(_fks_acionamento):
 
 
 @pytest.mark.django_db
+def test_listar_acionamentos_filtra_por_intervalo_de_data(_fks_acionamento):
+    """DD-016/M5 (AC-08.1) — filtro por intervalo de data_hora_solicitado com
+    fronteiras inclusivas por DATA (lookup __date): um acionamento às 14h do
+    ÚLTIMO dia do intervalo DEVE aparecer."""
+    cliente, responsavel, agente = _fks_acionamento
+    base = timezone.now()
+
+    def _cria(solicitado):
+        # inicio/final coerentes com o solicitado escolhido (RN-04), mesmos
+        # offsets do helper padrão (30min / 3h).
+        ac = _acionamento_valido(
+            cliente,
+            responsavel,
+            agente,
+            data_hora_solicitado=solicitado,
+            data_hora_inicio=solicitado + timedelta(minutes=30),
+            data_hora_final=solicitado + timedelta(hours=3),
+        )
+        ac.save()
+        return ac
+
+    antes = _cria(base - timedelta(days=5))  # fora, antes do intervalo
+    # Dentro E no último dia do intervalo, às 14h: prova a fronteira inclusiva
+    # por DATA (uma comparação por datetime <= meia-noite o excluiria).
+    dentro = _cria(base.replace(hour=14, minute=0, second=0, microsecond=0))
+    depois = _cria(base + timedelta(days=5))  # fora, depois do intervalo
+
+    from controle_acionamentos.selectors import listar_acionamentos
+
+    resultado = listar_acionamentos(
+        data_de=(base - timedelta(days=2)).date(),
+        data_ate=base.date(),
+    )
+
+    assert [a.pk for a in resultado] == [dentro.pk]
+
+
+@pytest.mark.django_db
 def test_listar_franquias_por_cliente_filtra_e_ordena_por_nome(_fks_acionamento):
     """DD-015/M4 (AC-06.3) — select de franquias do vínculo em lote mostra só
     franquias do cliente filtrado, em ordem alfabética (ordering explícito no
