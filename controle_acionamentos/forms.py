@@ -144,3 +144,17 @@ class FiltroAcionamentosForm(forms.Form):
         input_formats=["%Y-%m-%d", "%d/%m/%Y"],
         widget=forms.DateInput(attrs={"class": "form-control", "type": "date"}),
     )
+    status = forms.ChoiceField(
+        required=False,
+        choices=[("", "Todos"), ("com", "Com franquia"), ("sem", "Sem franquia")],
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+
+    def clean_status(self):
+        """Traduz tela→domínio: "com"→True, "sem"→False, vazio→None."""
+        valor = self.cleaned_data.get("status")
+        if valor == "com":
+            return True
+        if valor == "sem":
+            return False
+        return None

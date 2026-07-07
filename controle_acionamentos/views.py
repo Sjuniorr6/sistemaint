@@ -49,6 +49,9 @@ def acionamento_list(request):
     agente = form.cleaned_data.get("agente") if form.is_valid() else None
     data_de = form.cleaned_data.get("data_de") if form.is_valid() else None
     data_ate = form.cleaned_data.get("data_ate") if form.is_valid() else None
+    # Ponte tela→domínio: o campo se chama "status" no form; clean_status já
+    # devolve True/False/None, que o selector consome como com_franquia.
+    com_franquia = form.cleaned_data.get("status") if form.is_valid() else None
     franquias = (
         listar_franquias_por_cliente(cliente)
         if cliente is not None
@@ -59,7 +62,11 @@ def acionamento_list(request):
         "controle_acionamentos/acionamento_list.html",
         {
             "acionamentos": listar_acionamentos(
-                cliente=cliente, agente=agente, data_de=data_de, data_ate=data_ate
+                cliente=cliente,
+                agente=agente,
+                data_de=data_de,
+                data_ate=data_ate,
+                com_franquia=com_franquia,
             ),
             "cliente_filtrado": cliente,
             "franquias": franquias,

@@ -1500,6 +1500,33 @@ def test_acionamento_list_filtra_por_intervalo_de_data_via_get(
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("status, espera_vinculado", [("com", True), ("sem", False)])
+def test_acionamento_list_filtra_por_status_de_franquia_via_get(
+    client, django_user_model, _fks_acionamento, status, espera_vinculado
+):
+    """DD-016/M5 (AC-08.1) — status via GET: ChoiceField traduz "com"/"sem"/vazio
+    para True/False/None no clean_status; o selector nunca vê strings de tela."""
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(**_dados_franquia(cliente, nome="Franquia"))
+
+    com = _acionamento_valido(cliente, responsavel, agente, franquia_agente=franquia)
+    com.save()
+    sem = _acionamento_valido(cliente, responsavel, agente, franquia_agente=None)
+    sem.save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_list")
+    response = client.get(url, {"status": status})
+
+    assert response.status_code == 200
+    esperado = com.pk if espera_vinculado else sem.pk
+    # Só o acionamento do status pedido (comparar pks, nunca HTML).
+    assert [a.pk for a in response.context["acionamentos"]] == [esperado]
+
+
+@pytest.mark.django_db
 @pytest.mark.parametrize("valor_querystring", ["9999", "abc"])
 def test_acionamento_list_filtro_invalido_e_tolerante(
     client, django_user_model, _fks_acionamento, valor_querystring
