@@ -1,7 +1,9 @@
 import pytest
 from datetime import timedelta
 from decimal import Decimal
+from urllib.parse import urlparse, parse_qs
 
+from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
 from django.core.exceptions import ValidationError
 from django.urls import reverse
@@ -2352,3 +2354,48 @@ def test_confirmacao_etapa1_reenvia_hidden_fieis_para_etapa2(
     mensagens = list(get_messages(resp2.wsgi_request))
     assert len(mensagens) == 1
     assert mensagens[0].level == message_constants.SUCCESS
+
+
+# ---------------------------------------------------------------------------
+# DD-016/M5 subtask 5 — hardening de autenticação (teste de caracterização).
+# A listagem é protegida por @login_required: um anônimo deve ser redirecionado
+# (302) para o LOGIN_URL, preservando o destino em ?next=. Nasce verde — apenas
+# caracteriza o comportamento já existente, não é red-green.
+# ---------------------------------------------------------------------------
+
+
+class TestHardeningAutenticacao:
+    @pytest.mark.django_db
+    def test_listagem_anonima_redireciona_para_login_com_next(self, client):
+        """Anônimo na listagem → 302 para o login com ?next= apontando à listagem."""
+        url_listagem = reverse("controle_acionamentos:acionamento_list")
+        response = client.get(url_listagem)
+
+        assert response.status_code == 302
+
+        redirect = urlparse(response.url)
+        assert redirect.path == reverse("login")
+        assert parse_qs(redirect.query)["next"] == [url_listagem]
+
+    @pytest.mark.django_db
+    def test_lote_anonimo_post_redireciona_para_login_com_next(self, client):
+        """Anônimo no POST do lote → 302 para o login ANTES do @require_POST/service."""
+        url_lote = reverse("controle_acionamentos:acionamento_vincular_franquia_lote")
+        response = client.post(url_lote, data={})
+
+        assert response.status_code == 302
+
+        redirect = urlparse(response.url)
+        assert redirect.path == reverse("login")
+        assert parse_qs(redirect.query)["next"] == [url_lote]
+
+    @pytest.mark.django_db
+    def test_listagem_autenticado_sem_permissao_retorna_403(self, client):
+        """Autenticado sem view_acionamento → 403 (permission_required raise_exception)."""
+        user = get_user_model().objects.create_user(username="comum", password="x")
+        client.force_login(user)
+
+        url_listagem = reverse("controle_acionamentos:acionamento_list")
+        response = client.get(url_listagem)
+
+        assert response.status_code == 403
