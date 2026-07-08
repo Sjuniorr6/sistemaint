@@ -1556,6 +1556,41 @@ def test_acionamento_list_filtra_por_status_de_franquia_via_get(
 
 
 @pytest.mark.django_db
+def test_acionamento_list_combina_cliente_e_status_via_get(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-016/M5 (AC-08.1) — composição de filtros na camada view/HTTP: dois
+    filtros juntos no GET (?cliente= E ?status=com) fazem interseção (AND). Só o
+    alvo casa os dois; cada quase-alvo difere por UM único critério. Espelha o
+    teste de composição do selector, mas provando o AND ponta a ponta pela view."""
+    cliente_a, responsavel, agente = _fks_acionamento
+    cliente_b = Cliente.objects.create(nome_empresa="Globex", cnpj="11444777000161")
+    franquia_a = FranquiaAgente.objects.create(**_dados_franquia(cliente_a, nome="Franquia A"))
+    # Franquia própria do cliente B: RN-06 proíbe franquia de A em acionamento de
+    # B, então o quase-alvo "outro cliente" também é COM franquia, diferindo SÓ
+    # pelo cliente.
+    franquia_b = FranquiaAgente.objects.create(**_dados_franquia(cliente_b, nome="Franquia B"))
+
+    # Alvo: cliente A + COM franquia (casa os dois critérios).
+    alvo = _acionamento_valido(cliente_a, responsavel, agente, franquia_agente=franquia_a)
+    alvo.save()
+    # Quase-alvo 1: outro cliente (B), mas COM franquia → cai pelo filtro de cliente.
+    _acionamento_valido(cliente_b, responsavel, agente, franquia_agente=franquia_b).save()
+    # Quase-alvo 2: cliente A, mas SEM franquia → cai pelo filtro de status.
+    _acionamento_valido(cliente_a, responsavel, agente, franquia_agente=None).save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_list")
+    response = client.get(url, {"cliente": cliente_a.pk, "status": "com"})
+
+    assert response.status_code == 200
+    # Só o alvo sobrevive à interseção dos dois filtros (comparar pks, nunca HTML).
+    assert [a.pk for a in response.context["acionamentos"]] == [alvo.pk]
+
+
+@pytest.mark.django_db
 def test_acionamento_list_pagina_com_25_por_pagina(
     client, django_user_model, _fks_acionamento
 ):
