@@ -1,4 +1,5 @@
 import pytest
+import time
 from datetime import timedelta
 from decimal import Decimal
 from urllib.parse import urlparse, parse_qs
@@ -1632,6 +1633,105 @@ def test_acionamento_list_pagina_com_25_por_pagina(
     resp2 = client.get(url, {"page": 2})
     assert resp2.status_code == 200
     assert len(resp2.context["acionamentos"]) == 5
+
+
+@pytest.mark.django_db
+def test_acionamento_list_carga_10k_responde_abaixo_de_500ms(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-016/M5 (subtask 6, critério de carga do PRD) — a listagem responde em
+    < 500ms com 10.000 acionamentos, tanto sem filtros (ordenação DESC +
+    paginação default) quanto com o filtro de intervalo de datas (lookup __date,
+    suspeito da ST4).
+
+    Semeadura via bulk_create(batch_size=1000) — NUNCA save() em loop (§7). Como
+    bulk_create pula o save()/recalcular_valor_agente, os campos obrigatórios E os
+    calculados são pré-preenchidos com valores fixos plausíveis (Decimal). Dados
+    variados (2 clientes, ~12 meses, com/sem franquia) dão seletividade real ao
+    filtro de data."""
+    cliente_a, responsavel, agente = _fks_acionamento
+    cliente_b = Cliente.objects.create(nome_empresa="Globex", cnpj="11444777000161")
+    franquia_a = FranquiaAgente.objects.create(**_dados_franquia(cliente_a, nome="Franquia A"))
+    franquia_b = FranquiaAgente.objects.create(**_dados_franquia(cliente_b, nome="Franquia B"))
+
+    base = timezone.now()
+    TOTAL = 10_000
+
+    lote = []
+    for i in range(TOTAL):
+        # Cliente alterna A/B; franquia sempre coerente com o cliente (RN-06),
+        # e 1 em cada 3 nasce SEM franquia — dá as duas populações ao filtro.
+        usa_a = (i % 2 == 0)
+        cliente = cliente_a if usa_a else cliente_b
+        tem_franquia = (i % 3 != 0)
+        franquia = (franquia_a if usa_a else franquia_b) if tem_franquia else None
+
+        # Datas espalhadas por ~12 meses (dias 0..364), com hora variando também.
+        solicitado = base - timedelta(days=i % 365, hours=i % 24)
+        lote.append(
+            Acionamento(
+                cliente=cliente,
+                responsavel_agente=responsavel,
+                agente=agente,
+                franquia_agente=franquia,
+                nome_servico="Reboque leve",
+                valor_acionamento=Decimal("150.00"),
+                franquia_km=80,
+                franquia_horas=Decimal("4.00"),
+                valor_km_excedente=Decimal("2.50"),
+                valor_hora_excedente=Decimal("30.00"),
+                origem="São Paulo - SP",
+                destino="Campinas - SP",
+                data_hora_solicitado=solicitado,
+                data_hora_inicio=solicitado + timedelta(minutes=30),
+                data_hora_final=solicitado + timedelta(hours=3),
+                km_inicio=1000,
+                km_final=1120,
+                pedagio=Decimal("0.00"),
+                # Calculados (RN-07): bulk_create pula o service, então fixos e
+                # plausíveis só para satisfazer a leitura da listagem.
+                km_total=120,
+                horas_total=Decimal("2.50"),
+                km_excedente=40,
+                hora_excedente=Decimal("0.00"),
+                valor_agente=Decimal("250.00"),
+            )
+        )
+
+    Acionamento.objects.bulk_create(lote, batch_size=1000)
+    assert Acionamento.objects.count() == TOTAL  # sanidade da semeadura
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_list")
+
+    # Cenário (a): listagem sem filtros — DESC + paginação default.
+    t0 = time.perf_counter()
+    resp_sem = client.get(url)
+    dt_sem = time.perf_counter() - t0
+    assert resp_sem.status_code == 200
+
+    # Cenário (b): filtro por intervalo de datas (últimos 30 dias) — lookup __date.
+    t1 = time.perf_counter()
+    resp_data = client.get(
+        url,
+        {"data_de": (base - timedelta(days=30)).date().isoformat(),
+         "data_ate": base.date().isoformat()},
+    )
+    dt_data = time.perf_counter() - t1
+    assert resp_data.status_code == 200
+
+    # Sanidade: a paginação está de pé sob carga (página 1 cheia = 25).
+    assert len(resp_sem.context["acionamentos"]) == 25
+
+    print(
+        f"\n[CARGA 10k] sem filtro: {dt_sem * 1000:.1f} ms | "
+        f"filtro data (__date): {dt_data * 1000:.1f} ms | limite: 500 ms"
+    )
+
+    assert dt_sem < 0.5, f"listagem sem filtro levou {dt_sem * 1000:.1f} ms (limite 500)"
+    assert dt_data < 0.5, f"listagem c/ filtro de data levou {dt_data * 1000:.1f} ms (limite 500)"
 
 
 @pytest.mark.django_db
