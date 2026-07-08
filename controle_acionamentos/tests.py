@@ -77,6 +77,33 @@ def test_cnh_tamanho_errado_retorna_false():
     assert validar_cnh('') is False
 
 
+def test_cnh_dv1_estoura_vira_zero_com_desconto():
+    """dv1 >= 10 (soma1 % 11 == 10) → dv1 = 0 e marca desconto=2 (services.py 126-127).
+
+    Base 816184959: soma1 = 230, 230 % 11 = 10 → dv1 = 0; soma2 = 280,
+    280 % 11 = 5, dv2 = 5 - 2 = 3. CNH válida = base + '0' + '3'.
+    """
+    assert validar_cnh('81618495903') is True
+
+
+def test_cnh_dv2_negativo_soma_onze():
+    """dv2 < 0 após o desconto → dv2 += 11 (services.py 136), ainda com dv1 estourado.
+
+    Base 104332181: soma1 = 98, 98 % 11 = 10 → dv1 = 0, desconto=2;
+    soma2 = 132, 132 % 11 = 0, dv2 = 0 - 2 = -2 → +11 = 9. CNH válida = base + '0' + '9'.
+    """
+    assert validar_cnh('10433218109') is True
+
+
+def test_cnh_dv2_estoura_vira_zero():
+    """dv2 >= 10 (soma2 % 11 == 10, sem desconto) → dv2 = 0 (services.py 138).
+
+    Base 627048281: soma1 = 194, 194 % 11 = 7 → dv1 = 7 (desconto=0);
+    soma2 = 186, 186 % 11 = 10 → dv2 = 10 → 0. CNH válida = base + '7' + '0'.
+    """
+    assert validar_cnh('62704828170') is True
+
+
 @pytest.mark.django_db
 def test_responsavel_agente_persiste_com_nome_valido():
     responsavel = ResponsavelAgente.objects.create(nome="João Supervisor")
