@@ -1,0 +1,43 @@
+/* Tema Noite/Âmbar — DD-032 · escopo 100% local ao app controle_acionamentos */
+
+.acn-escopo {
+  /* Pele NOITE (padrão) */
+  --acn-bg: #0D1117;
+  --acn-surface: #161D27;
+  --acn-line: #232C38;
+  --acn-text: #E7EAF0;
+  --acn-gold: #E8B84B;
+  --acn-gold-texto: #E8B84B;
+  --acn-danger: #F0635C;
+  --acn-font-ui: 'Archivo', 'Segoe UI', system-ui, sans-serif;
+  --acn-font-mono: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
+
+  background: var(--acn-bg);
+  color: var(--acn-text);
+  font-family: var(--acn-font-ui);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.acn-escopo.acn-ambar {
+  /* Pele ÂMBAR (clara) */
+  --acn-bg: #F5EFE2;
+  --acn-surface: #FDFAF2;
+  --acn-line: #E8DFC9;
+  --acn-text: #2A241A;
+  --acn-gold: #E8B84B;
+  --acn-gold-texto: #9A730E;
+  --acn-danger: #C0392B;
+}
+
+.acn-btn-tema {
+  background: transparent;
+  color: var(--acn-text);
+  border: 1px solid var(--acn-line);
+  border-radius: 999px;
+  padding: 0.3rem 0.9rem;
+  font-family: var(--acn-font-mono);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.acn-btn-tema:hover { border-color: var(--acn-gold); }
