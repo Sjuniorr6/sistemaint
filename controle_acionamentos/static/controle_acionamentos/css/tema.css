@@ -313,3 +313,60 @@ a.acn-badge-codigo:hover {
   background: var(--acn-gold);
   color: var(--acn-sobre-dourado);
 }
+
+/* Texto em destaque dourado inline (ex.: nome da franquia no alerta de sobrescrita). */
+.acn-escopo .acn-texto-dourado { color: var(--acn-gold-texto); }
+
+/* Botão de perigo: ÚNICA ocorrência de vermelho no sistema (confirmação de
+   sobrescrita, AC-06.5). Pill, vermelho da pele, texto claro. */
+.acn-escopo .btn-danger {
+  background: var(--acn-danger);
+  border-color: var(--acn-danger);
+  color: #fff;  /* branco: contraste legível sobre o vermelho nas duas peles */
+  border-radius: 999px;
+  font-weight: 600;
+}
+.acn-escopo .btn-danger:hover {
+  background: color-mix(in srgb, var(--acn-danger) 88%, #000);
+  border-color: color-mix(in srgb, var(--acn-danger) 88%, #000);
+  color: #fff;
+}
+
+/* Rodapé de ação: card com texto à esquerda e botões à direita. */
+.acn-escopo .acn-rodape-acao {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  background: var(--acn-surface);
+  border: 1px solid var(--acn-line);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+}
+
+/* Alerta âmbar do tema (ex.: confirmação de sobrescrita) — mesma técnica dos
+   alerts da ST2 (color-mix sobre variável da pele), mas preenchido com a surface
+   para o tom âmbar acompanhar a pele: escuro-âmbar no Noite, creme no Âmbar. */
+.acn-escopo .alert-warning {
+  background: color-mix(in srgb, var(--acn-gold) 18%, var(--acn-surface));
+  border: 1px solid color-mix(in srgb, var(--acn-gold) 50%, var(--acn-surface));
+  color: var(--acn-text);
+}
+
+/* Full-bleed: escapa a moldura .container (max-width 1140px) que o base.html
+   aplica globalmente ao block content, para o app ocupar a largura útil inteira.
+   Regra à parte para não mexer nas demais declarações de .acn-escopo (peles etc.).
+   Remover quando o base.html oferecer um block/override de largura — item na
+   pauta de superfícies compartilhadas. */
+.acn-escopo {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  /* Respiro lateral responsivo (prevalece sobre o padding 1.5rem da regra base
+     de .acn-escopo, por vir depois no arquivo). */
+  padding: 1.5rem clamp(1.25rem, 3vw, 3rem);
+  /* 140px aproxima navbar global + margens do base.html (py-3 + mt-4); calibrável
+     a olho no navegador — ajustar se sobrar faixa cinza embaixo ou nascer scroll
+     vertical em tela vazia. */
+  min-height: calc(100vh - 140px);
+}
