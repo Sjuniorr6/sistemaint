@@ -41,3 +41,95 @@
   cursor: pointer;
 }
 .acn-btn-tema:hover { border-color: var(--acn-gold); }
+
+/* ===== ST2 — camada de componentes (form e detalhe) ===== */
+
+.acn-escopo { --acn-muted: #99A3B3; }
+.acn-escopo.acn-ambar { --acn-muted: #6F6654; }
+
+.acn-escopo .card {
+  background: var(--acn-surface);
+  border: 1px solid var(--acn-line);
+  color: var(--acn-text);
+  border-radius: 10px;
+}
+.acn-escopo .card-header {
+  background: transparent;
+  border-bottom: 1px solid var(--acn-line);
+  color: var(--acn-text);
+}
+.acn-escopo .card.border-primary { border-color: var(--acn-gold) !important; }
+
+.acn-escopo label,
+.acn-escopo .form-label,
+.acn-escopo dt,
+.acn-escopo dd { color: var(--acn-text); }
+.acn-escopo .text-muted,
+.acn-escopo .form-text { color: var(--acn-muted) !important; }
+
+.acn-escopo .form-control,
+.acn-escopo .form-select {
+  background: var(--acn-bg);
+  border: 1px solid var(--acn-line);
+  color: var(--acn-text);
+}
+.acn-escopo .form-control:focus,
+.acn-escopo .form-select:focus {
+  background: var(--acn-bg);
+  color: var(--acn-text);
+  border-color: var(--acn-gold);
+  box-shadow: 0 0 0 0.2rem rgba(232, 184, 75, 0.25);
+}
+
+.acn-escopo .btn-primary {
+  background: var(--acn-gold);
+  border-color: var(--acn-gold);
+  color: #1F1A0E;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.acn-escopo .btn-primary:hover,
+.acn-escopo .btn-primary:focus {
+  background: var(--acn-gold);
+  border-color: var(--acn-gold);
+  color: #1F1A0E;
+  filter: brightness(1.06);
+}
+.acn-escopo .btn-outline-secondary {
+  color: var(--acn-text);
+  border-color: var(--acn-line);
+  border-radius: 999px;
+}
+.acn-escopo .btn-outline-secondary:hover {
+  background: var(--acn-surface);
+  border-color: var(--acn-gold);
+  color: var(--acn-text);
+}
+
+.acn-escopo .display-4 {
+  color: var(--acn-gold-texto);
+  font-family: var(--acn-font-mono);
+  font-weight: 800;
+}
+
+.acn-escopo ul.errorlist {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+  font-size: 0.875rem;
+}
+.acn-escopo .text-danger { color: var(--acn-danger) !important; }
+
+.acn-escopo .alert-danger,
+.acn-escopo .alert-error {
+  background: color-mix(in srgb, var(--acn-danger) 12%, transparent);
+  border: 1px solid var(--acn-danger);
+  color: var(--acn-text);
+}
+.acn-escopo .alert-success {
+  background: color-mix(in srgb, #5AB478 14%, transparent);
+  border: 1px solid #5AB478;
+  color: var(--acn-text);
+}
+.acn-escopo .btn-close { filter: invert(1) grayscale(1); }
+.acn-escopo.acn-ambar .btn-close { filter: none; }

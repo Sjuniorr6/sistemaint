@@ -3,6 +3,18 @@
 {% block title %}| Acionamento #{{ acionamento.pk }} |{% endblock %}
 
 {% block content %}
+<div class="acn-escopo">
+  {% include 'controle_acionamentos/_tema.html' %}
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
 <div class="container mt-4">
 
   {# — Cabeçalho — #}
@@ -27,9 +39,7 @@
     </div>
   </div>
 
-  {# ============================================================
-     CARD-HERÓI — valor a pagar + métricas do cálculo (RN-07)
-     ============================================================ #}
+  {% comment %} ==== CARD-HERÓI — valor a pagar + métricas do cálculo (RN-07) ==== {% endcomment %}
   <div class="card border-primary mb-4">
     <div class="card-body">
       <div class="row align-items-center">
@@ -37,7 +47,7 @@
         {# — Valor a pagar (destaque) — #}
         <div class="col-md-6 mb-3 mb-md-0">
           <div class="text-muted small text-uppercase">Valor a pagar ao agente</div>
-          <div class="display-4 fw-bold text-primary">
+          <div class="display-4">
             {% if acionamento.valor_agente is not None %}R$ {{ acionamento.valor_agente|floatformat:2 }}{% else %}—{% endif %}
           </div>
         </div>
@@ -76,9 +86,7 @@
     </div>
   </div>
 
-  {# ============================================================
-     DADOS DE ORIGEM — leitura, espelhando as seções do form
-     ============================================================ #}
+  {% comment %} ==== DADOS DE ORIGEM — leitura, espelhando as seções do form ==== {% endcomment %}
 
   {# — Cliente — #}
   <div class="card mb-3">
@@ -200,5 +208,6 @@
     <a href="{% url 'controle_acionamentos:index' %}" class="btn btn-outline-secondary">Início</a>
   </div>
 
+</div>
 </div>
 {% endblock %}
