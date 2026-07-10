@@ -6,19 +6,9 @@
 
 {% block content %}
 <div class="acn-escopo">
-  {% include 'controle_acionamentos/_tema.html' %}
+  {% include 'controle_acionamentos/_cabecalho.html' with titulo="Acionamentos" subtitulo="Consulte, filtre, edite pedágios e vincule franquias em lote" ativo="acionamentos" botao_novo=perms.controle_acionamentos.add_acionamento %}
 
 <div class="container-fluid mt-4">
-
-  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
-    <div>
-      <h3 class="mb-1">Acionamentos</h3>
-      <p class="text-muted">Serviços registrados, do mais recente ao mais antigo.</p>
-    </div>
-    {% if perms.controle_acionamentos.add_acionamento %}
-      <a href="{% url 'controle_acionamentos:acionamento_create' %}" class="btn btn-primary">Novo acionamento</a>
-    {% endif %}
-  </div>
 
   {% if messages %}
     {% for message in messages %}
