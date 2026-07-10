@@ -133,3 +133,69 @@
 }
 .acn-escopo .btn-close { filter: invert(1) grayscale(1); }
 .acn-escopo.acn-ambar .btn-close { filter: none; }
+
+/* ===== ST3 — listagem ===== */
+.acn-escopo .acn-mono { font-family: var(--acn-font-mono); }
+
+.acn-escopo .table {
+  --bs-table-bg: transparent;
+  --bs-table-striped-bg: color-mix(in srgb, var(--acn-surface) 55%, transparent);
+  --bs-table-striped-color: var(--acn-text);
+  --bs-table-color: var(--acn-text);
+  --bs-table-border-color: var(--acn-line);
+  color: var(--acn-text);
+  border-color: var(--acn-line);
+}
+.acn-escopo .table thead th {
+  color: var(--acn-muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--acn-line);
+}
+
+.acn-escopo .acn-badge-franquia,
+.acn-escopo .acn-badge-inline {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-family: var(--acn-font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+.acn-escopo .acn-badge-franquia {
+  color: var(--acn-gold-texto);
+  border: 1px solid color-mix(in srgb, var(--acn-gold) 55%, transparent);
+  background: color-mix(in srgb, var(--acn-gold) 12%, transparent);
+}
+.acn-escopo .acn-badge-inline {
+  color: var(--acn-muted);
+  border: 1px solid var(--acn-line);
+  background: transparent;
+}
+
+.acn-escopo .btn-warning {
+  background: var(--acn-gold);
+  border-color: var(--acn-gold);
+  color: #1F1A0E;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.acn-escopo .btn-warning:hover { filter: brightness(1.06); background: var(--acn-gold); border-color: var(--acn-gold); color: #1F1A0E; }
+
+.acn-escopo .acn-lote-titulo {
+  font-family: var(--acn-font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  color: var(--acn-muted);
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
+}
+
+.acn-escopo .acn-vazio {
+  text-align: center;
+  color: var(--acn-muted);
+  padding: 2.5rem 1rem;
+}

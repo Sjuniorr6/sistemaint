@@ -26,12 +26,14 @@ def listar_acionamentos(cliente=None, agente=None, data_de=None, data_ate=None,
     todos. A tradução do vocabulário de tela ("Todos/Com/Sem" → booleano)
     pertence ao form (subtask 2), não aqui.
 
-    select_related em cliente/agente: o template exibe esses dois por linha;
-    sem o join, seria uma query por FK por linha (N+1) na renderização.
+    select_related em cliente/agente/franquia_agente: o template exibe os três por
+    linha; sem o join, seria uma query por FK por linha (N+1) na renderização.
+    franquia_agente entrou em DD-032/ST3, quando a listagem passou a exibir a
+    franquia por linha (coluna Franquia) — antes só cliente/agente eram exibidos.
     """
     qs = (
         Acionamento.objects
-        .select_related("cliente", "agente")
+        .select_related("cliente", "agente", "franquia_agente")
         .order_by("-data_hora_solicitado")
     )
     if cliente is not None:

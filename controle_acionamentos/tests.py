@@ -1023,6 +1023,43 @@ def test_listar_acionamentos_combina_todos_os_filtros_preservando_desc(_fks_acio
 
 
 @pytest.mark.django_db
+def test_listar_acionamentos_com_franquia_acessivel_sem_n_mais_1(
+    _fks_acionamento, django_assert_num_queries
+):
+    """DD-032/ST3 — trava o N+1 da coluna Franquia da listagem.
+
+    A ST3 passa a exibir {{ a.franquia_agente.nome }} por linha da tabela. Sem
+    select_related("franquia_agente") no selector, cada linha COM franquia
+    dispararia uma query lazy extra ao acessar o nome (N+1): a contagem cresceria
+    com o nº de linhas. Este teste fixa o contrato de que avaliar o queryset E
+    tocar a franquia de TODAS as linhas custa uma contagem CONSTANTE de queries
+    (=1), independente do nº de registros — a garantia do §7/nº10.
+
+    Fase RED do TDD: hoje o selector só faz select_related de cliente/agente, então
+    este teste FALHA (5 queries: a base + 4 lazy loads das franquias vinculadas).
+    """
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(**_dados_franquia(cliente, nome="Franquia"))
+
+    # 4 acionamentos COM franquia (cada um seria um lazy load) e 2 SEM (FK nula
+    # não dispara query — cobre o ramo do if a.franquia_agente_id).
+    for _ in range(4):
+        _acionamento_valido(cliente, responsavel, agente, franquia_agente=franquia).save()
+    for _ in range(2):
+        _acionamento_valido(cliente, responsavel, agente, franquia_agente=None).save()
+
+    from controle_acionamentos.selectors import listar_acionamentos
+
+    # Uma única query: a avaliação da lista. Acessar a.franquia_agente.nome de
+    # cada linha COM franquia não pode gerar query nova — checa-se pelo _id (que
+    # já está na linha) para não disparar o lazy load justamente ao testá-lo.
+    with django_assert_num_queries(1):
+        acionamentos = list(listar_acionamentos())
+        for a in acionamentos:
+            _ = a.franquia_agente.nome if a.franquia_agente_id else None
+
+
+@pytest.mark.django_db
 def test_listar_franquias_por_cliente_filtra_e_ordena_por_nome(_fks_acionamento):
     """DD-015/M4 (AC-06.3) — select de franquias do vínculo em lote mostra só
     franquias do cliente filtrado, em ordem alfabética (ordering explícito no
