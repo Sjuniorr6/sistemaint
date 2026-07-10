@@ -371,5 +371,15 @@ class Acionamento(models.Model):
         recalcular_valor_agente(self)
         super().save(*args, **kwargs)
 
+    @property
+    def codigo(self):
+        """Código de exibição do acionamento (DD-032): "ACN-" + pk zero-padded a 6 dígitos.
+
+        Exibição pura — sem coluna, sem migration; deriva do pk. Fonte única do
+        formato: templates devem usar {{ acionamento.codigo }}, nunca formatar
+        o pk manualmente.
+        """
+        return f"ACN-{self.pk:06d}"
+
     def __str__(self):
         return f"{self.nome_servico} ({self.cliente.nome_empresa})"

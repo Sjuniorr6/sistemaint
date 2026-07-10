@@ -708,6 +708,31 @@ def test_acionamento_valido_com_franquia_mesmo_cliente_passa(_fks_acionamento):
 
 
 @pytest.mark.django_db
+def test_acionamento_codigo_formata_pk_zero_padded_6_digitos(_fks_acionamento):
+    """DD-032/ST4 — a property `codigo` é exibição pura: f"ACN-{pk:06d}", sem
+    coluna nem migration (deriva do pk existente). O formato é fixado pela spec
+    visual do badge (ex.: ACN-000031): prefixo "ACN-" + pk com zero-padding a 6
+    dígitos.
+
+    Depende de pk → o acionamento é PERSISTIDO antes de ler o código.
+
+    Nota: o assert de comprimento (==10) vale enquanto o pk couber em 6 dígitos;
+    se um dia passar de 999999, o :06d cresce naturalmente e este comprimento
+    deve ser revisto (o formato f"ACN-{pk:06d}" continua correto).
+
+    Fase RED do TDD: a property `codigo` ainda não existe no model, então o
+    acesso a ac.codigo levanta AttributeError.
+    """
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()  # sem pk não há código
+
+    assert ac.codigo == f"ACN-{ac.pk:06d}"
+    # Exemplo concreto do formato legível: pk=1 → "ACN-000001".
+    assert ac.codigo.startswith("ACN-") and len(ac.codigo) == 10
+
+
+@pytest.mark.django_db
 def test_acionamento_inicio_igual_solicitado_passa(_fks_acionamento):
     """RN-04 (limite ≤) — início == solicitação é VÁLIDO; só anterior é rejeitado."""
     cliente, responsavel, agente = _fks_acionamento

@@ -24,7 +24,7 @@
   {# — Linha de identificação — #}
   <div class="d-flex justify-content-between align-items-start flex-wrap mb-3">
     <div>
-      <span class="badge bg-secondary me-2">ACN-{{ acionamento.pk }}</span>
+      <span class="acn-badge-codigo me-2">{{ acionamento.codigo }}</span>
       <span class="fw-bold fs-5">{{ acionamento.nome_servico }}</span>
       <div class="text-muted small mt-1">
         {{ acionamento.cliente }} · {{ acionamento.agente }} · {{ acionamento.data_hora_solicitado|date:"d/m/Y H:i" }}
@@ -32,15 +32,15 @@
     </div>
     <div>
       {% if acionamento.franquia_agente %}
-        <span class="badge bg-warning text-dark">FRANQUIA: {{ acionamento.franquia_agente }}</span>
+        <span class="acn-badge-franquia">FRANQUIA: {{ acionamento.franquia_agente }}</span>
       {% else %}
-        <span class="badge bg-light text-dark border">INLINE</span>
+        <span class="acn-badge-inline">INLINE</span>
       {% endif %}
     </div>
   </div>
 
   {% comment %} ==== CARD-HERÓI — valor a pagar + métricas do cálculo (RN-07) ==== {% endcomment %}
-  <div class="card border-primary mb-4">
+  <div class="card border-primary mb-4 acn-hero">
     <div class="card-body">
       <div class="row align-items-center">
 
@@ -56,27 +56,35 @@
         <div class="col-md-6">
           <div class="row">
             <div class="col-6 mb-3">
-              <div class="text-muted small text-uppercase">KM total</div>
-              <div class="fw-bold">
-                {% if acionamento.km_total is not None %}{{ acionamento.km_total }} km{% else %}—{% endif %}
+              <div class="acn-metrica">
+                <div class="text-muted small text-uppercase">KM total</div>
+                <div class="fw-bold acn-mono">
+                  {% if acionamento.km_total is not None %}{{ acionamento.km_total }} km{% else %}—{% endif %}
+                </div>
               </div>
             </div>
             <div class="col-6 mb-3">
-              <div class="text-muted small text-uppercase">Horas totais</div>
-              <div class="fw-bold">
-                {% if acionamento.horas_total is not None %}{{ acionamento.horas_total|floatformat:2 }} h{% else %}—{% endif %}
+              <div class="acn-metrica">
+                <div class="text-muted small text-uppercase">Horas totais</div>
+                <div class="fw-bold acn-mono">
+                  {% if acionamento.horas_total is not None %}{{ acionamento.horas_total|floatformat:2 }} h{% else %}—{% endif %}
+                </div>
               </div>
             </div>
             <div class="col-6">
-              <div class="text-muted small text-uppercase">KM excedente</div>
-              <div class="fw-bold">
-                {% if acionamento.km_excedente is not None %}{{ acionamento.km_excedente }} km{% else %}—{% endif %}
+              <div class="acn-metrica">
+                <div class="text-muted small text-uppercase">KM excedente</div>
+                <div class="fw-bold acn-mono">
+                  {% if acionamento.km_excedente is not None %}{{ acionamento.km_excedente }} km{% else %}—{% endif %}
+                </div>
               </div>
             </div>
             <div class="col-6">
-              <div class="text-muted small text-uppercase">Hora excedente</div>
-              <div class="fw-bold">
-                {% if acionamento.hora_excedente is not None %}{{ acionamento.hora_excedente|floatformat:2 }} h{% else %}—{% endif %}
+              <div class="acn-metrica">
+                <div class="text-muted small text-uppercase">Hora excedente</div>
+                <div class="fw-bold acn-mono">
+                  {% if acionamento.hora_excedente is not None %}{{ acionamento.hora_excedente|floatformat:2 }} h{% else %}—{% endif %}
+                </div>
               </div>
             </div>
           </div>

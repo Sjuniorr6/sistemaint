@@ -10,8 +10,15 @@
 
 <div class="container mt-4">
 
-  <h3 class="mb-1">Acionamentos</h3>
-  <p class="text-muted">Serviços registrados, do mais recente ao mais antigo.</p>
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+    <div>
+      <h3 class="mb-1">Acionamentos</h3>
+      <p class="text-muted">Serviços registrados, do mais recente ao mais antigo.</p>
+    </div>
+    {% if perms.controle_acionamentos.add_acionamento %}
+      <a href="{% url 'controle_acionamentos:acionamento_create' %}" class="btn btn-primary">Novo acionamento</a>
+    {% endif %}
+  </div>
 
   {% if messages %}
     {% for message in messages %}
@@ -100,6 +107,7 @@
           {% if cliente_filtrado and perms.controle_acionamentos.change_acionamento %}
             <th></th>
           {% endif %}
+          <th>Acionamento</th>
           <th>Cliente / Serviço</th>
           <th>Agente</th>
           <th>Data solicitação</th>
@@ -117,6 +125,9 @@
                        name="acionamentos" value="{{ a.pk }}">
               </td>
             {% endif %}
+            <td>
+              <a href="{% url 'controle_acionamentos:acionamento_detail' a.pk %}" class="acn-badge-codigo">{{ a.codigo }}</a>
+            </td>
             <td>
               <div class="fw-semibold">{{ a.cliente }}</div>
               <div class="text-muted small">{{ a.nome_servico }}</div>
@@ -148,11 +159,11 @@
           <tr>
             {# Filtro ativo = qualquer name real do FiltroAcionamentosForm veio na querystring. #}
             {% if request.GET.cliente or request.GET.agente or request.GET.data_de or request.GET.data_ate or request.GET.status %}
-              <td colspan="{% if cliente_filtrado and perms.controle_acionamentos.change_acionamento %}7{% else %}6{% endif %}"
+              <td colspan="{% if cliente_filtrado and perms.controle_acionamentos.change_acionamento %}8{% else %}7{% endif %}"
                   class="acn-vazio">Nenhum acionamento corresponde aos filtros.
                 <a href="{% url 'controle_acionamentos:acionamento_list' %}" class="btn btn-outline-secondary btn-sm ms-2">Limpar filtros</a></td>
             {% else %}
-              <td colspan="{% if cliente_filtrado and perms.controle_acionamentos.change_acionamento %}7{% else %}6{% endif %}"
+              <td colspan="{% if cliente_filtrado and perms.controle_acionamentos.change_acionamento %}8{% else %}7{% endif %}"
                   class="acn-vazio">Nenhum acionamento registrado ainda.
                 <a href="{% url 'controle_acionamentos:acionamento_create' %}" class="btn btn-outline-secondary btn-sm ms-2">Registrar o primeiro acionamento</a></td>
             {% endif %}
