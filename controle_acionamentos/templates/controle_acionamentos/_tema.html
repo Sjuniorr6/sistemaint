@@ -1,11 +1,6 @@
-{% load static %}
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{% static 'controle_acionamentos/css/tema.css' %}">
+{% include 'controle_acionamentos/_tema_assets.html' %}
 <div class="d-flex justify-content-end mb-3">
   <button type="button" id="acn-btn-tema" class="acn-btn-tema" title="Alternar paleta Noite/Âmbar">
     🌓 Paleta: <span id="acn-rotulo-tema">Noite</span>
   </button>
 </div>
-<script src="{% static 'controle_acionamentos/js/tema.js' %}" defer></script>

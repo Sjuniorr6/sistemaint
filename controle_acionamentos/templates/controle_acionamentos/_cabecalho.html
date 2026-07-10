@@ -1,0 +1,42 @@
+{% comment %}
+  Cabeçalho do app controle_acionamentos (DD-032/ST6) — faixa superior única.
+
+  Parâmetros aceitos (via {% include ... with titulo=... %}):
+    titulo     — título da tela (h1 pequeno, à esquerda).
+    subtitulo  — linha de apoio muted, abaixo do título (opcional).
+    ativo      — item de navegação em destaque: "inicio" | "acionamentos" | "novo".
+    botao_novo — se truthy, mostra o botão pill dourado "Novo acionamento".
+
+  Inclui os assets do tema via _tema_assets.html (fonte única de fontes/CSS/JS).
+  O toggle de paleta mantém os ids #acn-btn-tema / #acn-rotulo-tema que o
+  tema.js localiza — NÃO renomear.
+
+  Migração: o partial _tema.html (assets + só o toggle) será APOSENTADO quando
+  todas as telas migrarem para este cabeçalho.
+{% endcomment %}
+{% include 'controle_acionamentos/_tema_assets.html' %}
+<div class="acn-cabecalho">
+  <div class="acn-cabecalho-esq">
+    <h1 class="acn-cabecalho-titulo">{{ titulo }}</h1>
+    {% if subtitulo %}<div class="acn-cabecalho-sub">{{ subtitulo }}</div>{% endif %}
+  </div>
+
+  <div class="acn-cabecalho-dir">
+    {% comment %} (a) Botão de ação opcional — só quando botao_novo é truthy. {% endcomment %}
+    {% if botao_novo %}
+      <a href="{% url 'controle_acionamentos:acionamento_create' %}" class="btn btn-primary">Novo acionamento</a>
+    {% endif %}
+
+    {% comment %} (b) Toggle de paleta — ids preservados para o tema.js. {% endcomment %}
+    <button type="button" id="acn-btn-tema" class="acn-btn-tema" title="Alternar paleta Noite/Âmbar">
+      🌓 Paleta: <span id="acn-rotulo-tema">Noite</span>
+    </button>
+
+    {% comment %} (c) Navegação pill; item ativo via parâmetro {{ ativo }}. {% endcomment %}
+    <nav class="acn-nav">
+      <a href="{% url 'controle_acionamentos:index' %}" class="{% if ativo == 'inicio' %}acn-nav-ativo{% endif %}">Início</a>
+      <a href="{% url 'controle_acionamentos:acionamento_list' %}" class="{% if ativo == 'acionamentos' %}acn-nav-ativo{% endif %}">Acionamentos</a>
+      <a href="{% url 'controle_acionamentos:acionamento_create' %}" class="{% if ativo == 'novo' %}acn-nav-ativo{% endif %}">Novo</a>
+    </nav>
+  </div>
+</div>

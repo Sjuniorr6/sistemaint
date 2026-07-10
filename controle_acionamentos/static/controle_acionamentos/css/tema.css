@@ -8,6 +8,7 @@
   --acn-text: #E7EAF0;
   --acn-gold: #E8B84B;
   --acn-gold-texto: #E8B84B;
+  --acn-sobre-dourado: #1F1A0E;  /* cor de contraste sobre dourado — pill ativo da nav e futuros usos sobre var(--acn-gold) */
   --acn-danger: #F0635C;
   --acn-font-ui: 'Archivo', 'Segoe UI', system-ui, sans-serif;
   --acn-font-mono: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
@@ -27,6 +28,7 @@
   --acn-text: #2A241A;
   --acn-gold: #E8B84B;
   --acn-gold-texto: #9A730E;
+  --acn-sobre-dourado: #1F1A0E;  /* cor de contraste sobre dourado — pill ativo da nav e futuros usos sobre var(--acn-gold) */
   --acn-danger: #C0392B;
 }
 
@@ -259,4 +261,55 @@ a.acn-badge-codigo:hover {
   color: var(--acn-gold-texto);
   font-weight: 800;
   font-size: 1.05rem;
+}
+
+/* ===== ST6 — cabeçalho do app (componente _cabecalho.html) ===== */
+.acn-escopo .acn-cabecalho {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--acn-line);
+}
+.acn-escopo .acn-cabecalho-titulo {
+  font-family: var(--acn-font-ui);
+  font-weight: 800;
+  font-size: 1.4rem;
+  margin: 0;
+  color: var(--acn-text);
+}
+.acn-escopo .acn-cabecalho-sub {
+  color: var(--acn-muted);
+  font-size: 0.85rem;
+}
+.acn-escopo .acn-cabecalho-dir {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.acn-escopo .acn-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--acn-surface);
+  border: 1px solid var(--acn-line);
+  border-radius: 999px;
+  padding: 0.2rem;
+}
+.acn-escopo .acn-nav a {
+  color: var(--acn-muted);
+  text-decoration: none;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.85rem;
+  border-radius: 999px;
+}
+.acn-escopo .acn-nav a:hover {
+  color: var(--acn-text);
+}
+.acn-escopo .acn-nav a.acn-nav-ativo {
+  background: var(--acn-gold);
+  color: var(--acn-sobre-dourado);
 }
