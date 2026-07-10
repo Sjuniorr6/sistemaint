@@ -15,7 +15,7 @@ from .forms import (
 )
 from .models import Acionamento, FranquiaAgente
 from .selectors import listar_acionamentos, listar_franquias_por_cliente
-from .services import vincular_franquia_em_lote
+from .services import compor_valor_agente, vincular_franquia_em_lote
 
 
 @login_required
@@ -118,12 +118,17 @@ def acionamento_create(request):
 @login_required
 @permission_required("controle_acionamentos.view_acionamento", raise_exception=True)
 def acionamento_detail(request, pk):
-    """Detalhe de um Acionamento — somente leitura."""
+    """Detalhe de um Acionamento — somente leitura.
+
+    O extrato de parcelas (DD-032/ST5) é recomposto pelo service, sem persistir;
+    a view só delega e entrega ao template.
+    """
     acionamento = get_object_or_404(Acionamento, pk=pk)
+    composicao = compor_valor_agente(acionamento)
     return render(
         request,
         "controle_acionamentos/acionamento_detail.html",
-        {"acionamento": acionamento},
+        {"acionamento": acionamento, "composicao": composicao},
     )
 
 

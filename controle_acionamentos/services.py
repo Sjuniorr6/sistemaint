@@ -262,6 +262,49 @@ def calcular_valor_agente(entrada: EntradaCalculoAgente) -> ResultadoCalculoAgen
     )
 
 
+def _resolver_entrada(acionamento):
+    """Resolve a FONTE do cálculo e monta a entrada da calculadora (§8.1/RN-08).
+
+    Havendo franquia vinculada, ela faz OVERRIDE do serviço inline — todas as
+    tarifas e valores-base (e o escalonamento) vêm da franquia; sem franquia,
+    usa-se o inline do próprio acionamento, sem escalonamento. As tarifas da
+    ``entrada`` retornada JÁ são as da fonte resolvida (nunca cegas do inline
+    quando há franquia — a armadilha do RN-08). Requer km_total/horas_total já
+    derivados (§8.2). Retorna ``(entrada, fonte_franquia)``.
+
+    Compartilhado por ``recalcular_valor_agente`` (persistência) e
+    ``compor_valor_agente`` (extrato de exibição), para que os dois leiam a MESMA
+    fonte e nunca divirjam.
+    """
+    if acionamento.franquia_agente:
+        fonte = acionamento.franquia_agente
+        entrada = EntradaCalculoAgente(
+            valor_acionamento=fonte.valor_acionamento,
+            franquia_km=fonte.franquia_km,
+            franquia_horas=fonte.franquia_horas,
+            valor_km_excedente=fonte.valor_km_excedente,
+            valor_hora_excedente=fonte.valor_hora_excedente,
+            escalonamento_ativo=fonte.escalonamento_automatico,  # única tradução de nome
+            km_total=acionamento.km_total,
+            horas_total=acionamento.horas_total,
+            pedagio=acionamento.pedagio,
+        )
+        return entrada, True
+
+    entrada = EntradaCalculoAgente(
+        valor_acionamento=acionamento.valor_acionamento,
+        franquia_km=acionamento.franquia_km,
+        franquia_horas=acionamento.franquia_horas,
+        valor_km_excedente=acionamento.valor_km_excedente,
+        valor_hora_excedente=acionamento.valor_hora_excedente,
+        escalonamento_ativo=False,
+        km_total=acionamento.km_total,
+        horas_total=acionamento.horas_total,
+        pedagio=acionamento.pedagio,
+    )
+    return entrada, False
+
+
 def recalcular_valor_agente(acionamento) -> None:
     """Preenche os 5 campos calculados de um Acionamento (RN-07, §8).
 
@@ -284,34 +327,10 @@ def recalcular_valor_agente(acionamento) -> None:
     )
     acionamento.horas_total = _quantizar(segundos / Decimal(3600))
 
-    # §8.1 — fonte dos valores: havendo franquia vinculada, ela faz OVERRIDE do
-    # serviço inline (e só ela pode escalonar); sem franquia, usa-se o inline do
-    # próprio acionamento, sem escalonamento.
-    if acionamento.franquia_agente:
-        fonte = acionamento.franquia_agente
-        entrada = EntradaCalculoAgente(
-            valor_acionamento=fonte.valor_acionamento,
-            franquia_km=fonte.franquia_km,
-            franquia_horas=fonte.franquia_horas,
-            valor_km_excedente=fonte.valor_km_excedente,
-            valor_hora_excedente=fonte.valor_hora_excedente,
-            escalonamento_ativo=fonte.escalonamento_automatico,  # única tradução de nome
-            km_total=acionamento.km_total,
-            horas_total=acionamento.horas_total,
-            pedagio=acionamento.pedagio,
-        )
-    else:
-        entrada = EntradaCalculoAgente(
-            valor_acionamento=acionamento.valor_acionamento,
-            franquia_km=acionamento.franquia_km,
-            franquia_horas=acionamento.franquia_horas,
-            valor_km_excedente=acionamento.valor_km_excedente,
-            valor_hora_excedente=acionamento.valor_hora_excedente,
-            escalonamento_ativo=False,
-            km_total=acionamento.km_total,
-            horas_total=acionamento.horas_total,
-            pedagio=acionamento.pedagio,
-        )
+    # §8.1/RN-08 — fonte dos valores resolvida pelo helper (compartilhado com
+    # compor_valor_agente): havendo franquia vinculada, ela faz OVERRIDE do
+    # inline; sem franquia, usa-se o inline, sem escalonamento.
+    entrada, _fonte_franquia = _resolver_entrada(acionamento)
 
     resultado = calcular_valor_agente(entrada)
 
@@ -319,6 +338,65 @@ def recalcular_valor_agente(acionamento) -> None:
     acionamento.km_excedente = resultado.km_excedente
     acionamento.hora_excedente = resultado.hora_excedente
     acionamento.valor_agente = resultado.valor_agente
+
+
+@dataclass(frozen=True)
+class ComposicaoValorAgente:
+    """Extrato de parcelas do valor do agente, para exibição no detalhe (DD-032/ST5).
+
+    Recompõe as parcelas que formam o total, a partir da fonte resolvida
+    (§8.1/RN-08): a base pós-escalonamento, os subtotais de excedente às tarifas
+    da fonte e o pedágio. ``fonte_franquia`` e ``blocos`` alimentam a anotação da
+    1ª linha ("da franquia" / "escalonado · N blocos" / inline sem escalonamento).
+    ``frozen=True`` — extrato produzido não muda.
+
+    Invariante: ``valor_acionamento_ajustado + subtotal_km + subtotal_hora +
+    pedagio == valor_agente``.
+    """
+
+    valor_acionamento_ajustado: Decimal
+    blocos: int
+    fonte_franquia: bool
+    km_excedente: int
+    valor_unitario_km: Decimal
+    subtotal_km: Decimal
+    hora_excedente: Decimal
+    valor_unitario_hora: Decimal
+    subtotal_hora: Decimal
+    pedagio: Decimal
+    valor_agente: Decimal
+
+
+def compor_valor_agente(acionamento) -> ComposicaoValorAgente:
+    """Monta o extrato de parcelas do detalhe (DD-032/ST5) — exibição PURA.
+
+    Nada é persistido: resolve a fonte (§8.1/RN-08) pelo mesmo ``_resolver_entrada``
+    do recálculo, roda a calculadora e recompõe as parcelas em R$ (base ajustada +
+    subtotais de excedente às tarifas da FONTE resolvida + pedágio). Os subtotais
+    usam o mesmo ``_quantizar`` do módulo, para o arredondamento contábil bater com
+    o do cálculo. Invariante (garantido pelos testes): a soma das parcelas ==
+    ``valor_agente``. Requer km_total/horas_total já derivados (acionamento salvo).
+    """
+    entrada, fonte_franquia = _resolver_entrada(acionamento)
+    resultado = calcular_valor_agente(entrada)
+
+    # Subtotais em R$: quantidade de excedente × tarifa da fonte resolvida.
+    subtotal_km = _quantizar(resultado.km_excedente * entrada.valor_km_excedente)
+    subtotal_hora = _quantizar(resultado.hora_excedente * entrada.valor_hora_excedente)
+
+    return ComposicaoValorAgente(
+        valor_acionamento_ajustado=resultado.valor_acionamento_ajustado,
+        blocos=resultado.blocos,
+        fonte_franquia=fonte_franquia,
+        km_excedente=resultado.km_excedente,
+        valor_unitario_km=entrada.valor_km_excedente,
+        subtotal_km=subtotal_km,
+        hora_excedente=resultado.hora_excedente,
+        valor_unitario_hora=entrada.valor_hora_excedente,
+        subtotal_hora=subtotal_hora,
+        pedagio=entrada.pedagio,
+        valor_agente=resultado.valor_agente,
+    )
 
 
 def vincular_franquia_em_lote(pks, franquia, sobrescrever=False):

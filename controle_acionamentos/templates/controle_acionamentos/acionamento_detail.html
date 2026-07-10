@@ -94,6 +94,44 @@
     </div>
   </div>
 
+  {% comment %} ==== COMPOSIÇÃO DO VALOR — extrato das parcelas (DD-032/ST5) ==== {% endcomment %}
+  <div class="card mb-4">
+    <div class="card-header fw-semibold text-uppercase small">Composição do valor</div>
+    <div class="card-body p-0">
+      <div class="acn-extrato">
+        <div class="acn-extrato-linha">
+          <span>Valor do acionamento (ajustado)
+            {% if composicao.blocos > 0 %}<span class="acn-extrato-anota">escalonado · {{ composicao.blocos }} bloco{{ composicao.blocos|pluralize }}</span>
+            {% elif composicao.fonte_franquia %}<span class="acn-extrato-anota">da franquia</span>{% endif %}
+          </span>
+          <span class="acn-mono">R$ {{ composicao.valor_acionamento_ajustado|floatformat:2 }}</span>
+        </div>
+        <div class="acn-extrato-linha">
+          <span>+ KM excedente
+            {% if composicao.km_excedente > 0 %}<span class="acn-extrato-anota">{{ composicao.km_excedente }} km × R$ {{ composicao.valor_unitario_km|floatformat:2 }}</span>
+            {% else %}<span class="acn-extrato-anota">sem excedente</span>{% endif %}
+          </span>
+          <span class="acn-mono">R$ {{ composicao.subtotal_km|floatformat:2 }}</span>
+        </div>
+        <div class="acn-extrato-linha">
+          <span>+ Hora excedente
+            {% if composicao.hora_excedente > 0 %}<span class="acn-extrato-anota">{{ composicao.hora_excedente|floatformat:2 }} h × R$ {{ composicao.valor_unitario_hora|floatformat:2 }}</span>
+            {% else %}<span class="acn-extrato-anota">sem excedente</span>{% endif %}
+          </span>
+          <span class="acn-mono">R$ {{ composicao.subtotal_hora|floatformat:2 }}</span>
+        </div>
+        <div class="acn-extrato-linha">
+          <span>+ Pedágio</span>
+          <span class="acn-mono">R$ {{ composicao.pedagio|floatformat:2 }}</span>
+        </div>
+        <div class="acn-extrato-linha acn-extrato-total">
+          <span>= VALOR DO AGENTE</span>
+          <span class="acn-mono">R$ {{ composicao.valor_agente|floatformat:2 }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   {% comment %} ==== DADOS DE ORIGEM — leitura, espelhando as seções do form ==== {% endcomment %}
 
   {# — Cliente — #}

@@ -519,6 +519,201 @@ def test_calcular_c5_franquia_escalonamento_desativado():
     assert resultado.valor_agente == Decimal("847.00")
 
 
+# ---------------------------------------------------------------------------
+# services.compor_valor_agente — extrato de parcelas do detalhe (DD-032/ST5).
+# Recompõe as parcelas do cálculo (base ajustada, subtotais de excedente às
+# tarifas da FONTE resolvida — franquia quando vinculada, RN-08 — e pedágio) SEM
+# persistir nada. Invariante central: a soma das parcelas == valor_agente já
+# persistido. Recebe instância com FKs, por isso @pytest.mark.django_db.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_compor_valor_agente_inline_sem_franquia_parcelas_batem(_fks_acionamento):
+    """DD-032/ST5 — extrato do acionamento INLINE (sem franquia), cenário C2:
+    excedentes cobrados às tarifas do próprio acionamento; blocos=0; a soma das
+    parcelas fecha o valor_agente persistido.
+
+    Arrange do C2 (inline valor=100, franquia 80km/4h, tarifas 2/30, pedágio 0;
+    km_total=100, horas_total=5) → valor_agente 170,00.
+
+    Fase RED do TDD: compor_valor_agente ainda não existe em services.py, então
+    o import local levanta ImportError e este teste FALHA de propósito.
+    """
+    cliente, responsavel, agente = _fks_acionamento
+    base = timezone.now()
+    ac = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        franquia_agente=None,
+        valor_acionamento=Decimal("100.00"),
+        franquia_km=80,
+        franquia_horas=Decimal("4.00"),
+        valor_km_excedente=Decimal("2.00"),
+        valor_hora_excedente=Decimal("30.00"),
+        pedagio=Decimal("0.00"),
+        km_inicio=0,
+        km_final=100,
+        data_hora_solicitado=base,
+        data_hora_inicio=base,
+        data_hora_final=base + timedelta(hours=5),
+    )
+    ac.save()  # persiste os calculados (valor_agente == 170,00)
+
+    from controle_acionamentos.services import compor_valor_agente
+
+    comp = compor_valor_agente(ac)
+
+    assert comp.fonte_franquia is False
+    assert comp.blocos == 0
+    assert comp.valor_acionamento_ajustado == Decimal("100.00")
+    # Subtotais == quantidade × tarifa (tarifa inline, pois não há franquia).
+    assert comp.km_excedente == 20
+    assert comp.valor_unitario_km == Decimal("2.00")
+    assert comp.subtotal_km == comp.km_excedente * comp.valor_unitario_km
+    assert comp.hora_excedente == Decimal("1.00")
+    assert comp.valor_unitario_hora == Decimal("30.00")
+    assert comp.subtotal_hora == comp.hora_excedente * comp.valor_unitario_hora
+    assert comp.pedagio == Decimal("0.00")
+    # INVARIANTE: soma das parcelas == total == valor_agente persistido.
+    soma = (
+        comp.valor_acionamento_ajustado
+        + comp.subtotal_km
+        + comp.subtotal_hora
+        + comp.pedagio
+    )
+    assert soma == comp.valor_agente == ac.valor_agente == Decimal("170.00")
+
+
+@pytest.mark.django_db
+def test_compor_valor_agente_franquia_escalonada_usa_tarifas_da_franquia(_fks_acionamento):
+    """DD-032/ST5 — extrato com FRANQUIA escalonável (cenário C4, 2 blocos): as
+    tarifas unitárias vêm da FRANQUIA (RN-08), não dos campos inline do
+    acionamento — a armadilha do override.
+
+    O acionamento recebe tarifas inline DIVERGENTES de propósito (1,00) para
+    provar que compor usa a tarifa da franquia (3,30), não a do acionamento.
+
+    Arrange do C4 (franquia 200km/4h, R$660, tarifas 3,30/55, escalonamento ON;
+    km_total=285, horas_total=7, pedágio 50) → valor_agente 1.045,50.
+
+    Fase RED do TDD: compor_valor_agente ainda não existe → ImportError.
+    """
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(
+        **_dados_franquia(
+            cliente,
+            valor_acionamento=Decimal("660.00"),
+            franquia_km=200,
+            franquia_horas=Decimal("4.00"),
+            valor_km_excedente=Decimal("3.30"),
+            valor_hora_excedente=Decimal("55.00"),
+            escalonamento_automatico=True,
+        )
+    )
+    base = timezone.now()
+    ac = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        franquia_agente=franquia,
+        # Inline divergente de propósito: prova que a tarifa usada é a da franquia.
+        valor_km_excedente=Decimal("1.00"),
+        valor_hora_excedente=Decimal("1.00"),
+        pedagio=Decimal("50.00"),
+        km_inicio=0,
+        km_final=285,
+        data_hora_solicitado=base,
+        data_hora_inicio=base,
+        data_hora_final=base + timedelta(hours=7),
+    )
+    ac.save()  # override da franquia → valor_agente 1.045,50
+
+    from controle_acionamentos.services import compor_valor_agente
+
+    comp = compor_valor_agente(ac)
+
+    assert comp.fonte_franquia is True
+    assert comp.blocos == 2
+    assert comp.valor_acionamento_ajustado == Decimal("924.00")
+    # RN-08: tarifa DA FRANQUIA (3,30), não a inline divergente (1,00).
+    assert comp.valor_unitario_km == franquia.valor_km_excedente == Decimal("3.30")
+    assert comp.valor_unitario_hora == franquia.valor_hora_excedente == Decimal("55.00")
+    assert comp.km_excedente == 5
+    assert comp.hora_excedente == Decimal("1.00")
+    assert comp.subtotal_km == comp.km_excedente * comp.valor_unitario_km
+    assert comp.subtotal_hora == comp.hora_excedente * comp.valor_unitario_hora
+    # INVARIANTE: soma das parcelas == total == valor_agente persistido.
+    soma = (
+        comp.valor_acionamento_ajustado
+        + comp.subtotal_km
+        + comp.subtotal_hora
+        + comp.pedagio
+    )
+    assert soma == comp.valor_agente == ac.valor_agente == Decimal("1045.50")
+
+
+@pytest.mark.django_db
+def test_compor_valor_agente_soma_das_parcelas_e_igual_ao_persistido(_fks_acionamento):
+    """DD-032/ST5 — cenário C3 (franquia, 1 bloco EXATO, sem excedentes): os
+    subtotais de excedente são zero e a soma das parcelas fecha o valor_agente
+    persistido.
+
+    Arrange do C3 (franquia 200km/4h, R$660, tarifas 3,30/55, escalonamento ON;
+    km_total=240, horas_total=5, pedágio 0) → escalona 1 bloco exato, sem
+    excedente residual, valor_agente 792,00.
+
+    Fase RED do TDD: compor_valor_agente ainda não existe → ImportError.
+    """
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(
+        **_dados_franquia(
+            cliente,
+            valor_acionamento=Decimal("660.00"),
+            franquia_km=200,
+            franquia_horas=Decimal("4.00"),
+            valor_km_excedente=Decimal("3.30"),
+            valor_hora_excedente=Decimal("55.00"),
+            escalonamento_automatico=True,
+        )
+    )
+    base = timezone.now()
+    ac = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        franquia_agente=franquia,
+        pedagio=Decimal("0.00"),
+        km_inicio=0,
+        km_final=240,
+        data_hora_solicitado=base,
+        data_hora_inicio=base,
+        data_hora_final=base + timedelta(hours=5),
+    )
+    ac.save()  # 1 bloco exato → valor_agente 792,00
+
+    from controle_acionamentos.services import compor_valor_agente
+
+    comp = compor_valor_agente(ac)
+
+    assert comp.fonte_franquia is True
+    assert comp.blocos == 1
+    # Sem excedente residual: quantidades e subtotais zerados.
+    assert comp.km_excedente == 0
+    assert comp.hora_excedente == Decimal("0.00")
+    assert comp.subtotal_km == Decimal("0")
+    assert comp.subtotal_hora == Decimal("0")
+    # INVARIANTE: soma das parcelas == total == valor_agente persistido.
+    soma = (
+        comp.valor_acionamento_ajustado
+        + comp.subtotal_km
+        + comp.subtotal_hora
+        + comp.pedagio
+    )
+    assert soma == comp.valor_agente == ac.valor_agente == Decimal("792.00")
+
+
 def test_calcular_franquia_km_zero_com_escalonamento_levanta_valueerror():
     """Guard defensivo (cinto-e-suspensório do §11.1 C9) — a calculadora PURA
     protege a divisão do §8.3 contra franquia_km=0 com escalonamento ativo.
@@ -1924,6 +2119,59 @@ def _user_com_perms(django_user_model, *codenames):
         )
         user.user_permissions.add(perm)
     return user
+
+
+@pytest.mark.django_db
+def test_acionamento_detail_renderiza_extrato_de_composicao(
+    client, django_user_model, _fks_acionamento
+):
+    """Regressão (nasce VERDE) — trava o contrato view→template do extrato
+    (DD-032/ST5): a view injeta `composicao` no contexto e o template renderiza o
+    card "Composição do valor" com a anotação dinâmica de escalonamento.
+
+    Arrange do cenário C4 (franquia 660/200km/4h/3,30/55, escalonamento ON; km 285,
+    7h, pedágio 50) → valor_agente 1.045,50 com 2 blocos.
+    """
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(
+        **_dados_franquia(
+            cliente,
+            valor_acionamento=Decimal("660.00"),
+            franquia_km=200,
+            franquia_horas=Decimal("4.00"),
+            valor_km_excedente=Decimal("3.30"),
+            valor_hora_excedente=Decimal("55.00"),
+            escalonamento_automatico=True,
+        )
+    )
+    base = timezone.now()
+    ac = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        franquia_agente=franquia,
+        pedagio=Decimal("50.00"),
+        km_inicio=0,
+        km_final=285,
+        data_hora_solicitado=base,
+        data_hora_inicio=base,
+        data_hora_final=base + timedelta(hours=7),
+    )
+    ac.save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_detail", args=[ac.pk])
+    response = client.get(url)
+
+    assert response.status_code == 200
+    conteudo = response.content.decode(response.charset)
+    assert "Composição do valor" in conteudo   # o card do extrato existe
+    assert "escalonado" in conteudo            # anotação dinâmica da 1ª linha
+    assert "2 blocos" in conteudo              # blocos + pluralize
+    # floatformat:2 sob L10N pt-br (sem separador de milhar) → vírgula decimal.
+    assert "1045,50" in conteudo               # total do extrato renderizado
 
 
 @pytest.mark.django_db

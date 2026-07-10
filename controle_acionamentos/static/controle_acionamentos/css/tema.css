@@ -235,3 +235,28 @@ a.acn-badge-codigo:hover {
   padding: 0.6rem 0.9rem;
   height: 100%;
 }
+
+/* ===== ST5 — extrato "Composição do valor" ===== */
+.acn-escopo .acn-extrato-linha {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--acn-line);
+}
+.acn-escopo .acn-extrato-linha:last-child { border-bottom: none; }
+.acn-escopo .acn-extrato-anota {
+  font-family: var(--acn-font-mono);
+  font-size: 0.75rem;
+  color: var(--acn-muted);
+  margin-left: 0.5rem;
+}
+.acn-escopo .acn-extrato-total {
+  font-weight: 700;
+}
+.acn-escopo .acn-extrato-total .acn-mono {
+  color: var(--acn-gold-texto);
+  font-weight: 800;
+  font-size: 1.05rem;
+}
