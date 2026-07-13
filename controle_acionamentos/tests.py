@@ -2969,3 +2969,44 @@ def test_contar_sem_franquia_zero_quando_todos_vinculados(_fks_acionamento):
     _acionamento_valido(cliente, responsavel, agente, franquia_agente=franquia).save()
 
     assert contar_sem_franquia() == 0
+
+
+# ---------------------------------------------------------------------------
+# DD-032 — regressão: gating do botão Novo por permissão
+# Na ST6 parte 3 o botão "Novo acionamento" do _cabecalho.html vazou para
+# usuário SEM add_acionamento (o include recebe botao_novo=perms.…add_acionamento
+# na listagem). A regressão foi pega em review e corrigida no mesmo diff; estes
+# 2 testes NASCEM VERDES para travar o comportamento e fechar a lacuna de
+# cobertura. Âncora do assert = "Novo acionamento" (texto do BOTÃO); a pill da
+# nav tem só "Novo", então não colide.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_listagem_sem_add_nao_exibe_botao_novo(client, django_user_model):
+    """DD-032 (regressão, nasce VERDE) — quem só tem view_acionamento NÃO vê o
+    botão "Novo acionamento" na listagem (gating capturado em review na ST6 p3)."""
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_list")
+    response = client.get(url)
+
+    assert response.status_code == 200
+    conteudo = response.content.decode(response.charset)
+    assert "Novo acionamento" not in conteudo
+
+
+@pytest.mark.django_db
+def test_listagem_com_add_exibe_botao_novo(client, django_user_model):
+    """DD-032 (regressão, nasce VERDE) — quem tem view_acionamento + add_acionamento
+    vê o botão "Novo acionamento" na listagem (o gating libera o botão)."""
+    user = _user_com_perms(django_user_model, "view_acionamento", "add_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_list")
+    response = client.get(url)
+
+    assert response.status_code == 200
+    conteudo = response.content.decode(response.charset)
+    assert "Novo acionamento" in conteudo
