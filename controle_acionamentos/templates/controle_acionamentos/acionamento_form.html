@@ -48,14 +48,16 @@
 
     {% comment %} ==== Seção 2 — SERVIÇO ==== {% endcomment %}
     <div class="card mb-3">
-      <div class="card-header d-flex align-items-center justify-content-between">
-        <span class="d-flex align-items-center">
-          <span class="badge rounded-pill acn-badge-num me-2">2</span>
-          <span class="fw-semibold">SERVIÇO</span>
-        </span>
-        <span class="text-warning small">Franquia vinculada substitui estes valores no cálculo (RN-08)</span>
+      <div class="card-header d-flex align-items-center">
+        <span class="badge rounded-pill acn-badge-num me-2">2</span>
+        <span class="fw-semibold">SERVIÇO</span>
       </div>
       <div class="card-body">
+        <div class="alert alert-warning d-flex align-items-center gap-2 mb-3" role="alert">
+          <i class="bi bi-info-circle" aria-hidden="true"></i>
+          <span>Se uma franquia for vinculada, os valores dela substituem estes
+          para o cálculo (os valores digitados ficam registrados para auditoria).</span>
+        </div>
         <div class="row">
           <div class="col-md-6 mb-3">
             {{ form.nome_servico.label_tag }}{% if form.nome_servico.field.required %} <span class="text-danger">*</span>{% endif %}
