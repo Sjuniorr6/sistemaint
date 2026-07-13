@@ -130,12 +130,13 @@
   </div>
 
   {% comment %} ==== DADOS DE ORIGEM — leitura, espelhando as seções do form ==== {% endcomment %}
+  <div class="acn-dash-rotulo mb-2">Dados de origem</div>
 
   {# — Cliente — #}
   <div class="card mb-3">
     <div class="card-header d-flex align-items-center">
       <span class="badge rounded-pill acn-badge-num me-2">1</span>
-      <span class="fw-semibold">Cliente</span>
+      <span class="fw-semibold">CLIENTE</span>
     </div>
     <div class="card-body">
       <dl class="row mb-0">
@@ -149,7 +150,7 @@
   <div class="card mb-3">
     <div class="card-header d-flex align-items-center">
       <span class="badge rounded-pill acn-badge-num me-2">2</span>
-      <span class="fw-semibold">Serviço</span>
+      <span class="fw-semibold">SERVIÇO</span>
     </div>
     <div class="card-body">
       <dl class="row mb-0">
@@ -157,19 +158,19 @@
         <dd class="col-sm-9">{{ acionamento.nome_servico }}</dd>
 
         <dt class="col-sm-3">Valor do acionamento</dt>
-        <dd class="col-sm-9">R$ {{ acionamento.valor_acionamento|floatformat:2 }}</dd>
+        <dd class="col-sm-9 acn-mono">R$ {{ acionamento.valor_acionamento|floatformat:2 }}</dd>
 
         <dt class="col-sm-3">Franquia de KM</dt>
-        <dd class="col-sm-9">{{ acionamento.franquia_km }}</dd>
+        <dd class="col-sm-9 acn-mono">{{ acionamento.franquia_km }}</dd>
 
         <dt class="col-sm-3">Franquia de horas</dt>
-        <dd class="col-sm-9">{{ acionamento.franquia_horas|floatformat:2 }}</dd>
+        <dd class="col-sm-9 acn-mono">{{ acionamento.franquia_horas|floatformat:2 }}</dd>
 
         <dt class="col-sm-3">Valor por KM excedente</dt>
-        <dd class="col-sm-9">R$ {{ acionamento.valor_km_excedente|floatformat:2 }}</dd>
+        <dd class="col-sm-9 acn-mono">R$ {{ acionamento.valor_km_excedente|floatformat:2 }}</dd>
 
         <dt class="col-sm-3">Valor por hora excedente</dt>
-        <dd class="col-sm-9">R$ {{ acionamento.valor_hora_excedente|floatformat:2 }}</dd>
+        <dd class="col-sm-9 acn-mono">R$ {{ acionamento.valor_hora_excedente|floatformat:2 }}</dd>
       </dl>
     </div>
   </div>
@@ -178,7 +179,7 @@
   <div class="card mb-3">
     <div class="card-header d-flex align-items-center">
       <span class="badge rounded-pill acn-badge-num me-2">3</span>
-      <span class="fw-semibold">Localização</span>
+      <span class="fw-semibold">LOCALIZAÇÃO</span>
     </div>
     <div class="card-body">
       <dl class="row mb-0">
@@ -195,7 +196,7 @@
   <div class="card mb-3">
     <div class="card-header d-flex align-items-center">
       <span class="badge rounded-pill acn-badge-num me-2">4</span>
-      <span class="fw-semibold">Pessoas</span>
+      <span class="fw-semibold">PESSOAS</span>
     </div>
     <div class="card-body">
       <dl class="row mb-0">
@@ -206,16 +207,16 @@
         <dd class="col-sm-9">{{ acionamento.agente }}</dd>
 
         <dt class="col-sm-3">Placa do agente</dt>
-        <dd class="col-sm-9">{{ acionamento.placa_agente|default:"—" }}</dd>
+        <dd class="col-sm-9 acn-mono">{{ acionamento.placa_agente|default:"—" }}</dd>
 
         <dt class="col-sm-3">Motorista</dt>
         <dd class="col-sm-9">{{ acionamento.motorista|default:"—" }}</dd>
 
         <dt class="col-sm-3">Placa do motorista</dt>
-        <dd class="col-sm-9">{{ acionamento.placa_motorista|default:"—" }}</dd>
+        <dd class="col-sm-9 acn-mono">{{ acionamento.placa_motorista|default:"—" }}</dd>
 
         <dt class="col-sm-3">Número do motorista</dt>
-        <dd class="col-sm-9">{{ acionamento.numero_motorista|default:"—" }}</dd>
+        <dd class="col-sm-9 acn-mono">{{ acionamento.numero_motorista|default:"—" }}</dd>
       </dl>
     </div>
   </div>
@@ -224,27 +225,27 @@
   <div class="card mb-3">
     <div class="card-header d-flex align-items-center">
       <span class="badge rounded-pill acn-badge-num me-2">5</span>
-      <span class="fw-semibold">Tempo e quilometragem</span>
+      <span class="fw-semibold">TEMPO E QUILOMETRAGEM</span>
     </div>
     <div class="card-body">
       <dl class="row mb-0">
         <dt class="col-sm-3">Data/hora solicitado</dt>
-        <dd class="col-sm-9">{{ acionamento.data_hora_solicitado|date:"d/m/Y H:i" }}</dd>
+        <dd class="col-sm-9 acn-mono">{{ acionamento.data_hora_solicitado|date:"d/m/Y H:i" }}</dd>
 
         <dt class="col-sm-3">Data/hora de início</dt>
-        <dd class="col-sm-9">{{ acionamento.data_hora_inicio|date:"d/m/Y H:i" }}</dd>
+        <dd class="col-sm-9 acn-mono">{{ acionamento.data_hora_inicio|date:"d/m/Y H:i" }}</dd>
 
         <dt class="col-sm-3">Data/hora final</dt>
-        <dd class="col-sm-9">{{ acionamento.data_hora_final|date:"d/m/Y H:i" }}</dd>
+        <dd class="col-sm-9 acn-mono">{{ acionamento.data_hora_final|date:"d/m/Y H:i" }}</dd>
 
         <dt class="col-sm-3">KM inicial</dt>
-        <dd class="col-sm-9">{{ acionamento.km_inicio }}</dd>
+        <dd class="col-sm-9 acn-mono">{{ acionamento.km_inicio }}</dd>
 
         <dt class="col-sm-3">KM final</dt>
-        <dd class="col-sm-9">{{ acionamento.km_final }}</dd>
+        <dd class="col-sm-9 acn-mono">{{ acionamento.km_final }}</dd>
 
         <dt class="col-sm-3">Pedágio</dt>
-        <dd class="col-sm-9">R$ {{ acionamento.pedagio|floatformat:2 }}</dd>
+        <dd class="col-sm-9 acn-mono">R$ {{ acionamento.pedagio|floatformat:2 }}</dd>
       </dl>
     </div>
   </div>
@@ -253,7 +254,7 @@
   <div class="card mb-3">
     <div class="card-header d-flex align-items-center">
       <span class="badge rounded-pill acn-badge-num me-2">6</span>
-      <span class="fw-semibold">Franquia</span>
+      <span class="fw-semibold">FRANQUIA</span>
     </div>
     <div class="card-body">
       <dl class="row mb-0">
