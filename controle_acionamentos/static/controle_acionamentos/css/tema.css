@@ -415,3 +415,15 @@ a.acn-badge-codigo:hover {
      vertical em tela vazia. */
   min-height: calc(100vh - 140px);
 }
+
+/* Corrige o scroll horizontal fantasma do full-bleed acima:
+   (1) 100vw inclui a largura da scrollbar vertical → 9px de transbordo nas
+       telas em que ela existe (scrollWidth - clientWidth medido = 9, e 0 nas
+       telas sem scrollbar);
+   (2) :has() auto-escopa a regra às páginas do app (o base.html continua
+       intocado — só o body que contém .acn-escopo recebe a correção);
+   (3) clip em vez de hidden: apara o transbordo sem transformar o body em
+       contêiner de rolagem (hidden criaria scroll container e efeitos colaterais);
+   (4) mesma dívida do full-bleed — sai junto quando o base.html oferecer um
+       override de largura. */
+body:has(.acn-escopo) { overflow-x: clip; }
