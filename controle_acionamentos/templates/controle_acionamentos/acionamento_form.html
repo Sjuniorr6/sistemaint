@@ -238,9 +238,12 @@
     </div>
 
     {# — Rodapé — #}
-    <div class="mt-4">
-      <button type="submit" class="btn btn-primary">Salvar acionamento</button>
-      <a href="{% url 'controle_acionamentos:index' %}" class="btn btn-outline-secondary">Cancelar</a>
+    <div class="acn-rodape-acao mt-4">
+      <span>O valor a pagar é calculado ao salvar e conferido na tela de detalhe.</span>
+      <div class="d-flex gap-2">
+        <a href="{% url 'controle_acionamentos:index' %}" class="btn btn-outline-secondary">Cancelar</a>
+        <button type="submit" class="btn btn-primary">Salvar acionamento</button>
+      </div>
     </div>
 
   </form>

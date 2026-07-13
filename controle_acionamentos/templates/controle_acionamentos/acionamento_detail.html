@@ -133,7 +133,10 @@
 
   {# — Cliente — #}
   <div class="card mb-3">
-    <div class="card-header fw-semibold">Cliente</div>
+    <div class="card-header d-flex align-items-center">
+      <span class="badge rounded-pill acn-badge-num me-2">1</span>
+      <span class="fw-semibold">Cliente</span>
+    </div>
     <div class="card-body">
       <dl class="row mb-0">
         <dt class="col-sm-3">Cliente</dt>
@@ -144,7 +147,10 @@
 
   {# — Serviço — #}
   <div class="card mb-3">
-    <div class="card-header fw-semibold">Serviço</div>
+    <div class="card-header d-flex align-items-center">
+      <span class="badge rounded-pill acn-badge-num me-2">2</span>
+      <span class="fw-semibold">Serviço</span>
+    </div>
     <div class="card-body">
       <dl class="row mb-0">
         <dt class="col-sm-3">Nome do serviço</dt>
@@ -170,7 +176,10 @@
 
   {# — Localização — #}
   <div class="card mb-3">
-    <div class="card-header fw-semibold">Localização</div>
+    <div class="card-header d-flex align-items-center">
+      <span class="badge rounded-pill acn-badge-num me-2">3</span>
+      <span class="fw-semibold">Localização</span>
+    </div>
     <div class="card-body">
       <dl class="row mb-0">
         <dt class="col-sm-3">Origem</dt>
@@ -184,7 +193,10 @@
 
   {# — Pessoas — #}
   <div class="card mb-3">
-    <div class="card-header fw-semibold">Pessoas</div>
+    <div class="card-header d-flex align-items-center">
+      <span class="badge rounded-pill acn-badge-num me-2">4</span>
+      <span class="fw-semibold">Pessoas</span>
+    </div>
     <div class="card-body">
       <dl class="row mb-0">
         <dt class="col-sm-3">Responsável de agente</dt>
@@ -210,7 +222,10 @@
 
   {# — Tempo e quilometragem — #}
   <div class="card mb-3">
-    <div class="card-header fw-semibold">Tempo e quilometragem</div>
+    <div class="card-header d-flex align-items-center">
+      <span class="badge rounded-pill acn-badge-num me-2">5</span>
+      <span class="fw-semibold">Tempo e quilometragem</span>
+    </div>
     <div class="card-body">
       <dl class="row mb-0">
         <dt class="col-sm-3">Data/hora solicitado</dt>
@@ -236,7 +251,10 @@
 
   {# — Franquia — #}
   <div class="card mb-3">
-    <div class="card-header fw-semibold">Franquia</div>
+    <div class="card-header d-flex align-items-center">
+      <span class="badge rounded-pill acn-badge-num me-2">6</span>
+      <span class="fw-semibold">Franquia</span>
+    </div>
     <div class="card-body">
       <dl class="row mb-0">
         <dt class="col-sm-3">Franquia de agente</dt>
@@ -246,9 +264,12 @@
   </div>
 
   {# — Rodapé — #}
-  <div class="mt-4">
-    <a href="{% url 'controle_acionamentos:acionamento_create' %}" class="btn btn-primary">Novo acionamento</a>
-    <a href="{% url 'controle_acionamentos:index' %}" class="btn btn-outline-secondary">Início</a>
+  <div class="acn-rodape-acao mt-4">
+    <span>Registro somente leitura · valores calculados automaticamente</span>
+    <div class="d-flex gap-2">
+      <a href="{% url 'controle_acionamentos:acionamento_list' %}" class="btn btn-outline-secondary">Voltar à listagem</a>
+      <a href="{% url 'controle_acionamentos:acionamento_create' %}" class="btn btn-primary">Novo acionamento</a>
+    </div>
   </div>
 
 </div>
