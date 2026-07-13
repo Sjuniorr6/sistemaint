@@ -399,6 +399,17 @@ a.acn-badge-codigo:hover {
   color: var(--acn-text);
 }
 
+/* Badge numerado dos blocos (form e detalhe): dourado leve sobre a
+   surface, acompanhando a pele (mockup do Designer). Substitui o
+   bg-primary do Bootstrap (utility com !important — sai do template,
+   nunca se escala CSS). */
+.acn-escopo .acn-badge-num {
+  background: color-mix(in srgb, var(--acn-gold) 22%, var(--acn-surface));
+  border: 1px solid color-mix(in srgb, var(--acn-gold) 55%, var(--acn-surface));
+  color: var(--acn-gold);
+  font-family: var(--acn-font-mono);
+}
+
 /* Full-bleed: escapa a moldura .container (max-width 1140px) que o base.html
    aplica globalmente ao block content, para o app ocupar a largura útil inteira.
    Regra à parte para não mexer nas demais declarações de .acn-escopo (peles etc.).
