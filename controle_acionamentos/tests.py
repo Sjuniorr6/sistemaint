@@ -3012,3 +3012,83 @@ def test_filtro_cnpj_valor_invalido_retorna_original():
     from controle_acionamentos.templatetags.formatos import cnpj
 
     assert cnpj("123") == "123"
+
+
+# ---------------------------------------------------------------------------
+# DD-048 — dashboard: 3º contador (soma de valor_agente no mês) + tabela
+# "Últimos acionamentos" na home. Import LOCAL das funções sob teste (padrão
+# da suíte); reuso dos helpers _fks_acionamento / _acionamento_valido.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_somar_valor_agente_no_mes_soma_apenas_mes_corrente(_fks_acionamento):
+    """DD-048 — soma valor_agente só dos acionamentos do mês/ano de `hoje`.
+
+    Um acionamento em jun/2026 e outro em mai/2026 (datas fixas, timezone-aware).
+    O valor_agente é computado no save (recalcular_valor_agente), então a soma
+    esperada é o valor do registro de dentro, lido do banco (Decimal, não float).
+    """
+    from datetime import date, datetime
+
+    from controle_acionamentos.selectors import somar_valor_agente_no_mes
+
+    cliente, responsavel, agente = _fks_acionamento
+
+    dentro = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        data_hora_solicitado=timezone.make_aware(datetime(2026, 6, 10, 9, 0)),
+        data_hora_inicio=timezone.make_aware(datetime(2026, 6, 10, 9, 30)),
+        data_hora_final=timezone.make_aware(datetime(2026, 6, 10, 12, 0)),
+    )
+    dentro.save()
+    dentro.refresh_from_db()
+
+    fora = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        data_hora_solicitado=timezone.make_aware(datetime(2026, 5, 20, 9, 0)),
+        data_hora_inicio=timezone.make_aware(datetime(2026, 5, 20, 9, 30)),
+        data_hora_final=timezone.make_aware(datetime(2026, 5, 20, 12, 0)),
+    )
+    fora.save()
+
+    resultado = somar_valor_agente_no_mes(hoje=date(2026, 6, 15))
+
+    assert resultado == dentro.valor_agente
+    assert isinstance(resultado, Decimal)
+
+
+@pytest.mark.django_db
+def test_somar_valor_agente_no_mes_zero_quando_vazio():
+    """DD-048 — mês sem acionamentos soma Decimal("0") (Coalesce), nunca None."""
+    from datetime import date
+
+    from controle_acionamentos.selectors import somar_valor_agente_no_mes
+
+    assert somar_valor_agente_no_mes(hoje=date(2026, 6, 15)) == Decimal("0")
+
+
+@pytest.mark.django_db
+def test_home_renderiza_ultimos_acionamentos(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-048 — a home logada renderiza a tabela "Últimos acionamentos" com o
+    código ACN do acionamento mais recente."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()
+
+    user = django_user_model.objects.create_user(username="home", password="x")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:index")
+    response = client.get(url)
+
+    assert response.status_code == 200
+    conteudo = response.content.decode(response.charset)
+    assert "Últimos acionamentos" in conteudo
+    assert ac.codigo in conteudo

@@ -2,6 +2,10 @@
 
 As views consomem os dados a partir daqui — nunca fazem query direta ao model.
 """
+from decimal import Decimal
+
+from django.db.models import DecimalField, Sum, Value
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from controle_acionamentos.models import Acionamento, FranquiaAgente
@@ -83,3 +87,27 @@ def contar_sem_franquia():
     Sem recorte temporal: são os candidatos ao vínculo em lote, independente do mês.
     """
     return Acionamento.objects.filter(franquia_agente__isnull=True).count()
+
+
+def somar_valor_agente_no_mes(hoje=None):
+    """DD-048 — contador do dashboard: soma de valor_agente no mês/ano de `hoje`.
+
+    Mesmo recorte temporal de contar_acionamentos_no_mes (lookup por
+    data_hora_solicitado__year/__month). `hoje` default = timezone.localdate()
+    (nunca datetime.now() cru); o parâmetro existe para injeção de data em teste.
+
+    Coalesce sobre o Sum garante Decimal("0") para mês vazio (aggregate de Sum
+    devolveria None). Value com output_field=DecimalField mantém o tipo Decimal.
+    """
+    if hoje is None:
+        hoje = timezone.localdate()
+    agregado = Acionamento.objects.filter(
+        data_hora_solicitado__year=hoje.year,
+        data_hora_solicitado__month=hoje.month,
+    ).aggregate(
+        total=Coalesce(
+            Sum("valor_agente"),
+            Value(Decimal("0"), output_field=DecimalField()),
+        )
+    )
+    return agregado["total"]

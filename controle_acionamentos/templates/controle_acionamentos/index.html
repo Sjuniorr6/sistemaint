@@ -11,6 +11,9 @@
   {% comment %}
     Linha de atalhos (DD-032/ST7): cada card é um link para uma tela do app.
     Names reais das rotas conferidos em urls.py: acionamento_list / acionamento_create.
+    A `row g-3` já comporta um 3º atalho futuro (Cadastros nasce no DD-050) —
+    ao entrar, os três passam a col-md-4; por ora ficam col-md-6. NÃO criar o
+    botão agora.
   {% endcomment %}
   <div class="row g-3">
     <div class="col-12 col-md-6">
@@ -44,7 +47,7 @@
     (âncora única da view): F \d\e Y → "julho de 2026" (catálogo pt-br).
   {% endcomment %}
   <div class="row g-3 mt-1">
-    <div class="col-12 col-md-6">
+    <div class="col-12 col-md-4">
       <div class="card">
         <div class="card-body">
           <div class="acn-dash-rotulo">Acionamentos no mês</div>
@@ -53,7 +56,7 @@
         </div>
       </div>
     </div>
-    <div class="col-12 col-md-6">
+    <div class="col-12 col-md-4">
       <div class="card">
         <div class="card-body">
           <div class="acn-dash-rotulo">Sem franquia vinculada</div>
@@ -61,6 +64,54 @@
           <div class="acn-dash-nota">candidatos a vínculo em lote</div>
         </div>
       </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="card">
+        <div class="card-body">
+          <div class="acn-dash-rotulo">Valor total do mês</div>
+          <div class="acn-mono acn-texto-dourado acn-dash-num">R$ {{ total_valor_mes|floatformat:2 }}</div>
+          <div class="acn-dash-nota">{{ hoje|date:"F \d\e Y" }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% comment %}
+    Últimos acionamentos (DD-048): os 5 mais recentes. Reusa `ultimos`
+    (listar_acionamentos()[:5], já ordenado DESC e com select_related) — sem
+    query nova. Tabela SÓ leitura: sem input de pedágio nem checkbox, então não
+    colide com os hooks JS da listagem. O código ACN de cada linha linka ao
+    detalhe (name real: acionamento_detail). Vazio: mensagem no padrão .acn-vazio.
+  {% endcomment %}
+  <div class="card mt-3">
+    <div class="card-header fw-semibold">Últimos acionamentos</div>
+    <div class="card-body p-0">
+      {% if ultimos %}
+      <table class="table mb-0 align-middle">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Cliente · Serviço</th>
+            <th>Solicitado</th>
+            <th class="text-end">Valor do agente</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in ultimos %}
+          <tr>
+            <td class="acn-mono">
+              <a href="{% url 'controle_acionamentos:acionamento_detail' a.pk %}">{{ a.codigo }}</a>
+            </td>
+            <td>{{ a.cliente }} · {{ a.nome_servico }}</td>
+            <td class="acn-mono">{{ a.data_hora_solicitado|date:"d/m/Y H:i" }}</td>
+            <td class="acn-mono text-end">{% if a.valor_agente is not None %}R$ {{ a.valor_agente|floatformat:2 }}{% else %}—{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="acn-vazio">Nenhum acionamento registrado.</div>
+      {% endif %}
     </div>
   </div>
 

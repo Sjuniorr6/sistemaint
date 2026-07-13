@@ -20,23 +20,28 @@ from .selectors import (
     contar_sem_franquia,
     listar_acionamentos,
     listar_franquias_por_cliente,
+    somar_valor_agente_no_mes,
 )
 from .services import compor_valor_agente, vincular_franquia_em_lote
 
 
 @login_required
 def index(request):
-    """Home dashboard do app de Acionamentos (DD-032/ST7).
+    """Home dashboard do app de Acionamentos (DD-032/ST7 + DD-048).
 
     View fina: os números vêm dos selectors (contar_acionamentos_no_mes /
-    contar_sem_franquia) e o rótulo do mês é renderizado no template
-    (filtro `date`, catálogo pt-br). Sem regra de negócio aqui.
+    contar_sem_franquia / somar_valor_agente_no_mes) e o rótulo do mês é
+    renderizado no template (filtro `date`, catálogo pt-br). `ultimos` reusa
+    listar_acionamentos() (já ordenado DESC e com select_related), fatiado nos
+    5 primeiros — sem query nova. Sem regra de negócio aqui.
     """
-    hoje = timezone.localdate()  # âncora única: rótulo e contagem usam a mesma data
+    hoje = timezone.localdate()  # âncora única: rótulo e contagens usam a mesma data
     contexto = {
         "hoje": hoje,
         "total_mes": contar_acionamentos_no_mes(hoje=hoje),
         "total_sem_franquia": contar_sem_franquia(),
+        "total_valor_mes": somar_valor_agente_no_mes(hoje=hoje),
+        "ultimos": listar_acionamentos()[:5],
     }
     return render(request, 'controle_acionamentos/index.html', contexto)
 
