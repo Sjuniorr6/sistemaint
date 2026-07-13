@@ -5,6 +5,7 @@ from django.core.paginator import Paginator
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .forms import (
@@ -14,18 +15,30 @@ from .forms import (
     VincularFranquiaLoteForm,
 )
 from .models import Acionamento, FranquiaAgente
-from .selectors import listar_acionamentos, listar_franquias_por_cliente
+from .selectors import (
+    contar_acionamentos_no_mes,
+    contar_sem_franquia,
+    listar_acionamentos,
+    listar_franquias_por_cliente,
+)
 from .services import compor_valor_agente, vincular_franquia_em_lote
 
 
 @login_required
 def index(request):
-    """Página inicial do app de Acionamentos.
+    """Home dashboard do app de Acionamentos (DD-032/ST7).
 
-    View fina do Módulo 0: apenas renderiza a tela inicial para validar
-    o encanamento URL -> view -> template. Sem regra de negócio aqui.
+    View fina: os números vêm dos selectors (contar_acionamentos_no_mes /
+    contar_sem_franquia) e o rótulo do mês é renderizado no template
+    (filtro `date`, catálogo pt-br). Sem regra de negócio aqui.
     """
-    return render(request, 'controle_acionamentos/index.html')
+    hoje = timezone.localdate()  # âncora única: rótulo e contagem usam a mesma data
+    contexto = {
+        "hoje": hoje,
+        "total_mes": contar_acionamentos_no_mes(hoje=hoje),
+        "total_sem_franquia": contar_sem_franquia(),
+    }
+    return render(request, 'controle_acionamentos/index.html', contexto)
 
 
 @login_required

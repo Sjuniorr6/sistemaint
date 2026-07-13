@@ -332,6 +332,51 @@ a.acn-badge-codigo:hover {
   color: #fff;
 }
 
+/* ===== ST7 — home dashboard (index.html) =====
+   Classes próprias porque a .acn-metrica (ST4) é acoplada ao .acn-hero (tile
+   interno escuro do card-herói do detalhe) — não serve para os cards de
+   superfície do dashboard. O NÚMERO reusa .acn-mono + .acn-texto-dourado; aqui
+   só se acrescenta o tamanho. Todas as cores vêm das variáveis do tema. */
+
+/* Card de atalho: o card inteiro é um link; hover realça a borda em dourado. */
+.acn-escopo a.acn-atalho {
+  text-decoration: none;
+  color: inherit;
+  height: 100%;
+  transition: border-color 0.15s ease;
+}
+.acn-escopo a.acn-atalho:hover { border-color: var(--acn-gold); }
+.acn-escopo .acn-atalho-icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 10px;
+  flex-shrink: 0;
+  font-size: 1.2rem;
+  color: var(--acn-gold-texto);
+  background: color-mix(in srgb, var(--acn-gold) 12%, transparent);
+}
+.acn-escopo .acn-atalho-titulo { font-weight: 700; color: var(--acn-text); }
+.acn-escopo .acn-atalho-sub { color: var(--acn-muted); font-size: 0.85rem; }
+
+/* Card de contador: rótulo em caixa alta, número grande, nota muted. */
+.acn-escopo .acn-dash-rotulo {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--acn-muted);
+}
+.acn-escopo .acn-dash-num {  /* só o tamanho; fonte mono e cor dourada vêm das classes reusadas */
+  font-size: 2.4rem;
+  font-weight: 700;
+  line-height: 1.1;
+  margin: 0.15rem 0 0.25rem;
+}
+.acn-escopo .acn-dash-nota { color: var(--acn-muted); font-size: 0.82rem; }
+
 /* Rodapé de ação: card com texto à esquerda e botões à direita. */
 .acn-escopo .acn-rodape-acao {
   display: flex;
