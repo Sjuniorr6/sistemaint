@@ -1630,28 +1630,6 @@ def test_vincular_franquia_em_lote_falha_no_meio_desfaz_tudo(_fks_acionamento, m
 
 
 @pytest.mark.django_db
-def test_acionamento_list_anonimo_redireciona_para_login(client):
-    """Sem autenticação, a listagem redireciona para o login (@login_required)."""
-    url = reverse("controle_acionamentos:acionamento_list")
-    response = client.get(url)
-
-    assert response.status_code == 302
-    assert "login" in response.url
-
-
-@pytest.mark.django_db
-def test_acionamento_list_sem_permissao_retorna_403(client, django_user_model):
-    """Autenticado mas sem a permissão view_acionamento → 403 (raise_exception)."""
-    user = django_user_model.objects.create_user(username="comum", password="x")
-    client.force_login(user)
-
-    url = reverse("controle_acionamentos:acionamento_list")
-    response = client.get(url)
-
-    assert response.status_code == 403
-
-
-@pytest.mark.django_db
 def test_acionamento_list_lista_ordenada_para_usuario_autorizado(
     client, django_user_model, _fks_acionamento
 ):
@@ -2833,6 +2811,9 @@ def test_confirmacao_etapa1_reenvia_hidden_fieis_para_etapa2(
 # A listagem é protegida por @login_required: um anônimo deve ser redirecionado
 # (302) para o LOGIN_URL, preservando o destino em ?next=. Nasce verde — apenas
 # caracteriza o comportamento já existente, não é red-green.
+# Cobertura CANÔNICA destes contratos (302→login com ?next= e 403 sem permissão):
+# os antecessores "frouxos" da listagem foram removidos no fecho do DD-032 por
+# serem duplicata estrita (asserts mais fracos) do que esta classe já garante.
 # ---------------------------------------------------------------------------
 
 
