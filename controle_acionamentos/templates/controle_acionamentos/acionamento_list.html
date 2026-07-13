@@ -10,14 +10,7 @@
 
 <div class="container-fluid mt-4">
 
-  {% if messages %}
-    {% for message in messages %}
-      <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
-        {{ message }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
-      </div>
-    {% endfor %}
-  {% endif %}
+  {% include 'controle_acionamentos/_messages.html' %}
 
   {% comment %}
     Barra de filtros (AC-06.1 cliente / AC-08.1 agente, data, status). GET sem

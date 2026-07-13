@@ -1,0 +1,13 @@
+{% comment %}
+  Bloco único de mensagens do controle_acionamentos (DD-048/sub2). Antes
+  duplicado em 4 telas; centralizado aqui. Preserva o mapeamento error→danger
+  (as demais tags reusam a própria) e o btn-close dismissível.
+{% endcomment %}
+{% if messages %}
+  {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
+      {{ message }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+    </div>
+  {% endfor %}
+{% endif %}

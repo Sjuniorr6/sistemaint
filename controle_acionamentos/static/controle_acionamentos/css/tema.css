@@ -144,15 +144,13 @@
 }
 .acn-escopo .text-danger { color: var(--acn-danger) !important; }
 
-.acn-escopo .alert-danger,
+/* Só .alert-error: o .alert-danger foi consolidado na regra color-mix da
+   DD-048/sub2 (mais abaixo). O mapeamento dos messages converte error→danger,
+   então .alert-error não é gerado pelo app hoje; regra mantida por segurança,
+   candidata a remoção futura. */
 .acn-escopo .alert-error {
   background: color-mix(in srgb, var(--acn-danger) 12%, transparent);
   border: 1px solid var(--acn-danger);
-  color: var(--acn-text);
-}
-.acn-escopo .alert-success {
-  background: color-mix(in srgb, #5AB478 14%, transparent);
-  border: 1px solid #5AB478;
   color: var(--acn-text);
 }
 .acn-escopo .btn-close { filter: invert(1) grayscale(1); }
@@ -432,6 +430,34 @@ a.acn-badge-codigo:hover {
   background: color-mix(in srgb, var(--acn-gold) 18%, var(--acn-surface));
   border: 1px solid color-mix(in srgb, var(--acn-gold) 50%, var(--acn-surface));
   color: var(--acn-text);
+}
+
+/* Alerts de retorno do sistema (DD-048/sub2): success e danger acompanhando a
+   pele, mesma técnica do .alert-warning (ST6). */
+.acn-escopo .alert-success {
+  background: color-mix(in srgb, #3fa96b 18%, var(--acn-surface));
+  border: 1px solid color-mix(in srgb, #3fa96b 50%, var(--acn-surface));
+  color: var(--acn-text);
+}
+.acn-escopo .alert-danger {
+  background: color-mix(in srgb, #c0392b 18%, var(--acn-surface));
+  border: 1px solid color-mix(in srgb, #c0392b 50%, var(--acn-surface));
+  color: var(--acn-text);
+}
+
+/* Na pele clara a mesma dose de cor se dilui no creme: variante Âmbar
+   com mistura mais forte, borda firme e texto na cor semântica. */
+.acn-escopo.acn-ambar .alert-success {
+  background: color-mix(in srgb, #3fa96b 30%, var(--acn-surface));
+  border: 1px solid color-mix(in srgb, #3fa96b 75%, var(--acn-surface));
+  color: #1e6b42;
+  font-weight: 600;
+}
+.acn-escopo.acn-ambar .alert-danger {
+  background: color-mix(in srgb, #c0392b 25%, var(--acn-surface));
+  border: 1px solid color-mix(in srgb, #c0392b 75%, var(--acn-surface));
+  color: #8c2318;
+  font-weight: 600;
 }
 
 /* Badge numerado dos blocos (form e detalhe): dourado leve sobre a
