@@ -2,6 +2,8 @@
 
 As views consomem os dados a partir daqui — nunca fazem query direta ao model.
 """
+from django.utils import timezone
+
 from controle_acionamentos.models import Acionamento, FranquiaAgente
 
 
@@ -58,3 +60,26 @@ def listar_franquias_por_cliente(cliente):
     e não por data como o listar_acionamentos.
     """
     return FranquiaAgente.objects.filter(cliente=cliente).order_by("nome")
+
+
+def contar_acionamentos_no_mes(hoje=None):
+    """DD-032/ST7 — contador do dashboard: acionamentos do mês/ano de `hoje`.
+
+    `data_hora_solicitado` é a data de negócio (a mesma que ordena a listagem).
+    `hoje` default = timezone.localdate() (nunca datetime.now() cru); o parâmetro
+    existe para injeção de data em teste.
+    """
+    if hoje is None:
+        hoje = timezone.localdate()
+    return Acionamento.objects.filter(
+        data_hora_solicitado__year=hoje.year,
+        data_hora_solicitado__month=hoje.month,
+    ).count()
+
+
+def contar_sem_franquia():
+    """DD-032/ST7 — contador do dashboard: acionamentos sem franquia vinculada.
+
+    Sem recorte temporal: são os candidatos ao vínculo em lote, independente do mês.
+    """
+    return Acionamento.objects.filter(franquia_agente__isnull=True).count()

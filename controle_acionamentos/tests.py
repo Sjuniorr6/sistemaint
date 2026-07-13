@@ -2871,3 +2871,101 @@ class TestHardeningAutenticacao:
         response = client.get(url_listagem)
 
         assert response.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# DD-032/ST7 — selectors do dashboard (FASE RED)
+# A home dashboard terá 2 contadores. Os selectors correspondentes ainda NÃO
+# existem em controle_acionamentos.selectors — por isso os 4 testes abaixo
+# nascem VERMELHOS de propósito (TDD): o import LOCAL dispara ImportError,
+# isolado dentro de cada teste para não derrubar a coleta dos demais.
+# Contrato sob teste:
+#   contar_acionamentos_no_mes(hoje=None) -> int  (mês/ano de `hoje`)
+#   contar_sem_franquia() -> int                  (franquia_agente__isnull=True)
+# Datas SEMPRE injetadas e timezone-aware — nunca o relógio real.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_contar_acionamentos_no_mes_conta_apenas_o_mes_corrente(_fks_acionamento):
+    """DD-032/ST7 (RED) — conta só os acionamentos do mês/ano de `hoje`.
+
+    Função ainda não existe em selectors.py; a fase é RED e a falha é
+    proposital, por ImportError no import local de contar_acionamentos_no_mes.
+    Arrange: 2 acionamentos em junho/2026 e 1 em maio/2026 (todos com
+    data_hora_solicitado FIXA e timezone-aware). Act com hoje=15/06/2026.
+    """
+    from datetime import date, datetime
+
+    from controle_acionamentos.selectors import contar_acionamentos_no_mes
+
+    cliente, responsavel, agente = _fks_acionamento
+
+    def _solicitado(dt):
+        base = timezone.make_aware(dt)
+        return _acionamento_valido(
+            cliente,
+            responsavel,
+            agente,
+            data_hora_solicitado=base,
+            data_hora_inicio=base + timedelta(minutes=30),
+            data_hora_final=base + timedelta(hours=3),
+        )
+
+    _solicitado(datetime(2026, 6, 10, 9, 0)).save()   # dentro do mês
+    _solicitado(datetime(2026, 6, 20, 14, 0)).save()  # dentro do mês
+    _solicitado(datetime(2026, 5, 31, 23, 0)).save()  # mês anterior
+
+    assert contar_acionamentos_no_mes(hoje=date(2026, 6, 15)) == 2
+
+
+@pytest.mark.django_db
+def test_contar_acionamentos_no_mes_zero_quando_vazio():
+    """DD-032/ST7 (RED) — sem acionamentos no banco, o contador do mês é 0.
+
+    Função ainda não existe em selectors.py; a fase é RED e a falha é
+    proposital, por ImportError no import local de contar_acionamentos_no_mes.
+    """
+    from datetime import date
+
+    from controle_acionamentos.selectors import contar_acionamentos_no_mes
+
+    assert contar_acionamentos_no_mes(hoje=date(2026, 6, 15)) == 0
+
+
+@pytest.mark.django_db
+def test_contar_sem_franquia_conta_apenas_sem_vinculo(_fks_acionamento):
+    """DD-032/ST7 (RED) — conta só acionamentos com franquia_agente nulo, sem
+    recorte temporal.
+
+    Função ainda não existe em selectors.py; a fase é RED e a falha é
+    proposital, por ImportError no import local de contar_sem_franquia.
+    Arrange: 1 acionamento COM franquia vinculada + 2 SEM vínculo.
+    """
+    from controle_acionamentos.selectors import contar_sem_franquia
+
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(**_dados_franquia(cliente))
+
+    _acionamento_valido(cliente, responsavel, agente, franquia_agente=franquia).save()
+    _acionamento_valido(cliente, responsavel, agente).save()
+    _acionamento_valido(cliente, responsavel, agente).save()
+
+    assert contar_sem_franquia() == 2
+
+
+@pytest.mark.django_db
+def test_contar_sem_franquia_zero_quando_todos_vinculados(_fks_acionamento):
+    """DD-032/ST7 (RED) — todos os acionamentos com franquia vinculada → 0.
+
+    Função ainda não existe em selectors.py; a fase é RED e a falha é
+    proposital, por ImportError no import local de contar_sem_franquia.
+    """
+    from controle_acionamentos.selectors import contar_sem_franquia
+
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(**_dados_franquia(cliente))
+
+    _acionamento_valido(cliente, responsavel, agente, franquia_agente=franquia).save()
+
+    assert contar_sem_franquia() == 0
