@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load formatos %}
 
 {% block title %}| Acionamento #{{ acionamento.pk }} |{% endblock %}
 
@@ -139,10 +140,16 @@
       <span class="fw-semibold">CLIENTE</span>
     </div>
     <div class="card-body">
-      <dl class="row mb-0">
-        <dt class="col-sm-3">Cliente</dt>
-        <dd class="col-sm-9">{{ acionamento.cliente }}</dd>
-      </dl>
+      <div class="row g-3">
+        <div class="col-6 col-md-3">
+          <span class="acn-campo-rotulo">Empresa</span>
+          <div>{{ acionamento.cliente }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <span class="acn-campo-rotulo">CNPJ</span>
+          <div class="acn-mono">{{ acionamento.cliente.cnpj|cnpj }}</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -153,25 +160,32 @@
       <span class="fw-semibold">SERVIÇO</span>
     </div>
     <div class="card-body">
-      <dl class="row mb-0">
-        <dt class="col-sm-3">Nome do serviço</dt>
-        <dd class="col-sm-9">{{ acionamento.nome_servico }}</dd>
-
-        <dt class="col-sm-3">Valor do acionamento</dt>
-        <dd class="col-sm-9 acn-mono">R$ {{ acionamento.valor_acionamento|floatformat:2 }}</dd>
-
-        <dt class="col-sm-3">Franquia de KM</dt>
-        <dd class="col-sm-9 acn-mono">{{ acionamento.franquia_km }}</dd>
-
-        <dt class="col-sm-3">Franquia de horas</dt>
-        <dd class="col-sm-9 acn-mono">{{ acionamento.franquia_horas|floatformat:2 }}</dd>
-
-        <dt class="col-sm-3">Valor por KM excedente</dt>
-        <dd class="col-sm-9 acn-mono">R$ {{ acionamento.valor_km_excedente|floatformat:2 }}</dd>
-
-        <dt class="col-sm-3">Valor por hora excedente</dt>
-        <dd class="col-sm-9 acn-mono">R$ {{ acionamento.valor_hora_excedente|floatformat:2 }}</dd>
-      </dl>
+      <div class="row g-3">
+        <div class="col-6 col-md-3">
+          <span class="acn-campo-rotulo">Nome do serviço</span>
+          <div>{{ acionamento.nome_servico }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <span class="acn-campo-rotulo">Valor do acionamento</span>
+          <div class="acn-mono">R$ {{ acionamento.valor_acionamento|floatformat:2 }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <span class="acn-campo-rotulo">Franquia de KM</span>
+          <div class="acn-mono">{{ acionamento.franquia_km }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <span class="acn-campo-rotulo">Franquia de horas</span>
+          <div class="acn-mono">{{ acionamento.franquia_horas|floatformat:2 }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <span class="acn-campo-rotulo">Valor por KM excedente</span>
+          <div class="acn-mono">R$ {{ acionamento.valor_km_excedente|floatformat:2 }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <span class="acn-campo-rotulo">Valor por hora excedente</span>
+          <div class="acn-mono">R$ {{ acionamento.valor_hora_excedente|floatformat:2 }}</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -182,13 +196,16 @@
       <span class="fw-semibold">LOCALIZAÇÃO</span>
     </div>
     <div class="card-body">
-      <dl class="row mb-0">
-        <dt class="col-sm-3">Origem</dt>
-        <dd class="col-sm-9">{{ acionamento.origem }}</dd>
-
-        <dt class="col-sm-3">Destino</dt>
-        <dd class="col-sm-9">{{ acionamento.destino|default:"—" }}</dd>
-      </dl>
+      <div class="row g-3">
+        <div class="col-12 col-md-6">
+          <span class="acn-campo-rotulo">Origem</span>
+          <div>{{ acionamento.origem }}</div>
+        </div>
+        <div class="col-12 col-md-6">
+          <span class="acn-campo-rotulo">Destino</span>
+          <div>{{ acionamento.destino|default:"—" }}</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -199,25 +216,32 @@
       <span class="fw-semibold">PESSOAS</span>
     </div>
     <div class="card-body">
-      <dl class="row mb-0">
-        <dt class="col-sm-3">Responsável de agente</dt>
-        <dd class="col-sm-9">{{ acionamento.responsavel_agente }}</dd>
-
-        <dt class="col-sm-3">Agente</dt>
-        <dd class="col-sm-9">{{ acionamento.agente }}</dd>
-
-        <dt class="col-sm-3">Placa do agente</dt>
-        <dd class="col-sm-9 acn-mono">{{ acionamento.placa_agente|default:"—" }}</dd>
-
-        <dt class="col-sm-3">Motorista</dt>
-        <dd class="col-sm-9">{{ acionamento.motorista|default:"—" }}</dd>
-
-        <dt class="col-sm-3">Placa do motorista</dt>
-        <dd class="col-sm-9 acn-mono">{{ acionamento.placa_motorista|default:"—" }}</dd>
-
-        <dt class="col-sm-3">Número do motorista</dt>
-        <dd class="col-sm-9 acn-mono">{{ acionamento.numero_motorista|default:"—" }}</dd>
-      </dl>
+      <div class="row g-3">
+        <div class="col-6 col-md-3">
+          <span class="acn-campo-rotulo">Responsável de agente</span>
+          <div>{{ acionamento.responsavel_agente }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <span class="acn-campo-rotulo">Agente</span>
+          <div>{{ acionamento.agente }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <span class="acn-campo-rotulo">Placa do agente</span>
+          <div class="acn-mono">{{ acionamento.placa_agente|default:"—" }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <span class="acn-campo-rotulo">Motorista</span>
+          <div>{{ acionamento.motorista|default:"—" }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <span class="acn-campo-rotulo">Placa do motorista</span>
+          <div class="acn-mono">{{ acionamento.placa_motorista|default:"—" }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <span class="acn-campo-rotulo">Número do motorista</span>
+          <div class="acn-mono">{{ acionamento.numero_motorista|default:"—" }}</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -228,25 +252,32 @@
       <span class="fw-semibold">TEMPO E QUILOMETRAGEM</span>
     </div>
     <div class="card-body">
-      <dl class="row mb-0">
-        <dt class="col-sm-3">Data/hora solicitado</dt>
-        <dd class="col-sm-9 acn-mono">{{ acionamento.data_hora_solicitado|date:"d/m/Y H:i" }}</dd>
-
-        <dt class="col-sm-3">Data/hora de início</dt>
-        <dd class="col-sm-9 acn-mono">{{ acionamento.data_hora_inicio|date:"d/m/Y H:i" }}</dd>
-
-        <dt class="col-sm-3">Data/hora final</dt>
-        <dd class="col-sm-9 acn-mono">{{ acionamento.data_hora_final|date:"d/m/Y H:i" }}</dd>
-
-        <dt class="col-sm-3">KM inicial</dt>
-        <dd class="col-sm-9 acn-mono">{{ acionamento.km_inicio }}</dd>
-
-        <dt class="col-sm-3">KM final</dt>
-        <dd class="col-sm-9 acn-mono">{{ acionamento.km_final }}</dd>
-
-        <dt class="col-sm-3">Pedágio</dt>
-        <dd class="col-sm-9 acn-mono">R$ {{ acionamento.pedagio|floatformat:2 }}</dd>
-      </dl>
+      <div class="row g-3">
+        <div class="col-6 col-md-3">
+          <span class="acn-campo-rotulo">Data/hora solicitado</span>
+          <div class="acn-mono">{{ acionamento.data_hora_solicitado|date:"d/m/Y H:i" }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <span class="acn-campo-rotulo">Data/hora de início</span>
+          <div class="acn-mono">{{ acionamento.data_hora_inicio|date:"d/m/Y H:i" }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <span class="acn-campo-rotulo">Data/hora final</span>
+          <div class="acn-mono">{{ acionamento.data_hora_final|date:"d/m/Y H:i" }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <span class="acn-campo-rotulo">KM inicial</span>
+          <div class="acn-mono">{{ acionamento.km_inicio }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <span class="acn-campo-rotulo">KM final</span>
+          <div class="acn-mono">{{ acionamento.km_final }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <span class="acn-campo-rotulo">Pedágio</span>
+          <div class="acn-mono">R$ {{ acionamento.pedagio|floatformat:2 }}</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -257,10 +288,18 @@
       <span class="fw-semibold">FRANQUIA</span>
     </div>
     <div class="card-body">
-      <dl class="row mb-0">
-        <dt class="col-sm-3">Franquia de agente</dt>
-        <dd class="col-sm-9">{{ acionamento.franquia_agente|default:"—" }}</dd>
-      </dl>
+      <div class="row g-3">
+        <div class="col-12 col-md-6">
+          <span class="acn-campo-rotulo">Franquia de agente</span>
+          <div>{{ acionamento.franquia_agente|default:"—" }}</div>
+        </div>
+        {% if acionamento.franquia_agente %}
+        <div class="col-12 col-md-6">
+          <span class="acn-campo-rotulo">Escalonamento</span>
+          <div>{% if acionamento.franquia_agente.escalonamento_automatico %}Automático (ativo){% else %}Desativado{% endif %}</div>
+        </div>
+        {% endif %}
+      </div>
     </div>
   </div>
 

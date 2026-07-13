@@ -2991,3 +2991,24 @@ def test_listagem_com_add_exibe_botao_novo(client, django_user_model):
     assert response.status_code == 200
     conteudo = response.content.decode(response.charset)
     assert "Novo acionamento" in conteudo
+
+
+# ---------------------------------------------------------------------------
+# DD-032 — filtro de template `cnpj` (camada de apresentação). Formata 14
+# dígitos como 00.000.000/0000-00; devolve o valor original se não tiver
+# exatamente 14 dígitos. Import LOCAL da função (padrão da suíte).
+# ---------------------------------------------------------------------------
+
+
+def test_filtro_cnpj_formata_14_digitos():
+    """14 dígitos viram a máscara 00.000.000/0000-00."""
+    from controle_acionamentos.templatetags.formatos import cnpj
+
+    assert cnpj("11222333000181") == "11.222.333/0001-81"
+
+
+def test_filtro_cnpj_valor_invalido_retorna_original():
+    """Sem 14 dígitos, o filtro devolve o valor original intocado."""
+    from controle_acionamentos.templatetags.formatos import cnpj
+
+    assert cnpj("123") == "123"

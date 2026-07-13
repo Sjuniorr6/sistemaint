@@ -377,6 +377,19 @@ a.acn-badge-codigo:hover {
 }
 .acn-escopo .acn-dash-nota { color: var(--acn-muted); font-size: 0.82rem; }
 
+/* Rótulo de campo dos blocos de dados de origem do detalhe (DD-032 item 4):
+   menor que o .acn-dash-rotulo, fica ACIMA do valor em cada célula do grid,
+   caixa alta e discreto (cor da pele). */
+.acn-escopo .acn-campo-rotulo {
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--acn-muted);
+  margin-bottom: 0.15rem;
+}
+
 /* Rodapé de ação: card com texto à esquerda e botões à direita. */
 .acn-escopo .acn-rodape-acao {
   display: flex;
