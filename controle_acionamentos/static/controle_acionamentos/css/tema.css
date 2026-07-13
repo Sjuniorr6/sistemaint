@@ -38,11 +38,33 @@
   border: 1px solid var(--acn-line);
   border-radius: 999px;
   padding: 0.3rem 0.9rem;
-  font-family: var(--acn-font-mono);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--acn-font-ui);  /* rótulo na fonte normal do tema (mockup), não mono */
   font-size: 0.85rem;
+  font-weight: 600;
   cursor: pointer;
 }
 .acn-btn-tema:hover { border-color: var(--acn-gold); }
+
+/* Ícone meia-lua do toggle de paleta (DD-032 item e): círculo dividido —
+   metade dourada, metade vazia — desenhado em CSS, com borda dourada. Reage
+   à pele SEM JS: apagado no Noite (dourado misturado à surface), dourado cheio
+   no Âmbar (o tema.js só troca a classe .acn-ambar no escopo). */
+.acn-escopo .acn-tema-icone {
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  border-radius: 50%;
+  border: 1px solid var(--acn-gold);
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--acn-gold) 55%, var(--acn-surface)) 0 50%,
+    transparent 50% 100%);
+}
+.acn-escopo.acn-ambar .acn-tema-icone {
+  background: linear-gradient(90deg, var(--acn-gold) 0 50%, transparent 50% 100%);
+}
 
 /* ===== ST2 — camada de componentes (form e detalhe) ===== */
 
