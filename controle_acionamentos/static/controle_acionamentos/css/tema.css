@@ -410,10 +410,19 @@ a.acn-badge-codigo:hover {
   /* Respiro lateral responsivo (prevalece sobre o padding 1.5rem da regra base
      de .acn-escopo, por vir depois no arquivo). */
   padding: 1.5rem clamp(1.25rem, 3vw, 3rem);
-  /* 140px aproxima navbar global + margens do base.html (py-3 + mt-4); calibrável
-     a olho no navegador — ajustar se sobrar faixa cinza embaixo ou nascer scroll
-     vertical em tela vazia. */
-  min-height: calc(100vh - 140px);
+  /* 111px = navbar global + margens do base.html (py-3 + mt-4). Valor CALIBRADO
+     por medição no navegador (era estimativa de 140; na Home mediu-se +29,44px de
+     sobra abaixo do escopo → alvo 110,56). Arredondado para CIMA (111): no
+     calc(100vh - X), subtrair MENOS deixa o escopo MAIOR, então X para baixo
+     transborda meio pixel e cria scroll vertical fantasma — X arredonda sempre
+     para cima. Recalibrar se a navbar do base.html mudar de altura. */
+  min-height: calc(100vh - 111px);
+  /* Come o padding-bottom do <main class="py-3"> do base.html (16px medidos),
+     que fica ABAIXO do escopo e criava 16px de scroll vertical mesmo com o
+     min-height certo (scrollHeight - clientHeight = 16). Mesmo mecanismo de
+     escape dos margins horizontais do full-bleed, agora no eixo Y. Mesma
+     dívida — sai junto quando o base oferecer override. */
+  margin-bottom: -16px;
 }
 
 /* Corrige o scroll horizontal fantasma do full-bleed acima:
