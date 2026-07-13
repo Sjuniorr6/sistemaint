@@ -410,19 +410,26 @@ a.acn-badge-codigo:hover {
   /* Respiro lateral responsivo (prevalece sobre o padding 1.5rem da regra base
      de .acn-escopo, por vir depois no arquivo). */
   padding: 1.5rem clamp(1.25rem, 3vw, 3rem);
-  /* 111px = navbar global + margens do base.html (py-3 + mt-4). Valor CALIBRADO
-     por medição no navegador (era estimativa de 140; na Home mediu-se +29,44px de
-     sobra abaixo do escopo → alvo 110,56). Arredondado para CIMA (111): no
-     calc(100vh - X), subtrair MENOS deixa o escopo MAIOR, então X para baixo
-     transborda meio pixel e cria scroll vertical fantasma — X arredonda sempre
-     para cima. Recalibrar se a navbar do base.html mudar de altura. */
-  min-height: calc(100vh - 111px);
+  /* 71px = altura descontada do viewport. O 111 valia com o escopo nascendo em
+     y=110 (antes do margin-top negativo); com o margin-top: -40px abaixo, o topo
+     do escopo sobe para ~70 (medido 70,03), então descontamos só isso. Arredondado
+     para CIMA (71) pela regra registrada: no calc(100vh - X), subtrair MENOS deixa
+     o escopo MAIOR, então X para baixo transborda e cria scroll vertical fantasma
+     — X arredonda sempre para cima. Recalibrar se a navbar do base.html mudar de
+     altura. */
+  min-height: calc(100vh - 71px);
   /* Come o padding-bottom do <main class="py-3"> do base.html (16px medidos),
      que fica ABAIXO do escopo e criava 16px de scroll vertical mesmo com o
      min-height certo (scrollHeight - clientHeight = 16). Mesmo mecanismo de
      escape dos margins horizontais do full-bleed, agora no eixo Y. Mesma
      dívida — sai junto quando o base oferecer override. */
   margin-bottom: -16px;
+  /* Come o vão entre a navbar global e o topo do escopo: padding-top do
+     <main class="py-3"> (16px) + margin-top do .container mt-4 (24px) do
+     base.html = 40px MEDIDOS no navegador (nav.bottom 70,03 → escopo.top
+     110,02; vão 39,98). Mesmo mecanismo de escape do margin-bottom: -16px,
+     agora no topo. Mesma dívida — sai junto quando o base oferecer override. */
+  margin-top: -40px;
 }
 
 /* Corrige o scroll horizontal fantasma do full-bleed acima:
