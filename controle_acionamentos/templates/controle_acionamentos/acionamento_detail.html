@@ -296,6 +296,42 @@
     </div>
   </div>
 
+  {% comment %} ==== HISTÓRICO DE EDIÇÕES — trilha de auditoria (DD-049/ST4) ==== {% endcomment %}
+  <div class="card mb-3">
+    <div class="card-header d-flex align-items-center">
+      <span class="badge rounded-pill acn-badge-num me-2">7</span>
+      <span class="fw-semibold text-uppercase">Histórico de edições</span>
+    </div>
+    <div class="card-body {% if historico %}p-0{% endif %}">
+      {% if historico %}
+      <table class="table table-striped align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Campo</th>
+            <th>Valor anterior</th>
+            <th>Valor novo</th>
+            <th>Editado por</th>
+            <th>Quando</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for h in historico %}
+          <tr>
+            <td>{{ h.campo }}</td>
+            <td class="acn-mono">{{ h.valor_anterior }}</td>
+            <td class="acn-mono">{{ h.valor_novo }}</td>
+            <td>{{ h.editado_por.get_full_name|default:h.editado_por.username }}</td>
+            <td class="acn-mono">{{ h.editado_em|date:"d/m/Y H:i" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <span class="acn-campo-rotulo">Nenhuma edição registrada.</span>
+      {% endif %}
+    </div>
+  </div>
+
   {# — Rodapé — #}
   <div class="acn-rodape-acao mt-4">
     <span>Registro somente leitura · valores calculados automaticamente</span>

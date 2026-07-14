@@ -111,3 +111,14 @@ def somar_valor_agente_no_mes(hoje=None):
         )
     )
     return agregado["total"]
+
+
+def listar_historico_do_acionamento(acionamento):
+    """DD-049/ST4 — históricos de um acionamento, mais recente primeiro
+    (Meta.ordering do model), com o editor pré-carregado para o template
+    (select_related evita N+1 ao exibir quem editou por linha).
+
+    A query parte da instância via related_name="historico" — não precisa
+    importar o model AcionamentoHistorico aqui.
+    """
+    return acionamento.historico.select_related("editado_por").all()

@@ -3592,3 +3592,102 @@ def test_acionamento_update_atomicidade_rollback(
     assert AcionamentoHistorico.objects.count() == 0
     ac.refresh_from_db()
     assert ac.pedagio == Decimal("0.00")  # o save também sofreu rollback
+
+
+# --- DD-049 ST4: exibição do histórico no detalhe (RED) ---
+# Selector listar_historico_do_acionamento e a seção "Histórico de edições" no
+# detalhe AINDA NÃO EXISTEM. Imports do selector/model DENTRO do corpo (isola o
+# ImportError, mantém a suíte coletável). Contrato do selector (query pura):
+#   listar_historico_do_acionamento(acionamento) -> queryset dos históricos
+#   DAQUELE acionamento, mais recente primeiro (Meta.ordering do model), com
+#   select_related("editado_por") (o template mostra quem editou — evita N+1).
+# RED: testes 1 e 2 falham por ImportError; o 3 por AssertionError (a seção não
+# existe no template).
+
+
+@pytest.mark.django_db
+def test_listar_historico_do_acionamento_filtra_e_ordena(
+    django_user_model, _fks_acionamento
+):
+    """Retorna só os históricos do acionamento pedido, mais recente primeiro —
+    não vaza o histórico de outro acionamento."""
+    from controle_acionamentos.models import AcionamentoHistorico
+    from controle_acionamentos.selectors import listar_historico_do_acionamento
+
+    cliente, responsavel, agente = _fks_acionamento
+    ac_a = _acionamento_valido(cliente, responsavel, agente)
+    ac_a.save()
+    ac_b = _acionamento_valido(cliente, responsavel, agente)
+    ac_b.save()
+    user = _user_com_perms(django_user_model)
+
+    a1 = AcionamentoHistorico.objects.create(
+        acionamento=ac_a, editado_por=user,
+        campo="pedagio", valor_anterior="0.00", valor_novo="10.00",
+    )
+    a2 = AcionamentoHistorico.objects.create(
+        acionamento=ac_a, editado_por=user,
+        campo="pedagio", valor_anterior="10.00", valor_novo="20.00",
+    )
+    AcionamentoHistorico.objects.create(
+        acionamento=ac_b, editado_por=user,
+        campo="pedagio", valor_anterior="0.00", valor_novo="5.00",
+    )
+
+    # Força a1 mais antigo que a2 (update() NÃO dispara auto_now_add) — padrão ST2.
+    AcionamentoHistorico.objects.filter(pk=a1.pk).update(
+        editado_em=timezone.now() - timedelta(hours=1)
+    )
+
+    resultado = list(listar_historico_do_acionamento(ac_a))
+
+    assert resultado == [a2, a1]  # só os de A, mais recente primeiro
+
+
+@pytest.mark.django_db
+def test_listar_historico_sem_registros_retorna_vazio(
+    django_user_model, _fks_acionamento
+):
+    """Acionamento sem histórico → queryset vazio."""
+    from controle_acionamentos.selectors import listar_historico_do_acionamento
+
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()
+
+    assert listar_historico_do_acionamento(ac).count() == 0
+
+
+@pytest.mark.django_db
+def test_detalhe_renderiza_historico_de_edicoes(
+    client, django_user_model, _fks_acionamento
+):
+    """O detalhe exibe a seção "Histórico de edições" com campo, valores antes/
+    depois e quem editou (username "Fulano" = fallback de __str__/get_full_name)."""
+    from controle_acionamentos.models import AcionamentoHistorico
+
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()
+    editor = django_user_model.objects.create_user(username="Fulano", password="x")
+    AcionamentoHistorico.objects.create(
+        acionamento=ac,
+        editado_por=editor,
+        campo="pedagio",
+        valor_anterior="0.00",
+        valor_novo="25.00",
+    )
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_detail", args=[ac.pk])
+    response = client.get(url)
+
+    assert response.status_code == 200
+    conteudo = response.content.decode(response.charset)
+    assert "Histórico de edições" in conteudo
+    assert "pedagio" in conteudo  # o campo (ou seu rótulo)
+    assert "0.00" in conteudo
+    assert "25.00" in conteudo
+    assert "Fulano" in conteudo  # quem editou

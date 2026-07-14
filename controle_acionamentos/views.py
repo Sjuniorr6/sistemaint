@@ -21,6 +21,7 @@ from .selectors import (
     contar_sem_franquia,
     listar_acionamentos,
     listar_franquias_por_cliente,
+    listar_historico_do_acionamento,
     somar_valor_agente_no_mes,
 )
 from .services import (
@@ -190,10 +191,15 @@ def acionamento_detail(request, pk):
     """
     acionamento = get_object_or_404(Acionamento, pk=pk)
     composicao = compor_valor_agente(acionamento)
+    historico = listar_historico_do_acionamento(acionamento)
     return render(
         request,
         "controle_acionamentos/acionamento_detail.html",
-        {"acionamento": acionamento, "composicao": composicao},
+        {
+            "acionamento": acionamento,
+            "composicao": composicao,
+            "historico": historico,
+        },
     )
 
 
