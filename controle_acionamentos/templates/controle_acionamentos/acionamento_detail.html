@@ -334,9 +334,12 @@
 
   {# — Rodapé — #}
   <div class="acn-rodape-acao mt-4">
-    <span>Registro somente leitura · valores calculados automaticamente</span>
+    <span>Valores calculados automaticamente · edições registradas no histórico</span>
     <div class="d-flex gap-2">
       <a href="{% url 'controle_acionamentos:acionamento_list' %}" class="btn btn-outline-secondary">Voltar à listagem</a>
+      {% if perms.controle_acionamentos.change_acionamento %}
+        <a href="{% url 'controle_acionamentos:acionamento_update' acionamento.pk %}" class="btn btn-outline-primary">Editar acionamento</a>
+      {% endif %}
       <a href="{% url 'controle_acionamentos:acionamento_create' %}" class="btn btn-primary">Novo acionamento</a>
     </div>
   </div>

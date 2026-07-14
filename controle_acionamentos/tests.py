@@ -3691,3 +3691,105 @@ def test_detalhe_renderiza_historico_de_edicoes(
     assert "0.00" in conteudo
     assert "25.00" in conteudo
     assert "Fulano" in conteudo  # quem editou
+
+
+# --- DD-049 ST5: botao Editar gated por change_acionamento (RED) ---
+# O botão "Editar" ainda NÃO existe em nenhum template. Espelha o padrão dos
+# testes do botão Novo (gating por permissão), mas a ÂNCORA é o href da rota
+# acionamento_update (/acionamentos/<pk>/editar/): a palavra "Editar" solta
+# poderia colidir com outro texto; o href é distintivo e não colide com os
+# links de detalhe (/acionamentos/<pk>/) nem de pedágio (.../pedagio/).
+# RED: os 2 "com_change" nascem VERMELHOS (AssertionError); os 2 "sem_change"
+# podem nascer VERDES (o botão não existe p/ ninguém) — são guardas.
+
+
+@pytest.mark.django_db
+def test_listagem_sem_change_nao_exibe_botao_editar(
+    client, django_user_model, _fks_acionamento
+):
+    """Guarda (pode nascer VERDE — o botão ainda não existe p/ ninguém): quem só
+    tem view_acionamento NÃO vê o link de editar na listagem."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_list")
+    response = client.get(url)
+
+    assert response.status_code == 200
+    conteudo = response.content.decode(response.charset)
+    url_editar = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
+    assert url_editar not in conteudo
+
+
+@pytest.mark.django_db
+def test_listagem_com_change_exibe_botao_editar(
+    client, django_user_model, _fks_acionamento
+):
+    """view + change → o link de editar do registro aparece na listagem,
+    apontando para acionamento_update do acionamento."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()
+
+    user = _user_com_perms(
+        django_user_model, "view_acionamento", "change_acionamento"
+    )
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_list")
+    response = client.get(url)
+
+    assert response.status_code == 200
+    conteudo = response.content.decode(response.charset)
+    url_editar = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
+    assert url_editar in conteudo
+
+
+@pytest.mark.django_db
+def test_detalhe_sem_change_nao_exibe_botao_editar(
+    client, django_user_model, _fks_acionamento
+):
+    """Guarda (pode nascer VERDE): no detalhe, quem só tem view_acionamento NÃO
+    vê o link de editar."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_detail", args=[ac.pk])
+    response = client.get(url)
+
+    assert response.status_code == 200
+    conteudo = response.content.decode(response.charset)
+    url_editar = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
+    assert url_editar not in conteudo
+
+
+@pytest.mark.django_db
+def test_detalhe_com_change_exibe_botao_editar(
+    client, django_user_model, _fks_acionamento
+):
+    """view + change → o botão de editar aparece no detalhe, apontando para
+    acionamento_update."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()
+
+    user = _user_com_perms(
+        django_user_model, "view_acionamento", "change_acionamento"
+    )
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_detail", args=[ac.pk])
+    response = client.get(url)
+
+    assert response.status_code == 200
+    conteudo = response.content.decode(response.charset)
+    url_editar = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
+    assert url_editar in conteudo

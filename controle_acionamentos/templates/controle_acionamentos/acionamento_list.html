@@ -110,6 +110,9 @@
             {% endif %}
             <td>
               <a href="{% url 'controle_acionamentos:acionamento_detail' a.pk %}" class="acn-badge-codigo">{{ a.codigo }}</a>
+              {% if perms.controle_acionamentos.change_acionamento %}
+                <a href="{% url 'controle_acionamentos:acionamento_update' a.pk %}" class="btn btn-outline-secondary btn-sm d-inline-block mt-1">Editar</a>
+              {% endif %}
             </td>
             <td>
               <div class="fw-semibold">{{ a.cliente }}</div>
