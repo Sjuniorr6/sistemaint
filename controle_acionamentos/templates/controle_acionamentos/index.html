@@ -100,7 +100,7 @@
           {% for a in ultimos %}
           <tr>
             <td class="acn-mono">
-              <a href="{% url 'controle_acionamentos:acionamento_detail' a.pk %}">{{ a.codigo }}</a>
+              <a href="{% url 'controle_acionamentos:acionamento_detail' a.pk %}" class="acn-link-codigo">{{ a.codigo }}</a>
             </td>
             <td>{{ a.cliente }} · {{ a.nome_servico }}</td>
             <td class="acn-mono">{{ a.data_hora_solicitado|date:"d/m/Y H:i" }}</td>

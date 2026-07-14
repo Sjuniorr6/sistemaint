@@ -517,3 +517,48 @@ a.acn-badge-codigo:hover {
    (4) mesma dívida do full-bleed — sai junto quando o base.html oferecer um
        override de largura. */
 body:has(.acn-escopo) { overflow-x: clip; }
+
+/* ===== ST5 (DD-049) — ação de editar na listagem e link de código na home ===== */
+
+/* Lápis de editar que só surge no hover da linha (ou no foco por teclado):
+   círculo pequeno com o dourado do tema sobre fundo/borda sutil (mesma técnica
+   de color-mix do badge de código). Funciona nas duas peles (só variáveis). */
+.acn-escopo .acn-editar-hover {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: 0.4rem;
+  border-radius: 50%;
+  color: var(--acn-gold-texto);
+  background: color-mix(in srgb, var(--acn-gold) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--acn-gold) 45%, transparent);
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+/* Revela no hover da linha OU no foco por teclado (:focus-visible preserva o
+   acesso sem mouse). */
+.acn-escopo tr:hover .acn-editar-hover,
+.acn-escopo .acn-editar-hover:focus-visible {
+  opacity: 1;
+}
+/* Realce leve ao passar sobre o próprio ícone: um passo mais forte. */
+.acn-escopo .acn-editar-hover:hover {
+  background: color-mix(in srgb, var(--acn-gold) 18%, transparent);
+  border-color: var(--acn-gold);
+  color: var(--acn-gold-texto);
+}
+
+/* Código ACN como link dourado LEVE (sem o box do badge) na tabela compacta da
+   home: só a cor de destaque do tema + sublinhado no hover. */
+.acn-escopo .acn-link-codigo {
+  color: var(--acn-gold-texto);
+  text-decoration: none;
+  font-weight: 600;
+}
+.acn-escopo .acn-link-codigo:hover {
+  color: var(--acn-gold-texto);
+  text-decoration: underline;
+}

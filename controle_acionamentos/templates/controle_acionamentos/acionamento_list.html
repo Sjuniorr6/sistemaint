@@ -111,7 +111,9 @@
             <td>
               <a href="{% url 'controle_acionamentos:acionamento_detail' a.pk %}" class="acn-badge-codigo">{{ a.codigo }}</a>
               {% if perms.controle_acionamentos.change_acionamento %}
-                <a href="{% url 'controle_acionamentos:acionamento_update' a.pk %}" class="btn btn-outline-secondary btn-sm d-inline-block mt-1">Editar</a>
+                <a href="{% url 'controle_acionamentos:acionamento_update' a.pk %}"
+                   class="acn-editar-hover" title="Editar acionamento"
+                   aria-label="Editar {{ a.codigo }}"><i class="bi bi-pencil-fill"></i></a>
               {% endif %}
             </td>
             <td>
