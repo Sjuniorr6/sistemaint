@@ -1,0 +1,26 @@
+{% comment %}
+  Modal genérico "exige motivo" — Bloquear (RF-14) e Reabrir (RF-15).
+  Parâmetros: modal_id, acao (valor de Acao), titulo.
+{% endcomment %}
+<div class="modal fade" id="{{ modal_id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form method="post" action="{% url 'chamados:acao' chamado.pk acao %}">
+      {% csrf_token %}
+      <div class="modal-content border-0 shadow" style="border-radius: var(--ch-radius, .85rem);">
+        <div class="modal-header bg-dark text-white border-0">
+          <h5 class="modal-title"><i class="bi bi-chat-left-text me-2"></i>{{ titulo }}</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body p-4">
+          <label for="{{ modal_id }}_motivo" class="form-label fw-semibold">Motivo</label>
+          <textarea id="{{ modal_id }}_motivo" name="motivo" rows="4"
+                    class="form-control" placeholder="Informe o motivo…" required></textarea>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary fw-semibold">Confirmar</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>

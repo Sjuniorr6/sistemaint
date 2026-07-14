@@ -1,0 +1,203 @@
+{% extends 'base.html' %}
+
+{% block title %}| Chamados |{% endblock %}
+
+{% block content %}
+{% include 'chamados/partials/_estilos.html' %}
+
+<div class="container ch-wrap py-4">
+
+  {% comment %} Cabeçalho: título + subtítulo + ação principal. {% endcomment %}
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+      <h3 class="ch-page-title mb-1">{{ titulo|default:"Chamados" }}</h3>
+      <p class="ch-subtitle">Fila de atendimento, do mais recente ao mais antigo.</p>
+    </div>
+    {% if pode_abrir %}
+      <a href="{% url 'chamados:abrir' %}" class="btn btn-warning fw-semibold px-3">
+        <i class="bi bi-plus-lg me-1"></i> Novo chamado
+      </a>
+    {% endif %}
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show border-0 shadow-sm" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  {% comment %} Painel de indicadores derivados do log (RF-08, ADR-011). {% endcomment %}
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-md-4">
+      <div class="ch-metric card text-bg-secondary h-100"><div class="card-body d-flex align-items-center justify-content-between">
+        <div>
+          <div class="ch-metric-label">Fila Ativa</div>
+          <div class="ch-metric-value">{{ metricas.fila_ativa }}</div>
+        </div>
+        <i class="bi bi-inbox-fill ch-metric-icon"></i>
+      </div></div>
+    </div>
+    <div class="col-6 col-md-4">
+      <div class="ch-metric card text-bg-primary h-100"><div class="card-body d-flex align-items-center justify-content-between">
+        <div>
+          <div class="ch-metric-label">Encaminhados</div>
+          <div class="ch-metric-value">{{ metricas.encaminhados }}</div>
+        </div>
+        <i class="bi bi-send-fill ch-metric-icon"></i>
+      </div></div>
+    </div>
+    <div class="col-6 col-md-4">
+      <div class="ch-metric card text-bg-success h-100"><div class="card-body d-flex align-items-center justify-content-between">
+        <div>
+          <div class="ch-metric-label">Resolvidos</div>
+          <div class="ch-metric-value">{{ metricas.resolvidos_hoje }}</div>
+        </div>
+        <i class="bi bi-check-circle-fill ch-metric-icon"></i>
+      </div></div>
+    </div>
+  </div>
+
+  {% comment %} Barra de filtros por coluna (client-side, via DataTables). Cliente,
+    Equipamento e Protocolo são inputs de texto; Status é um dropdown de valores
+    fixos. O botão limpa todos os filtros de uma vez. {% endcomment %}
+  <div class="ch-card card mb-3">
+    <div class="card-body">
+      <div class="row g-2 align-items-end">
+        <div class="col-6 col-md-3">
+          <label for="filtro-protocolo" class="form-label small fw-semibold mb-1">Protocolo</label>
+          <input type="text" id="filtro-protocolo" class="form-control form-control-sm" placeholder="Ex.: 2026-000001">
+        </div>
+        <div class="col-6 col-md-3">
+          <label for="filtro-cliente" class="form-label small fw-semibold mb-1">Cliente</label>
+          <input type="text" id="filtro-cliente" class="form-control form-control-sm" placeholder="Nome do cliente">
+        </div>
+        <div class="col-6 col-md-3">
+          <label for="filtro-equipamento" class="form-label small fw-semibold mb-1">Equipamento</label>
+          <input type="text" id="filtro-equipamento" class="form-control form-control-sm" placeholder="Nº do equipamento">
+        </div>
+        <div class="col-6 col-md-2">
+          <label for="filtro-status" class="form-label small fw-semibold mb-1">Status</label>
+          <select id="filtro-status" class="form-select form-select-sm">
+            <option value="">Todos</option>
+            <option value="Aberto">Aberto</option>
+            <option value="Encaminhado">Encaminhado</option>
+            <option value="Expedição">Expedição</option>
+            <option value="Laboratório">Laboratório</option>
+            <option value="Comercial">Comercial</option>
+            <option value="Bloqueado">Bloqueado</option>
+            <option value="Resolvido">Resolvido</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-1 d-grid">
+          <button type="button" id="filtro-limpar" class="btn btn-outline-secondary btn-sm" title="Limpar filtros">
+            <i class="bi bi-x-circle me-1"></i>Limpar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% comment %} Tabela dentro de um card limpo, sem bordas duras. {% endcomment %}
+  <div class="ch-card card">
+    <div class="card-body">
+      <div class="table-responsive">
+        <table id="tabela-chamados" class="table align-middle w-100 mb-0">
+          <thead>
+            <tr>
+              <th>Protocolo</th>
+              <th>Cliente</th>
+              <th>Equipamento</th>
+              <th>Status</th>
+              <th>Responsável</th>
+              <th class="text-end">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for linha in linhas %}
+              {% with c=linha.chamado %}
+              <tr>
+                <td><a href="{% url 'chamados:detalhe' c.pk %}" class="ch-protocolo">{{ c.protocolo }}</a></td>
+                <td>{{ c.cliente }}</td>
+                <td class="text-muted">{{ c.numero_equipamento }}</td>
+                <td>{% include 'chamados/partials/_status_badge.html' with chamado=c %}</td>
+                <td>
+                  <span class="fw-medium">{{ c.responsavel.get_username }}</span>
+                  {% if c.responsavel_inteligencia %}
+                    <span class="text-muted small d-block">
+                      <i class="bi bi-arrow-return-right"></i> {{ c.responsavel_inteligencia.get_username }}
+                    </span>
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  <a href="{% url 'chamados:detalhe' c.pk %}"
+                     class="btn btn-sm {% if linha.acoes %}btn-primary{% else %}btn-outline-secondary{% endif %} px-3">
+                    <i class="bi {% if linha.acoes %}bi-pencil-square{% else %}bi-eye{% endif %} me-1"></i>
+                    {% if linha.acoes %}Tratar{% else %}Ver{% endif %}
+                  </a>
+                </td>
+              </tr>
+              {% endwith %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{% comment %}
+  DataTables na listagem — mesmo stack dos demais apps (jQuery 3.7.1 +
+  DataTables 1.13.8 + i18n pt-BR via CDN). base.html não carrega jQuery, então
+  carregamos aqui. Ordenamos por Protocolo (col 0) DESC. A coluna de Ações
+  (última) não é ordenável nem pesquisável.
+{% endcomment %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css"/>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script>
+  $(document).ready(function () {
+    var tabela = $('#tabela-chamados').DataTable({
+      scrollX: true,
+      autoWidth: false,
+      language: {
+        url: "https://cdn.datatables.net/plug-ins/1.13.8/i18n/pt-BR.json"
+      },
+      pageLength: 10,
+      lengthMenu: [10, 25, 50, 100],
+      order: [[0, 'desc']],
+      columnDefs: [
+        { targets: -1, orderable: false, searchable: false }
+      ]
+    });
+
+    // Índices das colunas: 0=Protocolo, 1=Cliente, 2=Equipamento, 3=Status.
+    // Inputs de texto: busca "contém" (regex=false, smart=true).
+    $('#filtro-protocolo').on('keyup', function () {
+      tabela.column(0).search(this.value).draw();
+    });
+    $('#filtro-cliente').on('keyup', function () {
+      tabela.column(1).search(this.value).draw();
+    });
+    $('#filtro-equipamento').on('keyup', function () {
+      tabela.column(2).search(this.value).draw();
+    });
+    // Status: valor exato via regex ancorada (evita casar substring de outro label).
+    $('#filtro-status').on('change', function () {
+      var v = this.value;
+      var termo = v ? '^' + v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$' : '';
+      tabela.column(3).search(termo, /*regex*/ true, /*smart*/ false).draw();
+    });
+
+    // Limpar todos os filtros de uma vez.
+    $('#filtro-limpar').on('click', function () {
+      $('#filtro-protocolo, #filtro-cliente, #filtro-equipamento').val('');
+      $('#filtro-status').val('');
+      tabela.columns([0, 1, 2, 3]).search('').draw();
+    });
+  });
+</script>
+{% endblock %}

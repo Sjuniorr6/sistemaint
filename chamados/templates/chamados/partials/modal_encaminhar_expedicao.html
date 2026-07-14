@@ -1,0 +1,34 @@
+{% comment %}
+  Modal "Encaminhar para Expedição": a Inteligência envia o chamado para a fila
+  compartilhada da Expedição quando o equipamento precisa de manutenção. Exige
+  procedimento e tratativa; não há responsável (posse do grupo inteiro).
+{% endcomment %}
+<div class="modal fade" id="modalEncaminharExpedicao" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form method="post" action="{% url 'chamados:acao' chamado.pk Acao.ENCAMINHAR_EXPEDICAO %}">
+      {% csrf_token %}
+      <div class="modal-content border-0 shadow" style="border-radius: var(--ch-radius, .85rem);">
+        <div class="modal-header bg-info border-0">
+          <h5 class="modal-title"><i class="bi bi-box-seam me-2"></i>Encaminhar para a Expedição</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div class="mb-3">
+            <label for="exp_proc" class="form-label fw-semibold">Procedimento realizado</label>
+            <textarea id="exp_proc" name="procedimento_realizado" rows="3" class="form-control"
+                      placeholder="O que já foi verificado…" required></textarea>
+          </div>
+          <div class="mb-0">
+            <label for="exp_trat" class="form-label fw-semibold">Tratativa / motivo do envio</label>
+            <textarea id="exp_trat" name="tratativa" rows="3" class="form-control"
+                      placeholder="Ex.: equipamento precisa de manutenção…" required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-info fw-semibold">Encaminhar p/ expedição</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>

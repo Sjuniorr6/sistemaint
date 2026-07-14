@@ -1,0 +1,232 @@
+{% extends 'base.html' %}
+
+{% block title %}| Novo chamado |{% endblock %}
+
+{% block content %}
+{% include 'chamados/partials/_estilos.html' %}
+
+<!-- Select2 (mesmo padrão dos apps de acompanhamento) para os dropdowns com busca -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+<style>
+  /* Painel destacado do fluxo "abrir já encaminhado". */
+  .ch-encaminhar-panel {
+    background: #eff6ff;
+    border-radius: var(--ch-radius);
+    padding: 1.1rem 1.25rem;
+    margin-top: .25rem;
+    border-left: 4px solid #2563eb;
+  }
+  /* Checkbox de encaminhamento em destaque, como um toggle-card. */
+  .ch-toggle {
+    background: #f8fafc; border-radius: var(--ch-radius);
+    padding: .85rem 1.1rem; display: flex; align-items: center; gap: .6rem;
+  }
+  /* Painel da seção "Contato feito por" (agrupa os dados de quem acionou). */
+  .ch-contato-panel {
+    background: #f8fafc;
+    border-radius: var(--ch-radius);
+    padding: 1.1rem 1.25rem;
+    border-left: 4px solid #64748b;
+  }
+
+  /* Alinha o Select2 com o visual do form-select do Bootstrap 5.3. */
+  .select2-container .select2-selection--single {
+    height: calc(1.5em + .75rem + 2px);
+    padding: .375rem .75rem;
+    border: 1px solid #ced4da;
+    border-radius: .375rem;
+    display: flex;
+    align-items: center;
+  }
+  .select2-container--default .select2-selection--single .select2-selection__rendered {
+    padding-left: 0;
+    line-height: 1.5;
+    color: #212529;
+  }
+  .select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: calc(1.5em + .75rem);
+  }
+  .select2-container--default.select2-container--focus .select2-selection--single {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 .25rem rgba(13, 110, 253, .25);
+  }
+  .select2-dropdown { border: 1px solid #ced4da; border-radius: .375rem; }
+
+  .select2-container--default .select2-results>.select2-results__options{
+    color: black !important;
+  }
+</style>
+
+<div class="container ch-wrap py-4" style="max-width: 820px;">
+
+  <div class="mb-4">
+    <h3 class="ch-page-title mb-1"><i class="bi bi-plus-circle text-warning me-1"></i>Novo chamado</h3>
+    <p class="ch-subtitle">Registre a demanda com os dados de abertura.</p>
+  </div>
+
+  {% if form.non_field_errors %}
+    <div class="alert alert-danger border-0 shadow-sm">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <div class="ch-card card">
+    <div class="card-body p-4">
+      <form method="post" x-data="{ encaminhar: {{ form.encaminhar.value|yesno:'true,false' }} }">
+        {% csrf_token %}
+
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label for="{{ form.cliente.id_for_label }}" class="form-label fw-semibold">Cliente</label>
+            {{ form.cliente }}
+            {% for e in form.cliente.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+          </div>
+          <div class="col-md-6">
+            <label for="{{ form.categoria.id_for_label }}" class="form-label fw-semibold">Categoria</label>
+            {{ form.categoria }}
+            {% for e in form.categoria.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+          </div>
+          <div class="col-md-6">
+            <label for="{{ form.modelo_equipamento.id_for_label }}" class="form-label fw-semibold">Modelo do equipamento</label>
+            {{ form.modelo_equipamento }}
+            {% for e in form.modelo_equipamento.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+          </div>
+          {% comment %} Nº do equipamento: pode ter mais de um. Alpine gerencia a
+            lista de inputs (todos com name="numero_equipamento"); o botão + adiciona
+            outro e o × remove. O form junta os valores em "EQ-1, EQ-2". Ao repostar
+            com erro, `value` volta como string separada por vírgula e é rehidratada. {% endcomment %}
+          <div class="col-md-6"
+               x-data="{
+                 equipamentos: ('{{ form.numero_equipamento.value|default_if_none:''|escapejs }}'.split(',').map(s => s.trim()).filter(s => s.length)) || [],
+                 add() { this.equipamentos.push(''); },
+                 remove(i) { this.equipamentos.splice(i, 1); if (!this.equipamentos.length) this.equipamentos.push(''); },
+                 init() { if (!this.equipamentos.length) this.equipamentos.push(''); }
+               }">
+            <label class="form-label fw-semibold">Nº do equipamento</label>
+            <template x-for="(eq, i) in equipamentos" :key="i">
+              <div class="input-group mb-2">
+                <input type="text" name="numero_equipamento" class="form-control"
+                       x-model="equipamentos[i]" placeholder="Ex.: EQ-1">
+                <button type="button" class="btn btn-outline-primary" @click="add()"
+                        x-show="i === equipamentos.length - 1" title="Adicionar equipamento">
+                  <i class="bi bi-plus-lg"></i>
+                </button>
+                <button type="button" class="btn btn-outline-danger" @click="remove(i)"
+                        x-show="equipamentos.length > 1" title="Remover">
+                  <i class="bi bi-x-lg"></i>
+                </button>
+              </div>
+            </template>
+            {% for e in form.numero_equipamento.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+          </div>
+          {% comment %} Responsável (Quality) é sempre o usuário logado — só exibido
+            (read-only); o valor real é definido na view a partir de request.user. {% endcomment %}
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Responsável (Quality)</label>
+            <input type="text" class="form-control" value="{{ request.user.get_username }}" disabled readonly>
+          </div>
+          <div class="col-12">
+            <label for="{{ form.problema_relatado.id_for_label }}" class="form-label fw-semibold">Problema relatado</label>
+            {{ form.problema_relatado }}
+            {% for e in form.problema_relatado.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+          </div>
+
+          {% comment %} Seção "Contato feito por": quem acionou o Quality e por qual
+            canal. Nome e meio são obrigatórios; telefone/email complementam. {% endcomment %}
+          <div class="col-12">
+            <div class="ch-contato-panel">
+              <div class="text-secondary fw-semibold small text-uppercase mb-3">
+                <i class="bi bi-person-lines-fill me-1"></i>Contato feito por
+              </div>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label for="{{ form.contato_nome.id_for_label }}" class="form-label fw-semibold">Nome</label>
+                  {{ form.contato_nome }}
+                  {% for e in form.contato_nome.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+                </div>
+                <div class="col-md-6">
+                  <label for="{{ form.contato_meio.id_for_label }}" class="form-label fw-semibold">Meio de comunicação</label>
+                  {{ form.contato_meio }}
+                  {% for e in form.contato_meio.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+                </div>
+                <div class="col-md-6">
+                  <label for="{{ form.contato_telefone.id_for_label }}" class="form-label fw-semibold">Telefone</label>
+                  {{ form.contato_telefone }}
+                  {% for e in form.contato_telefone.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+                </div>
+                <div class="col-md-6">
+                  <label for="{{ form.contato_email.id_for_label }}" class="form-label fw-semibold">Email</label>
+                  {{ form.contato_email }}
+                  {% for e in form.contato_email.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {% comment %} Fluxo "abrir já encaminhado" (RN-08). Alpine só mostra/esconde;
+            a obrigatoriedade real é validada no form e no service. {% endcomment %}
+          <div class="col-12">
+            <label class="ch-toggle w-100 mb-0" style="cursor: pointer;">
+              {{ form.encaminhar }}
+              <span class="fw-semibold">{{ form.encaminhar.label }}</span>
+              <i class="bi bi-send ms-auto text-primary"></i>
+            </label>
+          </div>
+
+          {% comment %} x-show (não x-if): os campos ficam no DOM e preservam o que
+            foi digitado se o usuário desmarca e remarca. {% endcomment %}
+          <div class="col-12" x-show="encaminhar" x-cloak>
+            <div class="ch-encaminhar-panel">
+              <div class="text-primary fw-semibold small text-uppercase mb-3">
+                <i class="bi bi-diagram-3 me-1"></i>Encaminhamento para a Inteligência
+              </div>
+              <div class="row g-3">
+                <div class="col-12">
+                  <label for="{{ form.procedimento_realizado.id_for_label }}" class="form-label fw-semibold">Procedimento realizado</label>
+                  {{ form.procedimento_realizado }}
+                  {% for e in form.procedimento_realizado.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+                </div>
+                <div class="col-12">
+                  <label for="{{ form.tratativa.id_for_label }}" class="form-label fw-semibold">Tratativa</label>
+                  {{ form.tratativa }}
+                  {% for e in form.tratativa.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+                </div>
+                <div class="col-md-6">
+                  <label for="{{ form.responsavel_inteligencia.id_for_label }}" class="form-label fw-semibold">Responsável (Inteligência)</label>
+                  {{ form.responsavel_inteligencia }}
+                  {% for e in form.responsavel_inteligencia.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <hr class="my-4">
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-warning fw-semibold px-4">
+            <i class="bi bi-check-circle me-1"></i> Abrir chamado
+          </button>
+          <a href="{% url 'chamados:fila' %}" class="btn btn-outline-secondary px-4">Cancelar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+{% comment %} Alpine já é usado no projeto para microinterações (ADR-007); carrega sob demanda. {% endcomment %}
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+{% comment %} Select2 nos dropdowns (cliente/categoria/responsável). jQuery é
+  carregado aqui porque o base.html não o expõe globalmente. {% endcomment %}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+  jQuery(function ($) {
+    $('select.select2').select2({
+      width: '100%',
+      placeholder: 'Selecione uma opção',
+      allowClear: true,
+    });
+  });
+</script>
+{% endblock %}

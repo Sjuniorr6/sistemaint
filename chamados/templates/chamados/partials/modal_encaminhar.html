@@ -1,0 +1,37 @@
+{% comment %}
+  Modal Encaminhar (RF-13, RN-09): exige procedimento, tratativa e o responsável
+  da Inteligência. O dropdown lista só usuários do grupo inteligencia (RF-05).
+{% endcomment %}
+<div class="modal fade" id="modalEncaminhar" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form method="post" action="{% url 'chamados:acao' chamado.pk Acao.ENCAMINHAR %}">
+      {% csrf_token %}
+      <div class="modal-content border-0 shadow" style="border-radius: var(--ch-radius, .85rem);">
+        <div class="modal-header bg-warning border-0">
+          <h5 class="modal-title"><i class="bi bi-send me-2"></i>Encaminhar para a Inteligência</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div class="mb-3">
+            <label for="enc_proc" class="form-label fw-semibold">Procedimento realizado</label>
+            <textarea id="enc_proc" name="procedimento_realizado" rows="3" class="form-control"
+                      placeholder="O que já foi tentado…" required></textarea>
+          </div>
+          <div class="mb-3">
+            <label for="enc_trat" class="form-label fw-semibold">Tratativa proposta</label>
+            <textarea id="enc_trat" name="tratativa" rows="3" class="form-control"
+                      placeholder="Sugestão de encaminhamento…" required></textarea>
+          </div>
+          <div class="mb-0">
+            <label for="enc_resp" class="form-label fw-semibold">Responsável (Inteligência)</label>
+            {{ encaminhar_form.responsavel_inteligencia }}
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-warning fw-semibold">Encaminhar</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>

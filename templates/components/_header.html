@@ -298,6 +298,21 @@
                         </ul>
                     </li>
 
+                    <!-- Chamados (operadores: quality/inteligencia/expedicao/laboratorio/comercial) -->
+                    {% if user.is_superuser or user|has_group:"quality" or user|has_group:"inteligencia" or user|has_group:"expedicao" or user|has_group:"laboratorio" or user|has_group:"COMERCIAL" %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="dropdownChamados" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-headset"></i> Chamados
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="dropdownChamados">
+                            <li><a class="dropdown-item" href="{% url 'chamados:fila' %}">Fila de Chamados</a></li>
+                            {% if user.is_superuser or user|has_group:"quality" %}
+                            <li><a class="dropdown-item" href="{% url 'chamados:abrir' %}">Novo Chamado</a></li>
+                            {% endif %}
+                        </ul>
+                    </li>
+                    {% endif %}
+
                     <!-- Compras -->
                     <!-- <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="dropdownCompras" role="button" data-bs-toggle="dropdown" aria-expanded="false">

@@ -88,6 +88,7 @@ INSTALLED_APPS = [
     'kanban_marketing',
     'controle_administrativo',
     'controle_acionamentos',
+    'chamados',
     'django_celery_beat',
 ]
 

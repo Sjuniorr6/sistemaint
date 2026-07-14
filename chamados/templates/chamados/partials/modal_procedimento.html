@@ -1,0 +1,26 @@
+{% comment %}
+  Modal genérico "exige procedimento" — Finalizar (RF-12) e Resolver (RF-16).
+  Parâmetros: modal_id, acao (valor de Acao), titulo.
+{% endcomment %}
+<div class="modal fade" id="{{ modal_id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form method="post" action="{% url 'chamados:acao' chamado.pk acao %}">
+      {% csrf_token %}
+      <div class="modal-content border-0 shadow" style="border-radius: var(--ch-radius, .85rem);">
+        <div class="modal-header bg-success text-white border-0">
+          <h5 class="modal-title"><i class="bi bi-check-circle me-2"></i>{{ titulo }}</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body p-4">
+          <label for="{{ modal_id }}_proc" class="form-label fw-semibold">Procedimento realizado</label>
+          <textarea id="{{ modal_id }}_proc" name="procedimento_realizado" rows="4"
+                    class="form-control" placeholder="Descreva o que foi feito…" required></textarea>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-success fw-semibold">Confirmar</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>

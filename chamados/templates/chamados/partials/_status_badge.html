@@ -1,0 +1,5 @@
+{% comment %}
+  Badge de status por estado. Espera `chamado` no contexto. A cor vem da classe
+  ch-status-<VALOR> (definida em _estilos.html); o pontinho é gerado via CSS.
+{% endcomment %}
+<span class="ch-status ch-status-{{ chamado.status }}">{{ chamado.get_status_display }}</span>

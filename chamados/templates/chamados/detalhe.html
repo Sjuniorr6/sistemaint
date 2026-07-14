@@ -1,0 +1,258 @@
+{% extends 'base.html' %}
+{% load chamados_extras %}
+
+{% block title %}| Chamado {{ chamado.protocolo }} |{% endblock %}
+
+{% block content %}
+{% include 'chamados/partials/_estilos.html' %}
+
+<style>
+  .modal-body{
+    color: black;
+  }
+</style>
+
+<div class="container ch-wrap py-4">
+
+  {% comment %} Cabeçalho: protocolo + status + voltar. {% endcomment %}
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div class="d-flex align-items-center gap-3">
+      <h3 class="ch-page-title mb-0">
+        <i class="bi bi-headset text-warning me-1"></i>{{ chamado.protocolo }}
+      </h3>
+      {% include 'chamados/partials/_status_badge.html' with chamado=chamado %}
+    </div>
+    <a href="{% url 'chamados:fila' %}" class="btn btn-outline-light">
+      <i class="bi bi-arrow-left me-1"></i> Voltar à fila
+    </a>
+  </div>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show border-0 shadow-sm" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  {% comment %} Timeline de progresso no topo (RF-10, RF-18): só bolinha +
+    preenchimento + título de cada etapa; os detalhes (autor, data/hora, snapshots)
+    aparecem no tooltip ao passar o mouse. {% endcomment %}
+  <div class="ch-card card mb-4"><div class="card-body">
+    <h6 class="ch-section-title"><i class="bi bi-clock-history me-1"></i>Progresso do chamado</h6>
+    <ol class="ch-progress">
+      {% for e in eventos %}
+        {% comment %} "Iniciar análise" foi descontinuado do fluxo (sem EM_ANALISE):
+          eventos legados dessa ação não aparecem na barra de progresso. {% endcomment %}
+        {% if e.acao != 'INICIAR_ANALISE' %}
+        <li class="ch-progress-step ch-ev-{{ e.estado_destino }}"
+            data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="bottom"
+            data-bs-custom-class="ch-progress-tip"
+            data-bs-title="
+              <div class='ch-tip-titulo'>{{ e.get_acao_display }}</div>
+              <div class='ch-tip-linha'>{% if e.estado_origem %}{{ e.get_estado_origem_display }} &rarr; {% endif %}{{ e.get_estado_destino_display }}</div>
+              <div class='ch-tip-linha'><i class='bi bi-person me-1'></i>por {{ e.autor.get_username }}</div>
+              <div class='ch-tip-linha'><i class='bi bi-clock me-1'></i>{{ e.criado_em|date:'d/m/Y H:i' }}</div>
+              {% if e.responsavel_inteligencia %}<div class='ch-tip-linha'><strong>Para:</strong> {{ e.responsavel_inteligencia.get_username }}</div>{% endif %}
+              {% if e.procedimento_snapshot %}<div class='ch-tip-linha'><strong>Proc.:</strong> {{ e.procedimento_snapshot }}</div>{% endif %}
+              {% if e.tratativa_snapshot %}<div class='ch-tip-linha'><strong>Tratativa:</strong> {{ e.tratativa_snapshot }}</div>{% endif %}
+              {% if e.motivo %}<div class='ch-tip-linha'><strong>Motivo:</strong> {{ e.motivo }}</div>{% endif %}
+            ">
+          <span class="ch-progress-date">
+            {{ e.criado_em|date:"d/m/Y" }}<br>{{ e.criado_em|date:"H:i" }}
+          </span>
+          <span class="ch-progress-dot"></span>
+          <span class="ch-progress-label">{{ e.get_acao_display }}</span>
+        </li>
+        {% endif %}
+      {% endfor %}
+    </ol>
+  </div></div>
+
+  <div class="row g-4">
+    {% comment %} Coluna esquerda: fatos + tratativa + ações. {% endcomment %}
+    <div class="col-lg-7">
+
+      <div class="ch-card card mb-4"><div class="card-body">
+        <h6 class="ch-section-title"><i class="bi bi-info-circle me-1"></i>Dados de abertura</h6>
+        <dl class="ch-dl row mb-0">
+          <dt class="col-sm-4">Cliente</dt><dd class="col-sm-8">{{ chamado.cliente }}</dd>
+          <dt class="col-sm-4">Categoria</dt>
+          <dd class="col-sm-8"><span class="badge rounded-pill text-bg-light">{{ chamado.get_categoria_display }}</span></dd>
+          {% comment %} numero_equipamento pode ter vários, já gravados como
+            "EQ-1, EQ-2" — exibidos como badges separados. {% endcomment %}
+          <dt class="col-sm-4">Nº do equipamento</dt>
+          <dd class="col-sm-8">
+            {% for eq in chamado.numero_equipamento|split:", " %}<span class="badge rounded-pill text-bg-light me-1 mb-1">{{ eq }}</span>{% endfor %}
+          </dd>
+          <dt class="col-sm-4">Modelo do equipamento</dt><dd class="col-sm-8">{{ chamado.modelo_equipamento }}</dd>
+          <dt class="col-sm-4">Problema relatado</dt><dd class="col-sm-8">{{ chamado.problema_relatado|linebreaksbr }}</dd>
+          <dt class="col-sm-4">Contato feito por</dt>
+          <dd class="col-sm-8">
+            <i class="bi bi-person-lines-fill text-secondary me-1"></i>{{ chamado.contato_nome }}
+            <span class="badge rounded-pill text-bg-light ms-1">{{ chamado.get_contato_meio_display }}</span>
+            {% if chamado.contato_telefone %}<div class="small text-muted"><i class="bi bi-telephone me-1"></i>{{ chamado.contato_telefone }}</div>{% endif %}
+            {% if chamado.contato_email %}<div class="small text-muted"><i class="bi bi-envelope me-1"></i>{{ chamado.contato_email }}</div>{% endif %}
+          </dd>
+          <dt class="col-sm-4">Responsável (Quality)</dt>
+          <dd class="col-sm-8"><i class="bi bi-person-circle text-secondary me-1"></i>{{ chamado.responsavel.get_username }}</dd>
+          {% if chamado.responsavel_inteligencia %}
+            <dt class="col-sm-4">Responsável (Inteligência)</dt>
+            <dd class="col-sm-8"><i class="bi bi-person-badge text-primary me-1"></i>{{ chamado.responsavel_inteligencia.get_username }}</dd>
+          {% endif %}
+          <dt class="col-sm-4">Aberto por</dt><dd class="col-sm-8">{{ chamado.aberto_por.get_username }}</dd>
+          <dt class="col-sm-4">Aberto em</dt>
+          <dd class="col-sm-8"><i class="bi bi-clock me-1 text-secondary"></i>{{ chamado.aberto_em|date:"d/m/Y H:i" }}</dd>
+        </dl>
+      </div></div>
+
+
+
+      {% comment %} Ações disponíveis conforme estado + posse (RF-07/RF-21). {% endcomment %}
+      {% if acoes %}
+      <div class="ch-card card mb-4"><div class="card-body">
+        <h6 class="ch-section-title"><i class="bi bi-lightning-charge me-1"></i>Ações</h6>
+        <div class="d-flex flex-wrap gap-2">
+          {% for a in acoes %}
+            {% if a == Acao.ENCAMINHAR %}
+              <button class="btn btn-warning fw-semibold" data-bs-toggle="modal" data-bs-target="#modalEncaminhar">
+                <i class="bi bi-send me-1"></i> Encaminhar
+              </button>
+            {% elif a == Acao.ENCAMINHAR_EXPEDICAO %}
+              <button class="btn btn-info fw-semibold" data-bs-toggle="modal" data-bs-target="#modalEncaminharExpedicao">
+                <i class="bi bi-box-seam me-1"></i> Encaminhar p/ expedição
+              </button>
+            {% elif a == Acao.MARCAR_CHEGADA %}
+              {% comment %} Sem dados: POST direto (equipamentos chegaram → laboratório). {% endcomment %}
+              <form method="post" action="{% url 'chamados:acao' chamado.pk Acao.MARCAR_CHEGADA %}" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary fw-semibold">
+                  <i class="bi bi-box-arrow-in-down me-1"></i> Marcar chegada
+                </button>
+              </form>
+            {% elif a == Acao.ENCAMINHAR_COMERCIAL %}
+              <button class="btn btn-success fw-semibold" data-bs-toggle="modal" data-bs-target="#modalEncaminharComercial">
+                <i class="bi bi-briefcase me-1"></i> Encaminhar p/ comercial
+              </button>
+            {% elif a == Acao.FINALIZAR_COMERCIAL %}
+              <button class="btn btn-success fw-semibold" data-bs-toggle="modal" data-bs-target="#modalFinalizarComercial">
+                <i class="bi bi-check2-circle me-1"></i> Finalizar chamado
+              </button>
+            {% elif a == Acao.FINALIZAR %}
+              <button class="btn btn-success fw-semibold" data-bs-toggle="modal" data-bs-target="#modalFinalizar">
+                <i class="bi bi-check-circle me-1"></i> Finalizar
+              </button>
+            {% elif a == Acao.RESOLVER %}
+              <button class="btn btn-success fw-semibold" data-bs-toggle="modal" data-bs-target="#modalResolver">
+                <i class="bi bi-check-circle me-1"></i> Resolver
+              </button>
+            {% elif a == Acao.BLOQUEAR %}
+              <button class="btn btn-outline-danger fw-semibold" data-bs-toggle="modal" data-bs-target="#modalBloquear">
+                <i class="bi bi-pause-circle me-1"></i> Bloquear
+              </button>
+            {% elif a == Acao.REABRIR %}
+              <button class="btn btn-outline-primary fw-semibold" data-bs-toggle="modal" data-bs-target="#modalReabrir">
+                <i class="bi bi-arrow-clockwise me-1"></i> Reabrir
+              </button>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div></div>
+      {% endif %}
+    </div>
+
+    {% comment %} Coluna direita: espaço para resumo/atalhos (o histórico agora é
+      a timeline de progresso no topo). {% endcomment %}
+    <div class="col-lg-5">
+      <div class="ch-card card"><div class="card-body">
+        <h6 class="ch-section-title"><i class="bi bi-flag me-1"></i>Situação atual</h6>
+        <div class="d-flex align-items-center gap-2 mb-2">
+          {% include 'chamados/partials/_status_badge.html' with chamado=chamado %}
+        </div>
+        <div class="ch-ev-meta">
+          Última atualização: {{ chamado.atualizado_em|date:"d/m/Y H:i" }}
+        </div>
+      </div></div>
+      {% if chamado.procedimento_realizado or chamado.tratativa %}
+        <div class="ch-card card mb-4"><div class="card-body">
+          <h6 class="ch-section-title"><i class="bi bi-journal-text me-1"></i>Tratativa</h6>
+          {% if chamado.procedimento_realizado %}
+            <div class="text-muted small text-uppercase fw-semibold mb-1">Procedimento realizado</div>
+            <p class="mb-3">{{ chamado.procedimento_realizado|linebreaksbr }}</p>
+          {% endif %}
+          {% if chamado.tratativa %}
+            <div class="text-muted small text-uppercase fw-semibold mb-1">Tratativa proposta</div>
+            <p class="mb-0">{{ chamado.tratativa|linebreaksbr }}</p>
+          {% endif %}
+        </div></div>
+      {% endif %}
+
+      {% comment %} Tratativas por equipamento (informadas pelo laboratório ao
+        encaminhar para o comercial). {% endcomment %}
+      {% if tratativas_equipamento %}
+        <div class="ch-card card mb-4"><div class="card-body">
+          <h6 class="ch-section-title"><i class="bi bi-hdd-stack me-1"></i>Tratativas por equipamento</h6>
+          {% for t in tratativas_equipamento %}
+            <div class="border rounded p-3 mb-2">
+              <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="badge rounded-pill text-bg-light">{{ t.numero_equipamento }}</span>
+                {% comment %} Tipo/modelo do equipamento (mesmo p/ todo o chamado). {% endcomment %}
+                <span class="text-muted small"><i class="bi bi-hdd me-1"></i>{{ chamado.modelo_equipamento }}</span>
+                {% if t.custo %}
+                  <span class="badge rounded-pill {% if t.custo == 'COM_CUSTO' %}text-bg-warning{% else %}text-bg-success{% endif %}">
+                    {{ t.get_custo_display }}
+                  </span>
+                {% endif %}
+              </div>
+              <div class="small text-muted text-uppercase fw-semibold mt-2">Laboratório</div>
+              <div>{{ t.tratativa|linebreaksbr }}</div>
+              {% if t.tratativa_comercial %}
+                <div class="small text-muted text-uppercase fw-semibold mt-2">Comercial</div>
+                <div>{{ t.tratativa_comercial|linebreaksbr }}</div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div></div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% comment %} Modais de ação (RF-12..RF-17). {% endcomment %}
+  {% if Acao.ENCAMINHAR in acoes %}
+    {% include 'chamados/partials/modal_encaminhar.html' %}
+  {% endif %}
+  {% if Acao.ENCAMINHAR_EXPEDICAO in acoes %}
+    {% include 'chamados/partials/modal_encaminhar_expedicao.html' %}
+  {% endif %}
+  {% if Acao.ENCAMINHAR_COMERCIAL in acoes %}
+    {% include 'chamados/partials/modal_encaminhar_comercial.html' %}
+  {% endif %}
+  {% if Acao.FINALIZAR_COMERCIAL in acoes %}
+    {% include 'chamados/partials/modal_finalizar_comercial.html' %}
+  {% endif %}
+  {% if Acao.FINALIZAR in acoes %}
+    {% include 'chamados/partials/modal_procedimento.html' with modal_id="modalFinalizar" acao=Acao.FINALIZAR titulo="Finalizar chamado" %}
+  {% endif %}
+  {% if Acao.RESOLVER in acoes %}
+    {% include 'chamados/partials/modal_procedimento.html' with modal_id="modalResolver" acao=Acao.RESOLVER titulo="Resolver chamado" %}
+  {% endif %}
+  {% if Acao.BLOQUEAR in acoes %}
+    {% include 'chamados/partials/modal_motivo.html' with modal_id="modalBloquear" acao=Acao.BLOQUEAR titulo="Bloquear chamado" %}
+  {% endif %}
+  {% if Acao.REABRIR in acoes %}
+    {% include 'chamados/partials/modal_motivo.html' with modal_id="modalReabrir" acao=Acao.REABRIR titulo="Reabrir chamado" %}
+  {% endif %}
+
+</div>
+
+{% comment %} Inicializa os tooltips da timeline de progresso (Bootstrap é opt-in;
+  o bundle JS já vem do base.html). {% endcomment %}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+      new bootstrap.Tooltip(el);
+    });
+  });
+</script>
+{% endblock %}
