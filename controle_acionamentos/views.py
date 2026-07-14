@@ -134,6 +134,42 @@ def acionamento_create(request):
 
 
 @login_required
+@permission_required("controle_acionamentos.change_acionamento", raise_exception=True)
+def acionamento_update(request, pk):
+    """Edição de Acionamento (DD-049/ST1) — view FINA, espelho do create.
+
+    O ModelForm valida (is_valid -> full_clean -> Acionamento.clean) e o
+    recálculo dos 5 campos derivados acontece sozinho no Acionamento.save()
+    (recalcular_valor_agente). A view não contém regra de negócio nem recalcula;
+    só delega. raise_exception=True: sem change_acionamento, devolve 403 em vez
+    de mandar pro login.
+    """
+    acionamento = get_object_or_404(Acionamento, pk=pk)
+    if request.method == "POST":
+        form = AcionamentoForm(request.POST, instance=acionamento)
+        if form.is_valid():
+            form.save()  # o save() do model dispara o recálculo
+            return redirect(
+                "controle_acionamentos:acionamento_detail", pk=acionamento.pk
+            )
+    else:
+        form = AcionamentoForm(instance=acionamento)
+
+    return render(
+        request,
+        "controle_acionamentos/acionamento_form.html",
+        {
+            "form": form,
+            "titulo_pagina": "Editar acionamento",
+            "subtitulo_pagina": "Ajuste os campos — o valor do agente é recalculado ao salvar",
+            "texto_botao": "Salvar alterações",
+            "modo_edicao": True,
+            "ativo_pill": "editando",
+        },
+    )
+
+
+@login_required
 @permission_required("controle_acionamentos.view_acionamento", raise_exception=True)
 def acionamento_detail(request, pk):
     """Detalhe de um Acionamento — somente leitura.

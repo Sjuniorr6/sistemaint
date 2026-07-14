@@ -319,7 +319,8 @@ a.acn-badge-codigo:hover {
   border-radius: 999px;
   padding: 0.2rem;
 }
-.acn-escopo .acn-nav a {
+.acn-escopo .acn-nav a,
+.acn-escopo .acn-nav span {
   color: var(--acn-muted);
   text-decoration: none;
   font-size: 0.85rem;
@@ -329,7 +330,8 @@ a.acn-badge-codigo:hover {
 .acn-escopo .acn-nav a:hover {
   color: var(--acn-text);
 }
-.acn-escopo .acn-nav a.acn-nav-ativo {
+.acn-escopo .acn-nav a.acn-nav-ativo,
+.acn-escopo .acn-nav span.acn-nav-ativo {
   background: var(--acn-gold);
   color: var(--acn-sobre-dourado);
 }

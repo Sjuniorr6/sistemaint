@@ -38,6 +38,8 @@
       <a href="{% url 'controle_acionamentos:index' %}" class="{% if ativo == 'inicio' %}acn-nav-ativo{% endif %}">Início</a>
       <a href="{% url 'controle_acionamentos:acionamento_list' %}" class="{% if ativo == 'acionamentos' %}acn-nav-ativo{% endif %}">Acionamentos</a>
       <a href="{% url 'controle_acionamentos:acionamento_create' %}" class="{% if ativo == 'novo' %}acn-nav-ativo{% endif %}">Novo</a>
+      {% comment %} Pill contextual da edição (DD-049/ST1): acesa e NÃO clicável (span). {% endcomment %}
+      {% if ativo == 'editando' %}<span class="acn-nav-ativo">Editando</span>{% endif %}
     </nav>
   </div>
 </div>

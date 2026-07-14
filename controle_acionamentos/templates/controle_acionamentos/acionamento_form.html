@@ -1,10 +1,10 @@
 {% extends 'base.html' %}
 
-{% block title %}| Novo Acionamento |{% endblock %}
+{% block title %}| {{ titulo_pagina|default:"Novo Acionamento" }} |{% endblock %}
 
 {% block content %}
 <div class="acn-escopo">
-  {% include 'controle_acionamentos/_cabecalho.html' with titulo="Novo acionamento" subtitulo="Preencha a sequência 1–6 — o valor do agente é calculado ao salvar" ativo="novo" %}
+  {% include 'controle_acionamentos/_cabecalho.html' with titulo=titulo_pagina|default:"Novo acionamento" subtitulo=subtitulo_pagina|default:"Preencha a sequência 1–6 — o valor do agente é calculado ao salvar" ativo=ativo_pill|default:"novo" %}
 
   {% include 'controle_acionamentos/_messages.html' %}
 
@@ -235,7 +235,7 @@
       <span>O valor a pagar é calculado ao salvar e conferido na tela de detalhe.</span>
       <div class="d-flex gap-2">
         <a href="{% url 'controle_acionamentos:index' %}" class="btn btn-outline-secondary">Cancelar</a>
-        <button type="submit" class="btn btn-primary">Salvar acionamento</button>
+        <button type="submit" class="btn btn-primary">{{ texto_botao|default:"Salvar acionamento" }}</button>
       </div>
     </div>
 

@@ -3092,3 +3092,175 @@ def test_home_renderiza_ultimos_acionamentos(
     conteudo = response.content.decode(response.charset)
     assert "Últimos acionamentos" in conteudo
     assert ac.codigo in conteudo
+
+
+# ---------------------------------------------------------------
+# DD-049/ST1 — edição de acionamento (RED: view/rota ainda não existem)
+# Rota alvo: controle_acionamentos:acionamento_update (kwarg pk)
+# Os 4 testes nascem VERMELHOS: o reverse() está DENTRO de cada corpo, então
+# o NoReverseMatch derruba só estes testes, sem quebrar a coleta dos 116
+# existentes. NÃO existem ainda a view acionamento_update nem a rota.
+# ---------------------------------------------------------------
+
+
+def _post_payload_acionamento(ac, **overrides):
+    """Serializa um Acionamento salvo no formato que o AcionamentoForm espera,
+    pronto para client.post(): FKs por pk, datas em '%Y-%m-%dT%H:%M' (o que o
+    <input type="datetime-local"> envia e o form parseia via input_formats).
+
+    Os 5 campos calculados (editable=False) ficam de fora por construção — quem
+    os preenche é o save(). `overrides` troca campos pontuais (ex.: o
+    valor_acionamento sob edição). Espelha o helper `_acionamento_valido`, mas
+    na direção model → POST.
+    """
+    def _dt(valor):
+        # localtime + naive '%Y-%m-%dT%H:%M' fecha o round-trip sob USE_TZ=True:
+        # é o mesmo formato que o widget renderiza e o input_formats do form lê.
+        return timezone.localtime(valor).strftime("%Y-%m-%dT%H:%M")
+
+    payload = {
+        "cliente": ac.cliente_id,
+        "nome_servico": ac.nome_servico,
+        "valor_acionamento": str(ac.valor_acionamento),
+        "franquia_km": ac.franquia_km,
+        "franquia_horas": str(ac.franquia_horas),
+        "valor_km_excedente": str(ac.valor_km_excedente),
+        "valor_hora_excedente": str(ac.valor_hora_excedente),
+        "origem": ac.origem,
+        "destino": ac.destino,
+        "responsavel_agente": ac.responsavel_agente_id,
+        "agente": ac.agente_id,
+        "placa_agente": ac.placa_agente or "",
+        "motorista": ac.motorista or "",
+        "placa_motorista": ac.placa_motorista or "",
+        "numero_motorista": ac.numero_motorista or "",
+        "data_hora_solicitado": _dt(ac.data_hora_solicitado),
+        "data_hora_inicio": _dt(ac.data_hora_inicio),
+        "data_hora_final": _dt(ac.data_hora_final),
+        "km_inicio": ac.km_inicio,
+        "km_final": ac.km_final,
+        "pedagio": str(ac.pedagio),
+        "franquia_agente": ac.franquia_agente_id or "",
+    }
+    payload.update(overrides)
+    return payload
+
+
+@pytest.mark.django_db
+def test_acionamento_update_anonimo_redireciona_para_login(client, _fks_acionamento):
+    """Sem autenticação, o GET na edição redireciona (302) para o login,
+    preservando o destino em ?next= (padrão do hardening já existente)."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()
+
+    url = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
+    response = client.get(url)
+
+    assert response.status_code == 302
+    redirect = urlparse(response.url)
+    assert redirect.path == reverse("login")
+    assert parse_qs(redirect.query)["next"] == [url]
+
+
+@pytest.mark.django_db
+def test_acionamento_update_com_view_mas_sem_change_retorna_403(
+    client, django_user_model, _fks_acionamento
+):
+    """Granularidade: quem só tem view_acionamento NÃO pode editar (403).
+    Ver não é mexer — a edição exige change_acionamento."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
+    response = client.get(url)
+
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_acionamento_update_get_carrega_dados_do_registro(
+    client, django_user_model, _fks_acionamento
+):
+    """Com view+change, o GET devolve 200 renderizando o form_template com o
+    registro pré-carregado (instance): o nome_servico do acionamento aparece
+    no HTML, provando que o form veio populado."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente, nome_servico="Reboque pesado XYZ")
+    ac.save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento", "change_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
+    response = client.get(url)
+
+    assert response.status_code == 200
+    assert "controle_acionamentos/acionamento_form.html" in [
+        t.name for t in response.templates
+    ]
+    conteudo = response.content.decode(response.charset)
+    assert "Reboque pesado XYZ" in conteudo
+
+
+@pytest.mark.django_db
+def test_acionamento_update_post_valido_edita_e_recalcula(
+    client, django_user_model, _fks_acionamento
+):
+    """Com view+change, o POST válido edita o registro e RECALCULA o valor_agente.
+
+    Cenário sem franquia (inline manda): valor 500→600, mantidos os demais
+    campos. Após o POST: 302 para o detalhe, valor_acionamento persistido == 600
+    e valor_agente (a) diferente do anterior E (b) igual ao que o próprio service
+    recalcular_valor_agente produz para o mesmo cenário — sem número mágico.
+    """
+    from controle_acionamentos.services import recalcular_valor_agente
+
+    cliente, responsavel, agente = _fks_acionamento
+    base = timezone.now()
+    params = dict(
+        franquia_agente=None,
+        valor_acionamento=Decimal("500.00"),
+        franquia_km=80,
+        franquia_horas=Decimal("4.00"),
+        valor_km_excedente=Decimal("2.00"),
+        valor_hora_excedente=Decimal("30.00"),
+        pedagio=Decimal("0.00"),
+        km_inicio=0,
+        km_final=100,
+        data_hora_solicitado=base,
+        data_hora_inicio=base,
+        data_hora_final=base + timedelta(hours=5),
+    )
+    ac = _acionamento_valido(cliente, responsavel, agente, **params)
+    ac.save()
+    ac.refresh_from_db()
+    valor_agente_antes = ac.valor_agente
+
+    # Espelho PURO do que o service deve produzir com valor 600 (mesmos demais
+    # campos): não persistido, só para extrair o valor_agente esperado.
+    esperado = _acionamento_valido(
+        cliente, responsavel, agente, **{**params, "valor_acionamento": Decimal("600.00")}
+    )
+    recalcular_valor_agente(esperado)
+
+    user = _user_com_perms(django_user_model, "view_acionamento", "change_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
+    payload = _post_payload_acionamento(ac, valor_acionamento="600.00")
+    response = client.post(url, payload)
+
+    assert response.status_code == 302
+    assert response.url == reverse(
+        "controle_acionamentos:acionamento_detail", args=[ac.pk]
+    )
+
+    ac.refresh_from_db()
+    assert ac.valor_acionamento == Decimal("600.00")
+    assert ac.valor_agente != valor_agente_antes          # recalculou de fato
+    assert ac.valor_agente == esperado.valor_agente        # bate com o service
