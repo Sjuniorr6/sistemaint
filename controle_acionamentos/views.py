@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -22,7 +23,11 @@ from .selectors import (
     listar_franquias_por_cliente,
     somar_valor_agente_no_mes,
 )
-from .services import compor_valor_agente, vincular_franquia_em_lote
+from .services import (
+    compor_valor_agente,
+    registrar_edicao_acionamento,
+    vincular_franquia_em_lote,
+)
 
 
 @login_required
@@ -148,7 +153,13 @@ def acionamento_update(request, pk):
     if request.method == "POST":
         form = AcionamentoForm(request.POST, instance=acionamento)
         if form.is_valid():
-            form.save()  # o save() do model dispara o recálculo
+            # Foto independente do estado atual ANTES do save (não é a instância
+            # do form) — é o "antes" que a trilha compara com o "depois".
+            antigo = Acionamento.objects.get(pk=acionamento.pk)
+            with transaction.atomic():
+                # Trilha e save na mesma transação — ou tudo, ou nada.
+                salvo = form.save()  # o save() do model dispara o recálculo
+                registrar_edicao_acionamento(antigo, salvo, request.user)
             return redirect(
                 "controle_acionamentos:acionamento_detail", pk=acionamento.pk
             )

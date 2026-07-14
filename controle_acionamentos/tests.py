@@ -3465,3 +3465,130 @@ def test_registrar_edicao_sem_mudanca_nao_gera_registro(
 
     assert registros == []
     assert AcionamentoHistorico.objects.count() == 0
+
+
+# --- DD-049 ST3 (integração): view acionamento_update grava trilha (RED) ---
+# A view ainda NÃO chama registrar_edicao_acionamento. Imports de
+# AcionamentoHistorico dentro do corpo (consistência do bloco). As datas são
+# ALINHADAS ao minuto (.replace(second=0, microsecond=0)) porque o
+# _post_payload_acionamento serializa em '%Y-%m-%dT%H:%M' (precisão de minuto):
+# assim o POST "idêntico" volta sem perda e não gera diff espúrio de data.
+
+
+@pytest.mark.django_db
+def test_acionamento_update_post_gera_trilha_de_auditoria(
+    client, django_user_model, _fks_acionamento
+):
+    """POST que muda pedagio (0->25) deve gravar a trilha via a view: o pedágio
+    soma no valor_agente, então a auditoria registra 'pedagio' e 'valor_agente',
+    ambos atribuídos ao usuário logado e ao acionamento editado."""
+    from controle_acionamentos.models import AcionamentoHistorico
+
+    cliente, responsavel, agente = _fks_acionamento
+    base = timezone.now().replace(second=0, microsecond=0)
+    ac = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        pedagio=Decimal("0.00"),
+        data_hora_solicitado=base,
+        data_hora_inicio=base + timedelta(minutes=30),
+        data_hora_final=base + timedelta(hours=3),
+    )
+    ac.save()
+    user = _user_com_perms(django_user_model, "change_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
+    payload = _post_payload_acionamento(ac, pedagio="25.00")
+    response = client.post(url, payload)
+
+    assert response.status_code == 302
+    assert response.url == reverse(
+        "controle_acionamentos:acionamento_detail", args=[ac.pk]
+    )
+
+    registros = list(AcionamentoHistorico.objects.all())
+    campos = {r.campo for r in registros}
+    assert "pedagio" in campos
+    assert "valor_agente" in campos
+    for r in registros:
+        assert r.editado_por == user
+        assert r.acionamento == ac
+
+
+@pytest.mark.django_db
+def test_acionamento_update_post_sem_mudanca_nao_gera_trilha(
+    client, django_user_model, _fks_acionamento
+):
+    """Guarda de regressão: POST idêntico ao estado atual não gera trilha.
+
+    NOTA: já nasce VERDE — no RED a view ainda não grava nada. O papel deste
+    teste é travar o comportamento 'sem mudança => sem histórico' para o GREEN
+    não regredir (o payload de minuto volta sem perda, então não há diff)."""
+    from controle_acionamentos.models import AcionamentoHistorico
+
+    cliente, responsavel, agente = _fks_acionamento
+    base = timezone.now().replace(second=0, microsecond=0)
+    ac = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        data_hora_solicitado=base,
+        data_hora_inicio=base + timedelta(minutes=30),
+        data_hora_final=base + timedelta(hours=3),
+    )
+    ac.save()
+    user = _user_com_perms(django_user_model, "change_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
+    payload = _post_payload_acionamento(ac)  # sem overrides = estado atual
+    response = client.post(url, payload)
+
+    assert response.status_code == 302
+    assert AcionamentoHistorico.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_acionamento_update_atomicidade_rollback(
+    client, django_user_model, _fks_acionamento, monkeypatch
+):
+    """Atomicidade: se a gravação da trilha falhar, o save do acionamento também
+    é desfeito (mesmo transaction.atomic). Patch no PONTO DE USO (views) para
+    fazer registrar_edicao_acionamento explodir.
+
+    NOTA: no RED este teste falha por AttributeError — o nome ainda não existe
+    em controle_acionamentos.views (a view não importa/chama o service)."""
+    from controle_acionamentos.models import AcionamentoHistorico
+
+    cliente, responsavel, agente = _fks_acionamento
+    base = timezone.now().replace(second=0, microsecond=0)
+    ac = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        pedagio=Decimal("0.00"),
+        data_hora_solicitado=base,
+        data_hora_inicio=base + timedelta(minutes=30),
+        data_hora_final=base + timedelta(hours=3),
+    )
+    ac.save()
+    user = _user_com_perms(django_user_model, "change_acionamento")
+    client.force_login(user)
+
+    def _explode(*args, **kwargs):
+        raise RuntimeError("falha proposital para provar o rollback")
+
+    monkeypatch.setattr(
+        "controle_acionamentos.views.registrar_edicao_acionamento", _explode
+    )
+
+    url = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
+    payload = _post_payload_acionamento(ac, pedagio="25.00")
+    with pytest.raises(RuntimeError):
+        client.post(url, payload)
+
+    assert AcionamentoHistorico.objects.count() == 0
+    ac.refresh_from_db()
+    assert ac.pedagio == Decimal("0.00")  # o save também sofreu rollback

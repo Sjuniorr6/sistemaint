@@ -6,10 +6,12 @@ vincular_franquia_em_lote) tocam a persistência por natureza.
 """
 
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.utils import timezone
 
 
 def _so_digitos(documento: str) -> list[int]:
@@ -470,9 +472,15 @@ CAMPOS_AUDITADOS = [
 
 
 def _serializar_valor(valor):
-    """None -> "" ; senão str(valor). Decimal e datas caem na sua repr string
-    natural (padrão do projeto: Decimal como string, sem float)."""
-    return "" if valor is None else str(valor)
+    """None -> "" ; senão str(valor). Datetimes aware são normalizados ao fuso
+    local antes do str() — o mesmo instante lido do banco (UTC) e parseado do
+    form (fuso local) deve serializar idêntico (e a trilha fica legível em
+    horário local). Decimal segue como string (sem float)."""
+    if valor is None:
+        return ""
+    if isinstance(valor, datetime) and timezone.is_aware(valor):
+        valor = timezone.localtime(valor)
+    return str(valor)
 
 
 def registrar_edicao_acionamento(antigo, novo, editado_por):
