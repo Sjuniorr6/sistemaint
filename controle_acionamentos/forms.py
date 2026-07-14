@@ -158,3 +158,24 @@ class FiltroAcionamentosForm(forms.Form):
         if valor == "sem":
             return False
         return None
+
+
+class ClienteForm(forms.ModelForm):
+    """DD-050/ST1 — form de criação/edição de Cliente.
+
+    Só os campos que o operador digita. A validação (nome obrigatório, CNPJ
+    válido e normalização para dígitos) mora no Cliente.clean() — o ModelForm o
+    dispara no is_valid() via full_clean(); NÃO se duplica a regra aqui.
+    """
+
+    class Meta:
+        model = Cliente
+        fields = ["nome_empresa", "cnpj"]
+        widgets = {
+            "nome_empresa": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Ex.: ACME Logística LTDA"}
+            ),
+            "cnpj": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "00.000.000/0000-00"}
+            ),
+        }

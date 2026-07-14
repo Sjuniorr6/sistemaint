@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block title %}| {% if modo == "editar" %}Editar cliente{% else %}Novo cliente{% endif %} |{% endblock %}
+
+{% block content %}
+<div class="acn-escopo">
+  {% if modo == "editar" %}
+    {% include 'controle_acionamentos/_cabecalho.html' with titulo="Editar cliente" subtitulo="Atualize os dados do cliente" ativo="" %}
+  {% else %}
+    {% include 'controle_acionamentos/_cabecalho.html' with titulo="Novo cliente" subtitulo="Cadastre um novo cliente" ativo="" %}
+  {% endif %}
+
+<div class="container-fluid mt-4">
+
+  {% include 'controle_acionamentos/_messages.html' %}
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    {# Erros que não pertencem a um campo específico (ex.: CNPJ inválido do clean) #}
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    {% comment %} ==== DADOS DO CLIENTE ==== {% endcomment %}
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center">
+        <span class="badge rounded-pill acn-badge-num me-2">1</span>
+        <span class="fw-semibold">DADOS DO CLIENTE</span>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-8 mb-3">
+            {{ form.nome_empresa.label_tag }}{% if form.nome_empresa.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.nome_empresa }}
+            {% if form.nome_empresa.errors %}<div class="text-danger small">{{ form.nome_empresa.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-4 mb-3">
+            {{ form.cnpj.label_tag }}{% if form.cnpj.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.cnpj }}
+            {% if form.cnpj.errors %}<div class="text-danger small">{{ form.cnpj.errors }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# — Rodapé — #}
+    <div class="acn-rodape-acao mt-4">
+      <span>Os dados são validados ao salvar.</span>
+      <div class="d-flex gap-2">
+        <a href="{% url 'controle_acionamentos:cliente_list' %}" class="btn btn-outline-secondary">Cancelar</a>
+        <button type="submit" class="btn btn-primary">{% if modo == "editar" %}Salvar alterações{% else %}Salvar cliente{% endif %}</button>
+      </div>
+    </div>
+
+  </form>
+</div>
+</div>
+{% endblock %}

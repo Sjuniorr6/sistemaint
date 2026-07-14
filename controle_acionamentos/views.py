@@ -11,11 +11,12 @@ from django.views.decorators.http import require_POST
 
 from .forms import (
     AcionamentoForm,
+    ClienteForm,
     FiltroAcionamentosForm,
     PedagioUpdateForm,
     VincularFranquiaLoteForm,
 )
-from .models import Acionamento, FranquiaAgente
+from .models import Acionamento, Cliente, FranquiaAgente
 from .selectors import (
     contar_acionamentos_no_mes,
     contar_sem_franquia,
@@ -284,3 +285,74 @@ def acionamento_vincular_franquia_lote(request):
 
     messages.success(request, f"{atualizados} acionamentos atualizados.")
     return redirect(f"{url_list}?cliente={franquia.cliente_id}")
+
+
+# ---------------------------------------------------------------------------
+# Cadastros — DD-050: telas de Cliente (lista/criar/editar). Views FINAS,
+# espelho das de acionamento. Cadastro pequeno: sem paginação; ordena por nome.
+# ---------------------------------------------------------------------------
+
+
+@login_required
+@permission_required("controle_acionamentos.view_cliente", raise_exception=True)
+def cliente_list(request):
+    """Listagem de Clientes (DD-050/ST1) — view FINA.
+
+    Cadastro pequeno: sem paginação, ordenado por nome_empresa. Sem regra de
+    negócio — só entrega o queryset. raise_exception=True: sem view_cliente,
+    devolve 403 em vez de mandar pro login.
+    """
+    clientes = Cliente.objects.all().order_by("nome_empresa")
+    return render(
+        request,
+        "controle_acionamentos/cliente_list.html",
+        {"clientes": clientes},
+    )
+
+
+@login_required
+@permission_required("controle_acionamentos.add_cliente", raise_exception=True)
+def cliente_create(request):
+    """Criação de Cliente (DD-050/ST1) — view FINA.
+
+    O ClienteForm valida via is_valid -> full_clean -> Cliente.clean (nome
+    obrigatório, CNPJ válido e normalizado). POST válido salva e redireciona
+    para a listagem.
+    """
+    if request.method == "POST":
+        form = ClienteForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect("controle_acionamentos:cliente_list")
+    else:
+        form = ClienteForm()
+
+    return render(
+        request,
+        "controle_acionamentos/cliente_form.html",
+        {"form": form, "modo": "criar"},
+    )
+
+
+@login_required
+@permission_required("controle_acionamentos.change_cliente", raise_exception=True)
+def cliente_update(request, pk):
+    """Edição de Cliente (DD-050/ST1) — view FINA, espelho do create.
+
+    Reusa o ClienteForm com instance; POST válido salva e redireciona para a
+    listagem. raise_exception=True: sem change_cliente, devolve 403.
+    """
+    cliente = get_object_or_404(Cliente, pk=pk)
+    if request.method == "POST":
+        form = ClienteForm(request.POST, instance=cliente)
+        if form.is_valid():
+            form.save()
+            return redirect("controle_acionamentos:cliente_list")
+    else:
+        form = ClienteForm(instance=cliente)
+
+    return render(
+        request,
+        "controle_acionamentos/cliente_form.html",
+        {"form": form, "modo": "editar"},
+    )

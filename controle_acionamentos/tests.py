@@ -3793,3 +3793,116 @@ def test_detalhe_com_change_exibe_botao_editar(
     conteudo = response.content.decode(response.charset)
     url_editar = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
     assert url_editar in conteudo
+
+
+# --- DD-050 ST1: telas de Cliente (lista/criar/editar) (RED) ---
+# Views/urls/forms/templates de Cliente ainda NÃO existem. reverse() DENTRO de
+# cada corpo: no RED a rota não existe e o NoReverseMatch deve falhar SÓ estes
+# testes, sem quebrar a coleção dos 136 já verdes.
+
+
+class TestViewsCliente:
+    """DD-050/ST1 (RED) — telas de Cliente no padrão de permissões do app:
+    @login_required + @permission_required(raise_exception=True).
+
+    CONTRATO DE ROTAS para o GREEN (mesma convenção EN do acionamento_*):
+      controle_acionamentos:cliente_list    -> lista   (view_cliente)
+      controle_acionamentos:cliente_create  -> criar   (add_cliente)
+      controle_acionamentos:cliente_update  -> editar, kwarg pk (change_cliente)
+
+    CNPJ do payload: 11.222.333/0001-81 (válido no dígito verificador); o
+    Cliente.clean() normaliza para dígitos e valida.
+    """
+
+    @pytest.mark.django_db
+    def test_lista_exige_login(self, client):
+        """Anônimo na lista → 302 para o login (login_required)."""
+        url = reverse("controle_acionamentos:cliente_list")
+        response = client.get(url)
+
+        assert response.status_code == 302
+        assert "login" in response.url
+
+    @pytest.mark.django_db
+    def test_lista_exige_permissao_view(self, client, django_user_model):
+        """Logado SEM view_cliente → 403 (permission_required raise_exception)."""
+        user = django_user_model.objects.create_user(username="sem_perm", password="x")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:cliente_list")
+        response = client.get(url)
+
+        assert response.status_code == 403
+
+    @pytest.mark.django_db
+    def test_lista_renderiza_com_cliente(self, client, django_user_model):
+        """Com view_cliente → 200 e o nome do cliente criado aparece na lista."""
+        Cliente.objects.create(nome_empresa="Empresa Alfa SA", cnpj="11222333000181")
+        user = _user_com_perms(django_user_model, "view_cliente")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:cliente_list")
+        response = client.get(url)
+
+        assert response.status_code == 200
+        conteudo = response.content.decode(response.charset)
+        assert "Empresa Alfa SA" in conteudo
+
+    @pytest.mark.django_db
+    def test_criar_exige_permissao_add(self, client, django_user_model):
+        """Ver não é criar: quem só tem view_cliente NÃO acessa o criar (403)."""
+        user = _user_com_perms(django_user_model, "view_cliente")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:cliente_create")
+        response = client.get(url)
+
+        assert response.status_code == 403
+
+    @pytest.mark.django_db
+    def test_criar_post_valido_cria_e_redireciona(self, client, django_user_model):
+        """Com add_cliente, POST válido cria o Cliente e redireciona (302)."""
+        user = _user_com_perms(django_user_model, "add_cliente")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:cliente_create")
+        response = client.post(
+            url,
+            {"nome_empresa": "Nova Empresa LTDA", "cnpj": "11.222.333/0001-81"},
+        )
+
+        assert response.status_code == 302
+        assert Cliente.objects.count() == 1
+
+    @pytest.mark.django_db
+    def test_editar_exige_permissao_change(self, client, django_user_model):
+        """Ver não é editar: quem só tem view_cliente NÃO acessa o editar (403)."""
+        cliente = Cliente.objects.create(
+            nome_empresa="Empresa Beta", cnpj="11222333000181"
+        )
+        user = _user_com_perms(django_user_model, "view_cliente")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:cliente_update", args=[cliente.pk])
+        response = client.get(url)
+
+        assert response.status_code == 403
+
+    @pytest.mark.django_db
+    def test_editar_post_valido_atualiza_e_redireciona(self, client, django_user_model):
+        """Com change_cliente, POST válido atualiza o nome e redireciona (302)."""
+        cliente = Cliente.objects.create(
+            nome_empresa="Nome Antigo", cnpj="11222333000181"
+        )
+        user = _user_com_perms(django_user_model, "change_cliente")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:cliente_update", args=[cliente.pk])
+        response = client.post(
+            url,
+            {"nome_empresa": "Nome Novo", "cnpj": "11.222.333/0001-81"},
+        )
+
+        assert response.status_code == 302
+        cliente.refresh_from_db()
+        assert cliente.nome_empresa == "Nome Novo"
