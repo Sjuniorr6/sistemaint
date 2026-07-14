@@ -24,4 +24,7 @@ urlpatterns = [
     path('agentes/', views.agente_list, name='agente_list'),
     path('agentes/novo/', views.agente_create, name='agente_create'),
     path('agentes/<int:pk>/editar/', views.agente_update, name='agente_update'),
+    path('responsaveis/', views.responsavel_list, name='responsavel_list'),
+    path('responsaveis/novo/', views.responsavel_create, name='responsavel_create'),
+    path('responsaveis/<int:pk>/editar/', views.responsavel_update, name='responsavel_update'),
 ]

@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+
+{% block title %}| {% if modo == "editar" %}Editar responsável{% else %}Novo responsável{% endif %} |{% endblock %}
+
+{% block content %}
+<div class="acn-escopo">
+  {% if modo == "editar" %}
+    {% include 'controle_acionamentos/_cabecalho.html' with titulo="Editar responsável" subtitulo="Atualize os dados do responsável" ativo="" %}
+  {% else %}
+    {% include 'controle_acionamentos/_cabecalho.html' with titulo="Novo responsável" subtitulo="Cadastre um novo responsável" ativo="" %}
+  {% endif %}
+
+<div class="container-fluid mt-4">
+
+  {% include 'controle_acionamentos/_messages.html' %}
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    {# Erros que não pertencem a um campo específico (ex.: nome vazio do clean) #}
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    {% comment %} ==== Bloco 1 — DADOS DO RESPONSÁVEL ==== {% endcomment %}
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center">
+        <span class="badge rounded-pill acn-badge-num me-2">1</span>
+        <span class="fw-semibold">DADOS DO RESPONSÁVEL</span>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-8 mb-3">
+            {{ form.nome.label_tag }}{% if form.nome.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.nome }}
+            {% if form.nome.errors %}<div class="text-danger small">{{ form.nome.errors }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# — Rodapé — #}
+    <div class="acn-rodape-acao mt-4">
+      <span>Os dados são validados ao salvar.</span>
+      <div class="d-flex gap-2">
+        <a href="{% url 'controle_acionamentos:responsavel_list' %}" class="btn btn-outline-secondary">Cancelar</a>
+        <button type="submit" class="btn btn-primary">{% if modo == "editar" %}Salvar alterações{% else %}Salvar responsável{% endif %}</button>
+      </div>
+    </div>
+
+  </form>
+</div>
+</div>
+{% endblock %}

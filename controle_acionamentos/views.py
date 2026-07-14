@@ -15,9 +15,10 @@ from .forms import (
     ClienteForm,
     FiltroAcionamentosForm,
     PedagioUpdateForm,
+    ResponsavelForm,
     VincularFranquiaLoteForm,
 )
-from .models import Acionamento, Agente, Cliente, FranquiaAgente
+from .models import Acionamento, Agente, Cliente, FranquiaAgente, ResponsavelAgente
 from .selectors import (
     contar_acionamentos_no_mes,
     contar_sem_franquia,
@@ -424,5 +425,69 @@ def agente_update(request, pk):
     return render(
         request,
         "controle_acionamentos/agente_form.html",
+        {"form": form, "modo": "editar"},
+    )
+
+
+@login_required
+@permission_required("controle_acionamentos.view_responsavelagente", raise_exception=True)
+def responsavel_list(request):
+    """Listagem de Responsáveis (DD-050/ST3) — view FINA.
+
+    Cadastro pequeno: sem paginação, ordenado por nome. Sem regra de negócio —
+    só entrega o queryset. raise_exception=True: sem view_responsavelagente,
+    devolve 403 em vez de mandar pro login.
+    """
+    responsaveis = ResponsavelAgente.objects.all().order_by("nome")
+    return render(
+        request,
+        "controle_acionamentos/responsavel_list.html",
+        {"responsaveis": responsaveis},
+    )
+
+
+@login_required
+@permission_required("controle_acionamentos.add_responsavelagente", raise_exception=True)
+def responsavel_create(request):
+    """Criação de Responsável (DD-050/ST3) — view FINA, espelho do cliente_create.
+
+    O ResponsavelForm valida via is_valid -> full_clean -> ResponsavelAgente.clean
+    (nome obrigatório). POST válido salva e redireciona para a listagem.
+    """
+    if request.method == "POST":
+        form = ResponsavelForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect("controle_acionamentos:responsavel_list")
+    else:
+        form = ResponsavelForm()
+
+    return render(
+        request,
+        "controle_acionamentos/responsavel_form.html",
+        {"form": form, "modo": "criar"},
+    )
+
+
+@login_required
+@permission_required("controle_acionamentos.change_responsavelagente", raise_exception=True)
+def responsavel_update(request, pk):
+    """Edição de Responsável (DD-050/ST3) — view FINA, espelho do cliente_update.
+
+    Reusa o ResponsavelForm com instance; POST válido salva e redireciona para a
+    listagem. raise_exception=True: sem change_responsavelagente, devolve 403.
+    """
+    responsavel = get_object_or_404(ResponsavelAgente, pk=pk)
+    if request.method == "POST":
+        form = ResponsavelForm(request.POST, instance=responsavel)
+        if form.is_valid():
+            form.save()
+            return redirect("controle_acionamentos:responsavel_list")
+    else:
+        form = ResponsavelForm(instance=responsavel)
+
+    return render(
+        request,
+        "controle_acionamentos/responsavel_form.html",
         {"form": form, "modo": "editar"},
     )

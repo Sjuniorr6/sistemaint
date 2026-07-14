@@ -4080,3 +4080,95 @@ def test_filtro_cpf_valor_invalido_retorna_original():
     from controle_acionamentos.templatetags.formatos import cpf
 
     assert cpf("123") == "123"
+
+
+# --- DD-050 ST3: telas de Responsável (lista/criar/editar) (RED) ---
+# Views/urls/forms/templates de ResponsavelAgente ainda NÃO existem. reverse()
+# DENTRO de cada corpo: no RED a rota não existe e o NoReverseMatch deve falhar
+# SÓ estes testes, sem quebrar a coleção já verde.
+
+
+class TestViewsResponsavel:
+    """DD-050/ST3 (RED) — telas de Responsável (ResponsavelAgente) no padrão de
+    permissões do app: @login_required + @permission_required(raise_exception=True).
+
+    CONTRATO DE ROTAS para o GREEN (mesma convenção EN do acionamento_*):
+      controle_acionamentos:responsavel_list    -> lista   (view_responsavelagente)
+      controle_acionamentos:responsavel_create  -> criar   (add_responsavelagente)
+      controle_acionamentos:responsavel_update  -> editar, kwarg pk (change_responsavelagente)
+
+    Entidade sem documento: só o campo `nome` (obrigatório, validado no
+    ResponsavelAgente.clean()). Espelho direto da TestViewsCliente.
+    """
+
+    @pytest.mark.django_db
+    def test_lista_exige_login(self, client):
+        """Anônimo na lista → 302 para o login (login_required)."""
+        url = reverse("controle_acionamentos:responsavel_list")
+        response = client.get(url)
+
+        assert response.status_code == 302
+        assert "login" in response.url
+
+    @pytest.mark.django_db
+    def test_lista_exige_permissao_view(self, client, django_user_model):
+        """Logado SEM view_responsavelagente → 403 (raise_exception)."""
+        user = django_user_model.objects.create_user(username="sem_perm", password="x")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:responsavel_list")
+        response = client.get(url)
+
+        assert response.status_code == 403
+
+    @pytest.mark.django_db
+    def test_lista_renderiza_com_responsavel(self, client, django_user_model):
+        """Com view_responsavelagente → 200 e o nome do responsável aparece."""
+        ResponsavelAgente.objects.create(nome="João Supervisor")
+        user = _user_com_perms(django_user_model, "view_responsavelagente")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:responsavel_list")
+        response = client.get(url)
+
+        assert response.status_code == 200
+        conteudo = response.content.decode(response.charset)
+        assert "João Supervisor" in conteudo
+
+    @pytest.mark.django_db
+    def test_criar_exige_permissao_add(self, client, django_user_model):
+        """Ver não é criar: quem só tem view NÃO acessa o criar (403)."""
+        user = _user_com_perms(django_user_model, "view_responsavelagente")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:responsavel_create")
+        response = client.get(url)
+
+        assert response.status_code == 403
+
+    @pytest.mark.django_db
+    def test_criar_post_valido_cria_e_redireciona(self, client, django_user_model):
+        """Com add_responsavelagente, POST válido cria e redireciona (302)."""
+        user = _user_com_perms(django_user_model, "add_responsavelagente")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:responsavel_create")
+        response = client.post(url, {"nome": "Novo Responsável"})
+
+        assert response.status_code == 302
+        assert ResponsavelAgente.objects.count() == 1
+
+    @pytest.mark.django_db
+    def test_editar_post_valido_atualiza_e_redireciona(self, client, django_user_model):
+        """Com change_responsavelagente, POST válido atualiza o nome e
+        redireciona (302). Cobre implicitamente a rota update."""
+        responsavel = ResponsavelAgente.objects.create(nome="Nome Antigo")
+        user = _user_com_perms(django_user_model, "change_responsavelagente")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:responsavel_update", args=[responsavel.pk])
+        response = client.post(url, {"nome": "Nome Novo"})
+
+        assert response.status_code == 302
+        responsavel.refresh_from_db()
+        assert responsavel.nome == "Nome Novo"

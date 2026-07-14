@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+
+{% block title %}| Responsáveis |{% endblock %}
+
+{% block content %}
+<div class="acn-escopo">
+  {% include 'controle_acionamentos/_cabecalho.html' with titulo="Responsáveis" subtitulo="Cadastro de responsáveis pelos agentes" ativo="" %}
+
+<div class="container-fluid mt-4">
+
+  {% include 'controle_acionamentos/_messages.html' %}
+
+  {% if perms.controle_acionamentos.add_responsavelagente %}
+  <div class="d-flex justify-content-end mb-3">
+    <a href="{% url 'controle_acionamentos:responsavel_create' %}" class="btn btn-primary">
+      <i class="bi bi-plus-lg"></i> Novo responsável
+    </a>
+  </div>
+  {% endif %}
+
+  <div class="table-responsive">
+    <table class="table table-striped align-middle">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          {% if perms.controle_acionamentos.change_responsavelagente %}<th></th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for responsavel in responsaveis %}
+          <tr>
+            <td>{{ responsavel.nome }}</td>
+            {% if perms.controle_acionamentos.change_responsavelagente %}
+              <td class="text-end">
+                <a href="{% url 'controle_acionamentos:responsavel_update' responsavel.pk %}" class="btn btn-outline-secondary btn-sm">Editar</a>
+              </td>
+            {% endif %}
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="{% if perms.controle_acionamentos.change_responsavelagente %}2{% else %}1{% endif %}">
+              <span class="acn-dash-nota">Nenhum responsável cadastrado ainda.</span>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+</div>
+{% endblock %}

@@ -1,7 +1,13 @@
 # controle_acionamentos/forms.py
 from django import forms
 
-from controle_acionamentos.models import Acionamento, Agente, Cliente, FranquiaAgente
+from controle_acionamentos.models import (
+    Acionamento,
+    Agente,
+    Cliente,
+    FranquiaAgente,
+    ResponsavelAgente,
+)
 
 
 class AcionamentoForm(forms.ModelForm):
@@ -200,6 +206,24 @@ class AgenteForm(forms.ModelForm):
             # que o SelectMultiple — contrato de POST intacto. Sem attrs de classe:
             # o estilo vem do CSS do escopo (.acn-multicheck no tema.css).
             "clientes_vinculados": forms.CheckboxSelectMultiple(),
+        }
+
+
+class ResponsavelForm(forms.ModelForm):
+    """DD-050/ST3 — form de criação/edição de Responsável (ResponsavelAgente).
+
+    Entidade de campo único: só o nome. A validação (nome obrigatório) mora no
+    ResponsavelAgente.clean() — o ModelForm o dispara no is_valid(); NÃO se
+    duplica aqui.
+    """
+
+    class Meta:
+        model = ResponsavelAgente
+        fields = ["nome"]
+        widgets = {
+            "nome": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Ex.: João Supervisor"}
+            ),
         }
 
 
