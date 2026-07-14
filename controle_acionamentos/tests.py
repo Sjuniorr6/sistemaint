@@ -3369,3 +3369,99 @@ def test_acionamento_com_historico_nao_pode_ser_excluido(
         ac.delete()
 
     assert Acionamento.objects.filter(pk=ac.pk).exists()
+
+
+# --- DD-049 ST3: service registrar_edicao_acionamento (RED) ---
+# O service AINDA NÃO EXISTE — estes 3 testes nascem VERMELHOS por ImportError.
+# Imports (service E model) ficam DENTRO de cada corpo para isolar o ImportError
+# e manter os 123 existentes coletáveis. Contrato exercitado:
+#   registrar_edicao_acionamento(antigo, novo, editado_por)
+#     antigo = foto do banco ANTES do save; novo = instância já salva.
+#   Compara CAMPOS_AUDITADOS (editáveis do form + calculados financeiros).
+#   Grava um AcionamentoHistorico por campo mudado; str() serializa; Decimal
+#   vira string; None vira "". Retorna a lista de registros criados.
+
+
+@pytest.mark.django_db
+def test_registrar_edicao_um_campo_gera_um_registro(
+    django_user_model, _fks_acionamento
+):
+    """Edita só nome_servico (não-financeiro, sem recálculo): um único registro,
+    com valor_anterior/valor_novo corretos e os FKs certos."""
+    from controle_acionamentos.models import AcionamentoHistorico
+    from controle_acionamentos.services import registrar_edicao_acionamento
+
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente, nome_servico="Reboque leve")
+    ac.save()
+    user = _user_com_perms(django_user_model)
+
+    antigo = Acionamento.objects.get(pk=ac.pk)  # foto do estado atual
+    ac.nome_servico = "Reboque pesado"
+    ac.save()
+
+    registros = registrar_edicao_acionamento(antigo, ac, user)
+
+    assert len(registros) == 1
+    assert AcionamentoHistorico.objects.count() == 1
+    reg = registros[0]
+    assert reg.campo == "nome_servico"
+    assert reg.valor_anterior == "Reboque leve"
+    assert reg.valor_novo == "Reboque pesado"
+    assert reg.editado_por == user
+    assert reg.acionamento == ac
+
+
+@pytest.mark.django_db
+def test_registrar_edicao_n_campos_gera_um_registro_por_campo(
+    django_user_model, _fks_acionamento
+):
+    """Edita nome_servico E pedagio; o save recalcula valor_agente → 3 mudanças,
+    3 registros. Crava a serialização Decimal->string no registro do pedagio."""
+    from controle_acionamentos.models import AcionamentoHistorico
+    from controle_acionamentos.services import registrar_edicao_acionamento
+
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        nome_servico="Reboque leve",
+        pedagio=Decimal("0.00"),
+    )
+    ac.save()
+    user = _user_com_perms(django_user_model)
+
+    antigo = Acionamento.objects.get(pk=ac.pk)  # foto do estado atual
+    ac.nome_servico = "Reboque pesado"
+    ac.pedagio = Decimal("25.00")
+    ac.save()  # recalcula valor_agente (pedágio soma)
+
+    registros = registrar_edicao_acionamento(antigo, ac, user)
+
+    assert {r.campo for r in registros} == {"nome_servico", "pedagio", "valor_agente"}
+    assert AcionamentoHistorico.objects.count() == 3
+    reg_pedagio = next(r for r in registros if r.campo == "pedagio")
+    assert reg_pedagio.valor_novo == "25.00"  # Decimal -> string
+
+
+@pytest.mark.django_db
+def test_registrar_edicao_sem_mudanca_nao_gera_registro(
+    django_user_model, _fks_acionamento
+):
+    """Save sem alterar nada: nenhuma diferença → nada gravado, lista vazia."""
+    from controle_acionamentos.models import AcionamentoHistorico
+    from controle_acionamentos.services import registrar_edicao_acionamento
+
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()
+    user = _user_com_perms(django_user_model)
+
+    antigo = Acionamento.objects.get(pk=ac.pk)  # foto do estado atual
+    ac.save()  # sem alterar nenhum campo
+
+    registros = registrar_edicao_acionamento(antigo, ac, user)
+
+    assert registros == []
+    assert AcionamentoHistorico.objects.count() == 0

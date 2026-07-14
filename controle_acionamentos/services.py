@@ -432,3 +432,81 @@ def vincular_franquia_em_lote(pks, franquia, sobrescrever=False):
             acionamento.save()
             atualizados += 1
         return atualizados
+
+
+# Caminho B — o que a trilha de edição (DD-049) audita: os campos EDITÁVEIS do
+# AcionamentoForm + os CALCULADOS FINANCEIROS do model (excedentes + valor_agente),
+# para a auditoria responder "o que — e quanto de dinheiro — mudou". Os totais
+# km_total/horas_total ficam de fora: são distância/tempo, não valor financeiro.
+CAMPOS_AUDITADOS = [
+    # editáveis do AcionamentoForm
+    "cliente",
+    "nome_servico",
+    "valor_acionamento",
+    "franquia_km",
+    "franquia_horas",
+    "valor_km_excedente",
+    "valor_hora_excedente",
+    "origem",
+    "destino",
+    "responsavel_agente",
+    "agente",
+    "placa_agente",
+    "motorista",
+    "placa_motorista",
+    "numero_motorista",
+    "data_hora_solicitado",
+    "data_hora_inicio",
+    "data_hora_final",
+    "km_inicio",
+    "km_final",
+    "pedagio",
+    "franquia_agente",
+    # calculados financeiros persistidos no model
+    "km_excedente",
+    "hora_excedente",
+    "valor_agente",
+]
+
+
+def _serializar_valor(valor):
+    """None -> "" ; senão str(valor). Decimal e datas caem na sua repr string
+    natural (padrão do projeto: Decimal como string, sem float)."""
+    return "" if valor is None else str(valor)
+
+
+def registrar_edicao_acionamento(antigo, novo, editado_por):
+    """Grava a trilha de auditoria da edição de um Acionamento (DD-049/ST3).
+
+    `antigo` = foto da instância recarregada do banco ANTES do save; `novo` = a
+    instância já salva com as mudanças. Compara CAMPOS_AUDITADOS campo a campo e
+    cria um AcionamentoHistorico por campo cujo valor SERIALIZADO tenha mudado.
+    Retorna a lista dos registros criados (vazia se nada mudou).
+
+    Orquestração pura: SEM transaction.atomic aqui — a atomicidade (save do
+    acionamento + trilha num único bloco) é responsabilidade do chamador (a view
+    acionamento_update, na etapa de integração).
+
+    Import local de AcionamentoHistorico: evita import circular (models importa
+    deste módulo).
+    """
+    from controle_acionamentos.models import AcionamentoHistorico
+
+    registros = []
+    for nome in CAMPOS_AUDITADOS:
+        # attname resolve o atributo cru: FK -> "<nome>_id" (compara valor sem
+        # query), demais -> o próprio nome. O `campo` gravado é sempre `nome`.
+        attname = novo._meta.get_field(nome).attname
+        anterior = _serializar_valor(getattr(antigo, attname))
+        atual = _serializar_valor(getattr(novo, attname))
+        if anterior != atual:
+            registros.append(
+                AcionamentoHistorico.objects.create(
+                    acionamento=novo,
+                    editado_por=editado_por,
+                    campo=nome,
+                    valor_anterior=anterior,
+                    valor_novo=atual,
+                )
+            )
+    return registros
