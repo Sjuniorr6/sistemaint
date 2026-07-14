@@ -3264,3 +3264,108 @@ def test_acionamento_update_post_valido_edita_e_recalcula(
     assert ac.valor_acionamento == Decimal("600.00")
     assert ac.valor_agente != valor_agente_antes          # recalculou de fato
     assert ac.valor_agente == esperado.valor_agente        # bate com o service
+
+
+# --- DD-049 ST2: AcionamentoHistorico (RED) ---
+# O model AcionamentoHistorico AINDA NÃO EXISTE — estes 3 testes nascem VERMELHOS.
+# O import fica DENTRO de cada corpo (nunca no topo) para isolar o ImportError e
+# manter os 120 testes existentes coletáveis. Contrato exercitado:
+#   acionamento -> Acionamento (on_delete=PROTECT)
+#   editado_por -> User (on_delete=PROTECT)
+#   campo / valor_anterior / valor_novo: texto
+#   editado_em: DateTimeField(auto_now_add=True)
+#   Meta.ordering = ['-editado_em']
+
+
+@pytest.mark.django_db
+def test_historico_persiste_com_editado_em_automatico(
+    django_user_model, _fks_acionamento
+):
+    """editado_em é preenchido sozinho (auto_now_add) e os 3 campos de texto
+    voltam exatamente como gravados."""
+    from controle_acionamentos.models import AcionamentoHistorico
+
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()
+    user = _user_com_perms(django_user_model)  # editado_por não precisa de perm
+
+    registro = AcionamentoHistorico.objects.create(
+        acionamento=ac,
+        editado_por=user,
+        campo="pedagio",
+        valor_anterior="0.00",
+        valor_novo="25.00",
+    )
+
+    assert AcionamentoHistorico.objects.count() == 1
+    registro.refresh_from_db()
+    assert registro.editado_em is not None
+    assert registro.campo == "pedagio"
+    assert registro.valor_anterior == "0.00"
+    assert registro.valor_novo == "25.00"
+
+
+@pytest.mark.django_db
+def test_historico_ordering_mais_recente_primeiro(
+    django_user_model, _fks_acionamento
+):
+    """Meta.ordering = ['-editado_em'] — o mais recente vem primeiro em all()."""
+    from controle_acionamentos.models import AcionamentoHistorico
+
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()
+    user = _user_com_perms(django_user_model)
+
+    primeiro = AcionamentoHistorico.objects.create(
+        acionamento=ac,
+        editado_por=user,
+        campo="pedagio",
+        valor_anterior="0.00",
+        valor_novo="10.00",
+    )
+    segundo = AcionamentoHistorico.objects.create(
+        acionamento=ac,
+        editado_por=user,
+        campo="pedagio",
+        valor_anterior="10.00",
+        valor_novo="20.00",
+    )
+
+    # auto_now_add pode colidir no mesmo tick no SQLite; recuo o timestamp do 1º
+    # via update() (update() NÃO dispara auto_now_add) para garantir a diferença.
+    AcionamentoHistorico.objects.filter(pk=primeiro.pk).update(
+        editado_em=timezone.now() - timedelta(hours=1)
+    )
+
+    ordenados = list(AcionamentoHistorico.objects.all())
+    assert ordenados[0].pk == segundo.pk
+
+
+@pytest.mark.django_db
+def test_acionamento_com_historico_nao_pode_ser_excluido(
+    django_user_model, _fks_acionamento
+):
+    """on_delete=PROTECT no FK acionamento: excluir um acionamento com histórico
+    levanta ProtectedError e o acionamento permanece no banco."""
+    from django.db.models import ProtectedError
+
+    from controle_acionamentos.models import AcionamentoHistorico
+
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()
+    user = _user_com_perms(django_user_model)
+    AcionamentoHistorico.objects.create(
+        acionamento=ac,
+        editado_por=user,
+        campo="pedagio",
+        valor_anterior="0.00",
+        valor_novo="25.00",
+    )
+
+    with pytest.raises(ProtectedError):
+        ac.delete()
+
+    assert Acionamento.objects.filter(pk=ac.pk).exists()

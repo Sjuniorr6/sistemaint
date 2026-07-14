@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
@@ -383,3 +384,38 @@ class Acionamento(models.Model):
 
     def __str__(self):
         return f"{self.nome_servico} ({self.cliente.nome_empresa})"
+
+
+class AcionamentoHistorico(models.Model):
+    """Trilha de auditoria de edições de um Acionamento (DD-049/ST2).
+
+    Persistência PURA: cada linha registra a mudança de UM campo (valor antes ->
+    depois). Quem detecta a diferença e grava as linhas é o service (ST3); o model
+    não compara nada. on_delete=PROTECT nos dois FKs preserva a trilha: não se
+    apaga um acionamento (nem o usuário editor) que tenha histórico.
+    """
+
+    acionamento = models.ForeignKey(
+        "Acionamento",
+        on_delete=models.PROTECT,
+        related_name="historico",
+        verbose_name="Acionamento",
+    )
+    editado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="+",  # não precisamos da reversa a partir do User
+        verbose_name="Editado por",
+    )
+    campo = models.CharField(max_length=100, verbose_name="Campo")
+    valor_anterior = models.TextField(blank=True, verbose_name="Valor anterior")
+    valor_novo = models.TextField(blank=True, verbose_name="Valor novo")
+    editado_em = models.DateTimeField(auto_now_add=True, verbose_name="Editado em")
+
+    class Meta:
+        ordering = ["-editado_em"]
+        verbose_name = "Histórico de edição"
+        verbose_name_plural = "Históricos de edição"
+
+    def __str__(self):
+        return f"{self.campo}: {self.valor_anterior} -> {self.valor_novo}"
