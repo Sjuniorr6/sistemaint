@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+
+{% block title %}| {% if modo == "editar" %}Editar agente{% else %}Novo agente{% endif %} |{% endblock %}
+
+{% block content %}
+<div class="acn-escopo">
+  {% if modo == "editar" %}
+    {% include 'controle_acionamentos/_cabecalho.html' with titulo="Editar agente" subtitulo="Atualize os dados do agente" ativo="" %}
+  {% else %}
+    {% include 'controle_acionamentos/_cabecalho.html' with titulo="Novo agente" subtitulo="Cadastre um novo agente" ativo="" %}
+  {% endif %}
+
+<div class="container-fluid mt-4">
+
+  {% include 'controle_acionamentos/_messages.html' %}
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    {# Erros que não pertencem a um campo específico (ex.: CPF/CNH inválidos do clean) #}
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    {% comment %} ==== Bloco 1 — DADOS DO AGENTE ==== {% endcomment %}
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center">
+        <span class="badge rounded-pill acn-badge-num me-2">1</span>
+        <span class="fw-semibold">DADOS DO AGENTE</span>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            {{ form.nome.label_tag }}{% if form.nome.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.nome }}
+            {% if form.nome.errors %}<div class="text-danger small">{{ form.nome.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-3 mb-3">
+            {{ form.cpf.label_tag }}{% if form.cpf.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.cpf }}
+            {% if form.cpf.errors %}<div class="text-danger small">{{ form.cpf.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-3 mb-3">
+            {{ form.cnh.label_tag }}{% if form.cnh.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.cnh }}
+            {% if form.cnh.errors %}<div class="text-danger small">{{ form.cnh.errors }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% comment %} ==== Bloco 2 — DADOS BANCÁRIOS ==== {% endcomment %}
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center">
+        <span class="badge rounded-pill acn-badge-num me-2">2</span>
+        <span class="fw-semibold">DADOS BANCÁRIOS</span>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            {{ form.chave_pix.label_tag }}{% if form.chave_pix.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.chave_pix }}
+            {% if form.chave_pix.errors %}<div class="text-danger small">{{ form.chave_pix.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 mb-3">
+            {{ form.banco.label_tag }}{% if form.banco.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.banco }}
+            {% if form.banco.errors %}<div class="text-danger small">{{ form.banco.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-4 mb-3">
+            {{ form.tipo_conta.label_tag }}{% if form.tipo_conta.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.tipo_conta }}
+            {% if form.tipo_conta.errors %}<div class="text-danger small">{{ form.tipo_conta.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-4 mb-3">
+            {{ form.agencia.label_tag }}{% if form.agencia.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.agencia }}
+            {% if form.agencia.errors %}<div class="text-danger small">{{ form.agencia.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-4 mb-3">
+            {{ form.conta.label_tag }}{% if form.conta.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.conta }}
+            {% if form.conta.errors %}<div class="text-danger small">{{ form.conta.errors }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% comment %} ==== Bloco 3 — CLIENTES VINCULADOS ==== {% endcomment %}
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center">
+        <span class="badge rounded-pill acn-badge-num me-2">3</span>
+        <span class="fw-semibold">CLIENTES VINCULADOS</span>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-8 mb-1">
+            {{ form.clientes_vinculados.label_tag }}{% if form.clientes_vinculados.field.required %} <span class="text-danger">*</span>{% endif %}
+            <input type="text" class="form-control mb-2" id="filtro-clientes"
+                   placeholder="Filtrar clientes...">
+            <div class="acn-multicheck">
+              {{ form.clientes_vinculados }}
+            </div>
+            <div class="acn-dash-nota mt-1">Digite para filtrar; marque um ou mais clientes.</div>
+            {% if form.clientes_vinculados.errors %}<div class="text-danger small">{{ form.clientes_vinculados.errors }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# — Rodapé — #}
+    <div class="acn-rodape-acao mt-4">
+      <span>Os dados são validados ao salvar.</span>
+      <div class="d-flex gap-2">
+        <a href="{% url 'controle_acionamentos:agente_list' %}" class="btn btn-outline-secondary">Cancelar</a>
+        <button type="submit" class="btn btn-primary">{% if modo == "editar" %}Salvar alterações{% else %}Salvar agente{% endif %}</button>
+      </div>
+    </div>
+
+  </form>
+</div>
+</div>
+
+{% comment %} Filtro client-side dos checkboxes de cliente (DD-050/ST2): esconde os
+labels que não batem com o texto digitado. Sem lib, ~15 linhas. {% endcomment %}
+<script>
+  (function () {
+    var filtro = document.getElementById('filtro-clientes');
+    var lista = document.querySelector('.acn-multicheck');
+    if (!filtro || !lista) return;
+    var itens = lista.querySelectorAll('label');
+    filtro.addEventListener('input', function () {
+      var termo = filtro.value.trim().toLowerCase();
+      itens.forEach(function (label) {
+        var bate = label.textContent.toLowerCase().indexOf(termo) !== -1;
+        label.style.display = bate ? '' : 'none';
+      });
+    });
+  })();
+</script>
+{% endblock %}

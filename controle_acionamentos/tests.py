@@ -3906,3 +3906,177 @@ class TestViewsCliente:
         assert response.status_code == 302
         cliente.refresh_from_db()
         assert cliente.nome_empresa == "Nome Novo"
+
+
+# --- DD-050 ST2: telas de Agente (lista/criar/editar) (RED) ---
+# Views/urls/forms/templates de Agente ainda NÃO existem. reverse() DENTRO de
+# cada corpo: no RED a rota não existe e o NoReverseMatch deve falhar SÓ estes
+# testes, sem quebrar a coleção já verde.
+
+
+class TestViewsAgente:
+    """DD-050/ST2 (RED) — telas de Agente no padrão de permissões do app:
+    @login_required + @permission_required(raise_exception=True).
+
+    CONTRATO DE ROTAS para o GREEN (mesma convenção EN do acionamento_*):
+      controle_acionamentos:agente_list    -> lista   (view_agente)
+      controle_acionamentos:agente_create  -> criar   (add_agente)
+      controle_acionamentos:agente_update  -> editar, kwarg pk (change_agente)
+
+    Payload: CPF 529.982.247-25 (válido no dígito verificador; o Agente.clean()
+    normaliza para dígitos e valida). CNH fica vazia (blank=True, opcional). O
+    M2M clientes_vinculados é blank=True → opcional no form (criar sem vínculo
+    é válido). Clientes de apoio usam CNPJs válidos e DISTINTOS (unique).
+    """
+
+    @pytest.mark.django_db
+    def test_lista_exige_login(self, client):
+        """Anônimo na lista → 302 para o login (login_required)."""
+        url = reverse("controle_acionamentos:agente_list")
+        response = client.get(url)
+
+        assert response.status_code == 302
+        assert "login" in response.url
+
+    @pytest.mark.django_db
+    def test_lista_exige_permissao_view(self, client, django_user_model):
+        """Logado SEM view_agente → 403 (permission_required raise_exception)."""
+        user = django_user_model.objects.create_user(username="sem_perm", password="x")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:agente_list")
+        response = client.get(url)
+
+        assert response.status_code == 403
+
+    @pytest.mark.django_db
+    def test_lista_renderiza_com_agente(self, client, django_user_model):
+        """Com view_agente → 200 e o nome do agente criado aparece na lista."""
+        Agente.objects.create(nome="Carlos Agente", cpf="52998224725")
+        user = _user_com_perms(django_user_model, "view_agente")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:agente_list")
+        response = client.get(url)
+
+        assert response.status_code == 200
+        conteudo = response.content.decode(response.charset)
+        assert "Carlos Agente" in conteudo
+
+    @pytest.mark.django_db
+    def test_criar_exige_permissao_add(self, client, django_user_model):
+        """Ver não é criar: quem só tem view_agente NÃO acessa o criar (403)."""
+        user = _user_com_perms(django_user_model, "view_agente")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:agente_create")
+        response = client.get(url)
+
+        assert response.status_code == 403
+
+    @pytest.mark.django_db
+    def test_criar_post_valido_sem_vinculos_cria_e_redireciona(
+        self, client, django_user_model
+    ):
+        """Com add_agente, POST válido SEM clientes vinculados cria e redireciona
+        (302). O M2M é opcional (blank=True)."""
+        user = _user_com_perms(django_user_model, "add_agente")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:agente_create")
+        response = client.post(
+            url,
+            {"nome": "Novo Agente", "cpf": "529.982.247-25", "cnh": ""},
+        )
+
+        assert response.status_code == 302
+        assert Agente.objects.count() == 1
+
+    @pytest.mark.django_db
+    def test_criar_post_valido_com_vinculos_persiste_dois(
+        self, client, django_user_model
+    ):
+        """Com add_agente, POST com clientes_vinculados=[pk1, pk2] cria o agente e
+        persiste os 2 vínculos M2M (302)."""
+        c1 = Cliente.objects.create(nome_empresa="Alfa SA", cnpj="11222333000181")
+        c2 = Cliente.objects.create(nome_empresa="Beta SA", cnpj="11444777000161")
+        user = _user_com_perms(django_user_model, "add_agente")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:agente_create")
+        response = client.post(
+            url,
+            {
+                "nome": "Agente Vinculado",
+                "cpf": "529.982.247-25",
+                "cnh": "",
+                "clientes_vinculados": [c1.pk, c2.pk],
+            },
+        )
+
+        assert response.status_code == 302
+        agente = Agente.objects.get()
+        assert agente.clientes_vinculados.count() == 2
+
+    @pytest.mark.django_db
+    def test_editar_exige_permissao_change(self, client, django_user_model):
+        """Ver não é editar: quem só tem view_agente NÃO acessa o editar (403)."""
+        agente = Agente.objects.create(nome="Agente Beta", cpf="52998224725")
+        user = _user_com_perms(django_user_model, "view_agente")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:agente_update", args=[agente.pk])
+        response = client.get(url)
+
+        assert response.status_code == 403
+
+    @pytest.mark.django_db
+    def test_editar_post_valido_troca_vinculo_e_atualiza_nome(
+        self, client, django_user_model
+    ):
+        """Com change_agente, POST troca o vínculo para [pk2] e atualiza o nome
+        (302). O M2M final tem só c2; o nome é o novo."""
+        c1 = Cliente.objects.create(nome_empresa="Alfa SA", cnpj="11222333000181")
+        c2 = Cliente.objects.create(nome_empresa="Beta SA", cnpj="11444777000161")
+        agente = Agente.objects.create(nome="Nome Antigo", cpf="52998224725")
+        agente.clientes_vinculados.set([c1, c2])
+        user = _user_com_perms(django_user_model, "change_agente")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:agente_update", args=[agente.pk])
+        response = client.post(
+            url,
+            {
+                "nome": "Nome Novo",
+                "cpf": "529.982.247-25",
+                "cnh": "",
+                "clientes_vinculados": [c2.pk],
+            },
+        )
+
+        assert response.status_code == 302
+        agente.refresh_from_db()
+        assert agente.nome == "Nome Novo"
+        assert agente.clientes_vinculados.count() == 1
+        assert c2 in agente.clientes_vinculados.all()
+
+
+# ---------------------------------------------------------------------------
+# DD-050/ST2 — filtro de template `cpf` (irmão do `cnpj`). Formata 11 dígitos
+# como 000.000.000-00; devolve o valor original se não tiver exatamente 11
+# dígitos. Import LOCAL da função (padrão da suíte).
+# ---------------------------------------------------------------------------
+
+
+def test_filtro_cpf_formata_11_digitos():
+    """11 dígitos viram a máscara 000.000.000-00."""
+    from controle_acionamentos.templatetags.formatos import cpf
+
+    assert cpf("52998224725") == "529.982.247-25"
+
+
+def test_filtro_cpf_valor_invalido_retorna_original():
+    """Sem 11 dígitos, o filtro devolve o valor original intocado."""
+    from controle_acionamentos.templatetags.formatos import cpf
+
+    assert cpf("123") == "123"

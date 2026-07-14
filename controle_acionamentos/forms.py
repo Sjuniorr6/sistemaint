@@ -160,6 +160,49 @@ class FiltroAcionamentosForm(forms.Form):
         return None
 
 
+class AgenteForm(forms.ModelForm):
+    """DD-050/ST2 — form de criação/edição de Agente.
+
+    Estas telas SUBSTITUEM o admin: o operador cadastra aqui inclusive os dados
+    de pagamento (bancários) e os clientes vinculados (M2M). A validação (nome
+    obrigatório, CPF válido e normalizado, CNH válida se preenchida) mora no
+    Agente.clean() — o ModelForm o dispara no is_valid(); NÃO se duplica aqui.
+    O M2M clientes_vinculados persiste sozinho no form.save() (sem commit=False).
+    """
+
+    class Meta:
+        model = Agente
+        fields = [
+            "nome",
+            "cpf",
+            "cnh",
+            "chave_pix",
+            "banco",
+            "tipo_conta",
+            "agencia",
+            "conta",
+            "clientes_vinculados",
+        ]
+        widgets = {
+            "nome": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Ex.: Carlos Silva"}
+            ),
+            "cpf": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "000.000.000-00"}
+            ),
+            "cnh": forms.TextInput(attrs={"class": "form-control"}),
+            "chave_pix": forms.TextInput(attrs={"class": "form-control"}),
+            "banco": forms.TextInput(attrs={"class": "form-control"}),
+            "tipo_conta": forms.Select(attrs={"class": "form-select"}),
+            "agencia": forms.TextInput(attrs={"class": "form-control"}),
+            "conta": forms.TextInput(attrs={"class": "form-control"}),
+            # CheckboxSelectMultiple posta a MESMA lista (name="clientes_vinculados")
+            # que o SelectMultiple — contrato de POST intacto. Sem attrs de classe:
+            # o estilo vem do CSS do escopo (.acn-multicheck no tema.css).
+            "clientes_vinculados": forms.CheckboxSelectMultiple(),
+        }
+
+
 class ClienteForm(forms.ModelForm):
     """DD-050/ST1 — form de criação/edição de Cliente.
 

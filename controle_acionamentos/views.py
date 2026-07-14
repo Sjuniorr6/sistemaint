@@ -11,12 +11,13 @@ from django.views.decorators.http import require_POST
 
 from .forms import (
     AcionamentoForm,
+    AgenteForm,
     ClienteForm,
     FiltroAcionamentosForm,
     PedagioUpdateForm,
     VincularFranquiaLoteForm,
 )
-from .models import Acionamento, Cliente, FranquiaAgente
+from .models import Acionamento, Agente, Cliente, FranquiaAgente
 from .selectors import (
     contar_acionamentos_no_mes,
     contar_sem_franquia,
@@ -354,5 +355,74 @@ def cliente_update(request, pk):
     return render(
         request,
         "controle_acionamentos/cliente_form.html",
+        {"form": form, "modo": "editar"},
+    )
+
+
+@login_required
+@permission_required("controle_acionamentos.view_agente", raise_exception=True)
+def agente_list(request):
+    """Listagem de Agentes (DD-050/ST2) — view FINA.
+
+    Cadastro pequeno: sem paginação, ordenado por nome. prefetch_related dos
+    clientes vinculados evita N+1 ao listar os nomes por linha (o template
+    percorre agente.clientes_vinculados por agente).
+    """
+    agentes = (
+        Agente.objects.all()
+        .order_by("nome")
+        .prefetch_related("clientes_vinculados")
+    )
+    return render(
+        request,
+        "controle_acionamentos/agente_list.html",
+        {"agentes": agentes},
+    )
+
+
+@login_required
+@permission_required("controle_acionamentos.add_agente", raise_exception=True)
+def agente_create(request):
+    """Criação de Agente (DD-050/ST2) — view FINA, espelho do cliente_create.
+
+    O AgenteForm valida via is_valid -> full_clean -> Agente.clean (nome, CPF,
+    CNH). form.save() persiste o M2M clientes_vinculados sozinho (sem commit=False).
+    POST válido salva e redireciona para a listagem.
+    """
+    if request.method == "POST":
+        form = AgenteForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect("controle_acionamentos:agente_list")
+    else:
+        form = AgenteForm()
+
+    return render(
+        request,
+        "controle_acionamentos/agente_form.html",
+        {"form": form, "modo": "criar"},
+    )
+
+
+@login_required
+@permission_required("controle_acionamentos.change_agente", raise_exception=True)
+def agente_update(request, pk):
+    """Edição de Agente (DD-050/ST2) — view FINA, espelho do cliente_update.
+
+    Reusa o AgenteForm com instance; form.save() atualiza os campos e o M2M.
+    raise_exception=True: sem change_agente, devolve 403.
+    """
+    agente = get_object_or_404(Agente, pk=pk)
+    if request.method == "POST":
+        form = AgenteForm(request.POST, instance=agente)
+        if form.is_valid():
+            form.save()
+            return redirect("controle_acionamentos:agente_list")
+    else:
+        form = AgenteForm(instance=agente)
+
+    return render(
+        request,
+        "controle_acionamentos/agente_form.html",
         {"form": form, "modo": "editar"},
     )

@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% load formatos %}
+
+{% block title %}| Agentes |{% endblock %}
+
+{% block content %}
+<div class="acn-escopo">
+  {% include 'controle_acionamentos/_cabecalho.html' with titulo="Agentes" subtitulo="Cadastro de agentes, dados bancários e vínculos" ativo="" %}
+
+<div class="container-fluid mt-4">
+
+  {% include 'controle_acionamentos/_messages.html' %}
+
+  {% if perms.controle_acionamentos.add_agente %}
+  <div class="d-flex justify-content-end mb-3">
+    <a href="{% url 'controle_acionamentos:agente_create' %}" class="btn btn-primary">
+      <i class="bi bi-plus-lg"></i> Novo agente
+    </a>
+  </div>
+  {% endif %}
+
+  <div class="table-responsive">
+    <table class="table table-striped align-middle">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>CPF</th>
+          <th>Clientes vinculados</th>
+          {% if perms.controle_acionamentos.change_agente %}<th></th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for agente in agentes %}
+          <tr>
+            <td>{{ agente.nome }}</td>
+            <td class="acn-mono">{{ agente.cpf|cpf }}</td>
+            <td>
+              {% for c in agente.clientes_vinculados.all %}{{ c.nome_empresa }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="acn-dash-nota">—</span>{% endfor %}
+            </td>
+            {% if perms.controle_acionamentos.change_agente %}
+              <td class="text-end">
+                <a href="{% url 'controle_acionamentos:agente_update' agente.pk %}" class="btn btn-outline-secondary btn-sm">Editar</a>
+              </td>
+            {% endif %}
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="{% if perms.controle_acionamentos.change_agente %}4{% else %}3{% endif %}">
+              <span class="acn-dash-nota">Nenhum agente cadastrado ainda.</span>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+</div>
+{% endblock %}

@@ -105,6 +105,28 @@
   box-shadow: 0 0 0 0.2rem rgba(232, 184, 75, 0.25);
 }
 
+/* DD-050/ST2 — lista de checkboxes de clientes vinculados com busca: contêiner
+   rolável no visual dos inputs do tema (mesma borda/fundo de .form-control), nas
+   duas peles. O espaçamento vive no <label> (não no <div> wrapper) para que o
+   filtro JS, ao esconder o label, não deixe vão. */
+.acn-escopo .acn-multicheck {
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--acn-bg);
+  border: 1px solid var(--acn-line);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+}
+.acn-escopo .acn-multicheck label {
+  display: block;
+  padding: 0.15rem 0;
+  cursor: pointer;
+}
+.acn-escopo .acn-multicheck input {
+  cursor: pointer;
+  margin-right: 0.5rem;
+}
+
 .acn-escopo .btn-primary {
   background: var(--acn-gold);
   border-color: var(--acn-gold);
