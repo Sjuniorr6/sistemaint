@@ -7,8 +7,11 @@ from urllib.parse import urlparse, parse_qs
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
 from django.core.exceptions import ValidationError
+from django.db.models import PROTECT, ProtectedError
 from django.urls import reverse
 from django.utils import timezone
+
+from pytest_django.asserts import assertContains, assertNotContains
 
 from controle_acionamentos.services import validar_cpf, validar_cnpj, validar_cnh
 from controle_acionamentos.models import (
@@ -4475,3 +4478,150 @@ def test_home_com_perm_parcial_exibe_apenas_itens_permitidos(
     assert reverse("controle_acionamentos:agente_list") not in conteudo
     assert reverse("controle_acionamentos:responsavel_list") not in conteudo
     assert reverse("controle_acionamentos:franquia_list") not in conteudo
+
+
+# ---------------------------------------------------------------
+# DD-051/ST1 — rastreio de criação (RED)
+#
+# Contrato que ainda NÃO existe no model/view/template:
+#   - criado_por = FK p/ o User model, on_delete=PROTECT, null=True, editable=False
+#   - criado_em  = DateTimeField(auto_now_add=True, null=True)  [o campo já existe;
+#                  a ST1 só acrescenta null=True para a migration retroagir]
+#   - acionamento_create grava criado_por = request.user
+#   - detalhe: badge da franquia colado ao ACN no cabeçalho; linha
+#     "criado por <nome> em <data> <hora>", exibida SÓ quando criado_por existe
+#
+# Os testes que dependem do campo novo nascem VERMELHOS: `criado_por` como kwarg
+# do model ou como atributo estoura TypeError/AttributeError; get_field() estoura
+# FieldDoesNotExist. Os guards de convenção (6 e 7) podem já nascer verdes — o
+# template atual não tem "criado por" e já marca a franquia com .acn-badge-franquia.
+# ---------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_criado_em_preenchido_automaticamente_na_criacao(_fks_acionamento):
+    """DD-051/ST1 — criar um Acionamento carimba criado_em (auto_now_add), nunca
+    fica None. Guarda que o timestamp de criação é automático, não digitado."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()
+    ac.refresh_from_db()
+
+    assert ac.criado_em is not None
+
+
+@pytest.mark.django_db
+def test_acionamento_create_grava_criado_por_do_request(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-051/ST1 — o POST de criação registra QUEM criou: criado_por = request.user.
+    A view fina só carimba o autor; o cálculo segue no save() do model."""
+    cliente, responsavel, agente = _fks_acionamento
+    # Instância válida NÃO salva: serve só de molde para o payload do POST.
+    molde = _acionamento_valido(cliente, responsavel, agente)
+    payload = _post_payload_acionamento(molde)
+
+    user = _user_com_perms(django_user_model, "add_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_create")
+    response = client.post(url, payload)
+
+    assert response.status_code == 302
+    acionamento = Acionamento.objects.get()
+    assert acionamento.criado_por == user
+
+
+@pytest.mark.django_db
+def test_contrato_dos_campos_de_rastreio():
+    """DD-051/ST1 — contrato dos campos via _meta (independe de dados):
+    criado_por é FK opcional (null=True), não editável, PROTECT, apontando para o
+    User model; criado_em tem auto_now_add=True."""
+    campo_por = Acionamento._meta.get_field("criado_por")
+    assert campo_por.null is True
+    assert campo_por.editable is False
+    assert campo_por.remote_field.on_delete is PROTECT
+    assert campo_por.related_model is get_user_model()
+
+    campo_em = Acionamento._meta.get_field("criado_em")
+    assert campo_em.auto_now_add is True
+
+
+@pytest.mark.django_db
+def test_deletar_user_criador_levanta_protected_error(
+    django_user_model, _fks_acionamento
+):
+    """DD-051/ST1 — PROTECT preserva a autoria: apagar o usuário que criou um
+    acionamento é bloqueado (ProtectedError), como já ocorre com editado_por."""
+    cliente, responsavel, agente = _fks_acionamento
+    user = django_user_model.objects.create_user(username="criador", password="x")
+    ac = _acionamento_valido(cliente, responsavel, agente, criado_por=user)
+    ac.save()
+
+    with pytest.raises(ProtectedError):
+        user.delete()
+
+
+@pytest.mark.django_db
+def test_detalhe_exibe_linha_criado_por(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-051/ST1 — com criado_por preenchido, o detalhe mostra a linha de autoria
+    ("criado por <nome>"). Usuário SEM nome completo → exibe o username, o que
+    torna o assert robusto a get_full_name|default:username no template."""
+    cliente, responsavel, agente = _fks_acionamento
+    autor = django_user_model.objects.create_user(username="ana.autora", password="x")
+    ac = _acionamento_valido(cliente, responsavel, agente, criado_por=autor)
+    ac.save()
+
+    viewer = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(viewer)
+
+    url = reverse("controle_acionamentos:acionamento_detail", args=[ac.pk])
+    response = client.get(url)
+
+    assertContains(response, "criado por")
+    assertContains(response, "ana.autora")
+
+
+@pytest.mark.django_db
+def test_detalhe_omite_linha_quando_criado_por_nulo(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-051/ST1 — guarda de regressão: sem criado_por, a linha de autoria NÃO
+    aparece (nada de "criado por" no detalhe). Pode nascer verde no RED."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente)  # criado_por fica nulo
+    ac.save()
+
+    viewer = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(viewer)
+
+    url = reverse("controle_acionamentos:acionamento_detail", args=[ac.pk])
+    response = client.get(url)
+
+    assertNotContains(response, "criado por")
+
+
+@pytest.mark.django_db
+def test_detalhe_exibe_badge_franquia_no_cabecalho(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-051/ST1 — acionamento com franquia vinculada exibe o badge da franquia no
+    cabeçalho, na convenção da listagem (.acn-badge-franquia + nome da franquia).
+    Guarda a marcação do badge; pode nascer verde no RED."""
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(
+        **_dados_franquia(cliente, nome="Franquia Ouro")
+    )
+    ac = _acionamento_valido(cliente, responsavel, agente, franquia_agente=franquia)
+    ac.save()
+
+    viewer = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(viewer)
+
+    url = reverse("controle_acionamentos:acionamento_detail", args=[ac.pk])
+    response = client.get(url)
+
+    assertContains(response, "acn-badge-franquia")
+    assertContains(response, "Franquia Ouro")

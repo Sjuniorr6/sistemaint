@@ -317,6 +317,19 @@ class Acionamento(models.Model):
     )
 
     # — Auditoria —
+    # criado_por (DD-051/ST1): quem registrou o acionamento. PROTECT preserva a
+    # autoria — não se apaga o usuário que criou um acionamento (mesmo padrão do
+    # editado_por da trilha). null=True cobre acionamentos legados (pré-DD-051) e
+    # o backfill da migration; editable=False porque é carimbado pela view no
+    # create, nunca digitado no form.
+    criado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        editable=False,
+        related_name="acionamentos_criados",
+        verbose_name="Criado por",
+    )
     criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
     atualizado_em = models.DateTimeField(auto_now=True, verbose_name="Atualizado em")
 

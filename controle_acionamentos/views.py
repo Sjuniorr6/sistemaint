@@ -141,7 +141,12 @@ def acionamento_create(request):
     if request.method == "POST":
         form = AcionamentoForm(request.POST)
         if form.is_valid():
-            acionamento = form.save()  # o save() do model dispara o cálculo
+            # commit=False: carimbamos o autor (DD-051/ST1) ANTES do save do model,
+            # que é quem dispara o cálculo (recalcular_valor_agente). Acionamento
+            # não tem M2M, então não é preciso save_m2m() depois.
+            acionamento = form.save(commit=False)
+            acionamento.criado_por = request.user
+            acionamento.save()
             return redirect(
                 "controle_acionamentos:acionamento_detail", pk=acionamento.pk
             )

@@ -12,22 +12,33 @@
 <div class="container-fluid mt-4">
 
 
-  {# — Linha de identificação — #}
-  <div class="d-flex justify-content-between align-items-start flex-wrap mb-3">
+  {% comment %}
+    Linha de identificação (DD-051/ST1): o badge da franquia (ou INLINE, quando
+    sem franquia) fica COLADO ao código ACN, na mesma convenção da listagem
+    (.acn-badge-franquia + nome via __str__ / .acn-badge-inline). À direita, a
+    linha de autoria — só renderiza quando há criado_por (acionamentos legados
+    ficam sem autor). Nome no padrão do histórico (get_full_name|default:username)
+    e data/hora no filtro `date` já usado no app. Cores vêm do tema (duas peles).
+  {% endcomment %}
+  <div class="d-flex justify-content-between align-items-end flex-wrap mb-3">
     <div>
       <span class="acn-badge-codigo me-2">{{ acionamento.codigo }}</span>
+      {% if acionamento.franquia_agente %}
+        <span class="acn-badge-franquia me-2">FRANQUIA: {{ acionamento.franquia_agente }}</span>
+      {% else %}
+        <span class="acn-badge-inline me-2">INLINE</span>
+      {% endif %}
       <span class="fw-bold fs-5">{{ acionamento.nome_servico }}</span>
       <div class="text-muted small mt-1">
         {{ acionamento.cliente }} · {{ acionamento.agente }} · {{ acionamento.data_hora_solicitado|date:"d/m/Y H:i" }}
       </div>
     </div>
-    <div>
-      {% if acionamento.franquia_agente %}
-        <span class="acn-badge-franquia">FRANQUIA: {{ acionamento.franquia_agente }}</span>
-      {% else %}
-        <span class="acn-badge-inline">INLINE</span>
-      {% endif %}
+    {% if acionamento.criado_por %}
+    <div class="text-muted small text-end">
+      criado por {{ acionamento.criado_por.get_full_name|default:acionamento.criado_por.username }}
+      em {{ acionamento.criado_em|date:"d/m/Y H:i" }}
     </div>
+    {% endif %}
   </div>
 
   {% comment %} ==== CARD-HERÓI — valor a pagar + métricas do cálculo (RN-07) ==== {% endcomment %}
