@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+
+{% block title %}| Franquias |{% endblock %}
+
+{% block content %}
+<div class="acn-escopo">
+  {% include 'controle_acionamentos/_cabecalho.html' with titulo="Franquias" subtitulo="Franquias de agente por cliente" ativo="" %}
+
+<div class="container-fluid mt-4">
+
+  {% include 'controle_acionamentos/_messages.html' %}
+
+  {% if perms.controle_acionamentos.add_franquiaagente %}
+  <div class="d-flex justify-content-end mb-3">
+    <a href="{% url 'controle_acionamentos:franquia_create' %}" class="btn btn-primary">
+      <i class="bi bi-plus-lg"></i> Nova franquia
+    </a>
+  </div>
+  {% endif %}
+
+  <div class="table-responsive">
+    <table class="table table-striped align-middle">
+      <thead>
+        <tr>
+          <th>Cliente</th>
+          <th>Nome</th>
+          <th class="text-end">Valor acionamento</th>
+          <th class="text-end">Km</th>
+          <th class="text-end">Horas</th>
+          <th>Escalonamento</th>
+          {% if perms.controle_acionamentos.change_franquiaagente %}<th></th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for franquia in franquias %}
+          <tr>
+            <td>{{ franquia.cliente.nome_empresa }}</td>
+            <td>{{ franquia.nome }}</td>
+            <td class="text-end acn-mono">R$ {{ franquia.valor_acionamento|floatformat:2 }}</td>
+            <td class="text-end acn-mono">{{ franquia.franquia_km }}</td>
+            <td class="text-end acn-mono">{{ franquia.franquia_horas|floatformat:2 }}</td>
+            <td>
+              {% if franquia.escalonamento_automatico %}
+                <span class="acn-badge-franquia">Sim</span>
+              {% else %}
+                <span class="acn-badge-inline">Não</span>
+              {% endif %}
+            </td>
+            {% if perms.controle_acionamentos.change_franquiaagente %}
+              <td class="text-end">
+                <a href="{% url 'controle_acionamentos:franquia_update' franquia.pk %}" class="btn btn-outline-secondary btn-sm">Editar</a>
+              </td>
+            {% endif %}
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="{% if perms.controle_acionamentos.change_franquiaagente %}7{% else %}6{% endif %}">
+              <span class="acn-dash-nota">Nenhuma franquia cadastrada ainda.</span>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+</div>
+{% endblock %}

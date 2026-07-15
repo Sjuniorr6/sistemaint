@@ -14,6 +14,7 @@ from .forms import (
     AgenteForm,
     ClienteForm,
     FiltroAcionamentosForm,
+    FranquiaForm,
     PedagioUpdateForm,
     ResponsavelForm,
     VincularFranquiaLoteForm,
@@ -489,5 +490,74 @@ def responsavel_update(request, pk):
     return render(
         request,
         "controle_acionamentos/responsavel_form.html",
+        {"form": form, "modo": "editar"},
+    )
+
+
+@login_required
+@permission_required("controle_acionamentos.view_franquiaagente", raise_exception=True)
+def franquia_list(request):
+    """Listagem de Franquias (DD-050/ST4) — view FINA.
+
+    Cadastro pequeno: sem paginação. select_related("cliente") evita N+1 ao
+    exibir o cliente por linha; ordena por cliente e depois nome.
+    """
+    franquias = (
+        FranquiaAgente.objects.select_related("cliente")
+        .order_by("cliente__nome_empresa", "nome")
+    )
+    return render(
+        request,
+        "controle_acionamentos/franquia_list.html",
+        {"franquias": franquias},
+    )
+
+
+@login_required
+@permission_required("controle_acionamentos.add_franquiaagente", raise_exception=True)
+def franquia_create(request):
+    """Criação de Franquia (DD-050/ST4) — view FINA, espelho do cliente_create.
+
+    O FranquiaForm valida via is_valid -> full_clean -> FranquiaAgente.clean
+    (regra km 0 + escalonamento) + UniqueConstraint (cliente+nome). POST inválido
+    re-renderiza (200) com os erros; POST válido salva e redireciona.
+    """
+    if request.method == "POST":
+        form = FranquiaForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect("controle_acionamentos:franquia_list")
+    else:
+        form = FranquiaForm()
+
+    return render(
+        request,
+        "controle_acionamentos/franquia_form.html",
+        {"form": form, "modo": "criar"},
+    )
+
+
+@login_required
+@permission_required("controle_acionamentos.change_franquiaagente", raise_exception=True)
+def franquia_update(request, pk):
+    """Edição de Franquia (DD-050/ST4) — view FINA, espelho do cliente_update.
+
+    CRÍTICO (§18 / teste 8): salva SÓ a franquia (form.save() e nada mais).
+    JAMAIS recalcular ou re-salvar acionamentos vinculados — os valores ficam
+    congelados no acionamento no momento do cálculo. Editar a franquia aqui não
+    pode alterar histórico.
+    """
+    franquia = get_object_or_404(FranquiaAgente, pk=pk)
+    if request.method == "POST":
+        form = FranquiaForm(request.POST, instance=franquia)
+        if form.is_valid():
+            form.save()
+            return redirect("controle_acionamentos:franquia_list")
+    else:
+        form = FranquiaForm(instance=franquia)
+
+    return render(
+        request,
+        "controle_acionamentos/franquia_form.html",
         {"form": form, "modo": "editar"},
     )

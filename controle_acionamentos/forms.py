@@ -209,6 +209,53 @@ class AgenteForm(forms.ModelForm):
         }
 
 
+class FranquiaForm(forms.ModelForm):
+    """DD-050/ST4 — form de criação/edição de Franquia (FranquiaAgente).
+
+    A validação (nome obrigatório, regra km 0 + escalonamento, unicidade
+    cliente+nome) mora no model (clean + UniqueConstraint) — o ModelForm dispara
+    o full_clean no is_valid(); NÃO se duplica aqui. Os erros do clean e da
+    unicidade são NON-FIELD: o template deve renderizar form.non_field_errors.
+    """
+
+    class Meta:
+        model = FranquiaAgente
+        fields = [
+            "cliente",
+            "nome",
+            "valor_acionamento",
+            "franquia_km",
+            "franquia_horas",
+            "valor_km_excedente",
+            "valor_hora_excedente",
+            "escalonamento_automatico",
+        ]
+        widgets = {
+            "cliente": forms.Select(attrs={"class": "form-select"}),
+            "nome": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Ex.: Franquia Moto 80km/4h"}
+            ),
+            "valor_acionamento": forms.NumberInput(
+                attrs={"class": "form-control", "step": "0.01", "min": "0"}
+            ),
+            "franquia_km": forms.NumberInput(
+                attrs={"class": "form-control", "min": "0"}
+            ),
+            "franquia_horas": forms.NumberInput(
+                attrs={"class": "form-control", "step": "0.01", "min": "0"}
+            ),
+            "valor_km_excedente": forms.NumberInput(
+                attrs={"class": "form-control", "step": "0.01", "min": "0"}
+            ),
+            "valor_hora_excedente": forms.NumberInput(
+                attrs={"class": "form-control", "step": "0.01", "min": "0"}
+            ),
+            "escalonamento_automatico": forms.CheckboxInput(
+                attrs={"class": "form-check-input"}
+            ),
+        }
+
+
 class ResponsavelForm(forms.ModelForm):
     """DD-050/ST3 — form de criação/edição de Responsável (ResponsavelAgente).
 

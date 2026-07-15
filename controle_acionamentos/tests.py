@@ -4172,3 +4172,184 @@ class TestViewsResponsavel:
         assert response.status_code == 302
         responsavel.refresh_from_db()
         assert responsavel.nome == "Nome Novo"
+
+
+# --- DD-050 ST4: telas de Franquia (lista/criar/editar) (RED) ---
+# Views/urls/forms/templates de FranquiaAgente ainda NÃO existem. reverse()
+# DENTRO de cada corpo: no RED a rota não existe e o NoReverseMatch deve falhar
+# SÓ estes testes, sem quebrar a coleção já verde.
+
+
+def _franquia_form_payload(cliente, **overrides):
+    """Payload de POST do form de Franquia: FK por pk; monetários como STRINGS
+    decimais (nunca float); escalonamento_automatico é checkbox — ausente = off,
+    "on" = ligado. `overrides` troca campos pontuais."""
+    payload = {
+        "cliente": cliente.pk,
+        "nome": "Franquia Moto 80km/4h",
+        "valor_acionamento": "150.00",
+        "franquia_km": "80",
+        "franquia_horas": "4.00",
+        "valor_km_excedente": "2.50",
+        "valor_hora_excedente": "30.00",
+        # escalonamento_automatico: checkbox — omitido = False
+    }
+    payload.update(overrides)
+    return payload
+
+
+class TestViewsFranquia:
+    """DD-050/ST4 (RED) — telas de Franquia (FranquiaAgente) no padrão de
+    permissões do app: @login_required + @permission_required(raise_exception=True).
+
+    CONTRATO DE ROTAS para o GREEN (mesma convenção EN do acionamento_*):
+      controle_acionamentos:franquia_list    -> lista   (view_franquiaagente)
+      controle_acionamentos:franquia_create  -> criar   (add_franquiaagente)
+      controle_acionamentos:franquia_update  -> editar, kwarg pk (change_franquiaagente)
+
+    Monetários no payload como strings decimais ("150.00"); FK por pk. Regra do
+    clean: escalonamento_automatico ligado com franquia_km=0 é rejeitado.
+    """
+
+    @pytest.mark.django_db
+    def test_lista_exige_login(self, client):
+        """Anônimo na lista → 302 para o login (login_required)."""
+        url = reverse("controle_acionamentos:franquia_list")
+        response = client.get(url)
+
+        assert response.status_code == 302
+        assert "login" in response.url
+
+    @pytest.mark.django_db
+    def test_lista_exige_permissao_view(self, client, django_user_model):
+        """Logado SEM view_franquiaagente → 403 (raise_exception)."""
+        user = django_user_model.objects.create_user(username="sem_perm", password="x")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:franquia_list")
+        response = client.get(url)
+
+        assert response.status_code == 403
+
+    @pytest.mark.django_db
+    def test_lista_renderiza_com_franquia(self, client, django_user_model):
+        """Com view_franquiaagente → 200; o nome da franquia E o nome do cliente
+        dela aparecem na lista."""
+        cliente = Cliente.objects.create(nome_empresa="ACME LTDA", cnpj="11222333000181")
+        FranquiaAgente.objects.create(**_dados_franquia(cliente, nome="Franquia Alfa"))
+        user = _user_com_perms(django_user_model, "view_franquiaagente")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:franquia_list")
+        response = client.get(url)
+
+        assert response.status_code == 200
+        conteudo = response.content.decode(response.charset)
+        assert "Franquia Alfa" in conteudo
+        assert "ACME LTDA" in conteudo
+
+    @pytest.mark.django_db
+    def test_criar_exige_permissao_add(self, client, django_user_model):
+        """Ver não é criar: quem só tem view NÃO acessa o criar (403)."""
+        user = _user_com_perms(django_user_model, "view_franquiaagente")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:franquia_create")
+        response = client.get(url)
+
+        assert response.status_code == 403
+
+    @pytest.mark.django_db
+    def test_criar_post_valido_cria_e_redireciona(self, client, django_user_model):
+        """Com add_franquiaagente, POST válido (valores Decimal como strings,
+        escalonamento off) cria a franquia e redireciona (302)."""
+        cliente = Cliente.objects.create(nome_empresa="ACME LTDA", cnpj="11222333000181")
+        user = _user_com_perms(django_user_model, "add_franquiaagente")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:franquia_create")
+        response = client.post(url, _franquia_form_payload(cliente))
+
+        assert response.status_code == 302
+        assert FranquiaAgente.objects.count() == 1
+
+    @pytest.mark.django_db
+    def test_criar_post_invalido_km_zero_com_escalonamento_nao_cria(
+        self, client, django_user_model
+    ):
+        """POST INVÁLIDO (franquia_km=0 + escalonamento ligado) é barrado pelo
+        clean: form re-renderiza (200) e nada é gravado (count == 0)."""
+        cliente = Cliente.objects.create(nome_empresa="ACME LTDA", cnpj="11222333000181")
+        user = _user_com_perms(django_user_model, "add_franquiaagente")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:franquia_create")
+        response = client.post(
+            url,
+            _franquia_form_payload(
+                cliente, franquia_km="0", escalonamento_automatico="on"
+            ),
+        )
+
+        assert response.status_code == 200
+        assert FranquiaAgente.objects.count() == 0
+
+    @pytest.mark.django_db
+    def test_editar_post_valido_atualiza_e_redireciona(self, client, django_user_model):
+        """Com change_franquiaagente, POST válido atualiza um valor e redireciona
+        (302). refresh confirma o novo valor_acionamento."""
+        cliente = Cliente.objects.create(nome_empresa="ACME LTDA", cnpj="11222333000181")
+        franquia = FranquiaAgente.objects.create(**_dados_franquia(cliente))
+        user = _user_com_perms(django_user_model, "change_franquiaagente")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:franquia_update", args=[franquia.pk])
+        response = client.post(
+            url,
+            _franquia_form_payload(
+                cliente, nome=franquia.nome, valor_acionamento="200.00"
+            ),
+        )
+
+        assert response.status_code == 302
+        franquia.refresh_from_db()
+        assert franquia.valor_acionamento == Decimal("200.00")
+
+    @pytest.mark.django_db
+    def test_editar_franquia_nao_altera_acionamento_antigo(
+        self, client, django_user_model, _fks_acionamento
+    ):
+        """REGRA DO CARD (§18): editar uma franquia NÃO altera acionamento já
+        registrado. Cria acionamento vinculado à franquia, guarda o valor_agente
+        persistido; edita a franquia pela VIEW mudando valor_km_excedente; o
+        valor_agente do acionamento antigo permanece congelado."""
+        cliente, responsavel, agente = _fks_acionamento
+        franquia = FranquiaAgente.objects.create(
+            **_dados_franquia(
+                cliente,
+                valor_km_excedente=Decimal("2.50"),
+                escalonamento_automatico=True,
+            )
+        )
+        ac = _acionamento_valido(cliente, responsavel, agente, franquia_agente=franquia)
+        ac.save()
+        ac.refresh_from_db()
+        valor_agente_congelado = ac.valor_agente
+
+        user = _user_com_perms(django_user_model, "change_franquiaagente")
+        client.force_login(user)
+
+        url = reverse("controle_acionamentos:franquia_update", args=[franquia.pk])
+        response = client.post(
+            url,
+            _franquia_form_payload(
+                cliente,
+                nome=franquia.nome,
+                valor_km_excedente="9.99",  # tarifa muito diferente
+                escalonamento_automatico="on",
+            ),
+        )
+
+        assert response.status_code == 302
+        ac.refresh_from_db()
+        assert ac.valor_agente == valor_agente_congelado

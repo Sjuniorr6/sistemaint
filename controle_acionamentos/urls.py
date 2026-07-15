@@ -27,4 +27,7 @@ urlpatterns = [
     path('responsaveis/', views.responsavel_list, name='responsavel_list'),
     path('responsaveis/novo/', views.responsavel_create, name='responsavel_create'),
     path('responsaveis/<int:pk>/editar/', views.responsavel_update, name='responsavel_update'),
+    path('franquias/', views.franquia_list, name='franquia_list'),
+    path('franquias/novo/', views.franquia_create, name='franquia_create'),
+    path('franquias/<int:pk>/editar/', views.franquia_update, name='franquia_update'),
 ]

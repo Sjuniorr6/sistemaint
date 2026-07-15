@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+
+{% block title %}| {% if modo == "editar" %}Editar franquia{% else %}Nova franquia{% endif %} |{% endblock %}
+
+{% block content %}
+<div class="acn-escopo">
+  {% if modo == "editar" %}
+    {% include 'controle_acionamentos/_cabecalho.html' with titulo="Editar franquia" subtitulo="Atualize os dados da franquia" ativo="" %}
+  {% else %}
+    {% include 'controle_acionamentos/_cabecalho.html' with titulo="Nova franquia" subtitulo="Cadastre uma nova franquia" ativo="" %}
+  {% endif %}
+
+<div class="container-fluid mt-4">
+
+  {% include 'controle_acionamentos/_messages.html' %}
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    {% comment %} Erros NON-FIELD: regra km 0 + escalonamento (clean) e unicidade
+       cliente+nome. Sem isto o operador não vê o motivo da recusa. {% endcomment %}
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    {% comment %} ==== Bloco 1 — VÍNCULO ==== {% endcomment %}
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center">
+        <span class="badge rounded-pill acn-badge-num me-2">1</span>
+        <span class="fw-semibold">VÍNCULO</span>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            {{ form.cliente.label_tag }}{% if form.cliente.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.cliente }}
+            {% if form.cliente.errors %}<div class="text-danger small">{{ form.cliente.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 mb-3">
+            {{ form.nome.label_tag }}{% if form.nome.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.nome }}
+            {% if form.nome.errors %}<div class="text-danger small">{{ form.nome.errors }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% comment %} ==== Bloco 2 — VALORES E LIMITES ==== {% endcomment %}
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center">
+        <span class="badge rounded-pill acn-badge-num me-2">2</span>
+        <span class="fw-semibold">VALORES E LIMITES</span>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-4 mb-3">
+            {{ form.valor_acionamento.label_tag }}{% if form.valor_acionamento.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.valor_acionamento }}
+            {% if form.valor_acionamento.errors %}<div class="text-danger small">{{ form.valor_acionamento.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-4 mb-3">
+            {{ form.franquia_km.label_tag }}{% if form.franquia_km.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.franquia_km }}
+            {% if form.franquia_km.errors %}<div class="text-danger small">{{ form.franquia_km.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-4 mb-3">
+            {{ form.franquia_horas.label_tag }}{% if form.franquia_horas.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.franquia_horas }}
+            {% if form.franquia_horas.errors %}<div class="text-danger small">{{ form.franquia_horas.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-4 mb-3">
+            {{ form.valor_km_excedente.label_tag }}{% if form.valor_km_excedente.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.valor_km_excedente }}
+            {% if form.valor_km_excedente.errors %}<div class="text-danger small">{{ form.valor_km_excedente.errors }}</div>{% endif %}
+          </div>
+          <div class="col-md-4 mb-3">
+            {{ form.valor_hora_excedente.label_tag }}{% if form.valor_hora_excedente.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.valor_hora_excedente }}
+            {% if form.valor_hora_excedente.errors %}<div class="text-danger small">{{ form.valor_hora_excedente.errors }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% comment %} ==== Bloco 3 — ESCALONAMENTO ==== {% endcomment %}
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center">
+        <span class="badge rounded-pill acn-badge-num me-2">3</span>
+        <span class="fw-semibold">ESCALONAMENTO</span>
+      </div>
+      <div class="card-body">
+        <div class="form-check">
+          {{ form.escalonamento_automatico }}
+          <label class="form-check-label" for="{{ form.escalonamento_automatico.id_for_label }}">
+            Escalonamento automático dos excedentes (exige franquia de KM ≥ 1)
+          </label>
+          {% if form.escalonamento_automatico.errors %}<div class="text-danger small">{{ form.escalonamento_automatico.errors }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# — Rodapé — #}
+    <div class="acn-rodape-acao mt-4">
+      <div>
+        <span>Os dados são validados ao salvar.</span>
+        <div class="acn-dash-nota mt-1">Editar uma franquia não altera acionamentos já registrados — os valores são congelados no momento do cálculo.</div>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{% url 'controle_acionamentos:franquia_list' %}" class="btn btn-outline-secondary">Cancelar</a>
+        <button type="submit" class="btn btn-primary">{% if modo == "editar" %}Salvar alterações{% else %}Salvar franquia{% endif %}</button>
+      </div>
+    </div>
+
+  </form>
+</div>
+</div>
+{% endblock %}
