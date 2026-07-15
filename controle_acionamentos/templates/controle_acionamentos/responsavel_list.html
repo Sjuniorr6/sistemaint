@@ -32,7 +32,9 @@
             <td>{{ responsavel.nome }}</td>
             {% if perms.controle_acionamentos.change_responsavelagente %}
               <td class="text-end">
-                <a href="{% url 'controle_acionamentos:responsavel_update' responsavel.pk %}" class="btn btn-outline-secondary btn-sm">Editar</a>
+                <a href="{% url 'controle_acionamentos:responsavel_update' responsavel.pk %}"
+                   class="acn-editar-hover" title="Editar responsável"
+                   aria-label="Editar {{ responsavel.nome }}"><i class="bi bi-pencil-fill"></i></a>
               </td>
             {% endif %}
           </tr>

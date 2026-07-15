@@ -35,7 +35,9 @@
             <td class="acn-mono">{{ cliente.cnpj|cnpj }}</td>
             {% if perms.controle_acionamentos.change_cliente %}
               <td class="text-end">
-                <a href="{% url 'controle_acionamentos:cliente_update' cliente.pk %}" class="btn btn-outline-secondary btn-sm">Editar</a>
+                <a href="{% url 'controle_acionamentos:cliente_update' cliente.pk %}"
+                   class="acn-editar-hover" title="Editar cliente"
+                   aria-label="Editar {{ cliente.nome_empresa }}"><i class="bi bi-pencil-fill"></i></a>
               </td>
             {% endif %}
           </tr>

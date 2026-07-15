@@ -22,12 +22,12 @@
     <table class="table table-striped align-middle">
       <thead>
         <tr>
-          <th>Cliente</th>
-          <th>Nome</th>
-          <th class="text-end">Valor acionamento</th>
-          <th class="text-end">Km</th>
-          <th class="text-end">Horas</th>
-          <th>Escalonamento</th>
+          <th style="width: 22%">Cliente</th>
+          <th style="width: 28%">Nome</th>
+          <th class="text-end" style="width: 14%">Valor acionamento</th>
+          <th class="text-center" style="width: 8%">Km</th>
+          <th class="text-center" style="width: 8%">Horas</th>
+          <th class="text-center" style="width: 12%">Escalonamento</th>
           {% if perms.controle_acionamentos.change_franquiaagente %}<th></th>{% endif %}
         </tr>
       </thead>
@@ -37,9 +37,9 @@
             <td>{{ franquia.cliente.nome_empresa }}</td>
             <td>{{ franquia.nome }}</td>
             <td class="text-end acn-mono">R$ {{ franquia.valor_acionamento|floatformat:2 }}</td>
-            <td class="text-end acn-mono">{{ franquia.franquia_km }}</td>
-            <td class="text-end acn-mono">{{ franquia.franquia_horas|floatformat:2 }}</td>
-            <td>
+            <td class="text-center acn-mono">{{ franquia.franquia_km }}</td>
+            <td class="text-center acn-mono">{{ franquia.franquia_horas|floatformat:2 }}</td>
+            <td class="text-center">
               {% if franquia.escalonamento_automatico %}
                 <span class="acn-badge-franquia">Sim</span>
               {% else %}
@@ -48,7 +48,9 @@
             </td>
             {% if perms.controle_acionamentos.change_franquiaagente %}
               <td class="text-end">
-                <a href="{% url 'controle_acionamentos:franquia_update' franquia.pk %}" class="btn btn-outline-secondary btn-sm">Editar</a>
+                <a href="{% url 'controle_acionamentos:franquia_update' franquia.pk %}"
+                   class="acn-editar-hover" title="Editar franquia"
+                   aria-label="Editar {{ franquia.nome }}"><i class="bi bi-pencil-fill"></i></a>
               </td>
             {% endif %}
           </tr>

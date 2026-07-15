@@ -23,9 +23,9 @@
     <table class="table table-striped align-middle">
       <thead>
         <tr>
-          <th>Nome</th>
-          <th>CPF</th>
-          <th>Clientes vinculados</th>
+          <th style="width: 28%">Nome</th>
+          <th style="width: 18%">CPF</th>
+          <th style="width: 46%">Clientes vinculados</th>
           {% if perms.controle_acionamentos.change_agente %}<th></th>{% endif %}
         </tr>
       </thead>
@@ -39,7 +39,9 @@
             </td>
             {% if perms.controle_acionamentos.change_agente %}
               <td class="text-end">
-                <a href="{% url 'controle_acionamentos:agente_update' agente.pk %}" class="btn btn-outline-secondary btn-sm">Editar</a>
+                <a href="{% url 'controle_acionamentos:agente_update' agente.pk %}"
+                   class="acn-editar-hover" title="Editar agente"
+                   aria-label="Editar {{ agente.nome }}"><i class="bi bi-pencil-fill"></i></a>
               </td>
             {% endif %}
           </tr>
