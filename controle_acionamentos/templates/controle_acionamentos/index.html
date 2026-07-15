@@ -77,6 +77,57 @@
   </div>
 
   {% comment %}
+    Fileira de cadastros (DD-050/ST5): atalhos finos para as 4 telas de cadastro,
+    cada um com o contador vindo dos selectors (contexto da view). A seção INTEIRA
+    (título CADASTROS incluso) só aparece para quem tem ao menos uma das 4 perms
+    view_<model>; e CADA item é gated individualmente pela sua própria view_<model>
+    — quem só enxerga Clientes vê só a pílula de Clientes. Ícones do Bootstrap Icons.
+  {% endcomment %}
+  {% if perms.controle_acionamentos.view_cliente or perms.controle_acionamentos.view_agente or perms.controle_acionamentos.view_responsavelagente or perms.controle_acionamentos.view_franquiaagente %}
+  <div class="acn-cadastros-secao mt-3">
+    <div class="acn-dash-rotulo mb-2">Cadastros</div>
+    <div class="row g-2">
+      {% if perms.controle_acionamentos.view_cliente %}
+      <div class="col-6 col-md-3">
+        <a href="{% url 'controle_acionamentos:cliente_list' %}" class="acn-atalho-cadastro">
+          <i class="bi bi-building" aria-hidden="true"></i>
+          <span class="acn-atalho-cadastro-nome">Clientes</span>
+          <span class="acn-atalho-cadastro-num acn-mono">{{ contador_clientes }}</span>
+        </a>
+      </div>
+      {% endif %}
+      {% if perms.controle_acionamentos.view_agente %}
+      <div class="col-6 col-md-3">
+        <a href="{% url 'controle_acionamentos:agente_list' %}" class="acn-atalho-cadastro">
+          <i class="bi bi-people" aria-hidden="true"></i>
+          <span class="acn-atalho-cadastro-nome">Agentes</span>
+          <span class="acn-atalho-cadastro-num acn-mono">{{ contador_agentes }}</span>
+        </a>
+      </div>
+      {% endif %}
+      {% if perms.controle_acionamentos.view_responsavelagente %}
+      <div class="col-6 col-md-3">
+        <a href="{% url 'controle_acionamentos:responsavel_list' %}" class="acn-atalho-cadastro">
+          <i class="bi bi-person-check" aria-hidden="true"></i>
+          <span class="acn-atalho-cadastro-nome">Responsáveis</span>
+          <span class="acn-atalho-cadastro-num acn-mono">{{ contador_responsaveis }}</span>
+        </a>
+      </div>
+      {% endif %}
+      {% if perms.controle_acionamentos.view_franquiaagente %}
+      <div class="col-6 col-md-3">
+        <a href="{% url 'controle_acionamentos:franquia_list' %}" class="acn-atalho-cadastro">
+          <i class="bi bi-cash-coin" aria-hidden="true"></i>
+          <span class="acn-atalho-cadastro-nome">Franquias</span>
+          <span class="acn-atalho-cadastro-num acn-mono">{{ contador_franquias }}</span>
+        </a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% comment %}
     Últimos acionamentos (DD-048): os 5 mais recentes. Reusa `ultimos`
     (listar_acionamentos()[:5], já ordenado DESC e com select_related) — sem
     query nova. Tabela SÓ leitura: sem input de pedágio nem checkbox, então não

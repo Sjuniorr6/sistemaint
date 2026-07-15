@@ -5,19 +5,27 @@
 
 {% block content %}
 <div class="acn-escopo">
-  {% include 'controle_acionamentos/_cabecalho.html' with titulo="Agentes" subtitulo="Cadastro de agentes, dados bancários e vínculos" ativo="" %}
+  {% include 'controle_acionamentos/_cabecalho.html' with titulo="Agentes" subtitulo="Cadastro de agentes, dados bancários e vínculos" ativo="cadastros" %}
 
 <div class="container-fluid mt-4">
 
   {% include 'controle_acionamentos/_messages.html' %}
 
-  {% if perms.controle_acionamentos.add_agente %}
-  <div class="d-flex justify-content-end mb-3">
-    <a href="{% url 'controle_acionamentos:agente_create' %}" class="btn btn-primary">
-      <i class="bi bi-plus-lg"></i> Novo agente
-    </a>
+  {% comment %}
+    Faixa de entidade (DD-050/ST5): ícone + nome + contagem à esquerda, botão
+    "Novo agente" (REALOCADO, gating add_agente mantido) à direita. |length sobre
+    `agentes`, que a tabela já percorre — uma avaliação, sem query extra.
+  {% endcomment %}
+  <div class="acn-faixa-entidade">
+    <i class="bi bi-people" aria-hidden="true"></i>
+    <span class="acn-faixa-entidade-nome">Agentes</span>
+    <span class="acn-faixa-entidade-cont">{{ agentes|length }} cadastrado{{ agentes|length|pluralize }}</span>
+    {% if perms.controle_acionamentos.add_agente %}
+      <a href="{% url 'controle_acionamentos:agente_create' %}" class="btn btn-primary btn-sm acn-faixa-acao">
+        <i class="bi bi-plus-lg"></i> Novo agente
+      </a>
+    {% endif %}
   </div>
-  {% endif %}
 
   <div class="table-responsive">
     <table class="table table-striped align-middle">

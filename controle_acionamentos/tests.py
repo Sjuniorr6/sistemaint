@@ -4353,3 +4353,125 @@ class TestViewsFranquia:
         assert response.status_code == 302
         ac.refresh_from_db()
         assert ac.valor_agente == valor_agente_congelado
+
+
+# ---------------------------------------------------------------
+# DD-050/ST5 — Navegação: fileira de Cadastros na home + contadores (RED)
+#
+# Contadores puros em selectors.py (contar_clientes/agentes/responsaveis/
+# franquias) e a fileira de cadastros na home, cada item gated pela view_<model>
+# correspondente. Os 4 testes de selector importam DENTRO do corpo: as funções
+# ainda NÃO existem, então o ImportError derruba SÓ estes, sem quebrar a coleta
+# dos testes já verdes. Os 2 testes de view usam a home (rota já existe) e
+# nascem vermelhos por ASSERT — a fileira ainda não está no template.
+# ---------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_contar_clientes_conta_todos():
+    """DD-050/ST5 — contar_clientes() devolve o total de Clientes cadastrados."""
+    from controle_acionamentos.selectors import contar_clientes
+
+    Cliente.objects.create(nome_empresa="Alfa SA", cnpj="11222333000181")
+    Cliente.objects.create(nome_empresa="Beta SA", cnpj="11444777000161")
+
+    assert contar_clientes() == 2
+
+
+@pytest.mark.django_db
+def test_contar_agentes_conta_todos():
+    """DD-050/ST5 — contar_agentes() devolve o total de Agentes cadastrados."""
+    from controle_acionamentos.selectors import contar_agentes
+
+    Agente.objects.create(nome="Carlos Agente", cpf="52998224725")
+
+    assert contar_agentes() == 1
+
+
+@pytest.mark.django_db
+def test_contar_responsaveis_conta_todos():
+    """DD-050/ST5 — contar_responsaveis() devolve o total de ResponsavelAgente."""
+    from controle_acionamentos.selectors import contar_responsaveis
+
+    ResponsavelAgente.objects.create(nome="João Supervisor")
+    ResponsavelAgente.objects.create(nome="Maria Supervisora")
+
+    assert contar_responsaveis() == 2
+
+
+@pytest.mark.django_db
+def test_contar_franquias_conta_todos():
+    """DD-050/ST5 — contar_franquias() devolve o total de FranquiaAgente."""
+    from controle_acionamentos.selectors import contar_franquias
+
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    FranquiaAgente.objects.create(**_dados_franquia(cliente))
+
+    assert contar_franquias() == 1
+
+
+@pytest.mark.django_db
+def test_home_renderiza_fileira_de_cadastros_com_contadores(
+    client, django_user_model
+):
+    """DD-050/ST5 — com as 4 perms de leitura de cadastro, a home renderiza a
+    fileira de cadastros: o HTML contém os links (reverse) das 4 listagens."""
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    Agente.objects.create(nome="Carlos Agente", cpf="52998224725")
+    ResponsavelAgente.objects.create(nome="João Supervisor")
+    FranquiaAgente.objects.create(**_dados_franquia(cliente))
+
+    user = _user_com_perms(
+        django_user_model,
+        "view_cliente",
+        "view_agente",
+        "view_responsavelagente",
+        "view_franquiaagente",
+    )
+    client.force_login(user)
+
+    response = client.get(reverse("controle_acionamentos:index"))
+
+    assert response.status_code == 200
+    conteudo = response.content.decode(response.charset)
+    assert reverse("controle_acionamentos:cliente_list") in conteudo
+    assert reverse("controle_acionamentos:agente_list") in conteudo
+    assert reverse("controle_acionamentos:responsavel_list") in conteudo
+    assert reverse("controle_acionamentos:franquia_list") in conteudo
+
+
+@pytest.mark.django_db
+def test_home_sem_perm_de_cadastro_nao_exibe_fileira(client, django_user_model):
+    """DD-050/ST5 — usuário SEM nenhuma das 4 perms de cadastro: a home abre
+    (200), mas a fileira não aparece — o link de cliente_list NÃO está no HTML."""
+    user = django_user_model.objects.create_user(username="sem_cad", password="x")
+    client.force_login(user)
+
+    response = client.get(reverse("controle_acionamentos:index"))
+
+    assert response.status_code == 200
+    conteudo = response.content.decode(response.charset)
+    assert reverse("controle_acionamentos:cliente_list") not in conteudo
+
+
+@pytest.mark.django_db
+def test_home_com_perm_parcial_exibe_apenas_itens_permitidos(
+    client, django_user_model
+):
+    """DD-050/ST5 — guarda de regressão do gating POR ITEM: com APENAS view_cliente,
+    a home mostra só o link de Clientes; Agentes/Responsáveis/Franquias ficam de
+    fora. A fileira da home E o dropdown do cabeçalho usam os mesmos links, cada um
+    gated pela sua view_<model>. Este teste FALHA se alguém trocar o gating granular
+    por um "qualquer perm mostra tudo" (a seção inteira aparece com ≥1 perm, mas os
+    itens seguem individuais)."""
+    user = _user_com_perms(django_user_model, "view_cliente")
+    client.force_login(user)
+
+    response = client.get(reverse("controle_acionamentos:index"))
+
+    assert response.status_code == 200
+    conteudo = response.content.decode(response.charset)
+    assert reverse("controle_acionamentos:cliente_list") in conteudo
+    assert reverse("controle_acionamentos:agente_list") not in conteudo
+    assert reverse("controle_acionamentos:responsavel_list") not in conteudo
+    assert reverse("controle_acionamentos:franquia_list") not in conteudo

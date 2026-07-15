@@ -5,9 +5,9 @@
 {% block content %}
 <div class="acn-escopo">
   {% if modo == "editar" %}
-    {% include 'controle_acionamentos/_cabecalho.html' with titulo="Editar franquia" subtitulo="Atualize os dados da franquia" ativo="" %}
+    {% include 'controle_acionamentos/_cabecalho.html' with titulo="Editar franquia" subtitulo="Atualize os dados da franquia" ativo="cadastros" %}
   {% else %}
-    {% include 'controle_acionamentos/_cabecalho.html' with titulo="Nova franquia" subtitulo="Cadastre uma nova franquia" ativo="" %}
+    {% include 'controle_acionamentos/_cabecalho.html' with titulo="Nova franquia" subtitulo="Cadastre uma nova franquia" ativo="cadastros" %}
   {% endif %}
 
 <div class="container-fluid mt-4">

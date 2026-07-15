@@ -38,8 +38,70 @@
       <a href="{% url 'controle_acionamentos:index' %}" class="{% if ativo == 'inicio' %}acn-nav-ativo{% endif %}">Início</a>
       <a href="{% url 'controle_acionamentos:acionamento_list' %}" class="{% if ativo == 'acionamentos' %}acn-nav-ativo{% endif %}">Acionamentos</a>
       <a href="{% url 'controle_acionamentos:acionamento_create' %}" class="{% if ativo == 'novo' %}acn-nav-ativo{% endif %}">Novo</a>
+
+      {% comment %}
+        Pill "Cadastros" com dropdown (DD-050/ST5). Só aparece para quem tem ao
+        menos uma das 4 perms de leitura de cadastro; cada link do menu é gated
+        individualmente pela sua view_<model>. Acende quando ativo == "cadastros".
+        A pill é um <button> (abre menu) — as pills-link acima seguem intactas.
+      {% endcomment %}
+      {% if perms.controle_acionamentos.view_cliente or perms.controle_acionamentos.view_agente or perms.controle_acionamentos.view_responsavelagente or perms.controle_acionamentos.view_franquiaagente %}
+      <div class="acn-nav-dropdown" id="acn-cadastros-dropdown">
+        <button type="button" id="acn-cadastros-btn"
+                class="acn-nav-pill {% if ativo == 'cadastros' %}acn-nav-ativo{% endif %}"
+                aria-haspopup="true" aria-expanded="false">
+          Cadastros <span class="acn-nav-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="acn-nav-menu" id="acn-cadastros-menu" role="menu" hidden>
+          {% if perms.controle_acionamentos.view_cliente %}
+            <a href="{% url 'controle_acionamentos:cliente_list' %}" role="menuitem">Clientes</a>
+          {% endif %}
+          {% if perms.controle_acionamentos.view_agente %}
+            <a href="{% url 'controle_acionamentos:agente_list' %}" role="menuitem">Agentes</a>
+          {% endif %}
+          {% if perms.controle_acionamentos.view_responsavelagente %}
+            <a href="{% url 'controle_acionamentos:responsavel_list' %}" role="menuitem">Responsáveis</a>
+          {% endif %}
+          {% if perms.controle_acionamentos.view_franquiaagente %}
+            <a href="{% url 'controle_acionamentos:franquia_list' %}" role="menuitem">Franquias</a>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
       {% comment %} Pill contextual da edição (DD-049/ST1): acesa e NÃO clicável (span). {% endcomment %}
       {% if ativo == 'editando' %}<span class="acn-nav-ativo">Editando</span>{% endif %}
     </nav>
   </div>
 </div>
+
+{% comment %}
+  DD-050/ST5 — toggle do dropdown "Cadastros" em JS vanilla, escopado ao partial.
+  Abre/fecha no clique, fecha em clique fora e ao pressionar ESC; mantém
+  aria-expanded sincronizado. O guard `if (btn)` evita erro quando a pill não
+  renderiza (usuário sem nenhuma das 4 perms).
+{% endcomment %}
+<script>
+  (function () {
+    var btn = document.getElementById('acn-cadastros-btn');
+    var menu = document.getElementById('acn-cadastros-menu');
+    if (!btn || !menu) return;
+
+    function fechar() {
+      menu.hidden = true;
+      btn.setAttribute('aria-expanded', 'false');
+    }
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var abrir = menu.hidden;
+      menu.hidden = !abrir;
+      btn.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+    });
+    document.addEventListener('click', function (e) {
+      if (!menu.hidden && !btn.contains(e.target) && !menu.contains(e.target)) fechar();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') fechar();
+    });
+  })();
+</script>

@@ -5,9 +5,9 @@
 {% block content %}
 <div class="acn-escopo">
   {% if modo == "editar" %}
-    {% include 'controle_acionamentos/_cabecalho.html' with titulo="Editar agente" subtitulo="Atualize os dados do agente" ativo="" %}
+    {% include 'controle_acionamentos/_cabecalho.html' with titulo="Editar agente" subtitulo="Atualize os dados do agente" ativo="cadastros" %}
   {% else %}
-    {% include 'controle_acionamentos/_cabecalho.html' with titulo="Novo agente" subtitulo="Cadastre um novo agente" ativo="" %}
+    {% include 'controle_acionamentos/_cabecalho.html' with titulo="Novo agente" subtitulo="Cadastre um novo agente" ativo="cadastros" %}
   {% endif %}
 
 <div class="container-fluid mt-4">

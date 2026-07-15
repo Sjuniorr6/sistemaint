@@ -5,9 +5,9 @@
 {% block content %}
 <div class="acn-escopo">
   {% if modo == "editar" %}
-    {% include 'controle_acionamentos/_cabecalho.html' with titulo="Editar responsável" subtitulo="Atualize os dados do responsável" ativo="" %}
+    {% include 'controle_acionamentos/_cabecalho.html' with titulo="Editar responsável" subtitulo="Atualize os dados do responsável" ativo="cadastros" %}
   {% else %}
-    {% include 'controle_acionamentos/_cabecalho.html' with titulo="Novo responsável" subtitulo="Cadastre um novo responsável" ativo="" %}
+    {% include 'controle_acionamentos/_cabecalho.html' with titulo="Novo responsável" subtitulo="Cadastre um novo responsável" ativo="cadastros" %}
   {% endif %}
 
 <div class="container-fluid mt-4">

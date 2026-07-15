@@ -8,7 +8,13 @@ from django.db.models import DecimalField, Sum, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
-from controle_acionamentos.models import Acionamento, FranquiaAgente
+from controle_acionamentos.models import (
+    Acionamento,
+    Agente,
+    Cliente,
+    FranquiaAgente,
+    ResponsavelAgente,
+)
 
 
 def listar_acionamentos(cliente=None, agente=None, data_de=None, data_ate=None,
@@ -87,6 +93,26 @@ def contar_sem_franquia():
     Sem recorte temporal: são os candidatos ao vínculo em lote, independente do mês.
     """
     return Acionamento.objects.filter(franquia_agente__isnull=True).count()
+
+
+def contar_clientes():
+    """DD-050/ST5 — contador da fileira de cadastros: total de Clientes."""
+    return Cliente.objects.count()
+
+
+def contar_agentes():
+    """DD-050/ST5 — contador da fileira de cadastros: total de Agentes."""
+    return Agente.objects.count()
+
+
+def contar_responsaveis():
+    """DD-050/ST5 — contador da fileira de cadastros: total de Responsáveis."""
+    return ResponsavelAgente.objects.count()
+
+
+def contar_franquias():
+    """DD-050/ST5 — contador da fileira de cadastros: total de Franquias."""
+    return FranquiaAgente.objects.count()
 
 
 def somar_valor_agente_no_mes(hoje=None):

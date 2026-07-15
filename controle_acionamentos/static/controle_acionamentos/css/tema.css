@@ -584,3 +584,107 @@ body:has(.acn-escopo) { overflow-x: clip; }
   color: var(--acn-gold-texto);
   text-decoration: underline;
 }
+
+/* ===== DD-050/ST5 — navegação de cadastros (dropdown na nav + fileira na
+   home + faixa de entidade nas listagens). Só variáveis do tema → duas peles. */
+
+/* Pill "Cadastros": é um <button> (abre o menu), mas veste a MESMA pílula das
+   pills-link da .acn-nav — as regras existentes miram a/span, então o button
+   precisa do reset + do pill aqui. O dropdown relativo ancora o menu suspenso. */
+.acn-escopo .acn-nav-dropdown { position: relative; display: inline-flex; }
+.acn-escopo .acn-nav-pill {
+  appearance: none;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--acn-muted);
+  font-family: var(--acn-font-ui);
+  font-size: 0.85rem;
+  padding: 0.3rem 0.85rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.acn-escopo .acn-nav-pill:hover { color: var(--acn-text); }
+.acn-escopo .acn-nav-pill.acn-nav-ativo {
+  background: var(--acn-gold);
+  color: var(--acn-sobre-dourado);
+}
+.acn-escopo .acn-nav-chevron { font-size: 0.7rem; line-height: 1; }
+
+/* Menu suspenso do dropdown: superfície da pele, ancorado abaixo/à direita da
+   pill. [hidden] volta a display:none (o display:flex daqui sobrepõe o UA). */
+.acn-escopo .acn-nav-menu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  min-width: 12rem;
+  z-index: 20;
+  background: var(--acn-surface);
+  border: 1px solid var(--acn-line);
+  border-radius: 12px;
+  padding: 0.3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+.acn-escopo .acn-nav-menu[hidden] { display: none; }
+.acn-escopo .acn-nav-menu a {
+  color: var(--acn-text);
+  text-decoration: none;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: 8px;
+}
+.acn-escopo .acn-nav-menu a:hover {
+  background: color-mix(in srgb, var(--acn-gold) 14%, transparent);
+  color: var(--acn-gold-texto);
+}
+
+/* Fileira de cadastros na home: pílula fina clicável — ícone + nome + contador
+   à direita. Mesma linguagem do .acn-atalho, porém compacta (linha, não card). */
+.acn-escopo .acn-atalho-cadastro {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.9rem;
+  background: var(--acn-surface);
+  border: 1px solid var(--acn-line);
+  border-radius: 10px;
+  color: var(--acn-text);
+  text-decoration: none;
+  transition: border-color 0.15s ease;
+}
+.acn-escopo .acn-atalho-cadastro:hover { border-color: var(--acn-gold); }
+.acn-escopo .acn-atalho-cadastro > .bi {
+  color: var(--acn-gold-texto);
+  font-size: 1.1rem;
+}
+.acn-escopo .acn-atalho-cadastro-nome { font-weight: 600; }
+.acn-escopo .acn-atalho-cadastro-num {
+  margin-left: auto;
+  color: var(--acn-gold-texto);
+  font-weight: 700;
+}
+
+/* Faixa de entidade acima da tabela nas 4 listagens de cadastro: ícone + nome +
+   "N cadastrado(s)" à esquerda; botão "Novo <entidade>" empurrado à direita. */
+.acn-escopo .acn-faixa-entidade {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.9rem;
+  margin-bottom: 1rem;
+  background: var(--acn-surface);
+  border: 1px solid var(--acn-line);
+  border-radius: 10px;
+}
+.acn-escopo .acn-faixa-entidade > .bi {
+  color: var(--acn-gold-texto);
+  font-size: 1.15rem;
+}
+.acn-escopo .acn-faixa-entidade-nome { font-weight: 700; color: var(--acn-text); }
+.acn-escopo .acn-faixa-entidade-cont { color: var(--acn-muted); font-size: 0.85rem; }
+.acn-escopo .acn-faixa-entidade .acn-faixa-acao { margin-left: auto; }

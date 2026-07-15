@@ -4,19 +4,28 @@
 
 {% block content %}
 <div class="acn-escopo">
-  {% include 'controle_acionamentos/_cabecalho.html' with titulo="Franquias" subtitulo="Franquias de agente por cliente" ativo="" %}
+  {% include 'controle_acionamentos/_cabecalho.html' with titulo="Franquias" subtitulo="Franquias de agente por cliente" ativo="cadastros" %}
 
 <div class="container-fluid mt-4">
 
   {% include 'controle_acionamentos/_messages.html' %}
 
-  {% if perms.controle_acionamentos.add_franquiaagente %}
-  <div class="d-flex justify-content-end mb-3">
-    <a href="{% url 'controle_acionamentos:franquia_create' %}" class="btn btn-primary">
-      <i class="bi bi-plus-lg"></i> Nova franquia
-    </a>
+  {% comment %}
+    Faixa de entidade (DD-050/ST5): ícone + nome + contagem à esquerda, botão
+    "Nova franquia" (REALOCADO, gating add_franquiaagente mantido) à direita.
+    |length sobre `franquias`, que a tabela já percorre — sem query extra.
+    "franquia" é feminino → "cadastrada(s)".
+  {% endcomment %}
+  <div class="acn-faixa-entidade">
+    <i class="bi bi-cash-coin" aria-hidden="true"></i>
+    <span class="acn-faixa-entidade-nome">Franquias</span>
+    <span class="acn-faixa-entidade-cont">{{ franquias|length }} cadastrada{{ franquias|length|pluralize }}</span>
+    {% if perms.controle_acionamentos.add_franquiaagente %}
+      <a href="{% url 'controle_acionamentos:franquia_create' %}" class="btn btn-primary btn-sm acn-faixa-acao">
+        <i class="bi bi-plus-lg"></i> Nova franquia
+      </a>
+    {% endif %}
   </div>
-  {% endif %}
 
   <div class="table-responsive">
     <table class="table table-striped align-middle">

@@ -22,6 +22,10 @@ from .forms import (
 from .models import Acionamento, Agente, Cliente, FranquiaAgente, ResponsavelAgente
 from .selectors import (
     contar_acionamentos_no_mes,
+    contar_agentes,
+    contar_clientes,
+    contar_franquias,
+    contar_responsaveis,
     contar_sem_franquia,
     listar_acionamentos,
     listar_franquias_por_cliente,
@@ -51,6 +55,12 @@ def index(request):
         "total_mes": contar_acionamentos_no_mes(hoje=hoje),
         "total_sem_franquia": contar_sem_franquia(),
         "total_valor_mes": somar_valor_agente_no_mes(hoje=hoje),
+        # DD-050/ST5: contadores da fileira de cadastros. O template gateia cada
+        # item por perms.view_<model>; os números só são exibidos junto do link.
+        "contador_clientes": contar_clientes(),
+        "contador_agentes": contar_agentes(),
+        "contador_responsaveis": contar_responsaveis(),
+        "contador_franquias": contar_franquias(),
         "ultimos": listar_acionamentos()[:5],
     }
     return render(request, 'controle_acionamentos/index.html', contexto)

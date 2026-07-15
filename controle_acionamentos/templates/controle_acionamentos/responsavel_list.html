@@ -4,19 +4,27 @@
 
 {% block content %}
 <div class="acn-escopo">
-  {% include 'controle_acionamentos/_cabecalho.html' with titulo="Responsáveis" subtitulo="Cadastro de responsáveis pelos agentes" ativo="" %}
+  {% include 'controle_acionamentos/_cabecalho.html' with titulo="Responsáveis" subtitulo="Cadastro de responsáveis pelos agentes" ativo="cadastros" %}
 
 <div class="container-fluid mt-4">
 
   {% include 'controle_acionamentos/_messages.html' %}
 
-  {% if perms.controle_acionamentos.add_responsavelagente %}
-  <div class="d-flex justify-content-end mb-3">
-    <a href="{% url 'controle_acionamentos:responsavel_create' %}" class="btn btn-primary">
-      <i class="bi bi-plus-lg"></i> Novo responsável
-    </a>
+  {% comment %}
+    Faixa de entidade (DD-050/ST5): ícone + nome + contagem à esquerda, botão
+    "Novo responsável" (REALOCADO, gating add_responsavelagente mantido) à direita.
+    |length sobre `responsaveis`, que a tabela já percorre — sem query extra.
+  {% endcomment %}
+  <div class="acn-faixa-entidade">
+    <i class="bi bi-person-check" aria-hidden="true"></i>
+    <span class="acn-faixa-entidade-nome">Responsáveis</span>
+    <span class="acn-faixa-entidade-cont">{{ responsaveis|length }} cadastrado{{ responsaveis|length|pluralize }}</span>
+    {% if perms.controle_acionamentos.add_responsavelagente %}
+      <a href="{% url 'controle_acionamentos:responsavel_create' %}" class="btn btn-primary btn-sm acn-faixa-acao">
+        <i class="bi bi-plus-lg"></i> Novo responsável
+      </a>
+    {% endif %}
   </div>
-  {% endif %}
 
   <div class="table-responsive">
     <table class="table table-striped align-middle">
