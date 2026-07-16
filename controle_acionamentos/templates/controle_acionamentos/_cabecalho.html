@@ -14,6 +14,24 @@
   Migração concluída (DD-032): todas as telas usam este cabeçalho e o antigo
   partial _tema.html (assets + só o toggle) foi APOSENTADO/removido.
 {% endcomment %}
+
+{% comment %}
+  Modo Foco (anti-flash) — reaplica o estado salvo O MAIS CEDO possível no
+  carregamento do partial. A navbar do INT (.header-bottom) vem ANTES deste
+  cabeçalho no DOM; este script síncrono roda antes do paint da região e marca
+  o <html> com a classe .acn-foco, para o tema.css já esconder a navbar sem
+  piscar. try/catch: localStorage pode falhar (janela privada/bloqueio) sem
+  derrubar a tela.
+{% endcomment %}
+<script>
+  (function () {
+    try {
+      if (localStorage.getItem('acn-foco') === '1') {
+        document.documentElement.classList.add('acn-foco');
+      }
+    } catch (e) {}
+  })();
+</script>
 {% include 'controle_acionamentos/_tema_assets.html' %}
 <div class="acn-cabecalho">
   <div class="acn-cabecalho-esq">
@@ -31,6 +49,20 @@
     <button type="button" id="acn-btn-tema" class="acn-btn-tema" title="Alternar paleta Noite/Âmbar">
       <span class="acn-tema-icone" aria-hidden="true"></span>
       <span id="acn-rotulo-tema">Noite</span>
+    </button>
+
+    {% comment %}
+      (b2) Modo Foco — pill que oculta a navbar do INT nas telas do app. É um
+      <button> vestindo a pílula .acn-nav-pill (o reset de button mora nessa
+      classe — armadilha registrada: pill como button precisa do reset).
+      aria-pressed reflete o estado; quando ativo ganha .acn-nav-ativo (a mesma
+      pílula acesa dourada da nav). O JS ao fim do partial faz o toggle e
+      persiste em localStorage['acn-foco'].
+    {% endcomment %}
+    <button type="button" id="acn-btn-foco" class="acn-nav-pill" aria-pressed="false"
+            title="Modo Foco — ocultar a navegação do sistema">
+      <i class="bi bi-fullscreen" aria-hidden="true"></i>
+      <span>Foco</span>
     </button>
 
     {% comment %} (c) Navegação pill; item ativo via parâmetro {{ ativo }}. {% endcomment %}
@@ -102,6 +134,34 @@
     });
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') fechar();
+    });
+  })();
+</script>
+
+{% comment %}
+  Modo Foco (toggle) — o estado inicial já foi aplicado ao <html> pelo script
+  anti-flash no topo do partial; aqui só espelhamos esse estado no botão e
+  tratamos o clique. O reflexo visual (pílula acesa) é a classe .acn-nav-ativo,
+  a mesma das pills da nav. O guard `if (!btn)` evita erro caso o botão não
+  renderize. Escopado por IIFE, como os demais scripts do app.
+{% endcomment %}
+<script>
+  (function () {
+    var btn = document.getElementById('acn-btn-foco');
+    if (!btn) return;
+    var root = document.documentElement;
+
+    function sincronizar() {
+      var ativo = root.classList.contains('acn-foco');
+      btn.setAttribute('aria-pressed', ativo ? 'true' : 'false');
+      btn.classList.toggle('acn-nav-ativo', ativo);
+    }
+    sincronizar();  // reflete o estado que o anti-flash já aplicou ao <html>
+
+    btn.addEventListener('click', function () {
+      var ativo = root.classList.toggle('acn-foco');
+      try { localStorage.setItem('acn-foco', ativo ? '1' : '0'); } catch (e) {}
+      sincronizar();
     });
   })();
 </script>

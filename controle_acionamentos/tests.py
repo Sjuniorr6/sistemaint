@@ -4802,3 +4802,24 @@ def test_view_lote_franquia_identica_pula_confirmacao(
     )
     ac.refresh_from_db()
     assert ac.franquia_agente_id == franquia.pk
+
+
+# ---------------------------------------------------------------
+# Modo Foco — ocultar a navbar do INT nas telas do app
+# ---------------------------------------------------------------
+@pytest.mark.django_db
+def test_home_exibe_botao_modo_foco(client, django_user_model):
+    """Modo Foco — a home autenticada renderiza o botão "Foco" no cabeçalho
+    (pill ao lado do toggle de tema). Trava o contrato do partial
+    _cabecalho.html: se o botão sumir ou for renomeado, este teste quebra.
+    O id `acn-btn-foco` é o mesmo que o JS de toggle/persistência e o CSS de
+    estado ativo localizam. Não há gate de permissão — é preferência de UI,
+    igual ao toggle de tema — então um usuário comum já vê o botão."""
+    user = django_user_model.objects.create_user(username="foco", password="x")
+    client.force_login(user)
+
+    response = client.get(reverse("controle_acionamentos:index"))
+
+    assert response.status_code == 200
+    conteudo = response.content.decode(response.charset)
+    assert 'id="acn-btn-foco"' in conteudo

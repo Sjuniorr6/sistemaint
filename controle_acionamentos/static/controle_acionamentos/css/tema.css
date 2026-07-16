@@ -688,3 +688,68 @@ body:has(.acn-escopo) { overflow-x: clip; }
 .acn-escopo .acn-faixa-entidade-nome { font-weight: 700; color: var(--acn-text); }
 .acn-escopo .acn-faixa-entidade-cont { color: var(--acn-muted); font-size: 0.85rem; }
 .acn-escopo .acn-faixa-entidade .acn-faixa-acao { margin-left: auto; }
+
+/* ===== Modo Foco — ocultar a navbar do INT nas telas do app =====
+   Ativado pela classe .acn-foco no <html> (aplicada/persistida pelo JS do
+   _cabecalho.html). Como este CSS só carrega nas nossas telas (via
+   _tema_assets → _cabecalho), estas regras não existem no resto do INT — o
+   escopo é garantido pela própria distribuição do arquivo, não por seletor.
+
+   Token dourado elevado ao <html>: a navbar do INT (.header-bottom) vive FORA
+   do .acn-escopo, então --acn-gold (definido lá dentro) NÃO a alcança — cascata
+   de variável não sobe para um ancestral. O dourado é #E8B84B idêntico nas duas
+   peles (Noite e Âmbar), então reproduzimos o token aqui uma vez; a alça fica a
+   mesma cor nas duas peles (correto, pois --acn-gold é invariante). As medidas
+   do overlay também são variáveis — nada solto. */
+html.acn-foco {
+  --acn-foco-dourado: #E8B84B;   /* == --acn-gold do tema (invariante entre peles) */
+  --acn-foco-alca: 5px;          /* fatia da navbar que sobra visível como affordance */
+  --acn-foco-zona: 22px;         /* zona de captura de hover, invisível, abaixo da alça */
+  --acn-foco-transicao: 0.25s ease;
+}
+
+/* Navbar recolhida: promovida a fixed (sai do fluxo → o conteúdo sobe sozinho)
+   e deslocada para cima, deixando só a alça dourada no topo. A borda-topo
+   dourada É a alça visível. */
+html.acn-foco .header-bottom {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1050;
+  transform: translateY(calc(-100% + var(--acn-foco-alca)));
+  border-top: 3px solid var(--acn-foco-dourado);
+  transition: transform var(--acn-foco-transicao);
+}
+
+/* Zona de captura invisível logo abaixo da alça: amplia a área sensível ao
+   hover (a alça visível continua com ~5px) para "encostar" ser fácil. O hover
+   no pseudo-elemento conta como hover na .header-bottom. A navbar tem
+   overflow:visible, então o pseudo que transborda para baixo não é cortado. */
+html.acn-foco .header-bottom::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: var(--acn-foco-zona);
+}
+
+/* Encostou na alça/zona → a navbar desce SOBRE o conteúdo (overlay: como é
+   fixed, não empurra o layout, não há "pulo"). Saiu → recolhe pela transição. */
+html.acn-foco .header-bottom:hover {
+  transform: translateY(0);
+}
+
+/* "Cobertor curto": a regra original do .acn-escopo usa min-height:
+   calc(100vh - 71px), onde os 71px descontam a navbar do INT QUE ESTÁ NO FLUXO.
+   No Modo Foco a navbar vira fixed (sai do fluxo), então esse desconto perde o
+   motivo e vira uma faixa cinza no rodapé de telas curtas (home, cadastros).
+   Aqui o escopo passa a ocupar a viewport inteira. Unidade espelhada da regra
+   original (vh, não dvh). Os margins de encaixe (-40px topo, -16px base) seguem
+   válidos: com a navbar fixed o -40px encosta o escopo em y=0, e o -16px come o
+   padding-bottom do <main>, então 100vh cobre exatamente a tela, sem scroll.
+   A regra original NÃO é tocada — o modo normal mantém o cálculo -71px. */
+html.acn-foco .acn-escopo {
+  min-height: 100vh;
+}
