@@ -105,6 +105,24 @@
   box-shadow: 0 0 0 0.2rem rgba(232, 184, 75, 0.25);
 }
 
+/* Checkbox do tema (ex.: "Ativo" da tabela do catálogo): sem regra própria, o
+   Bootstrap pinta o :checked de azul primário e, no Âmbar, a borda default some
+   no fundo claro. Aqui o controle veste as variáveis da pele — borda no muted
+   (contrasta nas duas peles), aceso no dourado, foco com anel dourado discreto
+   (sem o azul do Bootstrap). Só variáveis do tema → funciona no Noite e no Âmbar. */
+.acn-escopo .form-check-input {
+  background-color: var(--acn-bg);
+  border-color: var(--acn-muted);
+}
+.acn-escopo .form-check-input:checked {
+  background-color: var(--acn-gold);
+  border-color: var(--acn-gold);
+}
+.acn-escopo .form-check-input:focus {
+  border-color: var(--acn-gold);
+  box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--acn-gold) 25%, transparent);
+}
+
 /* DD-050/ST2 — lista de checkboxes de clientes vinculados com busca: contêiner
    rolável no visual dos inputs do tema (mesma borda/fundo de .form-control), nas
    duas peles. O espaçamento vive no <label> (não no <div> wrapper) para que o
@@ -739,6 +757,34 @@ html.acn-foco .header-bottom::before {
    fixed, não empurra o layout, não há "pulo"). Saiu → recolhe pela transição. */
 html.acn-foco .header-bottom:hover {
   transform: translateY(0);
+}
+
+/* ===== DD-066/ST2 — tabela do catálogo de serviços no form do cliente =====
+   Tudo por variáveis do tema (duas peles). Opacity/cor só sinalizam estado. */
+
+/* Linha com Ativo desmarcado: levemente apagada (serviço não ativado). A classe
+   é alternada por JS no change do checkbox (e no load). */
+.acn-escopo .acn-servico-inativa {
+  opacity: 0.5;
+  transition: opacity 0.15s ease;
+}
+
+/* Linha com erro de validação: fundo e borda no vermelho da pele (mesma técnica
+   color-mix dos alerts), para o operador achar a linha a corrigir. */
+.acn-escopo .acn-servico-linha-erro td {
+  background: color-mix(in srgb, var(--acn-danger) 12%, transparent);
+  border-color: color-mix(in srgb, var(--acn-danger) 45%, var(--acn-line));
+}
+.acn-escopo .acn-servico-erro-msg {
+  color: var(--acn-danger);
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+}
+
+/* Hint discreto acima da tabela: texto muted da pele. */
+.acn-escopo .acn-catalogo-hint {
+  color: var(--acn-muted);
+  font-size: 0.82rem;
 }
 
 /* "Cobertor curto": a regra original do .acn-escopo usa min-height:

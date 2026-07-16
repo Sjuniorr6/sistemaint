@@ -7,6 +7,7 @@ from controle_acionamentos.models import (
     Cliente,
     FranquiaAgente,
     ResponsavelAgente,
+    ServicoCliente,
 )
 
 
@@ -293,3 +294,180 @@ class ClienteForm(forms.ModelForm):
                 attrs={"class": "form-control", "placeholder": "00.000.000/0000-00"}
             ),
         }
+
+
+class ServicoClienteLinhaForm(forms.Form):
+    """DD-066/ST2 — uma LINHA do catálogo de serviços dentro do form do cliente.
+
+    Não é ModelForm: o catálogo é uma tabela FIXA de 5 linhas (uma por
+    ServicoCliente.Nome), então cada linha é um Form puro cujo `nome` (HiddenInput)
+    identifica qual serviço do catálogo ela representa. Todos os VALORES são
+    opcionais NO CAMPO — a obrigatoriedade é condicional (regra do clean()
+    cruzado abaixo): linha em branco é válida ("serviço não configurado");
+    marcar Ativo OU preencher qualquer valor obriga os 5.
+    """
+
+    nome = forms.ChoiceField(
+        choices=ServicoCliente.Nome.choices,
+        widget=forms.HiddenInput(),
+    )
+    ativo = forms.BooleanField(
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+    valor_acionamento = forms.DecimalField(
+        required=False, min_value=0, max_digits=10, decimal_places=2,
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0"}),
+    )
+    franquia_km = forms.IntegerField(
+        required=False, min_value=0,
+        widget=forms.NumberInput(attrs={"class": "form-control", "min": "0"}),
+    )
+    franquia_horas = forms.DecimalField(
+        required=False, min_value=0, max_digits=5, decimal_places=2,
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0"}),
+    )
+    valor_km_excedente = forms.DecimalField(
+        required=False, min_value=0, max_digits=10, decimal_places=2,
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0"}),
+    )
+    valor_hora_excedente = forms.DecimalField(
+        required=False, min_value=0, max_digits=10, decimal_places=2,
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0"}),
+    )
+
+    # Os 5 valores que, juntos, configuram um serviço (tudo ou nada).
+    CAMPOS_VALOR = (
+        "valor_acionamento",
+        "franquia_km",
+        "franquia_horas",
+        "valor_km_excedente",
+        "valor_hora_excedente",
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        ativo = cleaned.get("ativo")
+        valores = [cleaned.get(campo) for campo in self.CAMPOS_VALOR]
+        algum = any(v is not None for v in valores)
+        todos = all(v is not None for v in valores)
+
+        # Linha em branco (sem Ativo e sem nenhum valor) = válida e "vazia".
+        if not ativo and not algum:
+            return cleaned
+
+        # Ativo OU qualquer valor preenchido => exige os 5 (parcial é erro).
+        if not todos:
+            raise forms.ValidationError(
+                "Preencha todos os valores do serviço ou deixe a linha em branco."
+            )
+        return cleaned
+
+    @property
+    def linha_vazia(self):
+        """True quando a linha não tem Ativo nem nenhum valor — serviço não
+        configurado. Só faz sentido após is_valid() (usa cleaned_data)."""
+        dados = getattr(self, "cleaned_data", {})
+        if dados.get("ativo"):
+            return False
+        return not any(dados.get(campo) is not None for campo in self.CAMPOS_VALOR)
+
+    @property
+    def nome_label(self):
+        """Label humano do serviço (choice) desta linha, para o template."""
+        valor = self["nome"].value()
+        try:
+            return ServicoCliente.Nome(valor).label
+        except ValueError:
+            return valor
+
+
+class BaseCatalogoServicosFormSet(forms.BaseFormSet):
+    """Formset do catálogo com contexto do cliente.
+
+    Recebe `cliente` para aplicar, no clean() do formset, a regra que a linha
+    isolada não enxerga: uma linha DEIXADA EM BRANCO cujo serviço JÁ TEM registro
+    no banco é inválida — não se "apaga" um serviço esvaziando a linha (para
+    desligar, desmarca-se Ativo; deletar não existe). Sem isso, o service
+    ignoraria a linha e o registro seguiria intacto, mas silenciosamente; aqui o
+    operador é avisado a completar os valores.
+    """
+
+    def __init__(self, *args, cliente=None, **kwargs):
+        self.cliente = cliente
+        super().__init__(*args, **kwargs)
+
+    def clean(self):
+        super().clean()
+        if self.cliente is None:
+            return
+        nomes_existentes = set(
+            ServicoCliente.objects
+            .filter(cliente=self.cliente)
+            .values_list("nome", flat=True)
+        )
+        for form in self.forms:
+            # Pula linhas já inválidas por outro motivo (cleaned_data incompleto).
+            if form.errors:
+                continue
+            if form.linha_vazia and form.cleaned_data.get("nome") in nomes_existentes:
+                form.add_error(
+                    None,
+                    "Complete os valores deste serviço já cadastrado ou "
+                    "desmarque Ativo — a linha não pode ficar em branco.",
+                )
+
+
+# Formset FIXO de 5 linhas (uma por serviço do catálogo): extra=0 + initial de 5
+# na ordem dos choices; max_num/validate_max blindam contra adicionar linhas, e
+# can_delete=False contra removê-las (o catálogo nunca deleta — só desativa).
+CatalogoServicosFormSet = forms.formset_factory(
+    ServicoClienteLinhaForm,
+    formset=BaseCatalogoServicosFormSet,
+    extra=0,
+    max_num=5,
+    validate_max=True,
+    can_delete=False,
+)
+
+
+def _initial_do_catalogo(cliente):
+    """Initial das 5 linhas na ordem dos choices. Sem cliente: só o `nome` de
+    cada linha (em branco). Com cliente: as linhas com registro nascem
+    preenchidas (ativo + 5 valores); as demais ficam em branco."""
+    if cliente is None:
+        return [{"nome": nome} for nome in ServicoCliente.Nome.values]
+
+    existentes = {s.nome: s for s in ServicoCliente.objects.filter(cliente=cliente)}
+    initial = []
+    for nome in ServicoCliente.Nome.values:
+        servico = existentes.get(nome)
+        if servico is None:
+            initial.append({"nome": nome})
+        else:
+            initial.append({
+                "nome": nome,
+                "ativo": servico.ativo,
+                "valor_acionamento": servico.valor_acionamento,
+                "franquia_km": servico.franquia_km,
+                "franquia_horas": servico.franquia_horas,
+                "valor_km_excedente": servico.valor_km_excedente,
+                "valor_hora_excedente": servico.valor_hora_excedente,
+            })
+    return initial
+
+
+def montar_catalogo_formset(data=None, cliente=None):
+    """DD-066/ST2 — monta o formset do catálogo, prefixo fixo "servicos".
+
+    Sem cliente (create): 5 linhas em branco, uma por Nome na ordem de definição.
+    Com cliente (update): cada linha nasce preenchida com o ServicoCliente
+    existente (se houver), em branco nas que faltam. O `cliente` também chega à
+    base customizada (inclusive no POST, data != None) para o clean do formset.
+    """
+    return CatalogoServicosFormSet(
+        data=data,
+        initial=_initial_do_catalogo(cliente),
+        prefix="servicos",
+        cliente=cliente,
+    )

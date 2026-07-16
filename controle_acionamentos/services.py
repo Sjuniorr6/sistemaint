@@ -454,6 +454,42 @@ def vincular_franquia_em_lote(pks, franquia, sobrescrever=False):
         return atualizados
 
 
+def sincronizar_catalogo_do_cliente(cliente, formset):
+    """DD-066/ST2 — persiste o catálogo de serviços de um cliente a partir do
+    formset já validado. Retorna a quantidade de registros gravados.
+
+      * linha vazia SEM registro existente → ignora;
+      * linha preenchida → cria ou atualiza o ServicoCliente (cliente, nome),
+        inclusive o campo `ativo`;
+      * NUNCA deleta registro (o catálogo desativa, não remove);
+      * roda full_clean() de cada registro antes do save.
+
+    A linha vazia cujo serviço JÁ TEM registro nem chega aqui: o clean do formset
+    (BaseCatalogoServicosFormSet) já a barra. Import local de ServicoCliente para
+    não acoplar o módulo de services ao de models no topo (mesmo padrão do
+    vincular_franquia_em_lote).
+    """
+    from controle_acionamentos.models import ServicoCliente
+
+    existentes = {s.nome: s for s in ServicoCliente.objects.filter(cliente=cliente)}
+    persistidos = 0
+    for form in formset.forms:
+        if form.linha_vazia:
+            continue
+        nome = form.cleaned_data["nome"]
+        servico = existentes.get(nome) or ServicoCliente(cliente=cliente, nome=nome)
+        servico.ativo = bool(form.cleaned_data.get("ativo"))
+        servico.valor_acionamento = form.cleaned_data.get("valor_acionamento")
+        servico.franquia_km = form.cleaned_data.get("franquia_km")
+        servico.franquia_horas = form.cleaned_data.get("franquia_horas")
+        servico.valor_km_excedente = form.cleaned_data.get("valor_km_excedente")
+        servico.valor_hora_excedente = form.cleaned_data.get("valor_hora_excedente")
+        servico.full_clean()
+        servico.save()
+        persistidos += 1
+    return persistidos
+
+
 # Caminho B — o que a trilha de edição (DD-049) audita: os campos EDITÁVEIS do
 # AcionamentoForm + os CALCULADOS FINANCEIROS do model (excedentes + valor_agente),
 # para a auditoria responder "o que — e quanto de dinheiro — mudou". Os totais

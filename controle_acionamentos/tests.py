@@ -3885,15 +3885,18 @@ class TestViewsCliente:
 
     @pytest.mark.django_db
     def test_criar_post_valido_cria_e_redireciona(self, client, django_user_model):
-        """Com add_cliente, POST válido cria o Cliente e redireciona (302)."""
+        """Com add_cliente, POST válido cria o Cliente e redireciona (302).
+
+        Contrato evoluiu na DD-066 ST2: o catálogo de serviços viaja no mesmo
+        POST do cliente; o teste passa a enviar o management form com as 5 linhas
+        em branco (linhas em branco são válidas — nenhum serviço criado)."""
         user = _user_com_perms(django_user_model, "add_cliente")
         client.force_login(user)
 
         url = reverse("controle_acionamentos:cliente_create")
-        response = client.post(
-            url,
-            {"nome_empresa": "Nova Empresa LTDA", "cnpj": "11.222.333/0001-81"},
-        )
+        data = {"nome_empresa": "Nova Empresa LTDA", "cnpj": "11.222.333/0001-81"}
+        data.update(_payload_formset([{}, {}, {}, {}, {}]))
+        response = client.post(url, data)
 
         assert response.status_code == 302
         assert Cliente.objects.count() == 1
@@ -3914,7 +3917,11 @@ class TestViewsCliente:
 
     @pytest.mark.django_db
     def test_editar_post_valido_atualiza_e_redireciona(self, client, django_user_model):
-        """Com change_cliente, POST válido atualiza o nome e redireciona (302)."""
+        """Com change_cliente, POST válido atualiza o nome e redireciona (302).
+
+        Contrato evoluiu na DD-066 ST2: o catálogo de serviços viaja no mesmo
+        POST do cliente; o teste passa a enviar o management form com as 5 linhas
+        em branco (linhas em branco são válidas — nenhum serviço alterado)."""
         cliente = Cliente.objects.create(
             nome_empresa="Nome Antigo", cnpj="11222333000181"
         )
@@ -3922,10 +3929,9 @@ class TestViewsCliente:
         client.force_login(user)
 
         url = reverse("controle_acionamentos:cliente_update", args=[cliente.pk])
-        response = client.post(
-            url,
-            {"nome_empresa": "Nome Novo", "cnpj": "11.222.333/0001-81"},
-        )
+        data = {"nome_empresa": "Nome Novo", "cnpj": "11.222.333/0001-81"}
+        data.update(_payload_formset([{}, {}, {}, {}, {}]))
+        response = client.post(url, data)
 
         assert response.status_code == 302
         cliente.refresh_from_db()
@@ -4971,3 +4977,255 @@ def test_selector_nao_devolve_servico_de_outro_cliente():
     resultado = list(listar_servicos_ativos_por_cliente(alvo))
 
     assert resultado == [servico_alvo]
+
+
+# ---------------------------------------------------------------
+# DD-066 ST2 — catálogo de serviços dentro do formulário do cliente (RED)
+# ---------------------------------------------------------------
+# As views cliente_create/cliente_update ainda NÃO montam/processam o formset e
+# o clean cruzado da linha ainda NÃO existe — por isso estes 10 testes ficam
+# vermelhos (é o RED). Os símbolos referenciados (ServicoClienteLinhaForm) já
+# existem como esqueleto, então a coleta não quebra.
+
+# Valores válidos de UMA linha do catálogo (strings, como chegam no POST).
+_VALORES_LINHA = {
+    "valor_acionamento": "150.00",
+    "franquia_km": "80",
+    "franquia_horas": "4.00",
+    "valor_km_excedente": "2.50",
+    "valor_hora_excedente": "30.00",
+}
+
+
+def _payload_formset(linhas):
+    """Monta o POST do formset do catálogo (prefixo "servicos", 5 linhas fixas).
+
+    `linhas`: lista de 5 dicts, na ordem do catálogo, com os campos da linha
+    (sem "nome" — preenchido aqui a partir de _SERVICOS_EM_ORDEM). Dict vazio =
+    linha em branco. Para marcar `ativo`, incluir {"ativo": "on"}.
+    """
+    data = {
+        "servicos-TOTAL_FORMS": "5",
+        "servicos-INITIAL_FORMS": "5",
+        "servicos-MIN_NUM_FORMS": "0",
+        "servicos-MAX_NUM_FORMS": "5",
+    }
+    for i, (nome, campos) in enumerate(zip(_SERVICOS_EM_ORDEM, linhas)):
+        data[f"servicos-{i}-nome"] = nome
+        for chave, valor in campos.items():
+            data[f"servicos-{i}-{chave}"] = valor
+    return data
+
+
+def _cria_servico(cliente, nome, ativo=True, valor_acionamento=Decimal("150.00")):
+    """Cria um ServicoCliente completo para os testes de update."""
+    return ServicoCliente.objects.create(
+        cliente=cliente,
+        nome=nome,
+        ativo=ativo,
+        valor_acionamento=valor_acionamento,
+        franquia_km=80,
+        franquia_horas=Decimal("4.00"),
+        valor_km_excedente=Decimal("2.50"),
+        valor_hora_excedente=Decimal("30.00"),
+    )
+
+
+class TestCatalogoServicosNoCliente:
+    """DD-066/ST2 (RED) — tabela fixa de 5 serviços no formulário do cliente.
+
+    Permissões continuam as do cliente (add_cliente/change_cliente); o catálogo
+    viaja junto no mesmo POST, sem permissão própria.
+    """
+
+    def test_linha_ativa_sem_valores_e_invalida(self):
+        """1 — ativo marcado obriga os 5 valores: linha ativa e vazia é inválida."""
+        from controle_acionamentos.forms import ServicoClienteLinhaForm
+
+        form = ServicoClienteLinhaForm(
+            data={"nome": _SERVICOS_EM_ORDEM[0], "ativo": "on"}
+        )
+        assert form.is_valid() is False
+
+    def test_linha_parcial_e_invalida(self):
+        """2 — preencher só um valor é parcial: exige os 5 (ou nenhum)."""
+        from controle_acionamentos.forms import ServicoClienteLinhaForm
+
+        form = ServicoClienteLinhaForm(
+            data={"nome": _SERVICOS_EM_ORDEM[1], "valor_acionamento": "150.00"}
+        )
+        assert form.is_valid() is False
+
+    @pytest.mark.django_db
+    def test_get_create_exibe_catalogo_com_5_linhas(self, client, django_user_model):
+        """3 — o create exibe o formset: management form + 5 hidden `nome`, na
+        ordem de definição dos choices."""
+        user = _user_com_perms(django_user_model, "add_cliente")
+        client.force_login(user)
+
+        response = client.get(reverse("controle_acionamentos:cliente_create"))
+
+        assert response.status_code == 200
+        conteudo = response.content.decode(response.charset)
+        assert 'name="servicos-TOTAL_FORMS"' in conteudo
+        for i, nome in enumerate(_SERVICOS_EM_ORDEM):
+            assert f'name="servicos-{i}-nome"' in conteudo
+            assert f'value="{nome}"' in conteudo
+
+    @pytest.mark.django_db
+    def test_post_create_valido_cria_cliente_e_servicos(self, client, django_user_model):
+        """4 — POST válido cria o cliente e os serviços das linhas preenchidas:
+        linha 0 ativa; linha 1 só com valores (nasce ativo=False); demais em
+        branco não criam registro."""
+        user = _user_com_perms(django_user_model, "add_cliente")
+        client.force_login(user)
+
+        linhas = [
+            {"ativo": "on", **_VALORES_LINHA},
+            {**_VALORES_LINHA},
+            {}, {}, {},
+        ]
+        data = {"nome_empresa": "Cliente Catalogo", "cnpj": "11.222.333/0001-81"}
+        data.update(_payload_formset(linhas))
+
+        response = client.post(reverse("controle_acionamentos:cliente_create"), data)
+
+        assert response.status_code == 302
+        cliente = Cliente.objects.get(nome_empresa="Cliente Catalogo")
+        servicos = ServicoCliente.objects.filter(cliente=cliente)
+        assert servicos.count() == 2
+        assert servicos.get(nome=_SERVICOS_EM_ORDEM[0]).ativo is True
+        assert servicos.get(nome=_SERVICOS_EM_ORDEM[1]).ativo is False
+
+    @pytest.mark.django_db
+    def test_post_create_linha_ativa_sem_valores_nao_cria_nada(
+        self, client, django_user_model
+    ):
+        """5 — atomicidade: uma linha ativa e vazia invalida o POST inteiro; nem
+        o cliente nem serviço nenhum são criados, e a resposta é 200 (reexibe)."""
+        user = _user_com_perms(django_user_model, "add_cliente")
+        client.force_login(user)
+
+        linhas = [{"ativo": "on"}, {}, {}, {}, {}]
+        data = {"nome_empresa": "Nao Deve Existir", "cnpj": "11.222.333/0001-81"}
+        data.update(_payload_formset(linhas))
+
+        response = client.post(reverse("controle_acionamentos:cliente_create"), data)
+
+        assert response.status_code == 200
+        assert Cliente.objects.count() == 0
+        assert ServicoCliente.objects.count() == 0
+
+    @pytest.mark.django_db
+    def test_get_update_carrega_linhas_existentes(self, client, django_user_model):
+        """6 — o update carrega os valores do serviço existente (linha
+        preenchida) e deixa as demais em branco."""
+        cliente = Cliente.objects.create(
+            nome_empresa="Com Servico", cnpj="11222333000181"
+        )
+        _cria_servico(cliente, _SERVICOS_EM_ORDEM[2], valor_acionamento=Decimal("150.00"))
+        user = _user_com_perms(django_user_model, "change_cliente")
+        client.force_login(user)
+
+        response = client.get(
+            reverse("controle_acionamentos:cliente_update", args=[cliente.pk])
+        )
+
+        assert response.status_code == 200
+        conteudo = response.content.decode(response.charset)
+        assert 'value="150.00"' in conteudo
+
+    @pytest.mark.django_db
+    def test_post_update_edita_servico_existente(self, client, django_user_model):
+        """7 — POST edita os valores de um serviço já existente."""
+        cliente = Cliente.objects.create(
+            nome_empresa="Edita Servico", cnpj="11222333000181"
+        )
+        servico = _cria_servico(cliente, _SERVICOS_EM_ORDEM[2])
+        user = _user_com_perms(django_user_model, "change_cliente")
+        client.force_login(user)
+
+        linhas = [{}, {}, {"ativo": "on", **_VALORES_LINHA, "valor_acionamento": "999.00"}, {}, {}]
+        data = {"nome_empresa": "Edita Servico", "cnpj": "11.222.333/0001-81"}
+        data.update(_payload_formset(linhas))
+
+        response = client.post(
+            reverse("controle_acionamentos:cliente_update", args=[cliente.pk]), data
+        )
+
+        assert response.status_code == 302
+        servico.refresh_from_db()
+        assert servico.valor_acionamento == Decimal("999.00")
+
+    @pytest.mark.django_db
+    def test_post_update_desmarca_ativo_mantem_registro(self, client, django_user_model):
+        """8 — desmarcar `ativo` de um serviço existente NÃO deleta: o registro
+        permanece com os valores, apenas ativo=False."""
+        cliente = Cliente.objects.create(
+            nome_empresa="Desativa Servico", cnpj="11222333000181"
+        )
+        servico = _cria_servico(cliente, _SERVICOS_EM_ORDEM[2], ativo=True)
+        user = _user_com_perms(django_user_model, "change_cliente")
+        client.force_login(user)
+
+        # Linha 2 com valores, mas SEM "ativo" (checkbox desmarcado não posta).
+        linhas = [{}, {}, {**_VALORES_LINHA}, {}, {}]
+        data = {"nome_empresa": "Desativa Servico", "cnpj": "11.222.333/0001-81"}
+        data.update(_payload_formset(linhas))
+
+        response = client.post(
+            reverse("controle_acionamentos:cliente_update", args=[cliente.pk]), data
+        )
+
+        assert response.status_code == 302
+        servico.refresh_from_db()
+        assert servico.ativo is False
+        assert servico.valor_acionamento == Decimal("150.00")
+
+    @pytest.mark.django_db
+    def test_post_update_preenche_linha_sem_registro_cria(self, client, django_user_model):
+        """9 — preencher uma linha que ainda não tinha registro cria o serviço."""
+        cliente = Cliente.objects.create(
+            nome_empresa="Cria No Update", cnpj="11222333000181"
+        )
+        user = _user_com_perms(django_user_model, "change_cliente")
+        client.force_login(user)
+
+        linhas = [{"ativo": "on", **_VALORES_LINHA}, {}, {}, {}, {}]
+        data = {"nome_empresa": "Cria No Update", "cnpj": "11.222.333/0001-81"}
+        data.update(_payload_formset(linhas))
+
+        response = client.post(
+            reverse("controle_acionamentos:cliente_update", args=[cliente.pk]), data
+        )
+
+        assert response.status_code == 302
+        assert ServicoCliente.objects.filter(
+            cliente=cliente, nome=_SERVICOS_EM_ORDEM[0]
+        ).exists()
+
+    @pytest.mark.django_db
+    def test_post_update_linha_existente_limpa_e_invalida(self, client, django_user_model):
+        """10 — esvaziar (deixar em branco) uma linha que TEM registro é
+        inválido: o registro não some e o POST volta 200 pedindo completar os
+        valores (não há como "apagar" pela tela — só desativar)."""
+        cliente = Cliente.objects.create(
+            nome_empresa="Nao Esvazia", cnpj="11222333000181"
+        )
+        servico = _cria_servico(cliente, _SERVICOS_EM_ORDEM[2])
+        user = _user_com_perms(django_user_model, "change_cliente")
+        client.force_login(user)
+
+        # Linha 2 totalmente vazia (só o hidden nome), mas existe registro para ela.
+        linhas = [{}, {}, {}, {}, {}]
+        data = {"nome_empresa": "Nao Esvazia", "cnpj": "11.222.333/0001-81"}
+        data.update(_payload_formset(linhas))
+
+        response = client.post(
+            reverse("controle_acionamentos:cliente_update", args=[cliente.pk]), data
+        )
+
+        assert response.status_code == 200
+        assert ServicoCliente.objects.filter(pk=servico.pk).exists()
+        servico.refresh_from_db()
+        assert servico.valor_acionamento == Decimal("150.00")

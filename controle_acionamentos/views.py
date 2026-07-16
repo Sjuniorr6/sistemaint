@@ -18,6 +18,7 @@ from .forms import (
     PedagioUpdateForm,
     ResponsavelForm,
     VincularFranquiaLoteForm,
+    montar_catalogo_formset,
 )
 from .models import Acionamento, Agente, Cliente, FranquiaAgente, ResponsavelAgente
 from .selectors import (
@@ -36,6 +37,7 @@ from .services import (
     acionamentos_em_conflito_de_franquia,
     compor_valor_agente,
     registrar_edicao_acionamento,
+    sincronizar_catalogo_do_cliente,
     vincular_franquia_em_lote,
 )
 
@@ -336,21 +338,33 @@ def cliente_create(request):
     """Criação de Cliente (DD-050/ST1) — view FINA.
 
     O ClienteForm valida via is_valid -> full_clean -> Cliente.clean (nome
-    obrigatório, CNPJ válido e normalizado). POST válido salva e redireciona
-    para a listagem.
+    obrigatório, CNPJ válido e normalizado). O catálogo de serviços (DD-066/ST2)
+    viaja no MESMO POST via formset: cliente e catálogo só persistem juntos, em
+    transaction.atomic — qualquer parte inválida reexibe a página (200) sem
+    gravar nada.
     """
     if request.method == "POST":
         form = ClienteForm(request.POST)
-        if form.is_valid():
-            form.save()
+        formset = montar_catalogo_formset(data=request.POST)
+        # Validar os DOIS sem short-circuit: assim os erros de ambos aparecem
+        # juntos no reexibir, não só os do primeiro que falhar. O catálogo é
+        # parte do POST do cliente — sem o management form o formset é inválido
+        # e a página é reexibida (200), sem porta dos fundos.
+        form_ok = form.is_valid()
+        formset_ok = formset.is_valid()
+        if form_ok and formset_ok:
+            with transaction.atomic():
+                cliente = form.save()
+                sincronizar_catalogo_do_cliente(cliente, formset)
             return redirect("controle_acionamentos:cliente_list")
     else:
         form = ClienteForm()
+        formset = montar_catalogo_formset()
 
     return render(
         request,
         "controle_acionamentos/cliente_form.html",
-        {"form": form, "modo": "criar"},
+        {"form": form, "formset": formset, "modo": "criar"},
     )
 
 
@@ -361,20 +375,31 @@ def cliente_update(request, pk):
 
     Reusa o ClienteForm com instance; POST válido salva e redireciona para a
     listagem. raise_exception=True: sem change_cliente, devolve 403.
+
+    O catálogo de serviços (DD-066/ST2) é montado COM o cliente: as linhas nascem
+    preenchidas pelos registros existentes, e o cliente chega ao clean do formset
+    (barra esvaziar um serviço já cadastrado). Cliente e catálogo persistem juntos
+    em transaction.atomic; qualquer parte inválida reexibe a página (200).
     """
     cliente = get_object_or_404(Cliente, pk=pk)
     if request.method == "POST":
         form = ClienteForm(request.POST, instance=cliente)
-        if form.is_valid():
-            form.save()
+        formset = montar_catalogo_formset(data=request.POST, cliente=cliente)
+        form_ok = form.is_valid()
+        formset_ok = formset.is_valid()
+        if form_ok and formset_ok:
+            with transaction.atomic():
+                form.save()
+                sincronizar_catalogo_do_cliente(cliente, formset)
             return redirect("controle_acionamentos:cliente_list")
     else:
         form = ClienteForm(instance=cliente)
+        formset = montar_catalogo_formset(cliente=cliente)
 
     return render(
         request,
         "controle_acionamentos/cliente_form.html",
-        {"form": form, "modo": "editar"},
+        {"form": form, "formset": formset, "modo": "editar"},
     )
 
 

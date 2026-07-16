@@ -46,6 +46,64 @@
       </div>
     </div>
 
+    {% comment %} ==== SERVIÇOS DO CLIENTE (catálogo fixo de 5) ==== {% endcomment %}
+    <div class="card mb-3">
+      <div class="card-header d-flex align-items-center">
+        <span class="badge rounded-pill acn-badge-num me-2">2</span>
+        <span class="fw-semibold">SERVIÇOS DO CLIENTE</span>
+      </div>
+      <div class="card-body">
+        {% comment %} Management form do formset — vai no MESMO <form> do cliente. {% endcomment %}
+        {{ formset.management_form }}
+
+        {% comment %} Erros que não pertencem a uma linha específica (ex.: limite de linhas). {% endcomment %}
+        {% if formset.non_form_errors %}
+          <div class="alert alert-danger">{{ formset.non_form_errors }}</div>
+        {% endif %}
+
+        <p class="acn-catalogo-hint mb-3">
+          Linha em branco = serviço não configurado. Para ativar um serviço,
+          marque <strong>Ativo</strong> e preencha todos os valores.
+        </p>
+
+        <div class="table-responsive">
+          <table class="table align-middle">
+            <thead>
+              <tr>
+                <th>Serviço</th>
+                <th class="text-center">Ativo</th>
+                <th>Valor acionamento</th>
+                <th>Franquia KM</th>
+                <th>Franquia horas</th>
+                <th>Valor KM extra</th>
+                <th>Valor hora extra</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for linha in formset %}
+                <tr class="acn-servico-linha{% if linha.errors %} acn-servico-linha-erro{% endif %}">
+                  <td>
+                    {% comment %} hidden do nome + rótulo humano do choice. {% endcomment %}
+                    {{ linha.nome }}
+                    <span class="fw-semibold">{{ linha.nome_label }}</span>
+                    {% if linha.non_field_errors %}
+                      <div class="acn-servico-erro-msg">{{ linha.non_field_errors }}</div>
+                    {% endif %}
+                  </td>
+                  <td class="text-center">{{ linha.ativo }}</td>
+                  <td>{{ linha.valor_acionamento }}</td>
+                  <td>{{ linha.franquia_km }}</td>
+                  <td>{{ linha.franquia_horas }}</td>
+                  <td>{{ linha.valor_km_excedente }}</td>
+                  <td>{{ linha.valor_hora_excedente }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     {# — Rodapé — #}
     <div class="acn-rodape-acao mt-4">
       <span>Os dados são validados ao salvar.</span>
@@ -58,4 +116,25 @@
   </form>
 </div>
 </div>
+
+{% comment %}
+  UX do catálogo (DD-066/ST2): linha com "Ativo" desmarcado fica levemente
+  apagada (.acn-servico-inativa, via variáveis do tema). JS vanilla mínimo,
+  escopado por IIFE: sincroniza a classe no carregamento e a cada change do
+  checkbox da linha. Sem estado no servidor — é só affordance visual.
+{% endcomment %}
+<script>
+  (function () {
+    var linhas = document.querySelectorAll('.acn-servico-linha');
+    linhas.forEach(function (tr) {
+      var chk = tr.querySelector('input[type="checkbox"]');
+      if (!chk) return;
+      function sincronizar() {
+        tr.classList.toggle('acn-servico-inativa', !chk.checked);
+      }
+      sincronizar();
+      chk.addEventListener('change', sincronizar);
+    });
+  })();
+</script>
 {% endblock %}
