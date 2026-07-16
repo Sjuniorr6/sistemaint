@@ -13,7 +13,12 @@ from django.utils import timezone
 
 from pytest_django.asserts import assertContains, assertNotContains
 
-from controle_acionamentos.services import validar_cpf, validar_cnpj, validar_cnh
+from controle_acionamentos.services import (
+    validar_cpf,
+    validar_cnpj,
+    validar_cnh,
+    aplicar_servico_ao_acionamento,
+)
 from controle_acionamentos.models import (
     ResponsavelAgente,
     Cliente,
@@ -5229,3 +5234,138 @@ class TestCatalogoServicosNoCliente:
         assert ServicoCliente.objects.filter(pk=servico.pk).exists()
         servico.refresh_from_db()
         assert servico.valor_acionamento == Decimal("150.00")
+
+
+# ---------------------------------------------------------------
+# DD-067 ST1 — Acionamento: escolha do serviço do cliente (RED)
+# ---------------------------------------------------------------
+# O snapshot (cópia dos 5 valores) e a regra de cliente no clean ainda NÃO
+# existem — por isso os testes 1, 2 e 5 ficam vermelhos. Os testes 3, 4 e 6
+# nascem verdes por estrutura (FK PROTECT + null=True). O campo servico_cliente
+# e aplicar_servico_ao_acionamento já existem como esqueleto, então a coleta não
+# quebra.
+
+
+def _servico_distinto(cliente, nome=_SERVICOS_EM_ORDEM[0]):
+    """ServicoCliente com valores DISTINTOS dos do _acionamento_valido (que usa
+    150/80/4/2.5/30), para provar que a cópia/snapshot realmente ocorreu."""
+    return ServicoCliente.objects.create(
+        cliente=cliente,
+        nome=nome,
+        ativo=True,
+        valor_acionamento=Decimal("500.00"),
+        franquia_km=200,
+        franquia_horas=Decimal("8.00"),
+        valor_km_excedente=Decimal("5.00"),
+        valor_hora_excedente=Decimal("60.00"),
+    )
+
+
+@pytest.mark.django_db
+def test_aplicar_servico_copia_os_5_valores_para_o_inline(_fks_acionamento):
+    """1 — aplicar_servico_ao_acionamento faz o snapshot: copia os 5 valores do
+    serviço para os campos inline do acionamento (a FK é só a referência)."""
+    cliente, responsavel, agente = _fks_acionamento
+    servico = _servico_distinto(cliente)
+    ac = _acionamento_valido(cliente, responsavel, agente)
+
+    aplicar_servico_ao_acionamento(ac, servico)
+
+    assert ac.servico_cliente == servico
+    assert ac.valor_acionamento == Decimal("500.00")
+    assert ac.franquia_km == 200
+    assert ac.franquia_horas == Decimal("8.00")
+    assert ac.valor_km_excedente == Decimal("5.00")
+    assert ac.valor_hora_excedente == Decimal("60.00")
+
+
+@pytest.mark.django_db
+def test_acionamento_servico_de_outro_cliente_e_rejeitado(_fks_acionamento):
+    """2 — análogo ao RN-06 da franquia: o serviço vinculado tem de pertencer ao
+    MESMO cliente do acionamento; serviço de outro cliente falha no full_clean."""
+    cliente, responsavel, agente = _fks_acionamento
+    outro = Cliente.objects.create(nome_empresa="Globex", cnpj="11444777000161")
+    servico_outro = _servico_distinto(outro)
+    ac = _acionamento_valido(
+        cliente, responsavel, agente, servico_cliente=servico_outro
+    )
+
+    with pytest.raises(ValidationError):
+        ac.full_clean()
+
+
+@pytest.mark.django_db
+def test_acionamento_servico_do_mesmo_cliente_e_valido(_fks_acionamento):
+    """3 — serviço do mesmo cliente passa no full_clean e salva."""
+    cliente, responsavel, agente = _fks_acionamento
+    servico = _servico_distinto(cliente)
+    ac = _acionamento_valido(cliente, responsavel, agente, servico_cliente=servico)
+
+    ac.full_clean()  # não deve levantar
+    ac.save()
+
+    assert ac.pk is not None
+    assert ac.servico_cliente == servico
+
+
+@pytest.mark.django_db
+def test_deletar_servico_referenciado_por_acionamento_e_protegido(_fks_acionamento):
+    """4 — on_delete=PROTECT: um serviço referenciado por acionamento não pode
+    ser excluído (ProtectedError)."""
+    cliente, responsavel, agente = _fks_acionamento
+    servico = _servico_distinto(cliente)
+    ac = _acionamento_valido(cliente, responsavel, agente, servico_cliente=servico)
+    ac.save()
+
+    with pytest.raises(ProtectedError):
+        servico.delete()
+
+
+@pytest.mark.django_db
+def test_congelamento_forte_snapshot_nao_reflete_edicao_do_catalogo(_fks_acionamento):
+    """5 — CONGELAMENTO FORTE: com o serviço aplicado e o acionamento salvo,
+    EDITAR o serviço no catálogo e re-salvar o acionamento (simulando update de
+    pedágio) NÃO puxa os valores novos — os campos inline e o valor_agente
+    seguem o snapshot da época."""
+    cliente, responsavel, agente = _fks_acionamento
+    servico = _servico_distinto(cliente)
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    aplicar_servico_ao_acionamento(ac, servico)
+    ac.save()  # congela o snapshot no inline e calcula o valor_agente da época
+    valor_agente_epoca = ac.valor_agente
+
+    # O catálogo muda DEPOIS que o acionamento já existe.
+    servico.valor_acionamento = Decimal("999.00")
+    servico.franquia_km = 10
+    servico.franquia_horas = Decimal("1.00")
+    servico.valor_km_excedente = Decimal("50.00")
+    servico.valor_hora_excedente = Decimal("500.00")
+    servico.save()
+
+    # Re-save do acionamento (ex.: operador ajusta o pedágio).
+    ac.pedagio = Decimal("25.00")
+    ac.save()
+    ac.refresh_from_db()
+
+    # Os campos inline seguem o snapshot (500/200/8/5/60), não o catálogo novo.
+    assert ac.valor_acionamento == Decimal("500.00")
+    assert ac.franquia_km == 200
+    assert ac.franquia_horas == Decimal("8.00")
+    assert ac.valor_km_excedente == Decimal("5.00")
+    assert ac.valor_hora_excedente == Decimal("60.00")
+    # O valor_agente é o da época + o pedágio novo (pedágio soma); nada do catálogo.
+    assert ac.valor_agente == valor_agente_epoca + Decimal("25.00")
+
+
+@pytest.mark.django_db
+def test_acionamento_legado_sem_servico_e_valido_e_calcula_inline(_fks_acionamento):
+    """6 — acionamento legado SEM serviço continua válido e calcula pelo inline,
+    exatamente como hoje."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente)
+
+    ac.full_clean()  # não deve levantar
+    ac.save()
+
+    assert ac.servico_cliente is None
+    assert ac.valor_agente is not None

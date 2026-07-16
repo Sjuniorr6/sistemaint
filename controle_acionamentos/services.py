@@ -342,6 +342,27 @@ def recalcular_valor_agente(acionamento) -> None:
     acionamento.valor_agente = resultado.valor_agente
 
 
+def aplicar_servico_ao_acionamento(acionamento, servico):
+    """DD-067/ST1 — aplica um ServicoCliente a um Acionamento, em momento
+    EXPLÍCITO (nunca no save()).
+
+    Congelamento forte: a FK `servico_cliente` é só a REFERÊNCIA de qual serviço
+    foi escolhido; a FONTE do cálculo é o SNAPSHOT — os 5 valores do serviço
+    copiados para os campos inline do acionamento. Como o save() recalcula a
+    partir do inline (não do catálogo), re-salvar o acionamento (ex.: editar
+    pedágio) nunca relê o serviço, e editar o catálogo depois não altera
+    acionamentos já registrados.
+
+    NÃO salva: quem chama decide o momento do save (padrão commit=False das views).
+    """
+    acionamento.servico_cliente = servico
+    acionamento.valor_acionamento = servico.valor_acionamento
+    acionamento.franquia_km = servico.franquia_km
+    acionamento.franquia_horas = servico.franquia_horas
+    acionamento.valor_km_excedente = servico.valor_km_excedente
+    acionamento.valor_hora_excedente = servico.valor_hora_excedente
+
+
 @dataclass(frozen=True)
 class ComposicaoValorAgente:
     """Extrato de parcelas do valor do agente, para exibição no detalhe (DD-032/ST5).

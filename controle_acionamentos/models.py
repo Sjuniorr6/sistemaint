@@ -278,6 +278,20 @@ class Acionamento(models.Model):
         related_name="acionamentos",
         verbose_name="Franquia de agente",
     )
+    # Serviço do cliente escolhido (DD-067/ST1). PROTECT: um serviço referenciado
+    # por acionamento não some por baixo dele. null=True: acionamentos legados
+    # existem sem serviço. A FK é só a REFERÊNCIA de qual serviço foi aplicado; a
+    # fonte do cálculo continua sendo o snapshot inline (congelamento forte) —
+    # a cópia dos valores é feita por aplicar_servico_ao_acionamento, em momento
+    # explícito, nunca no save().
+    servico_cliente = models.ForeignKey(
+        ServicoCliente,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="acionamentos",
+        verbose_name="Serviço do cliente",
+    )
 
     # — Serviço inline —
     # O que o operador digita no acionamento; é a fonte default do cálculo
@@ -452,6 +466,17 @@ class Acionamento(models.Model):
             if self.franquia_agente.cliente_id != self.cliente_id:
                 raise ValidationError(
                     {"franquia_agente": "A franquia deve pertencer ao mesmo cliente do acionamento."}
+                )
+
+        # DD-067/ST1 — mesma coerência para o serviço do cliente: o serviço
+        # escolhido tem de pertencer ao MESMO cliente do acionamento. Mesma guarda
+        # por *_id do RN-06 (não dispara query quando não há serviço/cliente). Só o
+        # vínculo de cliente é validado aqui; "serviço ativo" é regra do form (ST2),
+        # pois um serviço pode ser desativado após já estar em acionamentos válidos.
+        if self.servico_cliente_id and self.cliente_id:
+            if self.servico_cliente.cliente_id != self.cliente_id:
+                raise ValidationError(
+                    {"servico_cliente": "O serviço deve pertencer ao mesmo cliente do acionamento."}
                 )
 
     def save(self, *args, **kwargs):
