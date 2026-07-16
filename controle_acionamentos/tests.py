@@ -20,7 +20,9 @@ from controle_acionamentos.models import (
     Agente,
     FranquiaAgente,
     Acionamento,
+    ServicoCliente,
 )
+from controle_acionamentos.selectors import listar_servicos_ativos_por_cliente
 
 def test_cpf_valido_retorna_true():
     """Um CPF válido conhecido deve ser aceito."""
@@ -4823,3 +4825,149 @@ def test_home_exibe_botao_modo_foco(client, django_user_model):
     assert response.status_code == 200
     conteudo = response.content.decode(response.charset)
     assert 'id="acn-btn-foco"' in conteudo
+
+
+# ---------------------------------------------------------------
+# ServicoCliente — catálogo de serviços do cliente (DD-066/ST1)
+# ---------------------------------------------------------------
+# Os 5 serviços do catálogo, na ORDEM DE DEFINIÇÃO do negócio (não alfabética).
+# São os VALORES dos TextChoices `Nome` que o model deve expor na fase GREEN;
+# usar os literais aqui deixa o RED falhar por asserção (não por AttributeError
+# de um enum ainda inexistente) e dispensa reescrever os testes na GREEN.
+_SERVICOS_EM_ORDEM = [
+    "MOTO_1_AGENTE",
+    "CARRO_1_AGENTE",
+    "CARRO_2_AGENTES",
+    "CARRO_1_AGENTE_1P",
+    "CARRO_2_AGENTES_2P",
+]
+
+
+def _dados_servico(cliente, **overrides):
+    """Espelha o _dados_franquia: kwargs válidos para criar um ServicoCliente.
+    `nome` default = primeiro serviço do catálogo; sobrescrevível por override.
+    """
+    dados = dict(
+        cliente=cliente,
+        nome=_SERVICOS_EM_ORDEM[0],
+        valor_acionamento=Decimal("150.00"),
+        franquia_km=80,
+        franquia_horas=Decimal("4.00"),
+        valor_km_excedente=Decimal("2.50"),
+        valor_hora_excedente=Decimal("30.00"),
+    )
+    dados.update(overrides)
+    return dados
+
+
+@pytest.mark.django_db
+def test_servico_persiste_com_dados_validos():
+    """1 — criação válida; `ativo` nasce False por default (é o operador que
+    ativa o serviço depois, não o cadastro)."""
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    servico = ServicoCliente.objects.create(**_dados_servico(cliente))
+
+    assert servico.pk is not None
+    assert ServicoCliente.objects.count() == 1
+    assert servico.ativo is False
+
+
+@pytest.mark.django_db
+def test_servico_mesmo_nome_clientes_diferentes_e_permitido():
+    """2 — a unicidade é por (cliente, nome): o MESMO serviço pode existir em
+    clientes diferentes. Espelha o caso homólogo da FranquiaAgente."""
+    cliente_a = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    cliente_b = Cliente.objects.create(nome_empresa="Globex", cnpj="11444777000161")
+
+    ServicoCliente.objects.create(**_dados_servico(cliente_a))
+    servico_b = ServicoCliente(**_dados_servico(cliente_b))
+    servico_b.full_clean()  # não deve levantar — unicidade é por (cliente, nome)
+    servico_b.save()
+
+    assert ServicoCliente.objects.count() == 2
+
+
+@pytest.mark.django_db
+def test_servico_unicidade_cliente_nome():
+    """3 — o MESMO cliente não repete o mesmo serviço: o segundo full_clean com o
+    mesmo (cliente, nome) é rejeitado pela UniqueConstraint."""
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    ServicoCliente.objects.create(**_dados_servico(cliente))
+
+    with pytest.raises(ValidationError):
+        ServicoCliente(**_dados_servico(cliente)).full_clean()
+
+
+@pytest.mark.django_db
+def test_servico_deletar_cliente_com_servico_e_protegido():
+    """4 — on_delete=PROTECT: um cliente que possui serviço não pode ser
+    excluído por baixo do catálogo (ProtectedError)."""
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    ServicoCliente.objects.create(**_dados_servico(cliente))
+
+    with pytest.raises(ProtectedError):
+        cliente.delete()
+
+
+@pytest.mark.django_db
+def test_servico_nome_fora_das_opcoes_e_rejeitado():
+    """5 — `nome` só aceita um dos 5 serviços do catálogo (TextChoices): um valor
+    fora da lista falha no full_clean."""
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    with pytest.raises(ValidationError):
+        ServicoCliente(**_dados_servico(cliente, nome="PLANO_INEXISTENTE")).full_clean()
+
+
+@pytest.mark.django_db
+def test_servico_valores_negativos_sao_rejeitados():
+    """6 — valores não-negativos (MinValueValidator): valor_acionamento e
+    franquia_horas negativos falham no full_clean."""
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+
+    with pytest.raises(ValidationError):
+        ServicoCliente(
+            **_dados_servico(cliente, valor_acionamento=Decimal("-1.00"))
+        ).full_clean()
+
+    with pytest.raises(ValidationError):
+        ServicoCliente(
+            **_dados_servico(cliente, franquia_horas=Decimal("-0.50"))
+        ).full_clean()
+
+
+@pytest.mark.django_db
+def test_selector_devolve_apenas_ativos_na_ordem_de_definicao():
+    """7 — o selector retorna só os serviços ATIVOS do cliente, na ORDEM DE
+    DEFINIÇÃO dos choices (não alfabética, não por criação). Crio em ordem
+    inversa e com um inativo no meio para provar as duas regras de uma vez."""
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+
+    # Ativos criados FORA de ordem (inverso da definição) → o selector reordena.
+    for nome in reversed(_SERVICOS_EM_ORDEM):
+        ServicoCliente.objects.create(**_dados_servico(cliente, nome=nome, ativo=True))
+    # Um serviço INATIVO não deve aparecer — mas como todos os nomes já foram
+    # usados, desativo um dos criados para testar o filtro sem violar a unicidade.
+    inativado = ServicoCliente.objects.get(cliente=cliente, nome=_SERVICOS_EM_ORDEM[2])
+    inativado.ativo = False
+    inativado.save()
+
+    resultado = list(listar_servicos_ativos_por_cliente(cliente))
+    nomes = [s.nome for s in resultado]
+
+    esperado = [n for n in _SERVICOS_EM_ORDEM if n != _SERVICOS_EM_ORDEM[2]]
+    assert nomes == esperado
+
+
+@pytest.mark.django_db
+def test_selector_nao_devolve_servico_de_outro_cliente():
+    """8 — escopo por cliente: o serviço ativo de OUTRO cliente não vaza no
+    selector do cliente-alvo (e o do alvo aparece)."""
+    alvo = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    outro = Cliente.objects.create(nome_empresa="Globex", cnpj="11444777000161")
+
+    servico_alvo = ServicoCliente.objects.create(**_dados_servico(alvo, ativo=True))
+    ServicoCliente.objects.create(**_dados_servico(outro, ativo=True))
+
+    resultado = list(listar_servicos_ativos_por_cliente(alvo))
+
+    assert resultado == [servico_alvo]

@@ -4,7 +4,7 @@ As views consomem os dados a partir daqui — nunca fazem query direta ao model.
 """
 from decimal import Decimal
 
-from django.db.models import DecimalField, Sum, Value
+from django.db.models import Case, DecimalField, IntegerField, Sum, Value, When
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
@@ -14,6 +14,7 @@ from controle_acionamentos.models import (
     Cliente,
     FranquiaAgente,
     ResponsavelAgente,
+    ServicoCliente,
 )
 
 
@@ -70,6 +71,32 @@ def listar_franquias_por_cliente(cliente):
     e não por data como o listar_acionamentos.
     """
     return FranquiaAgente.objects.filter(cliente=cliente).order_by("nome")
+
+
+def listar_servicos_ativos_por_cliente(cliente):
+    """DD-066/ST1 — serviços ATIVOS de um cliente, na ORDEM DE DEFINIÇÃO dos
+    choices de `nome` (a ordem de exibição do negócio, não alfabética), via
+    Case/When sobre os valores dos choices.
+
+    A ordem de negócio não é alfabética nem por criação, então não dá para um
+    order_by de coluna: anota um índice por serviço via Case/When (na ordem em
+    que os choices `Nome` foram definidos no model) e ordena por ele. Derivar a
+    ordem de `Nome.values` mantém a fonte única — reordenar/renomear os choices
+    reflete aqui sem tocar no selector.
+    """
+    ordem = Case(
+        *[
+            When(nome=nome, then=Value(indice))
+            for indice, nome in enumerate(ServicoCliente.Nome.values)
+        ],
+        output_field=IntegerField(),
+    )
+    return (
+        ServicoCliente.objects
+        .filter(cliente=cliente, ativo=True)
+        .annotate(_ordem=ordem)
+        .order_by("_ordem")
+    )
 
 
 def contar_acionamentos_no_mes(hoje=None):

@@ -172,6 +172,81 @@ class FranquiaAgente(models.Model):
         return f"{self.nome} ({self.cliente.nome_empresa})"
 
 
+class ServicoCliente(models.Model):
+    """Catálogo de serviços de um Cliente (DD-066/ST1).
+
+    Cada linha é um serviço contratado pelo cliente (moto/carro, nº de agentes,
+    com/sem plantão), com valores e franquias próprios. `nome` é fechado num
+    catálogo de 5 opções (TextChoices Nome); a unicidade (cliente, nome) impede
+    o mesmo cliente de repetir um serviço, mas clientes diferentes podem ter o
+    mesmo.
+
+    Espelha a FranquiaAgente nos tipos/tamanhos dos campos monetários e de
+    franquia. Diferença deliberada: o serviço do cliente NUNCA escalona (decisão
+    de negócio de 16/07) — não há campo de escalonamento, nem "para o futuro".
+    """
+
+    class Nome(models.TextChoices):
+        MOTO_1_AGENTE = "MOTO_1_AGENTE", "Moto | 1 agente moto monitoramento ativo"
+        CARRO_1_AGENTE = "CARRO_1_AGENTE", "Carro | 1 agente carro monitoramento ativo"
+        CARRO_2_AGENTES = "CARRO_2_AGENTES", "Carro | 2 agentes carro monitoramento ativo"
+        CARRO_1_AGENTE_1P = "CARRO_1_AGENTE_1P", "Carro | 1 agente carro monitoramento ativo 1P+"
+        CARRO_2_AGENTES_2P = "CARRO_2_AGENTES_2P", "Carro | 2 agentes carro monitoramento ativo 2P+"
+
+    cliente = models.ForeignKey(
+        Cliente,
+        on_delete=models.PROTECT,
+        related_name="servicos",
+        verbose_name="Cliente",
+    )
+    nome = models.CharField(
+        max_length=20,
+        choices=Nome.choices,
+        verbose_name="Serviço",
+    )
+    ativo = models.BooleanField(default=False, verbose_name="Ativo")
+    valor_acionamento = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal("0"))],
+        verbose_name="Valor do acionamento",
+    )
+    franquia_km = models.PositiveIntegerField(verbose_name="Franquia de KM")
+    franquia_horas = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal("0"))],
+        verbose_name="Franquia de horas",
+    )
+    valor_km_excedente = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal("0"))],
+        verbose_name="Valor por KM excedente",
+    )
+    valor_hora_excedente = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal("0"))],
+        verbose_name="Valor por hora excedente",
+    )
+    criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+
+    class Meta:
+        verbose_name = "Serviço de Cliente"
+        verbose_name_plural = "Serviços de Cliente"
+        ordering = ["-criado_em"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["cliente", "nome"],
+                name="unique_servico_cliente_nome",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.get_nome_display()} ({self.cliente.nome_empresa})"
+
+
 class Acionamento(models.Model):
     # — Relacionamentos —
     # on_delete=PROTECT: cadastro referenciado (cliente, responsável, agente,
