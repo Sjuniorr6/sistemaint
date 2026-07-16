@@ -401,6 +401,26 @@ def compor_valor_agente(acionamento) -> ComposicaoValorAgente:
     )
 
 
+def acionamentos_em_conflito_de_franquia(pks, franquia):
+    """DD-051/ST2 (AC-06.5) — FONTE ÚNICA da regra de conflito de sobrescrita:
+    acionamentos do lote (`pks`) que já têm franquia vinculada E DIFERENTE da
+    `franquia` selecionada. Franquia IDÊNTICA não é conflito (re-vincular a mesma
+    recalcula igual), por isso o .exclude(franquia_agente=franquia).
+
+    Retorna a queryset (lazy): o service usa .exists() para recusar o lote; a view
+    encadeia select_related para listar os itens na página de confirmação. A regra
+    mora aqui, num lugar só, para service e view nunca divergirem.
+
+    Import local de Acionamento: evita import circular (models importa deste módulo).
+    """
+    from controle_acionamentos.models import Acionamento
+
+    return (
+        Acionamento.objects.filter(pk__in=pks, franquia_agente__isnull=False)
+        .exclude(franquia_agente=franquia)
+    )
+
+
 def vincular_franquia_em_lote(pks, franquia, sobrescrever=False):
     """DD-015/M4 (AC-06.4) — vincula `franquia` a todos os acionamentos de
     `pks` e recalcula os campos derivados de cada um, em transação atômica:
@@ -408,8 +428,9 @@ def vincular_franquia_em_lote(pks, franquia, sobrescrever=False):
     contagem de acionamentos atualizados.
 
     `sobrescrever` (default False = caminho seguro): com False, se algum item do
-    lote já tiver franquia vinculada, o lote é recusado (AC-06.5); com True,
-    esses itens são re-vinculados e recalculados.
+    lote já tiver franquia DIFERENTE da selecionada, o lote é recusado (AC-06.5,
+    DD-051/ST2) — franquia IDÊNTICA não é conflito e passa normalmente; com True,
+    os itens com outra franquia são re-vinculados e recalculados.
 
     Import local de Acionamento: evita import circular (models importa
     recalcular_valor_agente deste módulo).
@@ -418,12 +439,9 @@ def vincular_franquia_em_lote(pks, franquia, sobrescrever=False):
 
     with transaction.atomic():
         if not sobrescrever:
-            ja_vinculados = Acionamento.objects.filter(
-                pk__in=pks, franquia_agente__isnull=False
-            )
-            if ja_vinculados.exists():
+            if acionamentos_em_conflito_de_franquia(pks, franquia).exists():
                 raise ValidationError(
-                    "Há acionamentos com franquia já vinculada no lote; "
+                    "Há acionamentos com OUTRA franquia já vinculada no lote; "
                     "a sobrescrita exige confirmação explícita (AC-06.5)."
                 )
 

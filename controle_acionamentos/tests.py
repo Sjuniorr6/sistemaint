@@ -1429,9 +1429,14 @@ def test_vincular_franquia_em_lote_cross_cliente_desfaz_tudo_cenario8(_fks_acion
 
 @pytest.mark.django_db
 def test_vincular_franquia_em_lote_sem_flag_nao_sobrescreve_ac065(_fks_acionamento):
-    """DD-015/M4 (AC-06.5) — item que já possui franquia vinculada só pode ser
-    sobrescrito com confirmação explícita: sem sobrescrever=True, o service
-    levanta ValidationError e nada persiste (nem os itens sem franquia)."""
+    """DD-051/ST2 (AC-06.5 REVISADO) — franquia IDÊNTICA à já vinculada NÃO é
+    conflito: sem sobrescrever=True, o lote passa, vincula os itens livres e
+    re-salva o já vinculado na MESMA franquia (recálculo idêntico), sem levantar.
+
+    EVOLUÇÃO EXPLÍCITA do contrato DD-015 (não silenciosa): este mesmo cenário
+    (lote com a MESMA franquia do item já vinculado) antes esperava ValidationError
+    (recusa). Sob AC-06.5 revisado, conflito passa a ser só franquia DIFERENTE —
+    coberto por test_lote_franquia_diferente_sem_flag_continua_recusando."""
     cliente, responsavel, agente = _fks_acionamento
     franquia = FranquiaAgente.objects.create(
         **_dados_franquia(
@@ -1466,23 +1471,28 @@ def test_vincular_franquia_em_lote_sem_flag_nao_sobrescreve_ac065(_fks_acionamen
     livre2 = _cria()
     ja_vinculado = _cria(franquia_agente=franquia)  # já nasce com a franquia
 
-    # valor_agente original dos 2 SEM franquia, antes do lote.
-    originais = {ac.pk: ac.valor_agente for ac in (livre1, livre2)}
+    # valor_agente do item já vinculado à MESMA franquia, antes do lote: re-salvar
+    # a franquia idêntica deve recalcular para o MESMO valor.
+    valor_ja_vinculado_antes = ja_vinculado.valor_agente
 
     from controle_acionamentos.services import vincular_franquia_em_lote
 
-    # SEM sobrescrever: o default deve ser o caminho seguro (recusa e desfaz tudo).
-    with pytest.raises(ValidationError):
-        vincular_franquia_em_lote([livre1.pk, livre2.pk, ja_vinculado.pk], franquia)
+    # AC-06.5 revisado: franquia idêntica NÃO é conflito → sem sobrescrever, o lote
+    # passa e vincula os livres normalmente (antes, DD-015, esperava ValidationError).
+    resultado = vincular_franquia_em_lote(
+        [livre1.pk, livre2.pk, ja_vinculado.pk], franquia
+    )
 
-    # Nada persistiu: nem os livres, nem alteração no já vinculado.
+    assert resultado == 3
+    # Os livres passam a apontar para a franquia.
     for ac in (livre1, livre2):
         ac.refresh_from_db()
-        assert ac.franquia_agente_id is None
-        assert ac.valor_agente == originais[ac.pk]
+        assert ac.franquia_agente_id == franquia.pk
 
+    # O já vinculado continua na MESMA franquia e com o MESMO valor_agente.
     ja_vinculado.refresh_from_db()
     assert ja_vinculado.franquia_agente_id == franquia.pk
+    assert ja_vinculado.valor_agente == valor_ja_vinculado_antes
 
 
 @pytest.mark.django_db
@@ -2559,12 +2569,20 @@ def test_vincular_franquia_lote_entrada_invalida_redireciona_com_message_de_erro
 
 
 @pytest.mark.django_db
-def test_vincular_franquia_lote_conflito_sem_flag_renderiza_confirmacao(
+def test_vincular_franquia_lote_identica_sem_flag_nao_renderiza_confirmacao(
     client, django_user_model, _fks_acionamento
 ):
-    """DD-015/M4 (AC-06.5) — conflito de sobrescrita sem flag não executa nem
-    redireciona: renderiza página de confirmação em duas etapas (padrão
-    delete-confirm)."""
+    """DD-051/ST2 (AC-06.5 REVISADO) — franquia IDÊNTICA à já vinculada não é
+    conflito: a view NÃO renderiza a confirmação — executa o lote e redireciona
+    (302), vinculando também o item livre.
+
+    EVOLUÇÃO EXPLÍCITA do contrato DD-015 (não silenciosa): este cenário (lote com
+    a MESMA franquia do item já vinculado) antes renderizava a confirmação (200) —
+    tanto que a função se chamava ..._conflito_sem_flag_renderiza_confirmacao. A
+    confirmação só sobrevive para franquia DIFERENTE, coberta por
+    test_vincular_franquia_lote_confirmado_sobrescreve_e_redireciona e
+    test_confirmacao_etapa1_reenvia_hidden_fieis_para_etapa2 (que usam franquia
+    distinta da já vinculada)."""
     cliente, responsavel, agente = _fks_acionamento
     franquia = FranquiaAgente.objects.create(**_dados_franquia(cliente, nome="Franquia"))
     base = timezone.now()
@@ -2602,16 +2620,17 @@ def test_vincular_franquia_lote_conflito_sem_flag_renderiza_confirmacao(
         },  # SEM sobrescrever → conflito exige confirmação
     )
 
-    # Não redireciona (comportamento novo): renderiza a confirmação.
-    assert response.status_code == 200
+    # AC-06.5 revisado: franquia idêntica não é conflito → a view NÃO renderiza a
+    # confirmação; executa o lote e redireciona.
+    assert response.status_code == 302
     assert (
         "controle_acionamentos/acionamento_vincular_confirmar.html"
-        in [t.name for t in response.templates]
+        not in [t.name for t in response.templates]
     )
 
-    # Nada foi executado ainda: o livre continua sem franquia.
+    # O lote executou: o item livre passou a apontar para a franquia.
     livre.refresh_from_db()
-    assert livre.franquia_agente_id is None
+    assert livre.franquia_agente_id == franquia.pk
 
 
 @pytest.mark.django_db
@@ -4625,3 +4644,161 @@ def test_detalhe_exibe_badge_franquia_no_cabecalho(
 
     assertContains(response, "acn-badge-franquia")
     assertContains(response, "Franquia Ouro")
+
+
+# ---------------------------------------------------------------
+# DD-051/ST2 — AC-06.5 revisado: franquia idêntica NÃO é conflito (RED)
+#
+# Contrato NOVO (ainda não implementado em services.py/views.py):
+#   com sobrescrever=False, conflito = item com franquia JÁ VINCULADA e DIFERENTE
+#   da selecionada. Franquia idêntica segue no lote normalmente (re-salva e
+#   recalcula, resultado igual) — não recusa no service nem pede confirmação na view.
+#
+# A guarda atual (franquia_agente__isnull=False, em services e na view) trata
+# QUALQUER item com franquia como conflito, então os testes de cenário idêntico
+# nascem VERMELHOS. O de franquia DIFERENTE (guarda que permanece) pode nascer verde.
+# ---------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_lote_franquia_identica_sem_flag_nao_e_conflito(_fks_acionamento):
+    """DD-051/ST2 (AC-06.5) — service: item já vinculado à franquia X e o lote
+    seleciona a MESMA X, sem sobrescrever → não levanta ValidationError, retorna a
+    contagem e o valor_agente do item permanece igual (recálculo idêntico)."""
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(**_dados_franquia(cliente, nome="Franquia X"))
+    base = timezone.now()
+    ac = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        franquia_agente=franquia,
+        km_inicio=0,
+        km_final=240,
+        data_hora_solicitado=base,
+        data_hora_inicio=base,
+        data_hora_final=base + timedelta(hours=5),
+    )
+    ac.save()
+    ac.refresh_from_db()
+    valor_antes = ac.valor_agente
+
+    from controle_acionamentos.services import vincular_franquia_em_lote
+
+    resultado = vincular_franquia_em_lote([ac.pk], franquia)  # sem sobrescrever
+
+    assert resultado == 1
+    ac.refresh_from_db()
+    assert ac.franquia_agente_id == franquia.pk
+    assert ac.valor_agente == valor_antes
+
+
+@pytest.mark.django_db
+def test_lote_misto_sem_franquia_e_identica_sem_flag_passa(_fks_acionamento):
+    """DD-051/ST2 (AC-06.5) — service: lote com um item SEM franquia + um já com a
+    franquia X, aplicando X sem sobrescrever → passa e vincula os DOIS (o livre
+    ganha X; o já vinculado permanece em X)."""
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(**_dados_franquia(cliente, nome="Franquia X"))
+    base = timezone.now()
+
+    def _cria(franquia_agente=None):
+        ac = _acionamento_valido(
+            cliente,
+            responsavel,
+            agente,
+            franquia_agente=franquia_agente,
+            km_inicio=0,
+            km_final=240,
+            data_hora_solicitado=base,
+            data_hora_inicio=base,
+            data_hora_final=base + timedelta(hours=5),
+        )
+        ac.save()
+        ac.refresh_from_db()
+        return ac
+
+    livre = _cria()
+    ja_vinculado = _cria(franquia_agente=franquia)
+
+    from controle_acionamentos.services import vincular_franquia_em_lote
+
+    resultado = vincular_franquia_em_lote([livre.pk, ja_vinculado.pk], franquia)
+
+    assert resultado == 2
+    for ac in (livre, ja_vinculado):
+        ac.refresh_from_db()
+        assert ac.franquia_agente_id == franquia.pk
+
+
+@pytest.mark.django_db
+def test_lote_franquia_diferente_sem_flag_continua_recusando(_fks_acionamento):
+    """DD-051/ST2 (AC-06.5) — guarda do contrato que PERMANECE: item já vinculado à
+    franquia Y e o lote aplica X (DIFERENTE) sem sobrescrever → ValidationError. A
+    revisão isenta só franquia idêntica; conflito real (troca) segue exigindo
+    confirmação. Pode nascer VERDE no RED (a guarda antiga já recusa)."""
+    cliente, responsavel, agente = _fks_acionamento
+    # Mesmo cliente (RN-06 não entra), nomes distintos (unicidade cliente+nome).
+    franquia_y = FranquiaAgente.objects.create(**_dados_franquia(cliente, nome="Franquia Y"))
+    franquia_x = FranquiaAgente.objects.create(**_dados_franquia(cliente, nome="Franquia X"))
+    base = timezone.now()
+    ac = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        franquia_agente=franquia_y,
+        km_inicio=0,
+        km_final=240,
+        data_hora_solicitado=base,
+        data_hora_inicio=base,
+        data_hora_final=base + timedelta(hours=5),
+    )
+    ac.save()
+
+    from controle_acionamentos.services import vincular_franquia_em_lote
+
+    with pytest.raises(ValidationError):
+        vincular_franquia_em_lote([ac.pk], franquia_x)  # sem sobrescrever
+
+
+@pytest.mark.django_db
+def test_view_lote_franquia_identica_pula_confirmacao(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-051/ST2 (AC-06.5) — view: POST do lote com a franquia IDÊNTICA à já
+    vinculada, sem sobrescrever → NÃO renderiza a tela de confirmação; redireciona
+    (302) com o vínculo mantido no item."""
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(**_dados_franquia(cliente, nome="Franquia X"))
+    base = timezone.now()
+    ac = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        franquia_agente=franquia,
+        km_inicio=0,
+        km_final=240,
+        data_hora_solicitado=base,
+        data_hora_inicio=base,
+        data_hora_final=base + timedelta(hours=5),
+    )
+    ac.save()
+
+    user = _user_com_perms(
+        django_user_model, "view_acionamento", "change_acionamento"
+    )
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_vincular_franquia_lote")
+    response = client.post(
+        url,
+        {"acionamentos": [ac.pk], "franquia": franquia.pk},  # sem sobrescrever
+    )
+
+    assert response.status_code == 302
+    assert (
+        "controle_acionamentos/acionamento_vincular_confirmar.html"
+        not in [t.name for t in response.templates]
+    )
+    ac.refresh_from_db()
+    assert ac.franquia_agente_id == franquia.pk

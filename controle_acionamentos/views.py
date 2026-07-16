@@ -33,6 +33,7 @@ from .selectors import (
     somar_valor_agente_no_mes,
 )
 from .services import (
+    acionamentos_em_conflito_de_franquia,
     compor_valor_agente,
     registrar_edicao_acionamento,
     vincular_franquia_em_lote,
@@ -275,12 +276,13 @@ def acionamento_vincular_franquia_lote(request):
 
     # AC-06.5 — etapa 1: conflito de sobrescrita sem confirmação não executa
     # nada; renderiza a página de confirmação. Roteamento de UX (a enforcement
-    # segue no service). Cross-cliente NÃO cai aqui: só olha franquia já vinculada.
+    # segue no service). MESMA regra do service, via helper (fonte única): conflito
+    # é franquia já vinculada E DIFERENTE da selecionada (DD-051/ST2) — idêntica
+    # passa. Cross-cliente NÃO cai aqui: só olha franquia já vinculada.
     if not form.cleaned_data["sobrescrever"]:
-        conflitantes = (
-            Acionamento.objects.select_related("cliente", "agente", "franquia_agente")
-            .filter(pk__in=pks, franquia_agente__isnull=False)
-        )
+        conflitantes = acionamentos_em_conflito_de_franquia(
+            pks, franquia
+        ).select_related("cliente", "agente", "franquia_agente")
         if conflitantes.exists():
             return render(
                 request,
