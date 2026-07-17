@@ -264,6 +264,37 @@ def calcular_valor_agente(entrada: EntradaCalculoAgente) -> ResultadoCalculoAgen
     )
 
 
+# ---------------------------------------------------------------------------
+# calcular_valor_cliente — valor COBRADO DO CLIENTE (DD-068/ST1)
+# ---------------------------------------------------------------------------
+
+
+def calcular_valor_cliente(
+    *,
+    valor_acionamento: Decimal,
+    franquia_km: int,
+    franquia_horas: Decimal,
+    valor_km_excedente: Decimal,
+    valor_hora_excedente: Decimal,
+    km_total: int,
+    horas_total: Decimal,
+) -> Decimal:
+    """Valor cobrado do CLIENTE a partir dos valores do serviço (DD-068/ST1).
+
+    Base do serviço mais os excedentes de km e de hora às respectivas tarifas.
+    Diferente do valor do agente, aqui NÃO entram pedágio nem escalonamento — são
+    exclusivos do cálculo do agente. Função pura (sem models); Decimal em tudo,
+    arredondado a 2 casas pelo _quantizar da casa (ROUND_HALF_UP).
+    """
+    km_excedente = max(0, km_total - franquia_km)
+    hora_excedente = _quantizar(max(Decimal("0"), horas_total - franquia_horas))
+    return _quantizar(
+        valor_acionamento
+        + (km_excedente * valor_km_excedente)
+        + (hora_excedente * valor_hora_excedente)
+    )
+
+
 def _resolver_entrada(acionamento):
     """Resolve a FONTE do cálculo e monta a entrada da calculadora (§8.1/RN-08).
 

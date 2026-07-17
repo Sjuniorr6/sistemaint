@@ -5916,3 +5916,25 @@ def test_endpoint_incluir_desativado_respeita_ordem_de_definicao(client, django_
         ServicoCliente.Nome(_SERVICOS_EM_ORDEM[1]).label,
         ServicoCliente.Nome(_SERVICOS_EM_ORDEM[2]).label,
     ]
+
+
+# ---------------------------------------------------------------
+# DD-068 ST1 — valor que o CLIENTE paga (RED)
+# ---------------------------------------------------------------
+# calcular_valor_cliente ainda NÃO existe em services.py — o import DENTRO do
+# corpo isola o ImportError como "failed" (não derruba a coleta dos 230). Função
+# pura, sem banco (nem @django_db). Exemplo-ouro: base 1500 + 0 km excedente
+# (50 < 100) + 3h excedentes (7 - 4) × 55,00 = 1500 + 165 = 1665,00 (sem pedágio,
+# sem escalonamento).
+def test_valor_cliente_exemplo_ouro():
+    from controle_acionamentos.services import calcular_valor_cliente
+    valor = calcular_valor_cliente(
+        valor_acionamento=Decimal("1500.00"),
+        franquia_km=100,
+        franquia_horas=4,
+        valor_km_excedente=Decimal("2.80"),
+        valor_hora_excedente=Decimal("55.00"),
+        km_total=50,
+        horas_total=Decimal("7.00"),
+    )
+    assert valor == Decimal("1665.00")
