@@ -49,6 +49,13 @@ class AcionamentoForm(forms.ModelForm):
         model = Acionamento
         fields = [
             "cliente",
+            # DD-067/ST3 (fresta B): servico_cliente ENTRA no Meta.fields para que o
+            # construct_instance copie o serviço postado para a instância ANTES do
+            # Acionamento.clean() — assim, ao trocar de cliente, o par cliente/serviço
+            # da instância fica coerente. O campo declarado no topo continua mandando
+            # na validação (queryset, obrigatoriedade, clean); a view segue aplicando
+            # o snapshot pelo cleaned_data.
+            "servico_cliente",
             "nome_servico",
             "origem",
             "destino",
@@ -121,11 +128,20 @@ class AcionamentoForm(forms.ModelForm):
         cliente = cleaned.get("cliente")
         servico = cleaned.get("servico_cliente")
         if cliente and servico:
+            # DD-067/ST3 (fresta C): é o MESMO serviço já vinculado a este
+            # acionamento? (só na edição — instância com pk). Nesse caso a checagem
+            # de ATIVO não se aplica: um serviço desativado DEPOIS do vínculo não pode
+            # travar a edição. A checagem de MESMO CLIENTE permanece sempre; um
+            # serviço DIFERENTE continua exigindo ativo. Na criação (sem pk) nada muda.
+            e_o_ja_vinculado = (
+                bool(self.instance.pk)
+                and self.instance.servico_cliente_id == servico.id
+            )
             if servico.cliente_id != cliente.id:
                 self.add_error(
                     "servico_cliente", "Escolha um serviço do cliente selecionado."
                 )
-            elif not servico.ativo:
+            elif not servico.ativo and not e_o_ja_vinculado:
                 self.add_error(
                     "servico_cliente", "Este serviço está desativado para o cliente."
                 )
