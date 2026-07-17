@@ -7,7 +7,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from .forms import (
     AcionamentoForm,
@@ -31,10 +31,12 @@ from .selectors import (
     listar_acionamentos,
     listar_franquias_por_cliente,
     listar_historico_do_acionamento,
+    listar_servicos_ativos_por_cliente,
     somar_valor_agente_no_mes,
 )
 from .services import (
     acionamentos_em_conflito_de_franquia,
+    aplicar_servico_ao_acionamento,
     compor_valor_agente,
     registrar_edicao_acionamento,
     sincronizar_catalogo_do_cliente,
@@ -144,11 +146,16 @@ def acionamento_create(request):
     if request.method == "POST":
         form = AcionamentoForm(request.POST)
         if form.is_valid():
-            # commit=False: carimbamos o autor (DD-051/ST1) ANTES do save do model,
-            # que é quem dispara o cálculo (recalcular_valor_agente). Acionamento
-            # não tem M2M, então não é preciso save_m2m() depois.
+            # commit=False: carimbamos o autor (DD-051/ST1) e aplicamos o snapshot
+            # do serviço (DD-067/ST2) ANTES do save do model, que é quem dispara o
+            # cálculo (recalcular_valor_agente). aplicar_servico copia os 5 valores
+            # do serviço para os campos inline (a fonte do cálculo) e deriva o
+            # nome_servico. Acionamento não tem M2M, então sem save_m2m() depois.
             acionamento = form.save(commit=False)
             acionamento.criado_por = request.user
+            aplicar_servico_ao_acionamento(
+                acionamento, form.cleaned_data["servico_cliente"]
+            )
             acionamento.save()
             return redirect(
                 "controle_acionamentos:acionamento_detail", pk=acionamento.pk
@@ -179,9 +186,16 @@ def acionamento_update(request, pk):
             # Foto independente do estado atual ANTES do save (não é a instância
             # do form) — é o "antes" que a trilha compara com o "depois".
             antigo = Acionamento.objects.get(pk=acionamento.pk)
+            # Aplica o snapshot do serviço (DD-067/ST2) antes do save, como no
+            # create. As regras finas de edição (re-snapshot ao trocar serviço,
+            # coerência ao trocar cliente) são ST3 — aqui só o mínimo.
+            salvo = form.save(commit=False)
+            aplicar_servico_ao_acionamento(
+                salvo, form.cleaned_data["servico_cliente"]
+            )
             with transaction.atomic():
                 # Trilha e save na mesma transação — ou tudo, ou nada.
-                salvo = form.save()  # o save() do model dispara o recálculo
+                salvo.save()  # o save() do model dispara o recálculo
                 registrar_edicao_acionamento(antigo, salvo, request.user)
             return redirect(
                 "controle_acionamentos:acionamento_detail", pk=acionamento.pk
@@ -248,6 +262,35 @@ def acionamento_pedagio_update(request, pk):
     return JsonResponse(
         {"pedagio": str(ac.pedagio), "valor_agente": str(ac.valor_agente)}
     )
+
+
+@login_required
+@permission_required("controle_acionamentos.view_acionamento", raise_exception=True)
+@require_GET
+def servicos_por_cliente(request, cliente_id):
+    """DD-067/ST2 — serviços ATIVOS de um cliente, para o select do form de
+    acionamento (criação e edição) — view FINA.
+
+    Permissão view_acionamento (não add/change): é leitura pura do catálogo, que
+    serve tanto a tela de criação quanto a de edição. O selector
+    listar_servicos_ativos_por_cliente já filtra por ativo e ordena pelo catálogo.
+    Decimais serializados como STRING (str(Decimal), regra da casa); franquia_km é
+    inteiro. 404 se o cliente não existir.
+    """
+    cliente = get_object_or_404(Cliente, pk=cliente_id)
+    servicos = [
+        {
+            "id": s.pk,
+            "nome": s.get_nome_display(),
+            "valor_acionamento": str(s.valor_acionamento),
+            "franquia_km": s.franquia_km,
+            "franquia_horas": str(s.franquia_horas),
+            "valor_km_excedente": str(s.valor_km_excedente),
+            "valor_hora_excedente": str(s.valor_hora_excedente),
+        }
+        for s in listar_servicos_ativos_por_cliente(cliente)
+    ]
+    return JsonResponse({"servicos": servicos})
 
 
 @login_required

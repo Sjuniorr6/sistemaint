@@ -3242,8 +3242,10 @@ def test_acionamento_update_post_valido_edita_e_recalcula(
 ):
     """Com view+change, o POST válido edita o registro e RECALCULA o valor_agente.
 
-    Cenário sem franquia (inline manda): valor 500→600, mantidos os demais
-    campos. Após o POST: 302 para o detalhe, valor_acionamento persistido == 600
+    Contrato evoluiu na DD-067 ST2: os valores não são mais digitados — vêm do
+    snapshot do serviço escolhido. Cenário sem franquia (inline manda, agora do
+    snapshot): o acionamento nasce com 500 e é editado para um serviço de 600.
+    Após o POST: 302 para o detalhe, valor_acionamento persistido == 600 (snapshot)
     e valor_agente (a) diferente do anterior E (b) igual ao que o próprio service
     recalcular_valor_agente produz para o mesmo cenário — sem número mágico.
     """
@@ -3270,6 +3272,20 @@ def test_acionamento_update_post_valido_edita_e_recalcula(
     ac.refresh_from_db()
     valor_agente_antes = ac.valor_agente
 
+    # Serviço de 600 (demais valores idênticos aos do cenário) que o POST vai
+    # aplicar: o snapshot passa a ser a fonte do valor_acionamento (não mais o
+    # campo digitado). Ativo e do mesmo cliente para o form aceitar.
+    servico = ServicoCliente.objects.create(
+        cliente=cliente,
+        nome=_SERVICOS_EM_ORDEM[0],
+        ativo=True,
+        valor_acionamento=Decimal("600.00"),
+        franquia_km=80,
+        franquia_horas=Decimal("4.00"),
+        valor_km_excedente=Decimal("2.00"),
+        valor_hora_excedente=Decimal("30.00"),
+    )
+
     # Espelho PURO do que o service deve produzir com valor 600 (mesmos demais
     # campos): não persistido, só para extrair o valor_agente esperado.
     esperado = _acionamento_valido(
@@ -3281,7 +3297,7 @@ def test_acionamento_update_post_valido_edita_e_recalcula(
     client.force_login(user)
 
     url = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
-    payload = _post_payload_acionamento(ac, valor_acionamento="600.00")
+    payload = _post_payload_acionamento(ac, servico_cliente=servico.pk)
     response = client.post(url, payload)
 
     assert response.status_code == 302
@@ -3290,7 +3306,7 @@ def test_acionamento_update_post_valido_edita_e_recalcula(
     )
 
     ac.refresh_from_db()
-    assert ac.valor_acionamento == Decimal("600.00")
+    assert ac.valor_acionamento == Decimal("600.00")       # do snapshot do serviço
     assert ac.valor_agente != valor_agente_antes          # recalculou de fato
     assert ac.valor_agente == esperado.valor_agente        # bate com o service
 
@@ -3510,10 +3526,16 @@ def test_acionamento_update_post_gera_trilha_de_auditoria(
 ):
     """POST que muda pedagio (0->25) deve gravar a trilha via a view: o pedágio
     soma no valor_agente, então a auditoria registra 'pedagio' e 'valor_agente',
-    ambos atribuídos ao usuário logado e ao acionamento editado."""
+    ambos atribuídos ao usuário logado e ao acionamento editado.
+
+    Contrato evoluiu na DD-067 ST2: o serviço é obrigatório no POST. O acionamento
+    já NASCE com o serviço aplicado (valores idênticos aos do molde), então
+    reaplicar o MESMO serviço na edição não muda os campos do snapshot — só o
+    pedágio (e o valor_agente derivado) entram na trilha."""
     from controle_acionamentos.models import AcionamentoHistorico
 
     cliente, responsavel, agente = _fks_acionamento
+    servico = _cria_servico(cliente, _SERVICOS_EM_ORDEM[0], ativo=True)
     base = timezone.now().replace(second=0, microsecond=0)
     ac = _acionamento_valido(
         cliente,
@@ -3524,12 +3546,13 @@ def test_acionamento_update_post_gera_trilha_de_auditoria(
         data_hora_inicio=base + timedelta(minutes=30),
         data_hora_final=base + timedelta(hours=3),
     )
+    aplicar_servico_ao_acionamento(ac, servico)
     ac.save()
     user = _user_com_perms(django_user_model, "change_acionamento")
     client.force_login(user)
 
     url = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
-    payload = _post_payload_acionamento(ac, pedagio="25.00")
+    payload = _post_payload_acionamento(ac, servico_cliente=servico.pk, pedagio="25.00")
     response = client.post(url, payload)
 
     assert response.status_code == 302
@@ -3554,10 +3577,15 @@ def test_acionamento_update_post_sem_mudanca_nao_gera_trilha(
 
     NOTA: já nasce VERDE — no RED a view ainda não grava nada. O papel deste
     teste é travar o comportamento 'sem mudança => sem histórico' para o GREEN
-    não regredir (o payload de minuto volta sem perda, então não há diff)."""
+    não regredir (o payload de minuto volta sem perda, então não há diff).
+
+    Contrato evoluiu na DD-067 ST2: o serviço é obrigatório no POST. O acionamento
+    nasce com o serviço aplicado e o POST reenvia o MESMO serviço — reaplicar não
+    altera nada, então segue sem trilha."""
     from controle_acionamentos.models import AcionamentoHistorico
 
     cliente, responsavel, agente = _fks_acionamento
+    servico = _cria_servico(cliente, _SERVICOS_EM_ORDEM[0], ativo=True)
     base = timezone.now().replace(second=0, microsecond=0)
     ac = _acionamento_valido(
         cliente,
@@ -3567,12 +3595,13 @@ def test_acionamento_update_post_sem_mudanca_nao_gera_trilha(
         data_hora_inicio=base + timedelta(minutes=30),
         data_hora_final=base + timedelta(hours=3),
     )
+    aplicar_servico_ao_acionamento(ac, servico)
     ac.save()
     user = _user_com_perms(django_user_model, "change_acionamento")
     client.force_login(user)
 
     url = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
-    payload = _post_payload_acionamento(ac)  # sem overrides = estado atual
+    payload = _post_payload_acionamento(ac, servico_cliente=servico.pk)  # estado atual
     response = client.post(url, payload)
 
     assert response.status_code == 302
@@ -3588,10 +3617,14 @@ def test_acionamento_update_atomicidade_rollback(
     fazer registrar_edicao_acionamento explodir.
 
     NOTA: no RED este teste falha por AttributeError — o nome ainda não existe
-    em controle_acionamentos.views (a view não importa/chama o service)."""
+    em controle_acionamentos.views (a view não importa/chama o service).
+
+    Contrato evoluiu na DD-067 ST2: o serviço é obrigatório no POST; o acionamento
+    nasce com o serviço aplicado e o POST reenvia esse serviço."""
     from controle_acionamentos.models import AcionamentoHistorico
 
     cliente, responsavel, agente = _fks_acionamento
+    servico = _cria_servico(cliente, _SERVICOS_EM_ORDEM[0], ativo=True)
     base = timezone.now().replace(second=0, microsecond=0)
     ac = _acionamento_valido(
         cliente,
@@ -3602,6 +3635,7 @@ def test_acionamento_update_atomicidade_rollback(
         data_hora_inicio=base + timedelta(minutes=30),
         data_hora_final=base + timedelta(hours=3),
     )
+    aplicar_servico_ao_acionamento(ac, servico)
     ac.save()
     user = _user_com_perms(django_user_model, "change_acionamento")
     client.force_login(user)
@@ -3614,7 +3648,7 @@ def test_acionamento_update_atomicidade_rollback(
     )
 
     url = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
-    payload = _post_payload_acionamento(ac, pedagio="25.00")
+    payload = _post_payload_acionamento(ac, servico_cliente=servico.pk, pedagio="25.00")
     with pytest.raises(RuntimeError):
         client.post(url, payload)
 
@@ -4547,11 +4581,15 @@ def test_acionamento_create_grava_criado_por_do_request(
     client, django_user_model, _fks_acionamento
 ):
     """DD-051/ST1 — o POST de criação registra QUEM criou: criado_por = request.user.
-    A view fina só carimba o autor; o cálculo segue no save() do model."""
+    A view fina só carimba o autor; o cálculo segue no save() do model.
+
+    Contrato evoluiu na DD-067 ST2: o serviço do cliente é obrigatório no POST do
+    acionamento (o serviço substitui os antigos campos inline digitados)."""
     cliente, responsavel, agente = _fks_acionamento
+    servico = _cria_servico(cliente, _SERVICOS_EM_ORDEM[0], ativo=True)
     # Instância válida NÃO salva: serve só de molde para o payload do POST.
     molde = _acionamento_valido(cliente, responsavel, agente)
-    payload = _post_payload_acionamento(molde)
+    payload = _post_payload_acionamento(molde, servico_cliente=servico.pk)
 
     user = _user_com_perms(django_user_model, "add_acionamento")
     client.force_login(user)
@@ -5357,6 +5395,200 @@ def test_congelamento_forte_snapshot_nao_reflete_edicao_do_catalogo(_fks_acionam
     assert ac.valor_agente == valor_agente_epoca + Decimal("25.00")
 
 
+# ---------------------------------------------------------------
+# DD-067 ST2 — tela de criação escolhendo o serviço do cliente (RED)
+# ---------------------------------------------------------------
+# Nesta fase existe só o esqueleto: a rota + a view STUB do endpoint (devolve
+# lista vazia). O AcionamentoForm ainda expõe os 5 campos inline e não tem o
+# campo servico_cliente; a view de create ainda não aplica o serviço; o template
+# ainda não tem o select nem a prévia. Por isso, dos 8 testes abaixo, ficam
+# VERMELHOS 1, 3, 4, 5, 6, 7 e 8; o teste 2 (cliente sem serviços ativos) nasce
+# VERDE já com o stub (lista vazia == resposta do stub).
+#
+# Truque dos POST (5–8): o payload leva OS 5 INLINE (valores do molde 150/80/…)
+# JUNTO do servico_cliente. Na RED o form valida pelos inline e ignora o campo
+# novo → cria (302), contradizendo o esperado → vermelho. Na GREEN o form perde
+# os inline e passa a exigir servico_cliente → o comportamento correto aparece.
+
+
+@pytest.mark.django_db
+def test_endpoint_servicos_por_cliente_devolve_ativos_na_ordem(client, django_user_model):
+    """1 — o endpoint devolve SÓ os serviços ATIVOS do cliente, na ORDEM do
+    catálogo (não a de criação), com os Decimais serializados como STRING e o
+    `nome` já como label humano do choice. Crio fora de ordem + 1 inativo para
+    provar filtro e ordenação de uma vez (espelha o teste do selector)."""
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    # Ativos criados na ordem INVERSA da definição → o endpoint reordena.
+    _servico_distinto(cliente, nome=_SERVICOS_EM_ORDEM[1])
+    servico_primeiro = _servico_distinto(cliente, nome=_SERVICOS_EM_ORDEM[0])
+    # Inativo NÃO deve aparecer.
+    _cria_servico(cliente, _SERVICOS_EM_ORDEM[2], ativo=False)
+
+    # Permissão do endpoint evoluiu na GREEN: view_acionamento (leitura pura do
+    # catálogo, serve criação E edição), não add_acionamento.
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+    url = reverse("controle_acionamentos:servicos_por_cliente", args=[cliente.pk])
+    response = client.get(url)
+
+    assert response.status_code == 200
+    servicos = response.json()["servicos"]
+    assert [s["nome"] for s in servicos] == [
+        ServicoCliente.Nome(_SERVICOS_EM_ORDEM[0]).label,
+        ServicoCliente.Nome(_SERVICOS_EM_ORDEM[1]).label,
+    ]
+    primeiro = servicos[0]
+    assert primeiro["id"] == servico_primeiro.pk
+    assert primeiro["valor_acionamento"] == "500.00"
+    assert primeiro["franquia_km"] == 200
+    assert primeiro["franquia_horas"] == "8.00"
+    assert primeiro["valor_km_excedente"] == "5.00"
+    assert primeiro["valor_hora_excedente"] == "60.00"
+
+
+@pytest.mark.django_db
+def test_endpoint_servicos_por_cliente_sem_ativos_devolve_vazio(client, django_user_model):
+    """2 — cliente sem NENHUM serviço ativo (só um inativo) devolve lista vazia.
+    Nasce VERDE já na RED: o stub responde exatamente {"servicos": []}."""
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    _cria_servico(cliente, _SERVICOS_EM_ORDEM[0], ativo=False)
+
+    # Permissão do endpoint evoluiu na GREEN: view_acionamento (leitura pura).
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+    url = reverse("controle_acionamentos:servicos_por_cliente", args=[cliente.pk])
+    response = client.get(url)
+
+    assert response.status_code == 200
+    assert response.json() == {"servicos": []}
+
+
+@pytest.mark.django_db
+def test_acionamento_form_troca_inline_por_servico_cliente():
+    """3 — o AcionamentoForm não expõe mais os 5 campos inline (eles saíram do
+    form; seguem no model como snapshot) e passa a exigir servico_cliente."""
+    from controle_acionamentos.forms import AcionamentoForm
+
+    form = AcionamentoForm()
+    for campo in (
+        "valor_acionamento",
+        "franquia_km",
+        "franquia_horas",
+        "valor_km_excedente",
+        "valor_hora_excedente",
+    ):
+        assert campo not in form.fields
+    assert "servico_cliente" in form.fields
+    assert form.fields["servico_cliente"].required is True
+
+
+@pytest.mark.django_db
+def test_get_create_renderiza_select_de_servico_e_previa(client, django_user_model):
+    """4 — o GET da criação renderiza o select do serviço (name="servico_cliente")
+    e o container read-only da prévia (id="acn-servico-previa")."""
+    user = _user_com_perms(django_user_model, "add_acionamento")
+    client.force_login(user)
+    url = reverse("controle_acionamentos:acionamento_create")
+    response = client.get(url)
+
+    assert response.status_code == 200
+    assertContains(response, 'name="servico_cliente"')
+    assertContains(response, 'id="acn-servico-previa"')
+
+
+@pytest.mark.django_db
+def test_post_create_valido_aplica_snapshot_do_servico(
+    client, django_user_model, _fks_acionamento
+):
+    """5 — POST válido (serviço ATIVO do cliente): 302, acionamento criado com o
+    SNAPSHOT dos 5 valores do serviço (500/200/8/5/60), valor_agente calculado no
+    save (500,00 sem excedentes), FK servico_cliente setada e criado_por carimbado.
+
+    O payload leva os inline do molde (150/…), DISTINTOS dos do serviço: se o
+    snapshot não ocorrer, os valores denunciam."""
+    cliente, responsavel, agente = _fks_acionamento
+    servico = _servico_distinto(cliente)  # ativo, mesmo cliente, 500/200/8/5/60
+    molde = _acionamento_valido(cliente, responsavel, agente)
+    payload = _post_payload_acionamento(molde, servico_cliente=servico.pk)
+
+    user = _user_com_perms(django_user_model, "add_acionamento")
+    client.force_login(user)
+    url = reverse("controle_acionamentos:acionamento_create")
+    response = client.post(url, payload)
+
+    assert response.status_code == 302
+    ac = Acionamento.objects.get()
+    assert ac.servico_cliente == servico
+    assert ac.valor_acionamento == Decimal("500.00")
+    assert ac.franquia_km == 200
+    assert ac.franquia_horas == Decimal("8.00")
+    assert ac.valor_km_excedente == Decimal("5.00")
+    assert ac.valor_hora_excedente == Decimal("60.00")
+    # km 120 e 2,5h estão dentro da franquia (200/8) → sem excedente, pedágio 0.
+    assert ac.valor_agente == Decimal("500.00")
+    assert ac.criado_por == user
+
+
+@pytest.mark.django_db
+def test_post_create_servico_de_outro_cliente_nao_cria(
+    client, django_user_model, _fks_acionamento
+):
+    """6 — serviço de OUTRO cliente é rejeitado no form: 200 (reexibe) e nada
+    criado."""
+    cliente, responsavel, agente = _fks_acionamento
+    outro = Cliente.objects.create(nome_empresa="Globex", cnpj="11444777000161")
+    servico_outro = _servico_distinto(outro)
+    molde = _acionamento_valido(cliente, responsavel, agente)
+    payload = _post_payload_acionamento(molde, servico_cliente=servico_outro.pk)
+
+    user = _user_com_perms(django_user_model, "add_acionamento")
+    client.force_login(user)
+    url = reverse("controle_acionamentos:acionamento_create")
+    response = client.post(url, payload)
+
+    assert response.status_code == 200
+    assert Acionamento.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_post_create_servico_inativo_nao_cria(
+    client, django_user_model, _fks_acionamento
+):
+    """7 — serviço INATIVO do próprio cliente é rejeitado no form: 200 e nada
+    criado (só serviços ativos podem ser escolhidos na criação)."""
+    cliente, responsavel, agente = _fks_acionamento
+    servico_inativo = _cria_servico(cliente, _SERVICOS_EM_ORDEM[0], ativo=False)
+    molde = _acionamento_valido(cliente, responsavel, agente)
+    payload = _post_payload_acionamento(molde, servico_cliente=servico_inativo.pk)
+
+    user = _user_com_perms(django_user_model, "add_acionamento")
+    client.force_login(user)
+    url = reverse("controle_acionamentos:acionamento_create")
+    response = client.post(url, payload)
+
+    assert response.status_code == 200
+    assert Acionamento.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_post_create_sem_servico_nao_cria(
+    client, django_user_model, _fks_acionamento
+):
+    """8 — serviço é OBRIGATÓRIO na criação (regra de 17/07): POST sem
+    servico_cliente é rejeitado no form: 200 e nada criado."""
+    cliente, responsavel, agente = _fks_acionamento
+    molde = _acionamento_valido(cliente, responsavel, agente)
+    payload = _post_payload_acionamento(molde)  # sem servico_cliente
+
+    user = _user_com_perms(django_user_model, "add_acionamento")
+    client.force_login(user)
+    url = reverse("controle_acionamentos:acionamento_create")
+    response = client.post(url, payload)
+
+    assert response.status_code == 200
+    assert Acionamento.objects.count() == 0
+
+
 @pytest.mark.django_db
 def test_acionamento_legado_sem_servico_e_valido_e_calcula_inline(_fks_acionamento):
     """6 — acionamento legado SEM serviço continua válido e calcula pelo inline,
@@ -5369,3 +5601,17 @@ def test_acionamento_legado_sem_servico_e_valido_e_calcula_inline(_fks_acionamen
 
     assert ac.servico_cliente is None
     assert ac.valor_agente is not None
+
+
+@pytest.mark.django_db
+def test_aplicar_servico_deriva_nome_servico_do_label(_fks_acionamento):
+    """DD-067/ST2 — aplicar_servico_ao_acionamento também DERIVA o nome_servico do
+    LABEL do serviço (o catálogo passa a ser a fonte única do nome exibido, não
+    mais um texto digitado). Parte do 'derivar no backend' decidido na ST2."""
+    cliente, responsavel, agente = _fks_acionamento
+    servico = _servico_distinto(cliente, nome=_SERVICOS_EM_ORDEM[0])
+    ac = _acionamento_valido(cliente, responsavel, agente, nome_servico="Texto antigo")
+
+    aplicar_servico_ao_acionamento(ac, servico)
+
+    assert ac.nome_servico == ServicoCliente.Nome(_SERVICOS_EM_ORDEM[0]).label

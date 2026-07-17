@@ -787,6 +787,43 @@ html.acn-foco .header-bottom:hover {
   font-size: 0.82rem;
 }
 
+/* DD-067/ST2 — prévia read-only dos valores do serviço no form do acionamento.
+   Rótulos e título discretos em CAIXA NORMAL (o .acn-campo-rotulo força uppercase,
+   por isso a classe própria); o valor do "Valor acion." recebe o dourado da pele
+   como destaque, os demais herdam a cor de texto. Tudo por variáveis (duas peles). */
+.acn-escopo .acn-previa {
+  /* Caixa MAIS ESCURA que o card: mesmo fundo/borda dos inputs da pele (var), nas
+     duas peles. Padding vertical generoso para preencher o card sem sobrar vazio. */
+  background: var(--acn-bg);
+  border: 1px solid var(--acn-line);
+  border-radius: 8px;
+  padding: 1rem 1.1rem 1.1rem;
+}
+.acn-escopo .acn-previa-titulo {
+  color: var(--acn-muted);
+  font-size: 0.82rem;
+  margin-bottom: 0.75rem;
+}
+.acn-escopo .acn-previa-rotulo {
+  display: block;
+  color: var(--acn-muted);
+  font-size: 0.72rem;
+  margin-bottom: 0.1rem;
+}
+.acn-escopo .acn-previa-valor { color: var(--acn-text); }
+.acn-escopo .acn-previa-valor-destaque {
+  color: var(--acn-gold-texto);
+  font-weight: 700;
+}
+/* Pele ÂMBAR: o fundo claro da prévia (var(--acn-bg)) apaga o muted no título e
+   nos rótulos. Só no Âmbar, escurece esses tons (mix muted→text) para recuperar
+   contraste sem perder a hierarquia discreta — Noite fica intacto. Derivado das
+   variáveis da pele (sem cor hardcoded); os valores já usam var(--acn-text). */
+.acn-escopo.acn-ambar .acn-previa-titulo,
+.acn-escopo.acn-ambar .acn-previa-rotulo {
+  color: color-mix(in srgb, var(--acn-muted) 45%, var(--acn-text));
+}
+
 /* "Cobertor curto": a regra original do .acn-escopo usa min-height:
    calc(100vh - 71px), onde os 71px descontam a navbar do INT QUE ESTÁ NO FLUXO.
    No Modo Foco a navbar vira fixed (sai do fluxo), então esse desconto perde o

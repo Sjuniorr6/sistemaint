@@ -353,9 +353,14 @@ def aplicar_servico_ao_acionamento(acionamento, servico):
     pedágio) nunca relê o serviço, e editar o catálogo depois não altera
     acionamentos já registrados.
 
+    O `nome_servico` do acionamento também DERIVA do serviço (DD-067/ST2): passa a
+    ser o label humano do choice escolhido (get_nome_display), não mais um texto
+    digitado — o catálogo é a fonte única do nome exibido.
+
     NÃO salva: quem chama decide o momento do save (padrão commit=False das views).
     """
     acionamento.servico_cliente = servico
+    acionamento.nome_servico = servico.get_nome_display()
     acionamento.valor_acionamento = servico.valor_acionamento
     acionamento.franquia_km = servico.franquia_km
     acionamento.franquia_horas = servico.franquia_horas

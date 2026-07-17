@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="acn-escopo">
-  {% include 'controle_acionamentos/_cabecalho.html' with titulo=titulo_pagina|default:"Novo acionamento" subtitulo=subtitulo_pagina|default:"Preencha a sequência 1–6 — o valor do agente é calculado ao salvar" ativo=ativo_pill|default:"novo" %}
+  {% include 'controle_acionamentos/_cabecalho.html' with titulo=titulo_pagina|default:"Novo acionamento" subtitulo=subtitulo_pagina|default:"Preencha a sequência 1–5 — o valor do agente é calculado ao salvar" ativo=ativo_pill|default:"novo" %}
 
   {% include 'controle_acionamentos/_messages.html' %}
 
@@ -21,13 +21,22 @@
       </div>
     {% endif %}
 
-    {% comment %} ==== Seção 1 — CLIENTE ==== {% endcomment %}
+    {% comment %} ==== Seção 1 — SERVIÇO DO CLIENTE (Cliente + Nome do serviço) ==== {% endcomment %}
+    {% comment %}
+      Cliente e Nome do serviço lado a lado num card só. O operador não digita mais
+      os valores: escolhe um serviço ativo do cliente e o backend copia os 5 valores
+      (snapshot). O nome_servico é hidden e derivado do serviço. A prévia read-only
+      (#acn-servico-previa) é preenchida por JS — informativa; quem grava o snapshot
+      é sempre o backend.
+    {% endcomment %}
     <div class="card mb-3">
       <div class="card-header d-flex align-items-center">
         <span class="badge rounded-pill acn-badge-num me-2">1</span>
-        <span class="fw-semibold">CLIENTE</span>
+        <span class="fw-semibold">SERVIÇO DO CLIENTE</span>
       </div>
       <div class="card-body">
+        {# nome_servico não é digitado: hidden, derivado do serviço no backend. #}
+        {{ form.nome_servico }}
         <div class="row">
           <div class="col-md-6 mb-3">
             {{ form.cliente.label_tag }}{% if form.cliente.field.required %} <span class="text-danger">*</span>{% endif %}
@@ -35,67 +44,53 @@
             {% if form.cliente.help_text %}<div class="form-text">{{ form.cliente.help_text }}</div>{% endif %}
             {% if form.cliente.errors %}<div class="text-danger small">{{ form.cliente.errors }}</div>{% endif %}
           </div>
+          <div class="col-md-6 mb-3">
+            {# Rótulo exibido "Nome do serviço" — o label do field ("Serviço") não muda (forms intocado). #}
+            <label for="{{ form.servico_cliente.id_for_label }}">Nome do serviço:</label>{% if form.servico_cliente.field.required %} <span class="text-danger">*</span>{% endif %}
+            {{ form.servico_cliente }}
+            <div class="acn-catalogo-hint">Somente os serviços ativos deste cliente</div>
+            {% if form.servico_cliente.errors %}<div class="text-danger small">{{ form.servico_cliente.errors }}</div>{% endif %}
+          </div>
+        </div>
+
+        {% comment %}
+          Prévia read-only dos valores do serviço escolhido — só exibição, largura
+          total do card, abaixo do select. 5 colunas iguais que quebram em 2–3 por
+          linha em telas estreitas (row-cols responsivo). Enquanto não há serviço,
+          os valores mostram um traço. Preenchida pelo JS via [data-previa].
+        {% endcomment %}
+        <div id="acn-servico-previa" class="acn-previa">
+          <div class="acn-previa-titulo">Valores do serviço (definidos no cadastro do cliente)</div>
+          <div class="row row-cols-2 row-cols-sm-3 row-cols-md-5 g-3">
+            <div class="col">
+              <span class="acn-previa-rotulo">Valor acionamento</span>
+              <span class="acn-mono acn-previa-valor-destaque" data-previa="valor_acionamento">—</span>
+            </div>
+            <div class="col">
+              <span class="acn-previa-rotulo">Franquia KM</span>
+              <span class="acn-mono acn-previa-valor" data-previa="franquia_km">—</span>
+            </div>
+            <div class="col">
+              <span class="acn-previa-rotulo">Franquia horas</span>
+              <span class="acn-mono acn-previa-valor" data-previa="franquia_horas">—</span>
+            </div>
+            <div class="col">
+              <span class="acn-previa-rotulo">KM extra</span>
+              <span class="acn-mono acn-previa-valor" data-previa="valor_km_excedente">—</span>
+            </div>
+            <div class="col">
+              <span class="acn-previa-rotulo">Hora extra</span>
+              <span class="acn-mono acn-previa-valor" data-previa="valor_hora_excedente">—</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
-    {% comment %} ==== Seção 2 — SERVIÇO ==== {% endcomment %}
+    {% comment %} ==== Seção 2 — LOCALIZAÇÃO ==== {% endcomment %}
     <div class="card mb-3">
       <div class="card-header d-flex align-items-center">
         <span class="badge rounded-pill acn-badge-num me-2">2</span>
-        <span class="fw-semibold">SERVIÇO</span>
-      </div>
-      <div class="card-body">
-        <div class="alert alert-warning d-flex align-items-center gap-2 mb-3" role="alert">
-          <i class="bi bi-info-circle" aria-hidden="true"></i>
-          <span>Se uma franquia for vinculada, os valores dela substituem estes
-          para o cálculo (os valores digitados ficam registrados para auditoria).</span>
-        </div>
-        <div class="row">
-          <div class="col-md-6 mb-3">
-            {{ form.nome_servico.label_tag }}{% if form.nome_servico.field.required %} <span class="text-danger">*</span>{% endif %}
-            {{ form.nome_servico }}
-            {% if form.nome_servico.help_text %}<div class="form-text">{{ form.nome_servico.help_text }}</div>{% endif %}
-            {% if form.nome_servico.errors %}<div class="text-danger small">{{ form.nome_servico.errors }}</div>{% endif %}
-          </div>
-          <div class="col-md-6 mb-3">
-            {{ form.valor_acionamento.label_tag }}{% if form.valor_acionamento.field.required %} <span class="text-danger">*</span>{% endif %}
-            {{ form.valor_acionamento }}
-            {% if form.valor_acionamento.help_text %}<div class="form-text">{{ form.valor_acionamento.help_text }}</div>{% endif %}
-            {% if form.valor_acionamento.errors %}<div class="text-danger small">{{ form.valor_acionamento.errors }}</div>{% endif %}
-          </div>
-          <div class="col-md-6 mb-3">
-            {{ form.franquia_km.label_tag }}{% if form.franquia_km.field.required %} <span class="text-danger">*</span>{% endif %}
-            {{ form.franquia_km }}
-            {% if form.franquia_km.help_text %}<div class="form-text">{{ form.franquia_km.help_text }}</div>{% endif %}
-            {% if form.franquia_km.errors %}<div class="text-danger small">{{ form.franquia_km.errors }}</div>{% endif %}
-          </div>
-          <div class="col-md-6 mb-3">
-            {{ form.franquia_horas.label_tag }}{% if form.franquia_horas.field.required %} <span class="text-danger">*</span>{% endif %}
-            {{ form.franquia_horas }}
-            {% if form.franquia_horas.help_text %}<div class="form-text">{{ form.franquia_horas.help_text }}</div>{% endif %}
-            {% if form.franquia_horas.errors %}<div class="text-danger small">{{ form.franquia_horas.errors }}</div>{% endif %}
-          </div>
-          <div class="col-md-6 mb-3">
-            {{ form.valor_km_excedente.label_tag }}{% if form.valor_km_excedente.field.required %} <span class="text-danger">*</span>{% endif %}
-            {{ form.valor_km_excedente }}
-            {% if form.valor_km_excedente.help_text %}<div class="form-text">{{ form.valor_km_excedente.help_text }}</div>{% endif %}
-            {% if form.valor_km_excedente.errors %}<div class="text-danger small">{{ form.valor_km_excedente.errors }}</div>{% endif %}
-          </div>
-          <div class="col-md-6 mb-3">
-            {{ form.valor_hora_excedente.label_tag }}{% if form.valor_hora_excedente.field.required %} <span class="text-danger">*</span>{% endif %}
-            {{ form.valor_hora_excedente }}
-            {% if form.valor_hora_excedente.help_text %}<div class="form-text">{{ form.valor_hora_excedente.help_text }}</div>{% endif %}
-            {% if form.valor_hora_excedente.errors %}<div class="text-danger small">{{ form.valor_hora_excedente.errors }}</div>{% endif %}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    {% comment %} ==== Seção 3 — LOCALIZAÇÃO ==== {% endcomment %}
-    <div class="card mb-3">
-      <div class="card-header d-flex align-items-center">
-        <span class="badge rounded-pill acn-badge-num me-2">3</span>
         <span class="fw-semibold">LOCALIZAÇÃO</span>
       </div>
       <div class="card-body">
@@ -116,10 +111,10 @@
       </div>
     </div>
 
-    {% comment %} ==== Seção 4 — PESSOAS ==== {% endcomment %}
+    {% comment %} ==== Seção 3 — PESSOAS ==== {% endcomment %}
     <div class="card mb-3">
       <div class="card-header d-flex align-items-center">
-        <span class="badge rounded-pill acn-badge-num me-2">4</span>
+        <span class="badge rounded-pill acn-badge-num me-2">3</span>
         <span class="fw-semibold">PESSOAS</span>
       </div>
       <div class="card-body">
@@ -164,10 +159,10 @@
       </div>
     </div>
 
-    {% comment %} ==== Seção 5 — TEMPO E QUILOMETRAGEM ==== {% endcomment %}
+    {% comment %} ==== Seção 4 — TEMPO E QUILOMETRAGEM ==== {% endcomment %}
     <div class="card mb-3">
       <div class="card-header d-flex align-items-center">
-        <span class="badge rounded-pill acn-badge-num me-2">5</span>
+        <span class="badge rounded-pill acn-badge-num me-2">4</span>
         <span class="fw-semibold">TEMPO E QUILOMETRAGEM</span>
       </div>
       <div class="card-body">
@@ -212,10 +207,10 @@
       </div>
     </div>
 
-    {% comment %} ==== Seção 6 — FRANQUIA (OPCIONAL) ==== {% endcomment %}
+    {% comment %} ==== Seção 5 — FRANQUIA (OPCIONAL) ==== {% endcomment %}
     <div class="card mb-3">
       <div class="card-header d-flex align-items-center">
-        <span class="badge rounded-pill acn-badge-num me-2">6</span>
+        <span class="badge rounded-pill acn-badge-num me-2">5</span>
         <span class="fw-semibold">FRANQUIA (OPCIONAL)</span>
       </div>
       <div class="card-body">
@@ -242,4 +237,101 @@
   </form>
 </div>
 </div>
+
+{% comment %}
+  JS do serviço do cliente (DD-067/ST2), vanilla, no padrão do form:
+   - trocar o cliente => busca os serviços ativos no endpoint, repopula o select
+     (preservando a seleção se ainda existir) e limpa a prévia;
+   - trocar o serviço => preenche a prévia com os dados já carregados;
+   - sem cliente => select desabilitado e prévia vazia.
+  A prévia é informativa; o snapshot é gravado sempre pelo backend.
+{% endcomment %}
+<script>
+(function () {
+  var selCliente = document.getElementById("id_cliente");
+  var selServico = document.getElementById("id_servico_cliente");
+  var previa = document.getElementById("acn-servico-previa");
+  if (!selCliente || !selServico || !previa) { return; }
+
+  // URL do endpoint com placeholder de cliente (troca o "/0/" pelo id escolhido).
+  var urlBase = "{% url 'controle_acionamentos:servicos_por_cliente' 0 %}";
+  var cache = {};  // id do serviço -> dados, para preencher a prévia sem novo fetch
+
+  var CAMPOS = ["valor_acionamento", "franquia_km", "franquia_horas",
+                "valor_km_excedente", "valor_hora_excedente"];
+
+  function limparPrevia() {
+    CAMPOS.forEach(function (campo) {
+      var alvo = previa.querySelector('[data-previa="' + campo + '"]');
+      if (alvo) { alvo.textContent = "—"; }
+    });
+  }
+
+  // Formatação SÓ de exibição (os dados do endpoint não mudam): monetários com
+  // "R$ " e vírgula decimal; km com sufixo " km"; horas com vírgula e " h".
+  function formatarValor(campo, valor) {
+    if (valor === null || valor === undefined || valor === "") { return "—"; }
+    if (campo === "franquia_km") { return valor + " km"; }
+    if (campo === "franquia_horas") { return String(valor).replace(".", ",") + " h"; }
+    return "R$ " + String(valor).replace(".", ",");
+  }
+
+  function preencherPrevia(id) {
+    var dados = cache[id];
+    if (!dados) { limparPrevia(); return; }
+    CAMPOS.forEach(function (campo) {
+      var alvo = previa.querySelector('[data-previa="' + campo + '"]');
+      if (alvo) { alvo.textContent = formatarValor(campo, dados[campo]); }
+    });
+  }
+
+  function popularServicos(clienteId, manterId) {
+    if (!clienteId) {
+      selServico.innerHTML = '<option value="">---------</option>';
+      selServico.disabled = true;
+      cache = {};
+      limparPrevia();
+      return;
+    }
+    fetch(urlBase.replace("/0/", "/" + clienteId + "/"), {
+      headers: { "X-Requested-With": "XMLHttpRequest" }
+    })
+      .then(function (resp) { return resp.json(); })
+      .then(function (data) {
+        cache = {};
+        selServico.innerHTML = '<option value="">---------</option>';
+        data.servicos.forEach(function (s) {
+          cache[s.id] = s;
+          var opt = document.createElement("option");
+          opt.value = s.id;
+          opt.textContent = s.nome;
+          selServico.appendChild(opt);
+        });
+        selServico.disabled = false;
+        // Preserva a seleção anterior se o serviço ainda pertence ao cliente.
+        if (manterId && cache[manterId]) {
+          selServico.value = manterId;
+          preencherPrevia(manterId);
+        } else {
+          limparPrevia();
+        }
+      })
+      .catch(function () { limparPrevia(); });
+  }
+
+  selCliente.addEventListener("change", function () {
+    popularServicos(selCliente.value, null);
+  });
+  selServico.addEventListener("change", function () {
+    preencherPrevia(selServico.value);
+  });
+
+  // Inicialização: no GET de edição já há cliente; mantém o serviço atual.
+  if (selCliente.value) {
+    popularServicos(selCliente.value, selServico.value);
+  } else {
+    popularServicos("", null);
+  }
+})();
+</script>
 {% endblock %}

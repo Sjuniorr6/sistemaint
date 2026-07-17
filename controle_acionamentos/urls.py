@@ -16,6 +16,11 @@ urlpatterns = [
     path('acionamentos/<int:pk>/', views.acionamento_detail, name='acionamento_detail'),
     path('acionamentos/<int:pk>/editar/', views.acionamento_update, name='acionamento_update'),
     path('acionamentos/<int:pk>/pedagio/', views.acionamento_pedagio_update, name='acionamento_pedagio_update'),
+    path(
+        'acionamentos/servicos-por-cliente/<int:cliente_id>/',
+        views.servicos_por_cliente,
+        name='servicos_por_cliente',
+    ),
 
     # Cadastros — DD-050
     path('clientes/', views.cliente_list, name='cliente_list'),

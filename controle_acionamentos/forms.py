@@ -12,26 +12,44 @@ from controle_acionamentos.models import (
 
 
 class AcionamentoForm(forms.ModelForm):
-    """Form de criação de Acionamento (US-05).
+    """Form de criação/edição de Acionamento (US-05 / DD-067/ST2).
 
-    Só os campos que o operador digita. Os 5 calculados são editable=False
-    no model e ficam fora por construção — quem os preenche é o save().
+    O operador NÃO digita mais os valores do serviço: escolhe um serviço ATIVO do
+    cliente (`servico_cliente`) e o backend copia os 5 valores para os campos
+    inline (snapshot em aplicar_servico_ao_acionamento). Por isso os 5 campos
+    inline saíram do form — eles continuam NOT NULL no model, mas quem os preenche
+    é a view, ANTES do save (o _post_clean os exclui por não estarem no form).
+
+    `nome_servico` também deixou de ser digitado: vira HiddenInput e é DERIVADO do
+    serviço (label do choice). O Acionamento.clean() exige nome_servico já no
+    _post_clean (antes de a view aplicar o snapshot), então derivo aqui no clean()
+    do form também — o aplicar_servico_ao_acionamento repete a derivação no snapshot.
 
     Não duplico RN-04/05/06 aqui: ao rodar is_valid(), o ModelForm chama
-    full_clean() do model, que dispara o Acionamento.clean(). O form é o
-    portão que garante o full_clean antes do save (fecha o marco 7).
+    full_clean() do model, que dispara o Acionamento.clean(). O form é o portão que
+    garante o full_clean antes do save.
     """
+
+    # Seleção do serviço do catálogo (DD-067/ST2). Queryset amplo (todos os
+    # serviços); o refinamento — pertencer ao cliente do POST e estar ativo — é o
+    # clean() abaixo, com mensagem amigável. Obrigatório: serviço é exigido na
+    # criação (regra de 17/07).
+    servico_cliente = forms.ModelChoiceField(
+        queryset=ServicoCliente.objects.all(),
+        required=True,
+        label="Serviço",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    # nome_servico não é mais digitado: hidden, derivado do serviço no clean(). No
+    # GET de edição carrega o valor do registro (mantém o form populado); no POST o
+    # valor é sempre sobrescrito pelo label do serviço.
+    nome_servico = forms.CharField(required=False, widget=forms.HiddenInput())
 
     class Meta:
         model = Acionamento
         fields = [
             "cliente",
             "nome_servico",
-            "valor_acionamento",
-            "franquia_km",
-            "franquia_horas",
-            "valor_km_excedente",
-            "valor_hora_excedente",
             "origem",
             "destino",
             "responsavel_agente",
@@ -50,23 +68,6 @@ class AcionamentoForm(forms.ModelForm):
         ]
         widgets = {
             "cliente": forms.Select(attrs={"class": "form-select"}),
-            "nome_servico": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Ex.: Escolta Moto"}
-            ),
-            "valor_acionamento": forms.NumberInput(
-                attrs={"class": "form-control", "step": "0.01", "min": "0"}
-            ),
-            # min=1 espelha o MinValueValidator(1) do model (pendente do tech lead).
-            "franquia_km": forms.NumberInput(attrs={"class": "form-control", "min": "1"}),
-            "franquia_horas": forms.NumberInput(
-                attrs={"class": "form-control", "step": "0.01", "min": "0"}
-            ),
-            "valor_km_excedente": forms.NumberInput(
-                attrs={"class": "form-control", "step": "0.01", "min": "0"}
-            ),
-            "valor_hora_excedente": forms.NumberInput(
-                attrs={"class": "form-control", "step": "0.01", "min": "0"}
-            ),
             "origem": forms.TextInput(attrs={"class": "form-control"}),
             "destino": forms.TextInput(attrs={"class": "form-control"}),
             "responsavel_agente": forms.Select(attrs={"class": "form-select"}),
@@ -102,6 +103,35 @@ class AcionamentoForm(forms.ModelForm):
         # input_formats. Sem isto, datas válidas seriam rejeitadas.
         for campo in ("data_hora_solicitado", "data_hora_inicio", "data_hora_final"):
             self.fields[campo].input_formats = ["%Y-%m-%dT%H:%M", "%Y-%m-%dT%H:%M:%S"]
+
+        # servico_cliente não está em Meta.fields (a view aplica o snapshot), então
+        # não herda o valor da instance sozinho. No GET de edição, semeio o initial
+        # a partir do registro para o select nascer com o serviço atual selecionado
+        # (o JS o mantém após repopular pelo cliente).
+        if self.instance and self.instance.pk and self.instance.servico_cliente_id:
+            self.fields["servico_cliente"].initial = self.instance.servico_cliente_id
+
+    def clean(self):
+        """Refina o serviço escolhido (DD-067/ST2): tem de pertencer ao cliente do
+        POST E estar ativo. Mensagens amigáveis no próprio campo servico_cliente.
+        Quando o serviço é válido, DERIVA nome_servico do label do choice — o
+        Acionamento.clean() exige nome_servico ainda no _post_clean, então a
+        derivação precisa acontecer aqui (a view repete no snapshot)."""
+        cleaned = super().clean()
+        cliente = cleaned.get("cliente")
+        servico = cleaned.get("servico_cliente")
+        if cliente and servico:
+            if servico.cliente_id != cliente.id:
+                self.add_error(
+                    "servico_cliente", "Escolha um serviço do cliente selecionado."
+                )
+            elif not servico.ativo:
+                self.add_error(
+                    "servico_cliente", "Este serviço está desativado para o cliente."
+                )
+            else:
+                cleaned["nome_servico"] = servico.get_nome_display()
+        return cleaned
 
 
 class PedagioUpdateForm(forms.Form):
