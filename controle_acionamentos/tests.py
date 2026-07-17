@@ -5615,3 +5615,304 @@ def test_aplicar_servico_deriva_nome_servico_do_label(_fks_acionamento):
     aplicar_servico_ao_acionamento(ac, servico)
 
     assert ac.nome_servico == ServicoCliente.Nome(_SERVICOS_EM_ORDEM[0]).label
+
+
+# ---------------------------------------------------------------
+# DD-067 ST3 — regras de edição do acionamento com serviço vinculado (RED)
+# ---------------------------------------------------------------
+# Fase RED: NADA a implementar. As regras A (re-snapshot ao trocar serviço) e B
+# (coerência ao trocar cliente) já existem por construção da ST2; a fresta C
+# (serviço desativado APÓS o vínculo não pode travar a edição) é o que a GREEN
+# corrige no clean do form. Estes 6 testes (o cenário 2 vira 2a/2b para dar
+# granularidade) provam exatamente ISSO: só a fresta deve estar aberta.
+#
+# Helper local: acionamento SALVO já com um serviço aplicado (o "antes" da edição).
+def _acionamento_com_servico(cliente, responsavel, agente, servico, base):
+    ac = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        data_hora_solicitado=base,
+        data_hora_inicio=base + timedelta(minutes=30),
+        data_hora_final=base + timedelta(hours=3),
+    )
+    aplicar_servico_ao_acionamento(ac, servico)
+    ac.save()
+    return ac
+
+
+@pytest.mark.django_db
+def test_update_troca_servico_faz_re_snapshot(
+    client, django_user_model, _fks_acionamento
+):
+    """1 (regra A) — trocar por OUTRO serviço ativo do MESMO cliente recopia os 5
+    valores + nome e recalcula: FK nova, inline = valores do serviço novo,
+    valor_agente recalculado (500 dentro da franquia 200km/8h)."""
+    cliente, responsavel, agente = _fks_acionamento
+    servico_a = _cria_servico(cliente, _SERVICOS_EM_ORDEM[0], ativo=True)  # 150/80/4/2.5/30
+    servico_b = _servico_distinto(cliente, nome=_SERVICOS_EM_ORDEM[1])     # 500/200/8/5/60
+    base = timezone.now().replace(second=0, microsecond=0)
+    ac = _acionamento_com_servico(cliente, responsavel, agente, servico_a, base)
+
+    user = _user_com_perms(django_user_model, "view_acionamento", "change_acionamento")
+    client.force_login(user)
+    url = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
+    payload = _post_payload_acionamento(ac, servico_cliente=servico_b.pk)
+    response = client.post(url, payload)
+
+    assert response.status_code == 302
+    ac.refresh_from_db()
+    assert ac.servico_cliente_id == servico_b.pk
+    assert ac.valor_acionamento == Decimal("500.00")
+    assert ac.franquia_km == 200
+    assert ac.franquia_horas == Decimal("8.00")
+    assert ac.valor_km_excedente == Decimal("5.00")
+    assert ac.valor_hora_excedente == Decimal("60.00")
+    assert ac.nome_servico == ServicoCliente.Nome(_SERVICOS_EM_ORDEM[1]).label
+    assert ac.valor_agente == Decimal("500.00")
+
+
+@pytest.mark.django_db
+def test_update_troca_cliente_e_servico_coerente(
+    client, django_user_model, _fks_acionamento
+):
+    """2a (regra B) — trocar cliente E serviço juntos, com o serviço pertencendo ao
+    cliente NOVO: 302 e ambos persistidos coerentes."""
+    cliente, responsavel, agente = _fks_acionamento
+    servico_a = _cria_servico(cliente, _SERVICOS_EM_ORDEM[0], ativo=True)
+    cliente_novo = Cliente.objects.create(nome_empresa="Globex", cnpj="11444777000161")
+    servico_novo = _cria_servico(cliente_novo, _SERVICOS_EM_ORDEM[0], ativo=True)
+    base = timezone.now().replace(second=0, microsecond=0)
+    ac = _acionamento_com_servico(cliente, responsavel, agente, servico_a, base)
+
+    user = _user_com_perms(django_user_model, "view_acionamento", "change_acionamento")
+    client.force_login(user)
+    url = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
+    payload = _post_payload_acionamento(
+        ac, cliente=cliente_novo.pk, servico_cliente=servico_novo.pk
+    )
+    response = client.post(url, payload)
+
+    assert response.status_code == 302
+    ac.refresh_from_db()
+    assert ac.cliente_id == cliente_novo.pk
+    assert ac.servico_cliente_id == servico_novo.pk
+
+
+@pytest.mark.django_db
+def test_update_troca_cliente_com_servico_do_cliente_antigo_rejeitado(
+    client, django_user_model, _fks_acionamento
+):
+    """2b (regra B) — trocar o cliente mas manter um serviço do cliente ANTIGO:
+    200 e erro no campo servico_cliente (o serviço tem de ser do cliente novo)."""
+    cliente, responsavel, agente = _fks_acionamento
+    servico_a = _cria_servico(cliente, _SERVICOS_EM_ORDEM[0], ativo=True)
+    cliente_novo = Cliente.objects.create(nome_empresa="Globex", cnpj="11444777000161")
+    base = timezone.now().replace(second=0, microsecond=0)
+    ac = _acionamento_com_servico(cliente, responsavel, agente, servico_a, base)
+
+    user = _user_com_perms(django_user_model, "view_acionamento", "change_acionamento")
+    client.force_login(user)
+    url = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
+    payload = _post_payload_acionamento(
+        ac, cliente=cliente_novo.pk, servico_cliente=servico_a.pk
+    )
+    response = client.post(url, payload)
+
+    assert response.status_code == 200
+    assert "servico_cliente" in response.context["form"].errors
+
+
+@pytest.mark.django_db
+def test_update_mantendo_servico_desativado_apos_vinculo(
+    client, django_user_model, _fks_acionamento
+):
+    """3 (fresta C) — o serviço vinculado foi DESATIVADO depois; manter o MESMO
+    serviço na edição deve salvar normalmente (302). No RED nasce VERMELHO: o
+    clean ainda rejeita serviço inativo mesmo sendo o já vinculado."""
+    cliente, responsavel, agente = _fks_acionamento
+    servico = _cria_servico(cliente, _SERVICOS_EM_ORDEM[0], ativo=True)
+    base = timezone.now().replace(second=0, microsecond=0)
+    ac = _acionamento_com_servico(cliente, responsavel, agente, servico, base)
+
+    # Desativa o serviço DEPOIS de já estar vinculado ao acionamento.
+    servico.ativo = False
+    servico.save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento", "change_acionamento")
+    client.force_login(user)
+    url = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
+    payload = _post_payload_acionamento(ac, servico_cliente=servico.pk, pedagio="25.00")
+    response = client.post(url, payload)
+
+    assert response.status_code == 302
+    ac.refresh_from_db()
+    assert ac.pedagio == Decimal("25.00")
+    assert ac.servico_cliente_id == servico.pk
+
+
+@pytest.mark.django_db
+def test_update_troca_para_servico_desativado_diferente_rejeitado(
+    client, django_user_model, _fks_acionamento
+):
+    """4 (fresta C, limite) — trocar para um serviço DIFERENTE que está desativado
+    continua barrado: 200 e a mensagem de serviço desativado."""
+    cliente, responsavel, agente = _fks_acionamento
+    servico_a = _cria_servico(cliente, _SERVICOS_EM_ORDEM[0], ativo=True)
+    servico_inativo = _cria_servico(cliente, _SERVICOS_EM_ORDEM[1], ativo=False)
+    base = timezone.now().replace(second=0, microsecond=0)
+    ac = _acionamento_com_servico(cliente, responsavel, agente, servico_a, base)
+
+    user = _user_com_perms(django_user_model, "view_acionamento", "change_acionamento")
+    client.force_login(user)
+    url = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
+    payload = _post_payload_acionamento(ac, servico_cliente=servico_inativo.pk)
+    response = client.post(url, payload)
+
+    assert response.status_code == 200
+    assert "Este serviço está desativado para o cliente." in str(
+        response.context["form"].errors
+    )
+
+
+@pytest.mark.django_db
+def test_update_troca_servico_aparece_na_trilha(
+    client, django_user_model, _fks_acionamento
+):
+    """5 (regra D) — trocar o serviço na edição gera trilha refletindo nome_servico
+    e valores novos, com o valor_agente recalculado."""
+    from controle_acionamentos.models import AcionamentoHistorico
+
+    cliente, responsavel, agente = _fks_acionamento
+    servico_a = _cria_servico(cliente, _SERVICOS_EM_ORDEM[0], ativo=True)  # 150/80/4/2.5/30
+    servico_b = _servico_distinto(cliente, nome=_SERVICOS_EM_ORDEM[1])     # 500/200/8/5/60
+    base = timezone.now().replace(second=0, microsecond=0)
+    ac = _acionamento_com_servico(cliente, responsavel, agente, servico_a, base)
+
+    user = _user_com_perms(django_user_model, "change_acionamento")
+    client.force_login(user)
+    url = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
+    payload = _post_payload_acionamento(ac, servico_cliente=servico_b.pk)
+    response = client.post(url, payload)
+
+    assert response.status_code == 302
+    campos = {r.campo for r in AcionamentoHistorico.objects.all()}
+    assert {"nome_servico", "valor_acionamento", "valor_agente"} <= campos
+    reg_valor = AcionamentoHistorico.objects.get(campo="valor_acionamento")
+    assert reg_valor.valor_novo == "500.00"
+
+
+# ---------------------------------------------------------------
+# DD-067 ST4 — endpoint inclui o serviço vinculado-inativo na edição (RED)
+# ---------------------------------------------------------------
+# Correção do bug do checklist (Caminho A): o endpoint servicos-por-cliente ganha
+# o parâmetro OPCIONAL ?incluir=<servico_id>, que anexa o serviço já vinculado
+# mesmo desativado. No RED os 5 nascem VERMELHOS: nem a chave "inativo" nem o
+# parâmetro "incluir" existem hoje. Estilo de assert espelha os testes do endpoint.
+
+
+@pytest.mark.django_db
+def test_endpoint_sem_incluir_todos_ativos_com_inativo_false(client, django_user_model):
+    """1 — sem o parâmetro "incluir", o contrato atual segue intacto (só ativos, na
+    ordem do catálogo) E cada item passa a trazer "inativo": false."""
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    _servico_distinto(cliente, nome=_SERVICOS_EM_ORDEM[0])
+    _servico_distinto(cliente, nome=_SERVICOS_EM_ORDEM[1])
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+    url = reverse("controle_acionamentos:servicos_por_cliente", args=[cliente.pk])
+    response = client.get(url)
+
+    assert response.status_code == 200
+    servicos = response.json()["servicos"]
+    assert [s["nome"] for s in servicos] == [
+        ServicoCliente.Nome(_SERVICOS_EM_ORDEM[0]).label,
+        ServicoCliente.Nome(_SERVICOS_EM_ORDEM[1]).label,
+    ]
+    assert all(s["inativo"] is False for s in servicos)
+
+
+@pytest.mark.django_db
+def test_endpoint_incluir_servico_desativado_do_cliente(client, django_user_model):
+    """2 — com "incluir" de um serviço DESATIVADO do cliente: ele entra no JSON com
+    "inativo": true, ao lado dos ativos (que seguem "inativo": false)."""
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    ativo = _servico_distinto(cliente, nome=_SERVICOS_EM_ORDEM[0])
+    inativo = _cria_servico(cliente, _SERVICOS_EM_ORDEM[1], ativo=False)
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+    url = reverse("controle_acionamentos:servicos_por_cliente", args=[cliente.pk])
+    response = client.get(f"{url}?incluir={inativo.pk}")
+
+    assert response.status_code == 200
+    por_id = {s["id"]: s for s in response.json()["servicos"]}
+    assert inativo.pk in por_id
+    assert por_id[inativo.pk]["inativo"] is True
+    assert por_id[ativo.pk]["inativo"] is False
+
+
+@pytest.mark.django_db
+def test_endpoint_incluir_servico_ativo_nao_duplica(client, django_user_model):
+    """3 — com "incluir" de um serviço que já está ATIVO (logo já na lista), ele
+    aparece UMA vez só, com "inativo": false."""
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    ativo = _servico_distinto(cliente, nome=_SERVICOS_EM_ORDEM[0])
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+    url = reverse("controle_acionamentos:servicos_por_cliente", args=[cliente.pk])
+    response = client.get(f"{url}?incluir={ativo.pk}")
+
+    assert response.status_code == 200
+    servicos = response.json()["servicos"]
+    ids = [s["id"] for s in servicos]
+    assert ids.count(ativo.pk) == 1
+    por_id = {s["id"]: s for s in servicos}
+    assert por_id[ativo.pk]["inativo"] is False
+
+
+@pytest.mark.django_db
+def test_endpoint_incluir_servico_de_outro_cliente_e_ignorado(client, django_user_model):
+    """4 — "incluir" de um serviço de OUTRO cliente é contexto que não se aplica:
+    ignora o parâmetro silenciosamente (200) e devolve só os ativos do cliente."""
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    outro = Cliente.objects.create(nome_empresa="Globex", cnpj="11444777000161")
+    ativo = _servico_distinto(cliente, nome=_SERVICOS_EM_ORDEM[0])
+    intruso = _cria_servico(outro, _SERVICOS_EM_ORDEM[0], ativo=False)
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+    url = reverse("controle_acionamentos:servicos_por_cliente", args=[cliente.pk])
+    response = client.get(f"{url}?incluir={intruso.pk}")
+
+    assert response.status_code == 200
+    servicos = response.json()["servicos"]
+    ids = [s["id"] for s in servicos]
+    assert intruso.pk not in ids
+    assert ids == [ativo.pk]
+    assert all(s["inativo"] is False for s in servicos)
+
+
+@pytest.mark.django_db
+def test_endpoint_incluir_desativado_respeita_ordem_de_definicao(client, django_user_model):
+    """5 — o incluído-desativado respeita a ORDEM DE DEFINIÇÃO dos choices (não vai
+    colado no fim): ativos nas posições 0 e 2, incluído-desativado na 1 → sai no meio."""
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    _servico_distinto(cliente, nome=_SERVICOS_EM_ORDEM[0])
+    _servico_distinto(cliente, nome=_SERVICOS_EM_ORDEM[2])
+    meio = _cria_servico(cliente, _SERVICOS_EM_ORDEM[1], ativo=False)
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+    url = reverse("controle_acionamentos:servicos_por_cliente", args=[cliente.pk])
+    response = client.get(f"{url}?incluir={meio.pk}")
+
+    assert response.status_code == 200
+    servicos = response.json()["servicos"]
+    assert [s["nome"] for s in servicos] == [
+        ServicoCliente.Nome(_SERVICOS_EM_ORDEM[0]).label,
+        ServicoCliente.Nome(_SERVICOS_EM_ORDEM[1]).label,
+        ServicoCliente.Nome(_SERVICOS_EM_ORDEM[2]).label,
+    ]

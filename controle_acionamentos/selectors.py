@@ -4,7 +4,7 @@ As views consomem os dados a partir daqui — nunca fazem query direta ao model.
 """
 from decimal import Decimal
 
-from django.db.models import Case, DecimalField, IntegerField, Sum, Value, When
+from django.db.models import Case, DecimalField, IntegerField, Q, Sum, Value, When
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
@@ -73,7 +73,7 @@ def listar_franquias_por_cliente(cliente):
     return FranquiaAgente.objects.filter(cliente=cliente).order_by("nome")
 
 
-def listar_servicos_ativos_por_cliente(cliente):
+def listar_servicos_ativos_por_cliente(cliente, incluir_id=None):
     """DD-066/ST1 — serviços ATIVOS de um cliente, na ORDEM DE DEFINIÇÃO dos
     choices de `nome` (a ordem de exibição do negócio, não alfabética), via
     Case/When sobre os valores dos choices.
@@ -83,6 +83,13 @@ def listar_servicos_ativos_por_cliente(cliente):
     que os choices `Nome` foram definidos no model) e ordena por ele. Derivar a
     ordem de `Nome.values` mantém a fonte única — reordenar/renomear os choices
     reflete aqui sem tocar no selector.
+
+    DD-067/ST4 — `incluir_id` (opcional): quando informado, o serviço de pk
+    `incluir_id` entra na lista MESMO desativado (é o serviço já vinculado a um
+    acionamento em edição, que o form aceita). O `cliente=cliente` continua sendo
+    AND, então um id de outro cliente (ou inexistente) simplesmente não casa e é
+    ignorado. O pk único garante que, se o incluído já é ativo, não duplica; e a
+    mesma anotação Case/When o coloca na posição natural do catálogo (não no fim).
     """
     ordem = Case(
         *[
@@ -91,9 +98,12 @@ def listar_servicos_ativos_por_cliente(cliente):
         ],
         output_field=IntegerField(),
     )
+    filtro_visibilidade = Q(ativo=True)
+    if incluir_id is not None:
+        filtro_visibilidade |= Q(pk=incluir_id)
     return (
         ServicoCliente.objects
-        .filter(cliente=cliente, ativo=True)
+        .filter(filtro_visibilidade, cliente=cliente)
         .annotate(_ordem=ordem)
         .order_by("_ordem")
     )

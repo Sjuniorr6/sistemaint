@@ -285,7 +285,11 @@
     });
   }
 
-  function popularServicos(clienteId, manterId) {
+  // incluirId (DD-067/ST4, opcional): pede ao endpoint que anexe esse serviço
+  // mesmo desativado. Usado só na edição (o serviço já vinculado), para a opção
+  // atual não sumir quando foi desativado no cadastro. Na criação e na troca de
+  // cliente NÃO se envia (contrato atual: só ativos do cliente).
+  function popularServicos(clienteId, manterId, incluirId) {
     if (!clienteId) {
       selServico.innerHTML = '<option value="">---------</option>';
       selServico.disabled = true;
@@ -293,9 +297,11 @@
       limparPrevia();
       return;
     }
-    fetch(urlBase.replace("/0/", "/" + clienteId + "/"), {
-      headers: { "X-Requested-With": "XMLHttpRequest" }
-    })
+    var url = urlBase.replace("/0/", "/" + clienteId + "/");
+    if (incluirId) {
+      url += "?incluir=" + encodeURIComponent(incluirId);
+    }
+    fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } })
       .then(function (resp) { return resp.json(); })
       .then(function (data) {
         cache = {};
@@ -304,7 +310,8 @@
           cache[s.id] = s;
           var opt = document.createElement("option");
           opt.value = s.id;
-          opt.textContent = s.nome;
+          // Sufixo " (desativado)" só no TEXTO da option (o value segue o id).
+          opt.textContent = s.inativo ? s.nome + " (desativado)" : s.nome;
           selServico.appendChild(opt);
         });
         selServico.disabled = false;
@@ -320,15 +327,18 @@
   }
 
   selCliente.addEventListener("change", function () {
+    // Troca de cliente: só ativos do cliente novo, seleção zerada (sem incluir).
     popularServicos(selCliente.value, null);
   });
   selServico.addEventListener("change", function () {
     preencherPrevia(selServico.value);
   });
 
-  // Inicialização: no GET de edição já há cliente; mantém o serviço atual.
+  // Inicialização: no GET de edição já há cliente e um serviço selecionado
+  // server-side; envia ?incluir=<serviço atual> para ele reaparecer mesmo se
+  // tiver sido desativado depois do vínculo.
   if (selCliente.value) {
-    popularServicos(selCliente.value, selServico.value);
+    popularServicos(selCliente.value, selServico.value, selServico.value);
   } else {
     popularServicos("", null);
   }

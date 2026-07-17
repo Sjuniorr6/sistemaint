@@ -276,19 +276,31 @@ def servicos_por_cliente(request, cliente_id):
     listar_servicos_ativos_por_cliente já filtra por ativo e ordena pelo catálogo.
     Decimais serializados como STRING (str(Decimal), regra da casa); franquia_km é
     inteiro. 404 se o cliente não existir.
+
+    DD-067/ST4 — parâmetro opcional `incluir` (id do serviço já vinculado a um
+    acionamento em edição): faz o serviço reaparecer MESMO desativado, para a tela
+    de edição não perder a opção atual. Conversão tolerante: valor não-numérico ou
+    ausente vira None (parâmetro ignorado, sem erro) — a regra de "outro cliente /
+    inexistente" já é tratada pelo selector. Cada item ganha `inativo` (bool).
     """
     cliente = get_object_or_404(Cliente, pk=cliente_id)
+    incluir_raw = request.GET.get("incluir")
+    try:
+        incluir_id = int(incluir_raw) if incluir_raw else None
+    except (TypeError, ValueError):
+        incluir_id = None
     servicos = [
         {
             "id": s.pk,
             "nome": s.get_nome_display(),
+            "inativo": not s.ativo,
             "valor_acionamento": str(s.valor_acionamento),
             "franquia_km": s.franquia_km,
             "franquia_horas": str(s.franquia_horas),
             "valor_km_excedente": str(s.valor_km_excedente),
             "valor_hora_excedente": str(s.valor_hora_excedente),
         }
-        for s in listar_servicos_ativos_por_cliente(cliente)
+        for s in listar_servicos_ativos_por_cliente(cliente, incluir_id=incluir_id)
     ]
     return JsonResponse({"servicos": servicos})
 
