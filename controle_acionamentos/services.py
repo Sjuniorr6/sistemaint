@@ -295,6 +295,44 @@ def calcular_valor_cliente(
     )
 
 
+# ---------------------------------------------------------------------------
+# calcular_valor_agente_por_franquia — valor do AGENTE pela franquia (DD-068/ST2)
+# ---------------------------------------------------------------------------
+
+
+def calcular_valor_agente_por_franquia(
+    *,
+    franquia_agente,
+    km_total: int,
+    horas_total: Decimal,
+    pedagio: Decimal,
+):
+    """Resolve o valor a pagar ao AGENTE pela franquia vinculada (DD-068/ST2).
+
+    Sem franquia (None) não há o que calcular: retorna None — estado PENDENTE
+    (o vínculo pode vir depois, inclusive em lote). Com franquia, a entrada é
+    montada EXCLUSIVAMENTE com os valores dela (nunca os inline do acionamento)
+    e a matemática é toda delegada ao calcular_valor_agente — escalonamento e
+    pedágio já moram lá, nada é duplicado aqui. Função pura: `franquia_agente`
+    é duck-typed (qualquer objeto com os 6 atributos), sem importar models.
+    """
+    if franquia_agente is None:
+        return None
+
+    entrada = EntradaCalculoAgente(
+        valor_acionamento=franquia_agente.valor_acionamento,
+        franquia_km=franquia_agente.franquia_km,
+        franquia_horas=franquia_agente.franquia_horas,
+        valor_km_excedente=franquia_agente.valor_km_excedente,
+        valor_hora_excedente=franquia_agente.valor_hora_excedente,
+        escalonamento_ativo=franquia_agente.escalonamento_automatico,
+        km_total=km_total,
+        horas_total=horas_total,
+        pedagio=pedagio,
+    )
+    return calcular_valor_agente(entrada).valor_agente
+
+
 def _resolver_entrada(acionamento):
     """Resolve a FONTE do cálculo e monta a entrada da calculadora (§8.1/RN-08).
 

@@ -5938,3 +5938,94 @@ def test_valor_cliente_exemplo_ouro():
         horas_total=Decimal("7.00"),
     )
     assert valor == Decimal("1665.00")
+
+
+# ---------------------------------------------------------------
+# DD-068 ST2 — valor do AGENTE resolvido pela franquia (RED)
+# ---------------------------------------------------------------
+# calcular_valor_agente_por_franquia ainda NÃO existe em services.py — o import
+# DENTRO do corpo de CADA teste isola o ImportError como "failed" por teste, sem
+# derrubar a coleta dos 231. Contrato: com franquia vinculada, usa EXCLUSIVAMENTE
+# os valores da franquia (nunca os inline), delegando a matemática ao
+# calcular_valor_agente existente (escalonamento e pedágio inclusos); sem
+# franquia (None), retorna None — estado PENDENTE (decisão registrada). Funções
+# puras: a franquia é um stub SimpleNamespace (sem banco, sem models).
+from types import SimpleNamespace
+
+
+def _franquia_stub_basica():
+    """Franquia dos testes 1 e 2 (500/120km/5h/1,80/45, sem escalonamento)."""
+    return SimpleNamespace(
+        valor_acionamento=Decimal("500.00"),
+        franquia_km=120,
+        franquia_horas=5,
+        valor_km_excedente=Decimal("1.80"),
+        valor_hora_excedente=Decimal("45.00"),
+        escalonamento_automatico=False,
+    )
+
+
+def test_valor_agente_exemplo_ouro():
+    """1 — franquia sem escalonamento, km dentro (50 < 120), 2h excedentes:
+    500 + 0 + 2 × 45 = 590,00."""
+    from controle_acionamentos.services import calcular_valor_agente_por_franquia
+
+    valor = calcular_valor_agente_por_franquia(
+        franquia_agente=_franquia_stub_basica(),
+        km_total=50,
+        horas_total=Decimal("7.00"),
+        pedagio=Decimal("0.00"),
+    )
+    assert valor == Decimal("590.00")
+
+
+def test_valor_agente_soma_pedagio():
+    """2 — mesma franquia e entradas do teste 1, pedágio 25,00: o pedágio soma
+    SOMENTE no agente → 590 + 25 = 615,00."""
+    from controle_acionamentos.services import calcular_valor_agente_por_franquia
+
+    valor = calcular_valor_agente_por_franquia(
+        franquia_agente=_franquia_stub_basica(),
+        km_total=50,
+        horas_total=Decimal("7.00"),
+        pedagio=Decimal("25.00"),
+    )
+    assert valor == Decimal("615.00")
+
+
+def test_valor_agente_escalonamento_via_franquia():
+    """3 — exemplo 8.6 do PRD: franquia 660/200km/4h/3,30/55 com escalonamento,
+    km 240 → 1 bloco (franquia ajustada 240km/5h, razão 1,2 → base 792,00), sem
+    excedentes (240 = 240; 5,00 = 5) → 792,00. Prova que a delegação ao
+    calcular_valor_agente preserva o escalonamento."""
+    from controle_acionamentos.services import calcular_valor_agente_por_franquia
+
+    franquia = SimpleNamespace(
+        valor_acionamento=Decimal("660.00"),
+        franquia_km=200,
+        franquia_horas=4,
+        valor_km_excedente=Decimal("3.30"),
+        valor_hora_excedente=Decimal("55.00"),
+        escalonamento_automatico=True,
+    )
+    valor = calcular_valor_agente_por_franquia(
+        franquia_agente=franquia,
+        km_total=240,
+        horas_total=Decimal("5.00"),
+        pedagio=Decimal("0.00"),
+    )
+    assert valor == Decimal("792.00")
+
+
+def test_valor_agente_pendente_sem_franquia():
+    """4 — sem franquia vinculada (None) não há o que calcular: retorna None,
+    o estado PENDENTE (decisão registrada na DD-068)."""
+    from controle_acionamentos.services import calcular_valor_agente_por_franquia
+
+    valor = calcular_valor_agente_por_franquia(
+        franquia_agente=None,
+        km_total=50,
+        horas_total=Decimal("7.00"),
+        pedagio=Decimal("0.00"),
+    )
+    assert valor is None
