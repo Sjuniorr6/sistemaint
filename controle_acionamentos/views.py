@@ -259,9 +259,15 @@ def acionamento_pedagio_update(request, pk):
         # AC-07.3: entrada inválida (ex.: pedágio negativo) não toca no banco.
         return JsonResponse({"erros": form.errors}, status=400)
 
+    # Foto independente do estado atual ANTES do save (DD-068/ST4) — o "antes"
+    # que a trilha compara com o "depois", como em acionamento_update.
+    antigo = Acionamento.objects.get(pk=ac.pk)
     ac.pedagio = form.cleaned_data["pedagio"]
-    ac.save()  # o save() do model recalcula os campos derivados
-    ac.refresh_from_db()
+    with transaction.atomic():
+        # Trilha e save na mesma transação — ou tudo, ou nada.
+        ac.save()  # o save() do model recalcula os campos derivados
+        ac.refresh_from_db()
+        registrar_edicao_acionamento(antigo, ac, request.user)
 
     valor_agente = str(ac.valor_agente) if ac.valor_agente is not None else None
     return JsonResponse({"pedagio": str(ac.pedagio), "valor_agente": valor_agente})

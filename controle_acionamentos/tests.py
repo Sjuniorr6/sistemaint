@@ -2344,6 +2344,94 @@ def test_pedagio_update_nao_afeta_outras_linhas_ac074(
     assert ac_vizinho.valor_agente is None
 
 
+# --- DD-068 ST4: edição inline de pedágio grava trilha de auditoria (RED) ---
+# O endpoint acionamento_pedagio_update AINDA NÃO chama
+# registrar_edicao_acionamento — a edição inline persiste o pedágio sem deixar
+# rastro em AcionamentoHistorico (só o formulário de edição registra). Estes
+# 2 testes nascem VERMELHOS até a view integrar a trilha.
+
+
+@pytest.mark.django_db
+def test_pedagio_update_com_franquia_gera_trilha_de_pedagio_e_valor_agente(
+    client, django_user_model, _fks_acionamento
+):
+    """COM franquia: o POST inline muda pedagio E o valor_agente recalculado
+    (pedágio soma, §8.5) → a trilha deve ganhar uma linha por campo mudado,
+    com a serialização do service (Decimal -> string) e o autor logado."""
+    from controle_acionamentos.models import AcionamentoHistorico
+
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(**_dados_franquia(cliente))
+    ac = _acionamento_valido(
+        cliente, responsavel, agente, franquia_agente=franquia,
+        pedagio=Decimal("0.00"),
+    )
+    ac.save()
+    ac.refresh_from_db()
+
+    # Com franquia o valor nasce calculado — é o "antes" da linha de trilha.
+    valor_agente_antes = ac.valor_agente
+    assert valor_agente_antes is not None
+
+    user = _user_com_perms(django_user_model, "change_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_pedagio_update", args=[ac.pk])
+    response = client.post(url, {"pedagio": "25.00"})
+
+    assert response.status_code == 200
+    registros = AcionamentoHistorico.objects.filter(acionamento=ac)
+    assert {r.campo for r in registros} == {"pedagio", "valor_agente"}
+
+    reg_pedagio = registros.get(campo="pedagio")
+    assert reg_pedagio.valor_anterior == "0.00"   # Decimal -> string
+    assert reg_pedagio.valor_novo == "25.00"
+    assert reg_pedagio.editado_por == user
+
+    reg_valor = registros.get(campo="valor_agente")
+    assert reg_valor.valor_anterior == str(valor_agente_antes)
+    assert reg_valor.valor_novo == str(valor_agente_antes + Decimal("25.00"))
+    assert reg_valor.editado_por == user
+
+
+@pytest.mark.django_db
+def test_pedagio_update_sem_franquia_gera_trilha_so_de_pedagio(
+    client, django_user_model, _fks_acionamento
+):
+    """SEM franquia (DD-068: regime pendente): valor_agente/km_excedente/
+    hora_excedente são None antes E depois — None -> None não é mudança, então
+    a trilha deve registrar SÓ a linha do pedagio."""
+    from controle_acionamentos.models import AcionamentoHistorico
+
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente, pedagio=Decimal("0.00"))
+    ac.save()
+    ac.refresh_from_db()
+
+    # Regime pendente: os três calculados nascem None (DD-068/ST2).
+    assert ac.valor_agente is None
+    assert ac.km_excedente is None
+    assert ac.hora_excedente is None
+
+    user = _user_com_perms(django_user_model, "change_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_pedagio_update", args=[ac.pk])
+    response = client.post(url, {"pedagio": "25.00"})
+
+    assert response.status_code == 200
+    registros = AcionamentoHistorico.objects.filter(acionamento=ac)
+    assert {r.campo for r in registros} == {"pedagio"}
+    assert not registros.filter(
+        campo__in=["valor_agente", "km_excedente", "hora_excedente"]
+    ).exists()
+
+    reg_pedagio = registros.get(campo="pedagio")
+    assert reg_pedagio.valor_anterior == "0.00"
+    assert reg_pedagio.valor_novo == "25.00"
+    assert reg_pedagio.editado_por == user
+
+
 # ---------------------------------------------------------------------------
 # views.acionamento_vincular_franquia_lote — vínculo em lote, DD-015/M4 subtask 5
 # Endpoint POST que vincula uma franquia a vários acionamentos de uma vez,
