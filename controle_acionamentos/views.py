@@ -248,6 +248,10 @@ def acionamento_pedagio_update(request, pk):
     require_POST embaixo do login/permissão: anônimo cai no login (302), quem não
     tem change_acionamento leva 403, e só então GET vira 405. O save() já dispara
     recalcular_valor_agente (pedágio soma ao valor_agente, §8.5); nada extra aqui.
+
+    DD-068/ST3: sem franquia o pedágio persiste normalmente, mas o valor do
+    agente é PENDENTE (None) — o JSON devolve null de verdade, nunca a string
+    "None". Com franquia, segue o Decimal serializado como string.
     """
     ac = get_object_or_404(Acionamento, pk=pk)
     form = PedagioUpdateForm(request.POST)
@@ -259,9 +263,8 @@ def acionamento_pedagio_update(request, pk):
     ac.save()  # o save() do model recalcula os campos derivados
     ac.refresh_from_db()
 
-    return JsonResponse(
-        {"pedagio": str(ac.pedagio), "valor_agente": str(ac.valor_agente)}
-    )
+    valor_agente = str(ac.valor_agente) if ac.valor_agente is not None else None
+    return JsonResponse({"pedagio": str(ac.pedagio), "valor_agente": valor_agente})
 
 
 @login_required

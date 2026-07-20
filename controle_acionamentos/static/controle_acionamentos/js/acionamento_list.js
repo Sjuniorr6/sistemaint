@@ -55,7 +55,11 @@
       .then(function (dados) {
         // 200 → sincroniza a célula do valor_agente (com vírgula) e o input.
         if (celulaValor) {
-          celulaValor.textContent = dados.valor_agente.replace(".", ",");
+          // valor_agente null = pendente sem franquia (DD-068) → "—", como no template.
+          celulaValor.textContent =
+            dados.valor_agente === null
+              ? "—"
+              : dados.valor_agente.replace(".", ",");
         }
         input.value = dados.pedagio;
         input.dataset.original = input.value;

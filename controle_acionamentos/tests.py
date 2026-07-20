@@ -539,16 +539,13 @@ def test_calcular_c5_franquia_escalonamento_desativado():
 
 
 @pytest.mark.django_db
-def test_compor_valor_agente_inline_sem_franquia_parcelas_batem(_fks_acionamento):
-    """DD-032/ST5 — extrato do acionamento INLINE (sem franquia), cenário C2:
-    excedentes cobrados às tarifas do próprio acionamento; blocos=0; a soma das
-    parcelas fecha o valor_agente persistido.
+def test_compor_valor_agente_sem_franquia_retorna_none(_fks_acionamento):
+    """DD-068/ST3 — SEM franquia vinculada não há composição: compor_valor_agente
+    retorna None (estado PENDENTE). O inline NUNCA alimenta o valor do agente; o
+    card de composição não renderiza (o visual completo do pendente é da DD-069).
 
-    Arrange do C2 (inline valor=100, franquia 80km/4h, tarifas 2/30, pedágio 0;
-    km_total=100, horas_total=5) → valor_agente 170,00.
-
-    Fase RED do TDD: compor_valor_agente ainda não existe em services.py, então
-    o import local levanta ImportError e este teste FALHA de propósito.
+    Substitui o antigo test_compor_valor_agente_inline_sem_franquia_parcelas_batem:
+    o MESMO arrange que antes fechava 170,00 pelo inline agora não tem extrato.
     """
     cliente, responsavel, agente = _fks_acionamento
     base = timezone.now()
@@ -569,31 +566,11 @@ def test_compor_valor_agente_inline_sem_franquia_parcelas_batem(_fks_acionamento
         data_hora_inicio=base,
         data_hora_final=base + timedelta(hours=5),
     )
-    ac.save()  # persiste os calculados (valor_agente == 170,00)
+    ac.save()  # sem franquia: persiste o estado pendente (valor_agente None)
 
     from controle_acionamentos.services import compor_valor_agente
 
-    comp = compor_valor_agente(ac)
-
-    assert comp.fonte_franquia is False
-    assert comp.blocos == 0
-    assert comp.valor_acionamento_ajustado == Decimal("100.00")
-    # Subtotais == quantidade × tarifa (tarifa inline, pois não há franquia).
-    assert comp.km_excedente == 20
-    assert comp.valor_unitario_km == Decimal("2.00")
-    assert comp.subtotal_km == comp.km_excedente * comp.valor_unitario_km
-    assert comp.hora_excedente == Decimal("1.00")
-    assert comp.valor_unitario_hora == Decimal("30.00")
-    assert comp.subtotal_hora == comp.hora_excedente * comp.valor_unitario_hora
-    assert comp.pedagio == Decimal("0.00")
-    # INVARIANTE: soma das parcelas == total == valor_agente persistido.
-    soma = (
-        comp.valor_acionamento_ajustado
-        + comp.subtotal_km
-        + comp.subtotal_hora
-        + comp.pedagio
-    )
-    assert soma == comp.valor_agente == ac.valor_agente == Decimal("170.00")
+    assert compor_valor_agente(ac) is None
 
 
 @pytest.mark.django_db
@@ -979,13 +956,16 @@ def test_acionamento_aceita_franquia_km_zero_no_inline(_fks_acionamento):
 
 
 @pytest.mark.django_db
-def test_save_sem_franquia_persiste_calculados_cenario2(_fks_acionamento):
-    """§11.1 Cenário 2 pela porta do model — sem franquia, valores inline estouram
-    a franquia. O save deve derivar km_total/horas_total (§8.2) e gravar os
-    excedentes e o valor_agente (§8.4/§8.5).
+def test_save_sem_franquia_valor_agente_pendente(_fks_acionamento):
+    """DD-068/ST3 pela porta do model — SEM franquia o valor do agente é PENDENTE:
+    o save deriva km_total/horas_total normalmente (§8.2 — fatos da jornada), mas
+    persiste valor_agente=None, km_excedente=None e hora_excedente=None (saídas
+    da MESMA conta, que só existe pela franquia). Nunca calcula pelo inline,
+    nunca zero.
 
-    Inline: valor=100, franquia 80km/4h, tarifas 2/30, pedágio 0.
-    km_total=100 (0→100); horas_total=5 (início→final 5h depois).
+    Substitui o antigo test_save_sem_franquia_persiste_calculados_cenario2 (o
+    inline fechava 170,00). Arrange mantido: valores inline continuam gravados
+    (auditoria), km_total=100 (0→100); horas_total=5 (início→final 5h depois).
     """
     cliente, responsavel, agente = _fks_acionamento
     base = timezone.now()
@@ -1009,11 +989,13 @@ def test_save_sem_franquia_persiste_calculados_cenario2(_fks_acionamento):
     ac.save()  # dispara recalcular_valor_agente (build + save = mesmo caminho do create)
     ac.refresh_from_db()
 
+    # Fatos da jornada seguem derivados sempre...
     assert ac.km_total == 100
     assert ac.horas_total == Decimal("5.00")
-    assert ac.km_excedente == 20
-    assert ac.hora_excedente == Decimal("1.00")
-    assert ac.valor_agente == Decimal("170.00")
+    # ...mas sem franquia a conta do agente não roda: estado PENDENTE (None).
+    assert ac.km_excedente is None
+    assert ac.hora_excedente is None
+    assert ac.valor_agente is None
 
 
 @pytest.mark.django_db
@@ -1417,7 +1399,9 @@ def test_vincular_franquia_em_lote_cross_cliente_desfaz_tudo_cenario8(_fks_acion
     valido2 = _cria(cliente_a)
     invalido = _cria(cliente_b)  # cross-cliente: viola RN-06 ao receber a franquia
 
-    # valor_agente original de cada um ANTES do lote (todos SEM franquia ainda).
+    # valor_agente de cada um ANTES do lote (todos SEM franquia: pendente/None
+    # sob a DD-068 ST3). O mapa é agnóstico ao regime — o rollback deve devolver
+    # exatamente este estado, seja ele Decimal ou None.
     originais = {ac.pk: ac.valor_agente for ac in (valido1, valido2, invalido)}
 
     from controle_acionamentos.services import vincular_franquia_em_lote
@@ -1609,7 +1593,8 @@ def test_vincular_franquia_em_lote_falha_no_meio_desfaz_tudo(_fks_acionamento, m
         acionamentos.append(ac)
 
     a1, a2, a3 = acionamentos
-    # valor_agente original dos 3 (todos SEM franquia), antes do lote.
+    # valor_agente dos 3 ANTES do lote (todos SEM franquia: pendente/None sob a
+    # DD-068 ST3). Mapa agnóstico ao regime — o rollback devolve este estado.
     originais = {ac.pk: ac.valor_agente for ac in acionamentos}
 
     # Sabotagem: só DEPOIS do arrange (os saves acima não podem contar). Embrulha
@@ -2288,15 +2273,17 @@ def test_pedagio_update_valido_recalcula_valor_agente_cenario6(
 def test_pedagio_update_negativo_retorna_400_e_nao_persiste(
     client, django_user_model, _fks_acionamento
 ):
-    """AC-07.3 — pedágio negativo é rejeitado (400) e nada é persistido:
-    pedágio e valor_agente ficam exatamente como estavam."""
+    """AC-07.3 — pedágio negativo é rejeitado (400) e nada é persistido: o
+    pedágio fica como estava. DD-068/ST3: o acionamento é SEM franquia, então o
+    valor_agente já nasce PENDENTE (None) e assim permanece após a rejeição."""
     cliente, responsavel, agente = _fks_acionamento
     ac = _acionamento_valido(cliente, responsavel, agente, pedagio=Decimal("0.00"))
     ac.save()
     ac.refresh_from_db()
 
     pedagio_antes = ac.pedagio
-    valor_agente_antes = ac.valor_agente
+    # DD-068/ST3 — sem franquia, o valor do agente é pendente desde o save.
+    assert ac.valor_agente is None
 
     user = _user_com_perms(django_user_model, "change_acionamento")
     client.force_login(user)
@@ -2307,7 +2294,7 @@ def test_pedagio_update_negativo_retorna_400_e_nao_persiste(
     assert response.status_code == 400
     ac.refresh_from_db()
     assert ac.pedagio == pedagio_antes
-    assert ac.valor_agente == valor_agente_antes
+    assert ac.valor_agente is None
 
 
 @pytest.mark.django_db
@@ -2315,8 +2302,12 @@ def test_pedagio_update_nao_afeta_outras_linhas_ac074(
     client, django_user_model, _fks_acionamento
 ):
     """AC-07.4 — o update de pedágio é isolado por linha: atualizar um acionamento
-    não pode tocar em nenhum outro. Dois acionamentos; só o alvo recebe o POST, e
-    o vizinho tem de sair exatamente como entrou (pedágio e valor_agente)."""
+    não pode tocar em nenhum outro. Dois acionamentos SEM franquia; só o alvo
+    recebe o POST, e o vizinho sai exatamente como entrou.
+
+    DD-068/ST3: sem franquia o pedágio continua aceito e persistido, mas o valor
+    do agente segue PENDENTE — e o JSON devolve valor_agente como null JSON de
+    verdade (None serializado), NUNCA a string "None"."""
     cliente, responsavel, agente = _fks_acionamento
     ac_alvo = _acionamento_valido(
         cliente, responsavel, agente, pedagio=Decimal("0.00")
@@ -2330,7 +2321,6 @@ def test_pedagio_update_nao_afeta_outras_linhas_ac074(
     ac_alvo.refresh_from_db()
     ac_vizinho.refresh_from_db()
     pedagio_vizinho_antes = ac_vizinho.pedagio
-    valor_agente_vizinho_antes = ac_vizinho.valor_agente
 
     user = _user_com_perms(django_user_model, "change_acionamento")
     client.force_login(user)
@@ -2339,14 +2329,19 @@ def test_pedagio_update_nao_afeta_outras_linhas_ac074(
     response = client.post(url, {"pedagio": "50.00"})
 
     assert response.status_code == 200
+    data = response.json()
+    assert data["pedagio"] == "50.00"
+    # null JSON de verdade: response.json() o traduz para None (nunca "None").
+    assert data["valor_agente"] is None
 
     ac_alvo.refresh_from_db()
     ac_vizinho.refresh_from_db()
-    # A linha alvo mudou...
+    # A linha alvo mudou (pedágio persiste mesmo com valor pendente)...
     assert ac_alvo.pedagio == Decimal("50.00")
+    assert ac_alvo.valor_agente is None
     # ...e a vizinha ficou intocada (coração do AC-07.4).
     assert ac_vizinho.pedagio == pedagio_vizinho_antes
-    assert ac_vizinho.valor_agente == valor_agente_vizinho_antes
+    assert ac_vizinho.valor_agente is None
 
 
 # ---------------------------------------------------------------------------
@@ -2512,7 +2507,8 @@ def test_vincular_franquia_lote_erro_de_dominio_redireciona_com_filtro_e_message
     valido = _cria(cliente)       # mesmo cliente da franquia
     invalido = _cria(cliente_b)   # cross-cliente: viola RN-06 ao receber a franquia
 
-    # valor_agente original de cada um (ambos SEM franquia), antes do POST.
+    # valor_agente de cada um ANTES do POST (ambos SEM franquia: pendente/None
+    # sob a DD-068 ST3). Mapa agnóstico ao regime — o rollback devolve este estado.
     originais = {ac.pk: ac.valor_agente for ac in (valido, invalido)}
 
     user = _user_com_perms(django_user_model, "change_acionamento")
@@ -3052,9 +3048,12 @@ def test_filtro_cnpj_valor_invalido_retorna_original():
 
 @pytest.mark.django_db
 def test_somar_valor_agente_no_mes_soma_apenas_mes_corrente(_fks_acionamento):
-    """DD-048 — soma valor_agente só dos acionamentos do mês/ano de `hoje`.
+    """DD-048 + DD-068/ST3 — soma valor_agente só dos acionamentos do mês/ano de
+    `hoje`, e acionamento SEM franquia entra como NULL (pendente) — o Sum do
+    banco o ignora, sem virar zero na conta.
 
-    Um acionamento em jun/2026 e outro em mai/2026 (datas fixas, timezone-aware).
+    Caso misto: em jun/2026, um COM franquia (único que soma) e um SEM franquia
+    (pendente, ignorado); em mai/2026, outro com franquia (ignorado pela data).
     O valor_agente é computado no save (recalcular_valor_agente), então a soma
     esperada é o valor do registro de dentro, lido do banco (Decimal, não float).
     """
@@ -3063,11 +3062,13 @@ def test_somar_valor_agente_no_mes_soma_apenas_mes_corrente(_fks_acionamento):
     from controle_acionamentos.selectors import somar_valor_agente_no_mes
 
     cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(**_dados_franquia(cliente))
 
     dentro = _acionamento_valido(
         cliente,
         responsavel,
         agente,
+        franquia_agente=franquia,
         data_hora_solicitado=timezone.make_aware(datetime(2026, 6, 10, 9, 0)),
         data_hora_inicio=timezone.make_aware(datetime(2026, 6, 10, 9, 30)),
         data_hora_final=timezone.make_aware(datetime(2026, 6, 10, 12, 0)),
@@ -3075,10 +3076,22 @@ def test_somar_valor_agente_no_mes_soma_apenas_mes_corrente(_fks_acionamento):
     dentro.save()
     dentro.refresh_from_db()
 
+    pendente_no_mes = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        franquia_agente=None,  # pendente: valor_agente NULL, fora da soma
+        data_hora_solicitado=timezone.make_aware(datetime(2026, 6, 12, 9, 0)),
+        data_hora_inicio=timezone.make_aware(datetime(2026, 6, 12, 9, 30)),
+        data_hora_final=timezone.make_aware(datetime(2026, 6, 12, 12, 0)),
+    )
+    pendente_no_mes.save()
+
     fora = _acionamento_valido(
         cliente,
         responsavel,
         agente,
+        franquia_agente=franquia,
         data_hora_solicitado=timezone.make_aware(datetime(2026, 5, 20, 9, 0)),
         data_hora_inicio=timezone.make_aware(datetime(2026, 5, 20, 9, 30)),
         data_hora_final=timezone.make_aware(datetime(2026, 5, 20, 12, 0)),
@@ -3087,7 +3100,8 @@ def test_somar_valor_agente_no_mes_soma_apenas_mes_corrente(_fks_acionamento):
 
     resultado = somar_valor_agente_no_mes(hoje=date(2026, 6, 15))
 
-    assert resultado == dentro.valor_agente
+    assert dentro.valor_agente is not None      # com franquia, a conta roda
+    assert resultado == dentro.valor_agente     # o pendente NÃO entrou na soma
     assert isinstance(resultado, Decimal)
 
 
@@ -3242,19 +3256,31 @@ def test_acionamento_update_post_valido_edita_e_recalcula(
 ):
     """Com view+change, o POST válido edita o registro e RECALCULA o valor_agente.
 
-    Contrato evoluiu na DD-067 ST2: os valores não são mais digitados — vêm do
-    snapshot do serviço escolhido. Cenário sem franquia (inline manda, agora do
-    snapshot): o acionamento nasce com 500 e é editado para um serviço de 600.
-    Após o POST: 302 para o detalhe, valor_acionamento persistido == 600 (snapshot)
-    e valor_agente (a) diferente do anterior E (b) igual ao que o próprio service
+    DD-068/ST3: quem manda no valor do agente é a FRANQUIA vinculada (o inline
+    morreu como fonte), então o arrange nasce COM franquia e a edição muda o
+    km_final (100 → 240) — insumo real da conta. O snapshot do serviço
+    (DD-067 ST2) segue persistindo nos campos inline (valor_acionamento == 600),
+    mas NÃO alimenta o valor_agente. Após o POST: 302 para o detalhe e
+    valor_agente (a) diferente do anterior E (b) igual ao que o próprio service
     recalcular_valor_agente produz para o mesmo cenário — sem número mágico.
     """
     from controle_acionamentos.services import recalcular_valor_agente
 
     cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(
+        **_dados_franquia(
+            cliente,
+            valor_acionamento=Decimal("660.00"),
+            franquia_km=200,
+            franquia_horas=Decimal("4.00"),
+            valor_km_excedente=Decimal("3.30"),
+            valor_hora_excedente=Decimal("55.00"),
+            escalonamento_automatico=True,
+        )
+    )
     base = timezone.now()
     params = dict(
-        franquia_agente=None,
+        franquia_agente=franquia,
         valor_acionamento=Decimal("500.00"),
         franquia_km=80,
         franquia_horas=Decimal("4.00"),
@@ -3273,7 +3299,7 @@ def test_acionamento_update_post_valido_edita_e_recalcula(
     valor_agente_antes = ac.valor_agente
 
     # Serviço de 600 (demais valores idênticos aos do cenário) que o POST vai
-    # aplicar: o snapshot passa a ser a fonte do valor_acionamento (não mais o
+    # aplicar: o snapshot passa a ser a fonte dos campos inline (não mais o
     # campo digitado). Ativo e do mesmo cliente para o form aceitar.
     servico = ServicoCliente.objects.create(
         cliente=cliente,
@@ -3286,10 +3312,18 @@ def test_acionamento_update_post_valido_edita_e_recalcula(
         valor_hora_excedente=Decimal("30.00"),
     )
 
-    # Espelho PURO do que o service deve produzir com valor 600 (mesmos demais
-    # campos): não persistido, só para extrair o valor_agente esperado.
+    # Espelho PURO do que o service deve produzir após a edição (km_final 240 +
+    # snapshot 600 no inline, mesma franquia): não persistido, só para extrair o
+    # valor_agente esperado.
     esperado = _acionamento_valido(
-        cliente, responsavel, agente, **{**params, "valor_acionamento": Decimal("600.00")}
+        cliente,
+        responsavel,
+        agente,
+        **{
+            **params,
+            "km_final": 240,
+            "valor_acionamento": Decimal("600.00"),
+        },
     )
     recalcular_valor_agente(esperado)
 
@@ -3297,7 +3331,7 @@ def test_acionamento_update_post_valido_edita_e_recalcula(
     client.force_login(user)
 
     url = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
-    payload = _post_payload_acionamento(ac, servico_cliente=servico.pk)
+    payload = _post_payload_acionamento(ac, servico_cliente=servico.pk, km_final=240)
     response = client.post(url, payload)
 
     assert response.status_code == 302
@@ -3307,7 +3341,8 @@ def test_acionamento_update_post_valido_edita_e_recalcula(
 
     ac.refresh_from_db()
     assert ac.valor_acionamento == Decimal("600.00")       # do snapshot do serviço
-    assert ac.valor_agente != valor_agente_antes          # recalculou de fato
+    assert ac.valor_agente is not None                     # com franquia, a conta roda
+    assert ac.valor_agente != valor_agente_antes           # recalculou de fato (km mudou)
     assert ac.valor_agente == esperado.valor_agente        # bate com o service
 
 
@@ -3461,16 +3496,20 @@ def test_registrar_edicao_um_campo_gera_um_registro(
 def test_registrar_edicao_n_campos_gera_um_registro_por_campo(
     django_user_model, _fks_acionamento
 ):
-    """Edita nome_servico E pedagio; o save recalcula valor_agente → 3 mudanças,
-    3 registros. Crava a serialização Decimal->string no registro do pedagio."""
+    """Edita nome_servico E pedagio; COM franquia vinculada (DD-068/ST3: única
+    fonte do valor do agente — sem ela seria None → None, sem registro) o save
+    recalcula valor_agente (pedágio soma) → 3 mudanças, 3 registros. Crava a
+    serialização Decimal->string no registro do pedagio."""
     from controle_acionamentos.models import AcionamentoHistorico
     from controle_acionamentos.services import registrar_edicao_acionamento
 
     cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(**_dados_franquia(cliente))
     ac = _acionamento_valido(
         cliente,
         responsavel,
         agente,
+        franquia_agente=franquia,
         nome_servico="Reboque leve",
         pedagio=Decimal("0.00"),
     )
@@ -3524,23 +3563,27 @@ def test_registrar_edicao_sem_mudanca_nao_gera_registro(
 def test_acionamento_update_post_gera_trilha_de_auditoria(
     client, django_user_model, _fks_acionamento
 ):
-    """POST que muda pedagio (0->25) deve gravar a trilha via a view: o pedágio
+    """POST que muda pedagio (0->25) deve gravar a trilha via a view: COM
+    franquia vinculada (DD-068/ST3: única fonte do valor do agente) o pedágio
     soma no valor_agente, então a auditoria registra 'pedagio' e 'valor_agente',
     ambos atribuídos ao usuário logado e ao acionamento editado.
 
     Contrato evoluiu na DD-067 ST2: o serviço é obrigatório no POST. O acionamento
     já NASCE com o serviço aplicado (valores idênticos aos do molde), então
     reaplicar o MESMO serviço na edição não muda os campos do snapshot — só o
-    pedágio (e o valor_agente derivado) entram na trilha."""
+    pedágio (e o valor_agente derivado da franquia) entram na trilha. O payload
+    reenviado pelo _post_payload_acionamento preserva a franquia_agente."""
     from controle_acionamentos.models import AcionamentoHistorico
 
     cliente, responsavel, agente = _fks_acionamento
     servico = _cria_servico(cliente, _SERVICOS_EM_ORDEM[0], ativo=True)
+    franquia = FranquiaAgente.objects.create(**_dados_franquia(cliente))
     base = timezone.now().replace(second=0, microsecond=0)
     ac = _acionamento_valido(
         cliente,
         responsavel,
         agente,
+        franquia_agente=franquia,
         pedagio=Decimal("0.00"),
         data_hora_solicitado=base,
         data_hora_inicio=base + timedelta(minutes=30),
@@ -5363,14 +5406,15 @@ def test_deletar_servico_referenciado_por_acionamento_e_protegido(_fks_acionamen
 def test_congelamento_forte_snapshot_nao_reflete_edicao_do_catalogo(_fks_acionamento):
     """5 — CONGELAMENTO FORTE: com o serviço aplicado e o acionamento salvo,
     EDITAR o serviço no catálogo e re-salvar o acionamento (simulando update de
-    pedágio) NÃO puxa os valores novos — os campos inline e o valor_agente
-    seguem o snapshot da época."""
+    pedágio) NÃO puxa os valores novos — os campos inline seguem o snapshot da
+    época. DD-068/ST3: sem franquia vinculada o valor_agente é PENDENTE (None)
+    antes e depois do re-save — o snapshot nunca alimenta a conta do agente."""
     cliente, responsavel, agente = _fks_acionamento
     servico = _servico_distinto(cliente)
     ac = _acionamento_valido(cliente, responsavel, agente)
     aplicar_servico_ao_acionamento(ac, servico)
-    ac.save()  # congela o snapshot no inline e calcula o valor_agente da época
-    valor_agente_epoca = ac.valor_agente
+    ac.save()  # congela o snapshot no inline; sem franquia, valor_agente pendente
+    assert ac.valor_agente is None
 
     # O catálogo muda DEPOIS que o acionamento já existe.
     servico.valor_acionamento = Decimal("999.00")
@@ -5391,8 +5435,8 @@ def test_congelamento_forte_snapshot_nao_reflete_edicao_do_catalogo(_fks_acionam
     assert ac.franquia_horas == Decimal("8.00")
     assert ac.valor_km_excedente == Decimal("5.00")
     assert ac.valor_hora_excedente == Decimal("60.00")
-    # O valor_agente é o da época + o pedágio novo (pedágio soma); nada do catálogo.
-    assert ac.valor_agente == valor_agente_epoca + Decimal("25.00")
+    # Sem franquia o valor do agente segue PENDENTE — nada do catálogo, nada de conta.
+    assert ac.valor_agente is None
 
 
 # ---------------------------------------------------------------
@@ -5501,8 +5545,9 @@ def test_post_create_valido_aplica_snapshot_do_servico(
     client, django_user_model, _fks_acionamento
 ):
     """5 — POST válido (serviço ATIVO do cliente): 302, acionamento criado com o
-    SNAPSHOT dos 5 valores do serviço (500/200/8/5/60), valor_agente calculado no
-    save (500,00 sem excedentes), FK servico_cliente setada e criado_por carimbado.
+    SNAPSHOT dos 5 valores do serviço (500/200/8/5/60), FK servico_cliente setada
+    e criado_por carimbado. DD-068/ST3: sem franquia vinculada o valor_agente
+    nasce PENDENTE (None) — o snapshot não alimenta a conta do agente.
 
     O payload leva os inline do molde (150/…), DISTINTOS dos do serviço: se o
     snapshot não ocorrer, os valores denunciam."""
@@ -5524,8 +5569,8 @@ def test_post_create_valido_aplica_snapshot_do_servico(
     assert ac.franquia_horas == Decimal("8.00")
     assert ac.valor_km_excedente == Decimal("5.00")
     assert ac.valor_hora_excedente == Decimal("60.00")
-    # km 120 e 2,5h estão dentro da franquia (200/8) → sem excedente, pedágio 0.
-    assert ac.valor_agente == Decimal("500.00")
+    # DD-068/ST3 — sem franquia vinculada, o valor do agente fica pendente.
+    assert ac.valor_agente is None
     assert ac.criado_por == user
 
 
@@ -5590,9 +5635,10 @@ def test_post_create_sem_servico_nao_cria(
 
 
 @pytest.mark.django_db
-def test_acionamento_legado_sem_servico_e_valido_e_calcula_inline(_fks_acionamento):
-    """6 — acionamento legado SEM serviço continua válido e calcula pelo inline,
-    exatamente como hoje."""
+def test_acionamento_legado_sem_servico_e_valido_e_pendente(_fks_acionamento):
+    """6 — acionamento legado SEM serviço continua VÁLIDO (full_clean passa);
+    DD-068/ST3: sem franquia vinculada o valor do agente fica PENDENTE (None) —
+    o inline não calcula mais."""
     cliente, responsavel, agente = _fks_acionamento
     ac = _acionamento_valido(cliente, responsavel, agente)
 
@@ -5600,7 +5646,7 @@ def test_acionamento_legado_sem_servico_e_valido_e_calcula_inline(_fks_acionamen
     ac.save()
 
     assert ac.servico_cliente is None
-    assert ac.valor_agente is not None
+    assert ac.valor_agente is None
 
 
 @pytest.mark.django_db
@@ -5646,8 +5692,9 @@ def test_update_troca_servico_faz_re_snapshot(
     client, django_user_model, _fks_acionamento
 ):
     """1 (regra A) — trocar por OUTRO serviço ativo do MESMO cliente recopia os 5
-    valores + nome e recalcula: FK nova, inline = valores do serviço novo,
-    valor_agente recalculado (500 dentro da franquia 200km/8h)."""
+    valores + nome: FK nova, inline = valores do serviço novo. DD-068/ST3: sem
+    franquia vinculada o valor_agente segue PENDENTE (None) — o re-snapshot não
+    alimenta a conta do agente."""
     cliente, responsavel, agente = _fks_acionamento
     servico_a = _cria_servico(cliente, _SERVICOS_EM_ORDEM[0], ativo=True)  # 150/80/4/2.5/30
     servico_b = _servico_distinto(cliente, nome=_SERVICOS_EM_ORDEM[1])     # 500/200/8/5/60
@@ -5669,7 +5716,8 @@ def test_update_troca_servico_faz_re_snapshot(
     assert ac.valor_km_excedente == Decimal("5.00")
     assert ac.valor_hora_excedente == Decimal("60.00")
     assert ac.nome_servico == ServicoCliente.Nome(_SERVICOS_EM_ORDEM[1]).label
-    assert ac.valor_agente == Decimal("500.00")
+    # DD-068/ST3 — sem franquia vinculada, o valor do agente permanece pendente.
+    assert ac.valor_agente is None
 
 
 @pytest.mark.django_db
@@ -5780,7 +5828,8 @@ def test_update_troca_servico_aparece_na_trilha(
     client, django_user_model, _fks_acionamento
 ):
     """5 (regra D) — trocar o serviço na edição gera trilha refletindo nome_servico
-    e valores novos, com o valor_agente recalculado."""
+    e os valores inline novos do re-snapshot. DD-068/ST3: sem franquia vinculada o
+    valor_agente não muda (None → None) e por isso NÃO entra na trilha."""
     from controle_acionamentos.models import AcionamentoHistorico
 
     cliente, responsavel, agente = _fks_acionamento
@@ -5797,7 +5846,9 @@ def test_update_troca_servico_aparece_na_trilha(
 
     assert response.status_code == 302
     campos = {r.campo for r in AcionamentoHistorico.objects.all()}
-    assert {"nome_servico", "valor_acionamento", "valor_agente"} <= campos
+    assert {"nome_servico", "valor_acionamento"} <= campos
+    # DD-068/ST3 — sem franquia, valor_agente é None → None: não gera registro.
+    assert "valor_agente" not in campos
     reg_valor = AcionamentoHistorico.objects.get(campo="valor_acionamento")
     assert reg_valor.valor_novo == "500.00"
 

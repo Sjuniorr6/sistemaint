@@ -96,7 +96,12 @@
     </div>
   </div>
 
-  {% comment %} ==== COMPOSIÇÃO DO VALOR — extrato das parcelas (DD-032/ST5) ==== {% endcomment %}
+  {% comment %}
+  ==== COMPOSIÇÃO DO VALOR — extrato das parcelas (DD-032/ST5) ====
+  DD-068/ST3: sem franquia vinculada compor_valor_agente devolve None e o card
+  não renderiza — o visual completo do estado PENDENTE é da DD-069.
+  {% endcomment %}
+  {% if composicao %}
   <div class="card mb-4">
     <div class="card-header fw-semibold text-uppercase small">Composição do valor</div>
     <div class="card-body p-0">
@@ -133,6 +138,7 @@
       </div>
     </div>
   </div>
+  {% endif %}
 
   {% comment %} ==== DADOS DE ORIGEM — leitura, espelhando as seções do form ==== {% endcomment %}
   <div class="acn-dash-rotulo mb-2">Dados de origem</div>

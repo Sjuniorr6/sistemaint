@@ -300,6 +300,35 @@ def calcular_valor_cliente(
 # ---------------------------------------------------------------------------
 
 
+def _entrada_da_franquia(
+    franquia_agente,
+    km_total: int,
+    horas_total: Decimal,
+    pedagio: Decimal,
+) -> EntradaCalculoAgente:
+    """Monta a EntradaCalculoAgente a partir dos valores da FRANQUIA (DD-068).
+
+    Fonte ÚNICA do mapeamento franquia → entrada da calculadora: valores-base,
+    tarifas e escalonamento vêm todos da franquia (única tradução de nome:
+    ``escalonamento_automatico`` → ``escalonamento_ativo``); km/horas totais e
+    pedágio vêm da jornada. Compartilhado por ``calcular_valor_agente_por_franquia``,
+    ``recalcular_valor_agente`` e ``compor_valor_agente``, para que todos leiam a
+    MESMA fonte e nunca divirjam. ``franquia_agente`` é duck-typed (qualquer
+    objeto com os 6 atributos) — o módulo segue sem importar models.
+    """
+    return EntradaCalculoAgente(
+        valor_acionamento=franquia_agente.valor_acionamento,
+        franquia_km=franquia_agente.franquia_km,
+        franquia_horas=franquia_agente.franquia_horas,
+        valor_km_excedente=franquia_agente.valor_km_excedente,
+        valor_hora_excedente=franquia_agente.valor_hora_excedente,
+        escalonamento_ativo=franquia_agente.escalonamento_automatico,
+        km_total=km_total,
+        horas_total=horas_total,
+        pedagio=pedagio,
+    )
+
+
 def calcular_valor_agente_por_franquia(
     *,
     franquia_agente,
@@ -312,20 +341,15 @@ def calcular_valor_agente_por_franquia(
     Sem franquia (None) não há o que calcular: retorna None — estado PENDENTE
     (o vínculo pode vir depois, inclusive em lote). Com franquia, a entrada é
     montada EXCLUSIVAMENTE com os valores dela (nunca os inline do acionamento)
-    e a matemática é toda delegada ao calcular_valor_agente — escalonamento e
-    pedágio já moram lá, nada é duplicado aqui. Função pura: `franquia_agente`
-    é duck-typed (qualquer objeto com os 6 atributos), sem importar models.
+    pelo ``_entrada_da_franquia``, e a matemática é toda delegada ao
+    calcular_valor_agente — escalonamento e pedágio já moram lá, nada é
+    duplicado aqui. Função pura, sem importar models.
     """
     if franquia_agente is None:
         return None
 
-    entrada = EntradaCalculoAgente(
-        valor_acionamento=franquia_agente.valor_acionamento,
-        franquia_km=franquia_agente.franquia_km,
-        franquia_horas=franquia_agente.franquia_horas,
-        valor_km_excedente=franquia_agente.valor_km_excedente,
-        valor_hora_excedente=franquia_agente.valor_hora_excedente,
-        escalonamento_ativo=franquia_agente.escalonamento_automatico,
+    entrada = _entrada_da_franquia(
+        franquia_agente,
         km_total=km_total,
         horas_total=horas_total,
         pedagio=pedagio,
@@ -333,58 +357,17 @@ def calcular_valor_agente_por_franquia(
     return calcular_valor_agente(entrada).valor_agente
 
 
-def _resolver_entrada(acionamento):
-    """Resolve a FONTE do cálculo e monta a entrada da calculadora (§8.1/RN-08).
-
-    Havendo franquia vinculada, ela faz OVERRIDE do serviço inline — todas as
-    tarifas e valores-base (e o escalonamento) vêm da franquia; sem franquia,
-    usa-se o inline do próprio acionamento, sem escalonamento. As tarifas da
-    ``entrada`` retornada JÁ são as da fonte resolvida (nunca cegas do inline
-    quando há franquia — a armadilha do RN-08). Requer km_total/horas_total já
-    derivados (§8.2). Retorna ``(entrada, fonte_franquia)``.
-
-    Compartilhado por ``recalcular_valor_agente`` (persistência) e
-    ``compor_valor_agente`` (extrato de exibição), para que os dois leiam a MESMA
-    fonte e nunca divirjam.
-    """
-    if acionamento.franquia_agente:
-        fonte = acionamento.franquia_agente
-        entrada = EntradaCalculoAgente(
-            valor_acionamento=fonte.valor_acionamento,
-            franquia_km=fonte.franquia_km,
-            franquia_horas=fonte.franquia_horas,
-            valor_km_excedente=fonte.valor_km_excedente,
-            valor_hora_excedente=fonte.valor_hora_excedente,
-            escalonamento_ativo=fonte.escalonamento_automatico,  # única tradução de nome
-            km_total=acionamento.km_total,
-            horas_total=acionamento.horas_total,
-            pedagio=acionamento.pedagio,
-        )
-        return entrada, True
-
-    entrada = EntradaCalculoAgente(
-        valor_acionamento=acionamento.valor_acionamento,
-        franquia_km=acionamento.franquia_km,
-        franquia_horas=acionamento.franquia_horas,
-        valor_km_excedente=acionamento.valor_km_excedente,
-        valor_hora_excedente=acionamento.valor_hora_excedente,
-        escalonamento_ativo=False,
-        km_total=acionamento.km_total,
-        horas_total=acionamento.horas_total,
-        pedagio=acionamento.pedagio,
-    )
-    return entrada, False
-
-
 def recalcular_valor_agente(acionamento) -> None:
-    """Preenche os 5 campos calculados de um Acionamento (RN-07, §8).
+    """Preenche os campos calculados de um Acionamento (RN-07, §8 + DD-068/ST3).
 
-    Ponte entre o model e a calculadora pura: deriva km/horas totais (§8.2),
-    resolve a fonte dos valores (§8.1 — franquia faz override do inline), chama
-    ``calcular_valor_agente`` e grava o resultado de volta na instância. Lê a
-    instância por duck-typing (NÃO importa models) — este módulo segue puro e
-    testável sem banco. Não persiste: quem chama (``Acionamento.save``) é que faz
-    o ``super().save()``.
+    Ponte entre o model e a calculadora pura: deriva km/horas totais (§8.2 —
+    fatos da jornada, sempre) e resolve o trio financeiro pela FRANQUIA
+    vinculada, ÚNICA fonte do valor do agente desde a DD-068/ST3 (o RN-08 e o
+    cálculo pelo inline morreram): sem franquia, km_excedente/hora_excedente/
+    valor_agente ficam PENDENTES (None) — nunca calculados pelo inline, nunca
+    zero. Lê a instância por duck-typing (NÃO importa models) — este módulo
+    segue puro e testável sem banco. Não persiste: quem chama
+    (``Acionamento.save``) é que faz o ``super().save()``.
     """
     # §8.2 — derivação dos totais. Tudo em Decimal puro (sem float): o timedelta
     # já vem decomposto em days/seconds/microseconds, que montamos em segundos e
@@ -398,11 +381,20 @@ def recalcular_valor_agente(acionamento) -> None:
     )
     acionamento.horas_total = _quantizar(segundos / Decimal(3600))
 
-    # §8.1/RN-08 — fonte dos valores resolvida pelo helper (compartilhado com
-    # compor_valor_agente): havendo franquia vinculada, ela faz OVERRIDE do
-    # inline; sem franquia, usa-se o inline, sem escalonamento.
-    entrada, _fonte_franquia = _resolver_entrada(acionamento)
+    # DD-068/ST3 — sem franquia vinculada a conta do agente não roda: o trio
+    # (saídas da MESMA conta) fica pendente em bloco. Os totais acima permanecem.
+    if not acionamento.franquia_agente:
+        acionamento.km_excedente = None
+        acionamento.hora_excedente = None
+        acionamento.valor_agente = None
+        return
 
+    entrada = _entrada_da_franquia(
+        acionamento.franquia_agente,
+        km_total=acionamento.km_total,
+        horas_total=acionamento.horas_total,
+        pedagio=acionamento.pedagio,
+    )
     resultado = calcular_valor_agente(entrada)
 
     # km_total/horas_total já vieram do passo §8.2 — aqui só os derivados da conta.
@@ -416,11 +408,12 @@ def aplicar_servico_ao_acionamento(acionamento, servico):
     EXPLÍCITO (nunca no save()).
 
     Congelamento forte: a FK `servico_cliente` é só a REFERÊNCIA de qual serviço
-    foi escolhido; a FONTE do cálculo é o SNAPSHOT — os 5 valores do serviço
-    copiados para os campos inline do acionamento. Como o save() recalcula a
-    partir do inline (não do catálogo), re-salvar o acionamento (ex.: editar
-    pedágio) nunca relê o serviço, e editar o catálogo depois não altera
-    acionamentos já registrados.
+    foi escolhido; o SNAPSHOT copia os 5 valores do serviço para os campos
+    inline do acionamento. Desde a DD-068/ST3 o inline NÃO alimenta mais o
+    valor do AGENTE (que vem só da franquia) — o snapshot permanece como
+    registro congelado dos valores do serviço (auditoria e base do valor do
+    CLIENTE, DD-068/ST1): re-salvar o acionamento nunca relê o catálogo, e
+    editar o catálogo depois não altera acionamentos já registrados.
 
     O `nome_servico` do acionamento também DERIVA do serviço (DD-067/ST2): passa a
     ser o label humano do choice escolhido (get_nome_display), não mais um texto
@@ -441,11 +434,12 @@ def aplicar_servico_ao_acionamento(acionamento, servico):
 class ComposicaoValorAgente:
     """Extrato de parcelas do valor do agente, para exibição no detalhe (DD-032/ST5).
 
-    Recompõe as parcelas que formam o total, a partir da fonte resolvida
-    (§8.1/RN-08): a base pós-escalonamento, os subtotais de excedente às tarifas
-    da fonte e o pedágio. ``fonte_franquia`` e ``blocos`` alimentam a anotação da
-    1ª linha ("da franquia" / "escalonado · N blocos" / inline sem escalonamento).
-    ``frozen=True`` — extrato produzido não muda.
+    Recompõe as parcelas que formam o total, a partir da FRANQUIA vinculada
+    (única fonte do valor do agente desde a DD-068/ST3): a base
+    pós-escalonamento, os subtotais de excedente às tarifas da franquia e o
+    pedágio. ``fonte_franquia`` (sempre True quando o extrato existe) e
+    ``blocos`` alimentam a anotação da 1ª linha ("da franquia" / "escalonado ·
+    N blocos"). ``frozen=True`` — extrato produzido não muda.
 
     Invariante: ``valor_acionamento_ajustado + subtotal_km + subtotal_hora +
     pedagio == valor_agente``.
@@ -464,27 +458,37 @@ class ComposicaoValorAgente:
     valor_agente: Decimal
 
 
-def compor_valor_agente(acionamento) -> ComposicaoValorAgente:
+def compor_valor_agente(acionamento):
     """Monta o extrato de parcelas do detalhe (DD-032/ST5) — exibição PURA.
 
-    Nada é persistido: resolve a fonte (§8.1/RN-08) pelo mesmo ``_resolver_entrada``
-    do recálculo, roda a calculadora e recompõe as parcelas em R$ (base ajustada +
-    subtotais de excedente às tarifas da FONTE resolvida + pedágio). Os subtotais
-    usam o mesmo ``_quantizar`` do módulo, para o arredondamento contábil bater com
-    o do cálculo. Invariante (garantido pelos testes): a soma das parcelas ==
+    DD-068/ST3: SEM franquia vinculada não há composição — retorna None (estado
+    PENDENTE; o card do detalhe não renderiza). Com franquia, nada é persistido:
+    monta a entrada pelo mesmo ``_entrada_da_franquia`` do recálculo, roda a
+    calculadora e recompõe as parcelas em R$ (base ajustada + subtotais de
+    excedente às tarifas da FRANQUIA + pedágio). Os subtotais usam o mesmo
+    ``_quantizar`` do módulo, para o arredondamento contábil bater com o do
+    cálculo. Invariante (garantido pelos testes): a soma das parcelas ==
     ``valor_agente``. Requer km_total/horas_total já derivados (acionamento salvo).
     """
-    entrada, fonte_franquia = _resolver_entrada(acionamento)
+    if not acionamento.franquia_agente:
+        return None
+
+    entrada = _entrada_da_franquia(
+        acionamento.franquia_agente,
+        km_total=acionamento.km_total,
+        horas_total=acionamento.horas_total,
+        pedagio=acionamento.pedagio,
+    )
     resultado = calcular_valor_agente(entrada)
 
-    # Subtotais em R$: quantidade de excedente × tarifa da fonte resolvida.
+    # Subtotais em R$: quantidade de excedente × tarifa da franquia.
     subtotal_km = _quantizar(resultado.km_excedente * entrada.valor_km_excedente)
     subtotal_hora = _quantizar(resultado.hora_excedente * entrada.valor_hora_excedente)
 
     return ComposicaoValorAgente(
         valor_acionamento_ajustado=resultado.valor_acionamento_ajustado,
         blocos=resultado.blocos,
-        fonte_franquia=fonte_franquia,
+        fonte_franquia=True,
         km_excedente=resultado.km_excedente,
         valor_unitario_km=entrada.valor_km_excedente,
         subtotal_km=subtotal_km,
