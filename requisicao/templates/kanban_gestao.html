@@ -1396,9 +1396,14 @@ document.addEventListener('DOMContentLoaded', function() {
             handle: '.kanban-card',
             forceFallback: true,
             fallbackClass: 'sortable-fallback',
-            delay: 200, // Delay de 1 segundo para evitar arrastar acidentalmente
-            delayOnTouchOnly: false, // Aplica delay em todos os dispositivos
-            
+            delay: 80, // Delay só no toque (delayOnTouchOnly) para evitar arraste acidental; no mouse é imediato
+            delayOnTouchOnly: true, // Nenhum delay no mouse (desktop); delay só em telas de toque
+            touchStartThreshold: 5, // Tolerância de movimento no toque antes de iniciar o arraste
+            // Inicia o arraste em qualquer ponto do card, mas nunca sobre um controle interativo.
+            // preventOnFilter:false mantém o clique nesses controles funcionando (não vira drag, nem é bloqueado).
+            filter: 'button, a, input, select, textarea, label, .priority-flag, .no-drag',
+            preventOnFilter: false,
+
             onMove: function(evt) {
                 // Auto-scroll durante o movimento
                 const rect = evt.related.getBoundingClientRect();
