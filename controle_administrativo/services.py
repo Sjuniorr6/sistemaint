@@ -428,11 +428,21 @@ def gerar_blocos_semana(semana_iso, ano, user):
     from .models import BlocoSemanal, TipoBloco
     import datetime
 
-    # Calcula semana anterior para buscar itens fixos
-    data_ref      = datetime.date.fromisocalendar(ano, semana_iso, 1)
-    data_anterior = data_ref - datetime.timedelta(weeks=1)
-    semana_ant    = data_anterior.isocalendar()[1]
-    ano_ant       = data_anterior.isocalendar()[0]
+    data_ref = datetime.date.fromisocalendar(ano, semana_iso, 1)
+
+    # Semana anterior (1 semana atrás) — recorrência SEMANAL dos blocos
+    # "Não Esquecer" e "Mensal": item fixo carrega para a semana seguinte.
+    data_1sem  = data_ref - datetime.timedelta(weeks=1)
+    semana_ant = data_1sem.isocalendar()[1]
+    ano_ant    = data_1sem.isocalendar()[0]
+
+    # Duas semanas atrás — recorrência QUINZENAL: o item fixo do bloco quinzenal
+    # reaparece a cada 2 semanas (não toda semana), ancorado na semana em que foi
+    # fixado. Buscando a origem 2 semanas atrás, as semanas intermediárias não
+    # recebem cópia e o item pula uma semana, como esperado para "quinzenal".
+    data_2sem   = data_ref - datetime.timedelta(weeks=2)
+    semana_ant2 = data_2sem.isocalendar()[1]
+    ano_ant2    = data_2sem.isocalendar()[0]
 
     for tipo in [TipoBloco.NAO_ESQUECER, TipoBloco.QUINZENAL, TipoBloco.MENSAL]:
         bloco, criado = BlocoSemanal.objects.get_or_create(
@@ -445,7 +455,10 @@ def gerar_blocos_semana(semana_iso, ano, user):
         # A função é idempotente e respeita soft-delete (oculta), então rodar
         # em toda visita propaga itens recém-fixados para semanas já existentes,
         # sem duplicar e sem ressuscitar itens excluídos de propósito.
-        _copiar_itens_fixos_bloco(bloco, semana_ant, ano_ant)
+        if tipo == TipoBloco.QUINZENAL:
+            _copiar_itens_fixos_bloco(bloco, semana_ant2, ano_ant2)
+        else:
+            _copiar_itens_fixos_bloco(bloco, semana_ant, ano_ant)
 
     # Copia tarefas da divisão com is_fixo=True da semana anterior
     _copiar_tarefas_divisao_fixas(semana_iso, ano)

@@ -504,7 +504,16 @@ def toggle_item_bloco_view(request, item_id):
         return JsonResponse({'success': False, 'error': 'Sem permissão.'}, status=403)
     try:
         item = toggle_item_bloco(item_id)
-        return JsonResponse({'success': True, 'is_done': item.is_done})
+        # Recalcula o progresso: itens quinzenais agora entram no agregado (RN-06).
+        semana_iso, ano = get_semana_atual()
+        resumo = get_resumo_semana(semana_iso, ano)
+        return JsonResponse({
+            'success':    True,
+            'is_done':    item.is_done,
+            'percentual': resumo['percentual'],
+            'concluidas': resumo['concluidas'],
+            'total':      resumo['total'],
+        })
     except ValueError as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
@@ -526,7 +535,7 @@ def detalhe_item_bloco(request, item_id):
     from .models import ItemBlocoSemanal
     try:
         item = ItemBlocoSemanal.objects.select_related(
-            'responsavel', 'criado_por'
+            'responsavel', 'criado_por', 'bloco'
         ).prefetch_related('comentarios', 'comentarios__autor').get(id=item_id)
     except ItemBlocoSemanal.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Item não encontrado.'})
@@ -546,6 +555,7 @@ def detalhe_item_bloco(request, item_id):
         'id':               item.id,
         'conteudo':         item.conteudo,
         'is_fixo':          item.is_fixo,
+        'bloco_tipo':       item.bloco.tipo,
         'is_done':          item.is_done,
         'prazo':            item.prazo.strftime('%Y-%m-%d') if item.prazo else '',
         'prazo_fmt':        item.prazo.strftime('%d/%m/%Y') if item.prazo else '—',

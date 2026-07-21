@@ -108,17 +108,37 @@ def get_funcionarios_ativos():
 
 
 def get_resumo_semana(semana_iso, ano):
+    """
+    Fonte única do progresso da aba (RN-07). Soma as tarefas diárias/semanais
+    (ExecucaoTarefaAdministrativa) com as atividades QUINZENAIS da quinzena
+    vigente — que aqui são os itens do bloco QUINZENAL da própria semana
+    (BlocoSemanal.tipo=QUINZENAL). Peso 1 por atividade (RN-04); nunca 100%
+    com quinzenal pendente e nunca 100% com total zero (RN-08).
+    """
+    from .models import ItemBlocoSemanal, TipoBloco
+
     execucoes = ExecucaoTarefaAdministrativa.objects.filter(
         semana_iso=semana_iso,
         ano=ano,
         oculta=False,
     ).exclude(status='cancelada')
 
-    total = execucoes.count()
+    # Atividades quinzenais da semana vigente (itens visíveis do bloco QUINZENAL)
+    itens_quinzenais = ItemBlocoSemanal.objects.filter(
+        bloco__tipo=TipoBloco.QUINZENAL,
+        bloco__semana_iso=semana_iso,
+        bloco__ano=ano,
+        oculta=False,
+    )
+
+    total = execucoes.count() + itens_quinzenais.count()
     if total == 0:
         return {'total': 0, 'concluidas': 0, 'percentual': 0}
 
-    concluidas = execucoes.filter(is_done=True).count()
+    concluidas = (
+        execucoes.filter(is_done=True).count()
+        + itens_quinzenais.filter(is_done=True).count()
+    )
     percentual = round((concluidas / total) * 100)
 
     return {

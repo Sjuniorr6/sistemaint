@@ -838,9 +838,12 @@
           <input type="date" id="modal-item-prazo" class="form-control form-control-sca">
         </div>
 
-        <div class="mb-3 d-flex align-items-center gap-2">
-          <input type="checkbox" id="modal-item-fixo" style="accent-color:var(--gold);width:14px;height:14px;">
-          <label class="form-label-sca mb-0" for="modal-item-fixo">Item fixo — carregar para a semana seguinte</label>
+        <div class="mb-3">
+          <div class="d-flex align-items-center gap-2">
+            <input type="checkbox" id="modal-item-fixo" style="accent-color:var(--gold);width:14px;height:14px;">
+            <label class="form-label-sca mb-0" id="modal-item-fixo-label" for="modal-item-fixo">Item fixo — carregar para a semana seguinte</label>
+          </div>
+          <div class="form-text small" id="modal-item-fixo-help" style="display:none;margin-left:22px;"></div>
         </div>
 
         <!-- ── PONTOS IMPORTANTES (read-only) ── -->
@@ -912,9 +915,12 @@
           <input type="date" id="criar-item-prazo" class="form-control form-control-sca">
         </div>
 
-        <div class="mb-3 d-flex align-items-center gap-2">
-          <input type="checkbox" id="criar-item-fixo" style="accent-color:var(--gold);width:14px;height:14px;">
-          <label class="form-label-sca mb-0" for="criar-item-fixo">Item fixo — carregar para a semana seguinte</label>
+        <div class="mb-3">
+          <div class="d-flex align-items-center gap-2">
+            <input type="checkbox" id="criar-item-fixo" style="accent-color:var(--gold);width:14px;height:14px;">
+            <label class="form-label-sca mb-0" id="criar-item-fixo-label" for="criar-item-fixo">Item fixo — carregar para a semana seguinte</label>
+          </div>
+          <div class="form-text small" id="criar-item-fixo-help" style="display:none;margin-left:22px;"></div>
         </div>
 
         <div id="criar-item-erro" class="text-danger" style="font-size:0.75rem;display:none;"></div>
@@ -1201,6 +1207,23 @@
   // ── Blocos especiais ──
   let blocoAtualId = null;
 
+  // Ajusta o rótulo do checkbox "fixo" conforme o bloco: no quinzenal o item
+  // fixo recorre a cada quinzena (2 semanas); nos demais, toda semana. (RN-01/RN-06)
+  function ajustarRotuloFixo(prefixo, tipo) {
+    const ehQuinzenal = tipo === 'quinzenal';
+    const label = document.getElementById(prefixo + '-label');
+    const help  = document.getElementById(prefixo + '-help');
+    if (label) {
+      label.textContent = ehQuinzenal
+        ? 'Fixar o item quinzenalmente'
+        : 'Item fixo — carregar para a semana seguinte';
+    }
+    if (help) {
+      help.textContent   = ehQuinzenal ? 'O item voltará a aparecer automaticamente a cada quinzena (2 semanas).' : '';
+      help.style.display = ehQuinzenal ? '' : 'none';
+    }
+  }
+
   function abrirModalCriarItemBloco(blocoId) {
     blocoAtualId = blocoId;
     document.getElementById('criar-item-conteudo').value      = '';
@@ -1208,6 +1231,8 @@
     document.getElementById('criar-item-prazo').value         = '';
     document.getElementById('criar-item-fixo').checked        = false;
     document.getElementById('criar-item-erro').style.display  = 'none';
+    const blocoEl = document.getElementById(`bloco-${blocoId}`);
+    ajustarRotuloFixo('criar-item-fixo', blocoEl ? blocoEl.dataset.tipo : '');
     new bootstrap.Modal(document.getElementById('modalCriarItemBloco')).show();
   }
 
@@ -1256,6 +1281,13 @@
       const texto = document.getElementById(`texto-item-${itemId}`);
       texto.style.textDecoration = data.is_done ? 'line-through' : '';
       texto.style.color          = data.is_done ? 'var(--text-muted)' : '';
+      // Atualiza a barra sem reload: quinzenais agora contam no progresso (RN-06).
+      if (data.percentual !== undefined) {
+        document.getElementById('progress-bar').style.width = data.percentual + '%';
+        document.getElementById('pct-label').textContent    = data.percentual + '%';
+        const detalhe = document.getElementById('pct-detalhe');
+        if (detalhe) detalhe.textContent = `(${data.concluidas}/${data.total})`;
+      }
     });
   }
 
@@ -1316,6 +1348,7 @@
         document.getElementById('modal-item-prazo').value            = data.prazo;
         document.getElementById('modal-item-responsavel').value      = data.responsavel_id;
         document.getElementById('modal-item-fixo').checked           = data.is_fixo;
+        ajustarRotuloFixo('modal-item-fixo', data.bloco_tipo);
         document.getElementById('modal-item-criado-por').textContent = data.criado_por;
         document.getElementById('modal-item-criado-em').textContent  = data.criado_em;
         document.getElementById('modal-item-novo-comentario').value  = '';
