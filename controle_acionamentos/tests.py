@@ -3387,6 +3387,23 @@ def test_home_renderiza_ultimos_acionamentos(
     assert ac.codigo in conteudo
 
 
+@pytest.mark.django_db
+def test_home_rotulo_do_card_de_valor_e_do_agente_no_mes(client, django_user_model):
+    """DD-069/ST3 (RED) — o 3º card de indicadores troca o rótulo genérico
+    "Valor total do mês" por "Valor do agente no mês": com as duas colunas de
+    valor na listagem (ST2), o nome precisa dizer QUAL valor o número soma
+    (somar_valor_agente_no_mes). O rótulo antigo não pode sobrar na home."""
+    user = django_user_model.objects.create_user(username="home_rotulo", password="x")
+    client.force_login(user)
+
+    response = client.get(reverse("controle_acionamentos:index"))
+
+    assert response.status_code == 200
+    conteudo = response.content.decode(response.charset)
+    assert "Valor do agente no mês" in conteudo
+    assert "Valor total do mês" not in conteudo
+
+
 # ---------------------------------------------------------------
 # DD-049/ST1 — edição de acionamento (RED: view/rota ainda não existem)
 # Rota alvo: controle_acionamentos:acionamento_update (kwarg pk)
