@@ -500,6 +500,68 @@ def compor_valor_agente(acionamento):
     )
 
 
+@dataclass(frozen=True)
+class ComposicaoValorCliente:
+    """Extrato de parcelas do valor do CLIENTE, para o detalhe (DD-069/ST1).
+
+    Espelho do ComposicaoValorAgente, mas com a fonte nos valores do SERVIÇO
+    gravados no acionamento (inline/snapshot) — nunca a franquia, que é lado
+    agente. Por regra de negócio (DD-068/ST1) o cliente NÃO paga pedágio nem
+    escalonamento, então essas parcelas simplesmente não existem aqui.
+
+    Invariante: ``valor_acionamento + subtotal_km + subtotal_hora ==
+    valor_cliente``.
+    """
+
+    valor_acionamento: Decimal
+    km_excedente: int
+    valor_unitario_km: Decimal
+    subtotal_km: Decimal
+    hora_excedente: Decimal
+    valor_unitario_hora: Decimal
+    subtotal_hora: Decimal
+    valor_cliente: Decimal
+
+
+def compor_valor_cliente(acionamento):
+    """Monta o extrato de parcelas do valor do CLIENTE (DD-069/ST1) — exibição
+    PURA, espelho de compor_valor_agente.
+
+    Não depende de franquia (existe mesmo no estado pendente do agente): a
+    entrada são os campos de serviço persistidos no acionamento. O total é
+    delegado ao calcular_valor_cliente (fonte única da matemática, DD-068/ST1);
+    aqui só se recompõem as quantidades e subtotais com o mesmo ``_quantizar``
+    da casa. Requer km_total/horas_total já derivados (acionamento salvo).
+    """
+    km_excedente = max(0, acionamento.km_total - acionamento.franquia_km)
+    hora_excedente = _quantizar(
+        max(Decimal("0"), acionamento.horas_total - acionamento.franquia_horas)
+    )
+    subtotal_km = _quantizar(km_excedente * acionamento.valor_km_excedente)
+    subtotal_hora = _quantizar(hora_excedente * acionamento.valor_hora_excedente)
+
+    valor_cliente = calcular_valor_cliente(
+        valor_acionamento=acionamento.valor_acionamento,
+        franquia_km=acionamento.franquia_km,
+        franquia_horas=acionamento.franquia_horas,
+        valor_km_excedente=acionamento.valor_km_excedente,
+        valor_hora_excedente=acionamento.valor_hora_excedente,
+        km_total=acionamento.km_total,
+        horas_total=acionamento.horas_total,
+    )
+
+    return ComposicaoValorCliente(
+        valor_acionamento=acionamento.valor_acionamento,
+        km_excedente=km_excedente,
+        valor_unitario_km=acionamento.valor_km_excedente,
+        subtotal_km=subtotal_km,
+        hora_excedente=hora_excedente,
+        valor_unitario_hora=acionamento.valor_hora_excedente,
+        subtotal_hora=subtotal_hora,
+        valor_cliente=valor_cliente,
+    )
+
+
 def acionamentos_em_conflito_de_franquia(pks, franquia):
     """DD-051/ST2 (AC-06.5) — FONTE ÚNICA da regra de conflito de sobrescrita:
     acionamentos do lote (`pks`) que já têm franquia vinculada E DIFERENTE da

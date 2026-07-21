@@ -13,9 +13,10 @@
 
 
   {% comment %}
-    Linha de identificação (DD-051/ST1): o badge da franquia (ou INLINE, quando
-    sem franquia) fica COLADO ao código ACN, na mesma convenção da listagem
-    (.acn-badge-franquia + nome via __str__ / .acn-badge-inline). À direita, a
+    Linha de identificação (DD-051/ST1): o badge da franquia fica COLADO ao
+    código ACN, na mesma convenção da listagem (.acn-badge-franquia + nome via
+    __str__). Sem franquia NÃO há badge (DD-069/ST1: o rótulo INLINE morreu —
+    a pílula "Pendente" da faixa-herói já comunica o estado). À direita, a
     linha de autoria — só renderiza quando há criado_por (acionamentos legados
     ficam sem autor). Nome no padrão do histórico (get_full_name|default:username)
     e data/hora no filtro `date` já usado no app. Cores vêm do tema (duas peles).
@@ -25,12 +26,14 @@
       <span class="acn-badge-codigo me-2">{{ acionamento.codigo }}</span>
       {% if acionamento.franquia_agente %}
         <span class="acn-badge-franquia me-2">FRANQUIA: {{ acionamento.franquia_agente }}</span>
-      {% else %}
-        <span class="acn-badge-inline me-2">INLINE</span>
       {% endif %}
       <span class="fw-bold fs-5">{{ acionamento.nome_servico }}</span>
+      {% comment %}
+      DD-069/ST1 — KM total e Horas totais entram no fim da linha de meta
+      ("N km percorridos · N h de serviço"), só quando os dois existirem.
+      {% endcomment %}
       <div class="text-muted small mt-1">
-        {{ acionamento.cliente }} · {{ acionamento.agente }} · {{ acionamento.data_hora_solicitado|date:"d/m/Y H:i" }}
+        {{ acionamento.cliente }} · {{ acionamento.agente }} · {{ acionamento.data_hora_solicitado|date:"d/m/Y H:i" }}{% if acionamento.km_total is not None and acionamento.horas_total is not None %} · {{ acionamento.km_total|floatformat:"-2" }} km percorridos · {{ acionamento.horas_total|floatformat:"-2" }} h de serviço{% endif %}
       </div>
     </div>
     {% if acionamento.criado_por %}
@@ -41,104 +44,155 @@
     {% endif %}
   </div>
 
-  {% comment %} ==== CARD-HERÓI — valor a pagar + métricas do cálculo (RN-07) ==== {% endcomment %}
-  <div class="card border-primary mb-4 acn-hero">
+  {% comment %}
+  ==== FAIXA-HERÓI — os dois totais lado a lado (DD-069/ST1) ====
+  Valor do cliente (cor de texto) à esquerda e Valor do agente (dourado) à
+  direita, divisor vertical central. Borda dourada SÓ com franquia vinculada;
+  pendente fica na borda padrão e o número do agente vira a pílula
+  "Pendente · vincular franquia" (âncora no campo de franquia da edição).
+  {% endcomment %}
+  <div class="card mb-2 acn-hero{% if not acionamento.franquia_agente %} acn-hero-pendente{% endif %}">
     <div class="card-body">
-      <div class="row align-items-center">
-
-        {# — Valor a pagar (destaque) — #}
-        <div class="col-md-6 mb-3 mb-md-0">
-          <div class="text-muted small text-uppercase">Valor a pagar ao agente</div>
-          <div class="display-4">
-            {% if acionamento.valor_agente is not None %}R$ {{ acionamento.valor_agente|floatformat:2 }}{% else %}—{% endif %}
-          </div>
+      <div class="row align-items-center text-center">
+        <div class="col-md-6 py-2">
+          <div class="text-muted small text-uppercase">Valor do cliente</div>
+          <div class="acn-hero-valor acn-mono">R$ {{ composicao_cliente.valor_cliente|floatformat:2 }}</div>
         </div>
-
-        {# — Métricas 2x2 — #}
-        <div class="col-md-6">
-          <div class="row">
-            <div class="col-6 mb-3">
-              <div class="acn-metrica">
-                <div class="text-muted small text-uppercase">KM total</div>
-                <div class="fw-bold acn-mono">
-                  {% if acionamento.km_total is not None %}{{ acionamento.km_total }} km{% else %}—{% endif %}
-                </div>
-              </div>
+        <div class="col-md-6 py-2 acn-hero-divisor">
+          <div class="text-muted small text-uppercase">Valor do agente</div>
+          {% if acionamento.valor_agente is not None %}
+            <div class="acn-hero-valor acn-mono acn-texto-dourado">R$ {{ acionamento.valor_agente|floatformat:2 }}</div>
+          {% else %}
+            {% comment %}
+            A pílula-link só existe para quem pode editar (mesma guarda do botão
+            do rodapé); sem change_acionamento vira selo estático, sem URL.
+            {% endcomment %}
+            <div class="mt-1">
+              {% if perms.controle_acionamentos.change_acionamento %}
+              <a href="{% url 'controle_acionamentos:acionamento_update' acionamento.pk %}#id_franquia_agente"
+                 class="btn btn-outline-secondary rounded-pill acn-btn-pendente">
+                <i class="bi bi-clock"></i> Pendente · vincular franquia <i class="bi bi-arrow-right"></i>
+              </a>
+              {% else %}
+              <span class="btn btn-outline-secondary rounded-pill acn-btn-pendente disabled">
+                <i class="bi bi-clock"></i> Pendente
+              </span>
+              {% endif %}
             </div>
-            <div class="col-6 mb-3">
-              <div class="acn-metrica">
-                <div class="text-muted small text-uppercase">Horas totais</div>
-                <div class="fw-bold acn-mono">
-                  {% if acionamento.horas_total is not None %}{{ acionamento.horas_total|floatformat:2 }} h{% else %}—{% endif %}
-                </div>
-              </div>
-            </div>
-            <div class="col-6">
-              <div class="acn-metrica">
-                <div class="text-muted small text-uppercase">KM excedente</div>
-                <div class="fw-bold acn-mono">
-                  {% if acionamento.km_excedente is not None %}{{ acionamento.km_excedente }} km{% else %}—{% endif %}
-                </div>
-              </div>
-            </div>
-            <div class="col-6">
-              <div class="acn-metrica">
-                <div class="text-muted small text-uppercase">Hora excedente</div>
-                <div class="fw-bold acn-mono">
-                  {% if acionamento.hora_excedente is not None %}{{ acionamento.hora_excedente|floatformat:2 }} h{% else %}—{% endif %}
-                </div>
-              </div>
-            </div>
-          </div>
+          {% endif %}
         </div>
-
       </div>
     </div>
   </div>
 
   {% comment %}
-  ==== COMPOSIÇÃO DO VALOR — extrato das parcelas (DD-032/ST5) ====
-  DD-068/ST3: sem franquia vinculada compor_valor_agente devolve None e o card
-  não renderiza — o visual completo do estado PENDENTE é da DD-069.
+  Setas total→composição, uma centrada por coluna; no pendente só a do cliente
+  (não há composição do agente para apontar). Só fazem sentido com as colunas
+  lado a lado (md+): abaixo disso os cards empilham e a fileira some
+  (d-none d-md-flex — display do Bootstrap, sem CSS novo).
   {% endcomment %}
-  {% if composicao %}
-  <div class="card mb-4">
-    <div class="card-header fw-semibold text-uppercase small">Composição do valor</div>
-    <div class="card-body p-0">
-      <div class="acn-extrato">
-        <div class="acn-extrato-linha">
-          <span>Valor do acionamento (ajustado)
-            {% if composicao.blocos > 0 %}<span class="acn-extrato-anota">escalonado · {{ composicao.blocos }} bloco{{ composicao.blocos|pluralize }}</span>
-            {% elif composicao.fonte_franquia %}<span class="acn-extrato-anota">da franquia</span>{% endif %}
-          </span>
-          <span class="acn-mono">R$ {{ composicao.valor_acionamento_ajustado|floatformat:2 }}</span>
-        </div>
-        <div class="acn-extrato-linha">
-          <span>+ KM excedente
-            {% if composicao.km_excedente > 0 %}<span class="acn-extrato-anota">{{ composicao.km_excedente }} km × R$ {{ composicao.valor_unitario_km|floatformat:2 }}</span>
-            {% else %}<span class="acn-extrato-anota">sem excedente</span>{% endif %}
-          </span>
-          <span class="acn-mono">R$ {{ composicao.subtotal_km|floatformat:2 }}</span>
-        </div>
-        <div class="acn-extrato-linha">
-          <span>+ Hora excedente
-            {% if composicao.hora_excedente > 0 %}<span class="acn-extrato-anota">{{ composicao.hora_excedente|floatformat:2 }} h × R$ {{ composicao.valor_unitario_hora|floatformat:2 }}</span>
-            {% else %}<span class="acn-extrato-anota">sem excedente</span>{% endif %}
-          </span>
-          <span class="acn-mono">R$ {{ composicao.subtotal_hora|floatformat:2 }}</span>
-        </div>
-        <div class="acn-extrato-linha">
-          <span>+ Pedágio</span>
-          <span class="acn-mono">R$ {{ composicao.pedagio|floatformat:2 }}</span>
-        </div>
-        <div class="acn-extrato-linha acn-extrato-total">
-          <span>= VALOR DO AGENTE</span>
-          <span class="acn-mono">R$ {{ composicao.valor_agente|floatformat:2 }}</span>
+  <div class="row mb-2 d-none d-md-flex" aria-hidden="true">
+    <div class="col-md-6 text-center"><i class="bi bi-arrow-down acn-seta-composicao"></i></div>
+    <div class="col-md-6 text-center">
+      {% if acionamento.franquia_agente %}<i class="bi bi-arrow-down acn-seta-composicao"></i>{% endif %}
+    </div>
+  </div>
+
+  {% comment %}
+  ==== COMPOSIÇÕES LADO A LADO (DD-069/ST1) ====
+  Cliente à esquerda (composicao_cliente — sempre existe) e agente à direita
+  (composicao — None sem franquia, DD-068/ST3 → estado vazio tracejado).
+  h-100 + .acn-extrato-rodape ancoram os dois "Total" na mesma linha
+  horizontal; em telas estreitas (< md) os cards empilham sozinhos.
+  {% endcomment %}
+  <div class="row g-3 mb-4">
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header fw-semibold text-uppercase small acn-extrato-titulo">Composição do cliente</div>
+        <div class="card-body p-0 d-flex flex-column">
+          {% comment %}
+          DD-069/ST1 (ajuste visual) — .acn-extrato-limpo tira o separador entre
+          as parcelas (fica só o traço superior do Total, via rodapé); a conta
+          unitária de cada excedente entra na anotação pequena, e quantidade
+          zero vira "(sem excedente)".
+          {% endcomment %}
+          <div class="acn-extrato acn-extrato-limpo d-flex flex-column flex-grow-1">
+            <div class="acn-extrato-linha">
+              <span>Base do serviço</span>
+              <span class="acn-mono">R$ {{ composicao_cliente.valor_acionamento|floatformat:2 }}</span>
+            </div>
+            <div class="acn-extrato-linha">
+              <span>KM excedente
+                <span class="acn-extrato-anota">({% if composicao_cliente.km_excedente %}{{ composicao_cliente.km_excedente }} km × R$ {{ composicao_cliente.valor_unitario_km|floatformat:2 }}{% else %}sem excedente{% endif %})</span>
+              </span>
+              <span class="acn-mono">R$ {{ composicao_cliente.subtotal_km|floatformat:2 }}</span>
+            </div>
+            <div class="acn-extrato-linha">
+              <span>Hora excedente
+                <span class="acn-extrato-anota">({% if composicao_cliente.hora_excedente %}{{ composicao_cliente.hora_excedente|floatformat:"-2" }} h × R$ {{ composicao_cliente.valor_unitario_hora|floatformat:2 }}{% else %}sem excedente{% endif %})</span>
+              </span>
+              <span class="acn-mono">R$ {{ composicao_cliente.subtotal_hora|floatformat:2 }}</span>
+            </div>
+            <div class="acn-extrato-linha acn-extrato-total acn-extrato-rodape">
+              <span>Total</span>
+              <span class="acn-mono">R$ {{ composicao_cliente.valor_cliente|floatformat:2 }}</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
+    <div class="col-md-6">
+      {% if composicao %}
+      <div class="card h-100">
+        <div class="card-header fw-semibold text-uppercase small acn-extrato-titulo">Composição do agente</div>
+        <div class="card-body p-0 d-flex flex-column">
+          {% comment %}
+          DD-069/ST1 (ajuste visual) — após a DD-068 a base vem SEMPRE da
+          franquia, então a anotação "da franquia" sumiu por redundância;
+          só o escalonamento continua anotado. Extrato na variação limpa e
+          conta unitária nos excedentes, como no card do cliente.
+          {% endcomment %}
+          <div class="acn-extrato acn-extrato-limpo d-flex flex-column flex-grow-1">
+            <div class="acn-extrato-linha">
+              <span>Base da franquia
+                {% if composicao.blocos > 0 %}<span class="acn-extrato-anota">escalonado · {{ composicao.blocos }} bloco{{ composicao.blocos|pluralize }}</span>{% endif %}
+              </span>
+              <span class="acn-mono">R$ {{ composicao.valor_acionamento_ajustado|floatformat:2 }}</span>
+            </div>
+            <div class="acn-extrato-linha">
+              <span>KM excedente
+                <span class="acn-extrato-anota">({% if composicao.km_excedente %}{{ composicao.km_excedente }} km × R$ {{ composicao.valor_unitario_km|floatformat:2 }}{% else %}sem excedente{% endif %})</span>
+              </span>
+              <span class="acn-mono">R$ {{ composicao.subtotal_km|floatformat:2 }}</span>
+            </div>
+            <div class="acn-extrato-linha">
+              <span>Hora excedente
+                <span class="acn-extrato-anota">({% if composicao.hora_excedente %}{{ composicao.hora_excedente|floatformat:"-2" }} h × R$ {{ composicao.valor_unitario_hora|floatformat:2 }}{% else %}sem excedente{% endif %})</span>
+              </span>
+              <span class="acn-mono">R$ {{ composicao.subtotal_hora|floatformat:2 }}</span>
+            </div>
+            <div class="acn-extrato-linha">
+              <span>Pedágio</span>
+              <span class="acn-mono">R$ {{ composicao.pedagio|floatformat:2 }}</span>
+            </div>
+            <div class="acn-extrato-linha acn-extrato-total acn-extrato-rodape">
+              <span>Total</span>
+              <span class="acn-mono">R$ {{ composicao.valor_agente|floatformat:2 }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="card h-100 acn-card-pendente">
+        <div class="card-header fw-semibold text-uppercase small acn-extrato-titulo">Composição do agente</div>
+        <div class="card-body">
+          <p class="text-muted mb-2">Sem franquia vinculada. O valor será calculado ao vincular uma franquia.</p>
+          <div class="text-muted small">Pedágio registrado: <span class="acn-mono">R$ {{ acionamento.pedagio|floatformat:2 }}</span></div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
   </div>
-  {% endif %}
 
   {% comment %} ==== DADOS DE ORIGEM — leitura, espelhando as seções do form ==== {% endcomment %}
   <div class="acn-dash-rotulo mb-2">Dados de origem</div>

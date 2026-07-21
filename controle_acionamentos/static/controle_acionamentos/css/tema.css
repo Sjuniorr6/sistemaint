@@ -323,6 +323,61 @@ a.acn-badge-codigo:hover {
   font-size: 1.05rem;
 }
 
+/* ===== DD-069/ST1 — herói duplo (cliente + agente) e composições lado a lado ===== */
+/* Pendente: sem franquia, a borda volta à padrão da pele (a dourada do
+   .acn-hero fica exclusiva do estado com franquia). */
+.acn-escopo .acn-hero.acn-hero-pendente { border-color: var(--acn-line) !important; }
+
+/* Totais do herói: grandes, em mono; o do agente recebe .acn-texto-dourado. */
+.acn-escopo .acn-hero-valor {
+  font-size: 2.2rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+/* Divisor central do herói: vertical lado a lado (md+), horizontal empilhado. */
+@media (min-width: 768px) {
+  .acn-escopo .acn-hero-divisor { border-left: 1px solid var(--acn-line); }
+}
+@media (max-width: 767.98px) {
+  .acn-escopo .acn-hero-divisor { border-top: 1px solid var(--acn-line); }
+}
+
+/* Seta dourada que liga cada total à sua composição. */
+.acn-escopo .acn-seta-composicao { color: var(--acn-gold-texto); font-size: 1.1rem; }
+
+/* Linha Total ancorada no rodapé do card, com o separador do mockup; a linha
+   imediatamente acima perde o border-bottom para não duplicar o traço. */
+.acn-escopo .acn-extrato-rodape {
+  margin-top: auto;
+  border-top: 1px solid var(--acn-line);
+}
+.acn-escopo .acn-extrato .acn-extrato-linha:nth-last-child(2) { border-bottom: none; }
+
+/* Variação "limpa" do extrato (cards de composição do detalhe): parcelas sem
+   separador entre si — só o Total mantém o traço superior (.acn-extrato-rodape).
+   Escopada pelo modificador para não afetar outros usos do extrato. */
+.acn-escopo .acn-extrato-limpo .acn-extrato-linha { border-bottom: none; }
+
+/* Títulos "Composição do cliente/agente" em dourado — via variável da pele
+   (dourado puro no Noite, dourado escurecido no Âmbar). */
+.acn-escopo .acn-extrato-titulo { color: var(--acn-gold-texto); }
+
+/* Pílula do pendente: base outline da casa + pele dourada via variáveis do
+   tema (funciona nas duas peles). */
+.acn-escopo .acn-btn-pendente {
+  color: var(--acn-gold-texto);
+  border-color: color-mix(in srgb, var(--acn-gold) 55%, transparent);
+}
+.acn-escopo .acn-btn-pendente:hover {
+  color: var(--acn-gold-texto);
+  background: color-mix(in srgb, var(--acn-gold) 12%, transparent);
+  border-color: var(--acn-gold);
+}
+
+/* Card vazio da composição do agente no pendente: tracejado, cores da pele. */
+.acn-escopo .acn-card-pendente { border-style: dashed; }
+
 /* ===== ST6 — cabeçalho do app (componente _cabecalho.html) ===== */
 .acn-escopo .acn-cabecalho {
   display: flex;

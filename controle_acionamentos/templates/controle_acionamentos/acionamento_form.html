@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="acn-escopo">
-  {% include 'controle_acionamentos/_cabecalho.html' with titulo=titulo_pagina|default:"Novo acionamento" subtitulo=subtitulo_pagina|default:"Preencha a sequência 1–5 — o valor do agente é calculado ao salvar" ativo=ativo_pill|default:"novo" %}
+  {% include 'controle_acionamentos/_cabecalho.html' with titulo=titulo_pagina|default:"Novo acionamento" subtitulo=subtitulo_pagina|default:"Preencha a sequência 1–5 — os valores do cliente e do agente são calculados ao salvar" ativo=ativo_pill|default:"novo" %}
 
   {% include 'controle_acionamentos/_messages.html' %}
 
@@ -207,11 +207,15 @@
       </div>
     </div>
 
-    {% comment %} ==== Seção 5 — FRANQUIA (OPCIONAL) ==== {% endcomment %}
+    {% comment %}
+    ==== Seção 5 — FRANQUIA ==== (DD-069/ST1: rótulo trocou "opcional" por
+    "define o valor do agente" — o campo segue opcional no form e no model,
+    mudou só o título da seção.)
+    {% endcomment %}
     <div class="card mb-3">
       <div class="card-header d-flex align-items-center">
         <span class="badge rounded-pill acn-badge-num me-2">5</span>
-        <span class="fw-semibold">FRANQUIA (OPCIONAL)</span>
+        <span class="fw-semibold">FRANQUIA (DEFINE O VALOR DO AGENTE)</span>
       </div>
       <div class="card-body">
         <div class="row">
@@ -227,7 +231,7 @@
 
     {# — Rodapé — #}
     <div class="acn-rodape-acao mt-4">
-      <span>O valor a pagar é calculado ao salvar e conferido na tela de detalhe.</span>
+      <span>Os valores do cliente e do agente são calculados ao salvar e conferidos na tela de detalhe.</span>
       <div class="d-flex gap-2">
         <a href="{% url 'controle_acionamentos:index' %}" class="btn btn-outline-secondary">Cancelar</a>
         <button type="submit" class="btn btn-primary">{{ texto_botao|default:"Salvar acionamento" }}</button>

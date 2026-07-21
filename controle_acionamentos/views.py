@@ -38,6 +38,7 @@ from .services import (
     acionamentos_em_conflito_de_franquia,
     aplicar_servico_ao_acionamento,
     compor_valor_agente,
+    compor_valor_cliente,
     registrar_edicao_acionamento,
     sincronizar_catalogo_do_cliente,
     vincular_franquia_em_lote,
@@ -209,7 +210,7 @@ def acionamento_update(request, pk):
         {
             "form": form,
             "titulo_pagina": "Editar acionamento",
-            "subtitulo_pagina": "Ajuste os campos — o valor do agente é recalculado ao salvar",
+            "subtitulo_pagina": "Ajuste os campos — os valores do cliente e do agente são recalculados ao salvar",
             "texto_botao": "Salvar alterações",
             "modo_edicao": True,
             "ativo_pill": "editando",
@@ -227,6 +228,7 @@ def acionamento_detail(request, pk):
     """
     acionamento = get_object_or_404(Acionamento, pk=pk)
     composicao = compor_valor_agente(acionamento)
+    composicao_cliente = compor_valor_cliente(acionamento)
     historico = listar_historico_do_acionamento(acionamento)
     return render(
         request,
@@ -234,6 +236,7 @@ def acionamento_detail(request, pk):
         {
             "acionamento": acionamento,
             "composicao": composicao,
+            "composicao_cliente": composicao_cliente,
             "historico": historico,
         },
     )

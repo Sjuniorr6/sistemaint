@@ -2150,7 +2150,7 @@ def test_acionamento_detail_renderiza_extrato_de_composicao(
 
     assert response.status_code == 200
     conteudo = response.content.decode(response.charset)
-    assert "Composição do valor" in conteudo   # o card do extrato existe
+    assert "Composição do agente" in conteudo   # o card do extrato existe
     assert "escalonado" in conteudo            # anotação dinâmica da 1ª linha
     assert "2 blocos" in conteudo              # blocos + pluralize
     # floatformat:2 sob L10N pt-br (sem separador de milhar) → vírgula decimal.
@@ -6168,3 +6168,147 @@ def test_valor_agente_pendente_sem_franquia():
         pedagio=Decimal("0.00"),
     )
     assert valor is None
+
+
+# ---------------------------------------------------------------
+# DD-069 ST1 — composição do valor do CLIENTE no detalhe (RED)
+# ---------------------------------------------------------------
+# compor_valor_cliente ainda NÃO existe em services.py — o import DENTRO do
+# corpo isola o ImportError como "failed" por teste, sem derrubar a coleta.
+# Contrato: compor_valor_cliente(acionamento) espelha compor_valor_agente
+# (mesma família de extrato), mas a fonte são os valores do SERVIÇO gravados
+# no acionamento (inline/snapshot) — NUNCA a franquia (que é lado agente) —
+# e por isso não há parcela de pedágio nem escalonamento, em hipótese alguma.
+# A view de detalhe passa a entregar `composicao_cliente` no contexto, ao lado
+# da `composicao` (agente) já existente.
+
+
+@pytest.mark.django_db
+def test_compor_valor_cliente_contrato_ouro_parcelas_e_total(_fks_acionamento):
+    """Contrato-ouro da DD-068/ST1 agora em parcelas: serviço 1500,00, franquia
+    100km/4h, tarifas 2,80/55,00, percurso 50km/7h → base 1500,00 + km excedente
+    0,00 (qtd 0) + hora excedente 165,00 (qtd 3) = 1665,00, tudo quantizado a
+    2 casas (ROUND_HALF_UP, o _quantizar da casa)."""
+    cliente, responsavel, agente = _fks_acionamento
+    base = timezone.now()
+    ac = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        franquia_agente=None,
+        valor_acionamento=Decimal("1500.00"),
+        franquia_km=100,
+        franquia_horas=Decimal("4.00"),
+        valor_km_excedente=Decimal("2.80"),
+        valor_hora_excedente=Decimal("55.00"),
+        pedagio=Decimal("0.00"),
+        km_inicio=0,
+        km_final=50,
+        data_hora_solicitado=base,
+        data_hora_inicio=base,
+        data_hora_final=base + timedelta(hours=7),
+    )
+    ac.save()
+
+    from controle_acionamentos.services import compor_valor_cliente
+
+    comp = compor_valor_cliente(ac)
+
+    assert comp.valor_acionamento == Decimal("1500.00")
+    # 50 < 100: sem km excedente — quantidade 0, subtotal zerado quantizado.
+    assert comp.km_excedente == 0
+    assert comp.subtotal_km == Decimal("0.00")
+    # 7 - 4 = 3h excedentes × 55,00 = 165,00.
+    assert comp.hora_excedente == Decimal("3.00")
+    assert comp.subtotal_hora == Decimal("165.00")
+    # Tarifas unitárias do SERVIÇO (espelho do extrato do agente).
+    assert comp.valor_unitario_km == Decimal("2.80")
+    assert comp.valor_unitario_hora == Decimal("55.00")
+    # Total: soma das parcelas, quantizado.
+    assert comp.valor_cliente == Decimal("1665.00")
+
+
+@pytest.mark.django_db
+def test_compor_valor_cliente_sem_pedagio_e_sem_escalonamento(_fks_acionamento):
+    """Pedágio e escalonamento são EXCLUSIVOS do agente: mesmo com pedágio 50,00
+    registrado E franquia escalonável vinculada, o extrato do cliente não ganha
+    parcela de pedágio nem blocos — e o total segue 1665,00 (contrato-ouro)."""
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(
+        **_dados_franquia(cliente, escalonamento_automatico=True)
+    )
+    base = timezone.now()
+    ac = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        franquia_agente=franquia,
+        valor_acionamento=Decimal("1500.00"),
+        franquia_km=100,
+        franquia_horas=Decimal("4.00"),
+        valor_km_excedente=Decimal("2.80"),
+        valor_hora_excedente=Decimal("55.00"),
+        pedagio=Decimal("50.00"),
+        km_inicio=0,
+        km_final=50,
+        data_hora_solicitado=base,
+        data_hora_inicio=base,
+        data_hora_final=base + timedelta(hours=7),
+    )
+    ac.save()
+
+    from controle_acionamentos.services import compor_valor_cliente
+
+    comp = compor_valor_cliente(ac)
+
+    # O extrato do cliente NÃO tem as parcelas exclusivas do agente.
+    assert not hasattr(comp, "pedagio")
+    assert not hasattr(comp, "blocos")
+    # Base sem escalonamento e total sem pedágio: contrato-ouro intacto.
+    assert comp.valor_acionamento == Decimal("1500.00")
+    assert comp.valor_cliente == Decimal("1665.00")
+
+
+@pytest.mark.django_db
+def test_acionamento_detail_contexto_traz_composicao_cliente_com_franquia(
+    client, django_user_model, _fks_acionamento
+):
+    """A view de detalhe entrega `composicao_cliente` preenchida no contexto,
+    ao lado da `composicao` (agente) já existente — acionamento COM franquia
+    tem os dois extratos."""
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(**_dados_franquia(cliente))
+    ac = _acionamento_valido(cliente, responsavel, agente, franquia_agente=franquia)
+    ac.save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_detail", args=[ac.pk])
+    response = client.get(url)
+
+    assert response.status_code == 200
+    assert response.context["composicao"] is not None
+    assert response.context["composicao_cliente"] is not None
+
+
+@pytest.mark.django_db
+def test_acionamento_detail_sem_franquia_composicao_cliente_preenchida(
+    client, django_user_model, _fks_acionamento
+):
+    """SEM franquia o agente fica pendente (`composicao` None, DD-068/ST3), mas
+    o valor do CLIENTE não depende de franquia: `composicao_cliente` vem
+    preenchida do mesmo jeito."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente, franquia_agente=None)
+    ac.save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_detail", args=[ac.pk])
+    response = client.get(url)
+
+    assert response.status_code == 200
+    assert response.context["composicao"] is None
+    assert response.context["composicao_cliente"] is not None
