@@ -21,7 +21,7 @@
       Ao confirmar, a franquia <strong class="acn-texto-dourado">{{ franquia.nome }}</strong>
       substituirá a franquia atual de <strong>{{ conflitantes|length }}</strong>
       acionamento(s) — de <strong>{{ acionamentos_selecionados|length }}</strong>
-      selecionado(s) — e os valores a pagar serão recalculados.
+      selecionado(s) — e o valor do agente será recalculado. O valor do cliente não muda.
       <strong>Nada será alterado enquanto você não confirmar.</strong>
     </div>
   </div>
@@ -75,7 +75,7 @@
     <input type="hidden" name="sobrescrever" value="on">
 
     <div class="acn-rodape-acao">
-      <span class="text-muted">A operação recalcula o valor de todos os selecionados em uma única transação.</span>
+      <span class="text-muted">A operação recalcula o valor do agente de todos os selecionados em uma única transação.</span>
       <div class="d-flex gap-2">
         <a href="{% url 'controle_acionamentos:acionamento_list' %}?cliente={{ cliente }}"
            class="btn btn-outline-secondary">

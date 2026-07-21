@@ -3081,6 +3081,56 @@ def test_confirmacao_etapa1_reenvia_hidden_fieis_para_etapa2(
     assert mensagens[0].level == message_constants.SUCCESS
 
 
+@pytest.mark.django_db
+def test_confirmacao_etapa1_vocabulario_recalculo_so_do_agente(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-069/ST4 (RED) — vocabulário da confirmação de sobrescrita: com as duas
+    colunas de valor (ST2), o vínculo de franquia recalcula SÓ o valor do
+    AGENTE — o do cliente vem do serviço e não muda. O alerta troca "e os
+    valores a pagar serão recalculados" por "e o valor do agente será
+    recalculado. O valor do cliente não muda."; o rodapé ganha "do agente" em
+    "recalcula o valor do agente de todos os selecionados". Mesmo arranjo de
+    conflito do teste da etapa 1→2 (franquia DIFERENTE da já vinculada)."""
+    cliente, responsavel, agente = _fks_acionamento
+    franquia_antiga = FranquiaAgente.objects.create(
+        **_dados_franquia(cliente, nome="Franquia Antiga")
+    )
+    franquia_nova = FranquiaAgente.objects.create(
+        **_dados_franquia(cliente, nome="Franquia Nova")
+    )
+    base = timezone.now()
+
+    ja_vinculado = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        franquia_agente=franquia_antiga,
+        data_hora_solicitado=base,
+        data_hora_inicio=base,
+        data_hora_final=base + timedelta(hours=5),
+    )
+    ja_vinculado.save()
+
+    user = _user_com_perms(
+        django_user_model, "view_acionamento", "change_acionamento"
+    )
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_vincular_franquia_lote")
+    # Etapa 1: conflito sem flag → página de confirmação (200).
+    response = client.post(
+        url,
+        {"acionamentos": [ja_vinculado.pk], "franquia": franquia_nova.pk},
+    )
+
+    assert response.status_code == 200
+    conteudo = response.content.decode(response.charset)
+    assert "o valor do agente será recalculado" in conteudo
+    assert "recalcula o valor do agente de todos os selecionados" in conteudo
+    assert "valores a pagar" not in conteudo
+
+
 # ---------------------------------------------------------------------------
 # DD-016/M5 subtask 5 — hardening de autenticação (teste de caracterização).
 # A listagem é protegida por @login_required: um anônimo deve ser redirecionado
