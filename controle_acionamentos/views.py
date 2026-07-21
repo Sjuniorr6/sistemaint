@@ -116,6 +116,12 @@ def acionamento_list(request):
     )
     paginator = Paginator(acionamentos, 25)
     pagina = paginator.get_page(request.GET.get("page"))
+    # DD-069/ST2 — valor do cliente por linha, só nos 25 itens da página (o
+    # service é puro: usa campos já carregados, zero query extra). Loop
+    # temporário até a DD-070/ST4 persistir o campo; o nome `valor_cliente` é
+    # idêntico ao futuro campo persistido para o template não mudar.
+    for acionamento in pagina:
+        acionamento.valor_cliente = compor_valor_cliente(acionamento).valor_cliente
     # Base da navegação de páginas: o template injeta &page=N sobre esta base;
     # sem o pop, o page antigo viajaria duplicado no link.
     params = request.GET.copy()

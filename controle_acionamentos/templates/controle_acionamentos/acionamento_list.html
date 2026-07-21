@@ -90,11 +90,16 @@
           {% if cliente_filtrado and perms.controle_acionamentos.change_acionamento %}
             <th></th>
           {% endif %}
-          <th>Acionamento</th>
+          <th style="width: 200px;">Acionamento</th>
           <th>Cliente / Serviço</th>
           <th>Agente</th>
           <th>Data solicitação</th>
           <th>Franquia</th>
+          {% comment %}
+          DD-069/ST2 (mockup caminho A) — a coluna única de valor virou DUAS:
+          Valor cliente (calculado na view, pós-paginação) e Valor agente.
+          {% endcomment %}
+          <th class="text-end">Valor cliente (R$)</th>
           <th class="text-end">Valor agente (R$)</th>
           <th class="text-end">Pedágio (R$)</th>
         </tr>
@@ -109,12 +114,19 @@
               </td>
             {% endif %}
             <td>
-              <a href="{% url 'controle_acionamentos:acionamento_detail' a.pk %}" class="acn-badge-codigo">{{ a.codigo }}</a>
-              {% if perms.controle_acionamentos.change_acionamento %}
-                <a href="{% url 'controle_acionamentos:acionamento_update' a.pk %}"
-                   class="acn-editar-hover" title="Editar acionamento"
-                   aria-label="Editar {{ a.codigo }}"><i class="bi bi-pencil-fill"></i></a>
-              {% endif %}
+              {% comment %}
+              DD-069/ST2 (caminho C, desenho do usuário) — lápis centralizado
+              na sobra da célula: no flex, mx-auto reparte o espaço restante
+              igualmente, dando vãos iguais dos dois lados do lápis.
+              {% endcomment %}
+              <div class="d-flex align-items-center">
+                <a href="{% url 'controle_acionamentos:acionamento_detail' a.pk %}" class="acn-badge-codigo">{{ a.codigo }}</a>
+                {% if perms.controle_acionamentos.change_acionamento %}
+                  <a href="{% url 'controle_acionamentos:acionamento_update' a.pk %}"
+                     class="acn-editar-hover mx-auto" title="Editar acionamento"
+                     aria-label="Editar {{ a.codigo }}"><i class="bi bi-pencil-fill"></i></a>
+                {% endif %}
+              </div>
             </td>
             <td>
               <div class="fw-semibold">{{ a.cliente }}</div>
@@ -126,9 +138,22 @@
               {% if a.franquia_agente_id %}
                 <span class="acn-badge-franquia">FRANQUIA: {{ a.franquia_agente.nome }}</span>
               {% else %}
-                <span class="acn-badge-inline">INLINE</span>
+                {% comment %}
+                DD-069/ST2 (badge B2) — o INLINE morreu: sem franquia a linha
+                sinaliza a pendência, coerente com a pílula do detalhe (ST1).
+                Mesma guarda da pílula: com change_acionamento o badge vira
+                LINK para a edição ancorado no campo de franquia; sem a
+                permissão, segue selo estático.
+                {% endcomment %}
+                {% if perms.controle_acionamentos.change_acionamento %}
+                  <a href="{% url 'controle_acionamentos:acionamento_update' a.pk %}#id_franquia_agente"
+                     class="acn-badge-pendente"><i class="bi bi-clock"></i> Pendente de franquia</a>
+                {% else %}
+                  <span class="acn-badge-pendente"><i class="bi bi-clock"></i> Pendente de franquia</span>
+                {% endif %}
               {% endif %}
             </td>
+            <td class="text-end acn-mono">{{ a.valor_cliente|floatformat:2 }}</td>
             <td class="text-end acn-mono" data-valor-agente="{{ a.pk }}">
               {% if a.valor_agente is not None %}{{ a.valor_agente|floatformat:2 }}{% else %}—{% endif %}
             </td>
@@ -147,11 +172,11 @@
           <tr>
             {# Filtro ativo = qualquer name real do FiltroAcionamentosForm veio na querystring. #}
             {% if request.GET.cliente or request.GET.agente or request.GET.data_de or request.GET.data_ate or request.GET.status %}
-              <td colspan="{% if cliente_filtrado and perms.controle_acionamentos.change_acionamento %}8{% else %}7{% endif %}"
+              <td colspan="{% if cliente_filtrado and perms.controle_acionamentos.change_acionamento %}9{% else %}8{% endif %}"
                   class="acn-vazio">Nenhum acionamento corresponde aos filtros.
                 <a href="{% url 'controle_acionamentos:acionamento_list' %}" class="btn btn-outline-secondary btn-sm ms-2">Limpar filtros</a></td>
             {% else %}
-              <td colspan="{% if cliente_filtrado and perms.controle_acionamentos.change_acionamento %}8{% else %}7{% endif %}"
+              <td colspan="{% if cliente_filtrado and perms.controle_acionamentos.change_acionamento %}9{% else %}8{% endif %}"
                   class="acn-vazio">Nenhum acionamento registrado ainda.
                 <a href="{% url 'controle_acionamentos:acionamento_create' %}" class="btn btn-outline-secondary btn-sm ms-2">Registrar o primeiro acionamento</a></td>
             {% endif %}

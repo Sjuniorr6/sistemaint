@@ -217,7 +217,8 @@
 }
 
 .acn-escopo .acn-badge-franquia,
-.acn-escopo .acn-badge-inline {
+.acn-escopo .acn-badge-inline,
+.acn-escopo .acn-badge-pendente {
   display: inline-block;
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
@@ -236,6 +237,29 @@
   color: var(--acn-muted);
   border: 1px solid var(--acn-line);
   background: transparent;
+}
+/* DD-069/ST2 — badge "Pendente de franquia", decisão D2: franquia sólida e
+   preenchida; pendente tracejada, vazia e cinza com traço dourado. O anel G1
+   virou affordance de CLIQUE: só no hover de links (regras abaixo) — o selo
+   estático (span, sem change_acionamento) fica sem anel e sem hover. */
+.acn-escopo .acn-badge-pendente {
+  color: var(--acn-muted);
+  border: 1px dashed color-mix(in srgb, var(--acn-gold) 55%, transparent);
+  background: transparent;
+}
+/* Badge-link (com change_acionamento): sem sublinhado nem cor de link do
+   navegador; o anel G1 aparece no hover como convite ao clique. */
+.acn-escopo a.acn-badge-pendente {
+  text-decoration: none;
+  color: var(--acn-muted);
+}
+.acn-escopo a.acn-badge-pendente:hover {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--acn-gold) 20%, transparent);
+}
+/* Pele clara: o muted puro desbota no fundo âmbar — reforço moderado do texto
+   (60% muted sobre text), mesmo padrão de variante de pele das messages. */
+.acn-escopo.acn-ambar .acn-badge-pendente {
+  color: color-mix(in srgb, var(--acn-muted) 60%, var(--acn-text));
 }
 
 .acn-escopo .btn-warning {
@@ -364,15 +388,19 @@ a.acn-badge-codigo:hover {
 .acn-escopo .acn-extrato-titulo { color: var(--acn-gold-texto); }
 
 /* Pílula do pendente: base outline da casa + pele dourada via variáveis do
-   tema (funciona nas duas peles). */
+   tema (funciona nas duas peles). DD-069/ST2: vocabulário tracejado dos badges
+   de pendência; o anel G1 é affordance de CLIQUE — só no hover do LINK, então
+   o selo disabled (span) fica sem anel e sem efeito de hover. */
 .acn-escopo .acn-btn-pendente {
   color: var(--acn-gold-texto);
   border-color: color-mix(in srgb, var(--acn-gold) 55%, transparent);
+  border-style: dashed;
 }
-.acn-escopo .acn-btn-pendente:hover {
+.acn-escopo a.acn-btn-pendente:hover {
   color: var(--acn-gold-texto);
   background: color-mix(in srgb, var(--acn-gold) 12%, transparent);
   border-color: var(--acn-gold);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--acn-gold) 20%, transparent);
 }
 
 /* Card vazio da composição do agente no pendente: tracejado, cores da pele. */

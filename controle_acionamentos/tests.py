@@ -2079,6 +2079,168 @@ def test_acionamento_list_sem_cliente_filtrado_franquias_vazio(
 
 
 # ---------------------------------------------------------------------------
+# DD-069/ST2 — listagem: colunas "Valor cliente" e "Valor agente" + badge
+# "Pendente de franquia" (RED)
+# Mockups aprovados: spec/mockups/dd069/dd069_st2_listagem_caminho_a.png
+# (caminho A — a coluna única de valor vira DUAS) e dd069_st2_badge_b2.png
+# (badge B2 explícito no lugar do INLINE). O valor do cliente é calculado na
+# VIEW após a paginação: cada acionamento da página recebe o atributo
+# `valor_cliente` com o total do compor_valor_cliente (mesma fonte do detalhe,
+# ST1) — nada de coluna nova no banco. Fase RED: view e template seguem no
+# layout antigo → os três testes falham.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_listagem_exibe_colunas_de_valor_cliente_e_valor_agente(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-069/ST2 — a tabela troca a coluna única de valor pelos cabeçalhos
+    "Valor cliente (R$)" e "Valor agente (R$)" (mockup caminho A + decisão
+    pós-GREEN de manter o sufixo de moeda). Sem guard de ausência: o antigo
+    ("Valor agente (R$)") sobrevive legitimamente como cabeçalho novo — a
+    remoção foi autorizada nesta correção; os asserts de presença cobrem os
+    rótulos por substring."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    response = client.get(reverse("controle_acionamentos:acionamento_list"))
+
+    assert response.status_code == 200
+    conteudo = response.content.decode("utf-8")
+    assert "Valor cliente" in conteudo
+    assert "Valor agente" in conteudo
+
+
+@pytest.mark.django_db
+def test_listagem_exibe_valor_do_cliente_calculado_por_linha(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-069/ST2 — contrato-ouro da ST1 agora na LISTAGEM: serviço 1500,00,
+    franquia 100km/4h, tarifas 2,80/55,00, percurso 100→150 km (50 km) em 7h →
+    1500,00 + 0,00 (km dentro da franquia) + 3h × 55,00 = 1665,00. A view anexa
+    a cada item da página o atributo `valor_cliente` (Decimal vindo do
+    compor_valor_cliente) e o template exibe o total na coluna nova
+    (floatformat:2 sob L10N pt-br → vírgula decimal)."""
+    cliente, responsavel, agente = _fks_acionamento
+    base = timezone.now()
+    ac = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        franquia_agente=None,
+        valor_acionamento=Decimal("1500.00"),
+        franquia_km=100,
+        franquia_horas=Decimal("4.00"),
+        valor_km_excedente=Decimal("2.80"),
+        valor_hora_excedente=Decimal("55.00"),
+        pedagio=Decimal("0.00"),
+        km_inicio=100,
+        km_final=150,
+        data_hora_solicitado=base,
+        data_hora_inicio=base,
+        data_hora_final=base + timedelta(hours=7),
+    )
+    ac.save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    response = client.get(reverse("controle_acionamentos:acionamento_list"))
+
+    assert response.status_code == 200
+    conteudo = response.content.decode("utf-8")
+    assert "1665,00" in conteudo
+    # Cada acionamento da página carrega o total do cliente calculado na view.
+    for item in response.context["acionamentos"]:
+        assert item.valor_cliente == Decimal("1665.00")
+
+
+@pytest.mark.django_db
+def test_listagem_sem_franquia_exibe_badge_pendente_de_franquia(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-069/ST2 — linha SEM franquia vinculada: o badge INLINE morre e entra
+    o "Pendente de franquia" (mockup B2 explícito, coerente com a pílula do
+    detalhe da ST1); a célula do valor do agente segue exibindo o marcador "—"
+    de valor nulo (DD-068: sem franquia, valor_agente pendente)."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente, franquia_agente=None)
+    ac.save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    response = client.get(reverse("controle_acionamentos:acionamento_list"))
+
+    assert response.status_code == 200
+    conteudo = response.content.decode("utf-8")
+    assert "Pendente de franquia" in conteudo
+    assert "INLINE" not in conteudo
+    # O marcador de nulo segue na célula do agente — recorte pelo data-attr que
+    # o JS do pedágio inline já usa, sem pinar o resto do markup da linha.
+    celula = conteudo.split(f'data-valor-agente="{ac.pk}"', 1)[1].split("</td>", 1)[0]
+    assert "—" in celula
+
+
+@pytest.mark.django_db
+def test_listagem_badge_pendente_com_change_e_link_para_vincular(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-069/ST2 (refinamento) — COM change_acionamento o badge "Pendente de
+    franquia" vira LINK para o form de edição com âncora no campo de franquia,
+    espelhando a pílula do herói do detalhe (ST1). A URL sozinha seria vácua
+    (o lápis de editar já a renderiza): o assert pina URL + âncora coladas."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente, franquia_agente=None)
+    ac.save()
+
+    user = _user_com_perms(
+        django_user_model, "view_acionamento", "change_acionamento"
+    )
+    client.force_login(user)
+
+    response = client.get(reverse("controle_acionamentos:acionamento_list"))
+
+    assert response.status_code == 200
+    conteudo = response.content.decode("utf-8")
+    assert "Pendente de franquia" in conteudo
+    url_vincular = (
+        reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
+        + "#id_franquia_agente"
+    )
+    assert url_vincular in conteudo
+
+
+@pytest.mark.django_db
+def test_listagem_badge_pendente_sem_change_e_selo_estatico(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-069/ST2 (refinamento) — SÓ com view_acionamento o badge segue selo
+    estático, sem link (mesma guarda da pílula do detalhe): a âncora
+    id_franquia_agente não aparece em lugar nenhum da resposta. Asserção
+    NEGATIVA — nasce verde no RED (regra registrada da casa); trava a guarda
+    de permissão contra regressão na GREEN."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente, franquia_agente=None)
+    ac.save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    response = client.get(reverse("controle_acionamentos:acionamento_list"))
+
+    assert response.status_code == 200
+    conteudo = response.content.decode("utf-8")
+    assert "Pendente de franquia" in conteudo
+    assert "id_franquia_agente" not in conteudo
+
+
+# ---------------------------------------------------------------------------
 # views.acionamento_pedagio_update — recálculo inline, DD-014/M3 subtask 4
 # Endpoint POST que atualiza SÓ o pedágio de um acionamento e recalcula o
 # valor_agente (pedágio soma; os excedentes não mudam). Protegido por
