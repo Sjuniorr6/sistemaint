@@ -373,7 +373,11 @@ def acionamento_vincular_franquia_lote(request):
 
     try:
         atualizados = vincular_franquia_em_lote(
-            pks, franquia, sobrescrever=form.cleaned_data["sobrescrever"]
+            pks,
+            franquia,
+            sobrescrever=form.cleaned_data["sobrescrever"],
+            # DD-070/ST3: autor da trilha do lote — obrigatório no service.
+            editado_por=request.user,
         )
     except ValidationError as exc:
         messages.error(request, " ".join(exc.messages))

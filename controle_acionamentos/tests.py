@@ -1303,7 +1303,9 @@ def test_listar_franquias_por_cliente_filtra_e_ordena_por_nome(_fks_acionamento)
 
 
 @pytest.mark.django_db
-def test_vincular_franquia_em_lote_vincula_e_recalcula_cenario7(_fks_acionamento):
+def test_vincular_franquia_em_lote_vincula_e_recalcula_cenario7(
+    django_user_model, _fks_acionamento
+):
     """DD-015/M4 (AC-06.4, cenário 7) — o lote vincula a franquia a todos os
     acionamentos e recalcula km_excedente/hora_excedente/valor_agente de cada um.
 
@@ -1345,7 +1347,10 @@ def test_vincular_franquia_em_lote_vincula_e_recalcula_cenario7(_fks_acionamento
 
     from controle_acionamentos.services import vincular_franquia_em_lote
 
-    resultado = vincular_franquia_em_lote([a.pk for a in acionamentos], franquia)
+    user = django_user_model.objects.create_user(username="lote_cenario7")
+    resultado = vincular_franquia_em_lote(
+        [a.pk for a in acionamentos], franquia, editado_por=user
+    )
 
     assert resultado == 3
     for ac in acionamentos:
@@ -1357,7 +1362,9 @@ def test_vincular_franquia_em_lote_vincula_e_recalcula_cenario7(_fks_acionamento
 
 
 @pytest.mark.django_db
-def test_vincular_franquia_em_lote_cross_cliente_desfaz_tudo_cenario8(_fks_acionamento):
+def test_vincular_franquia_em_lote_cross_cliente_desfaz_tudo_cenario8(
+    django_user_model, _fks_acionamento
+):
     """DD-015/M4 (cenário 8, RN-06) — franquia de cliente diferente é rejeitada
     e NADA persiste: a falha de um item desfaz o lote inteiro (AC-06.6). A prova
     determinística do rollback de escritas já efetuadas é do teste de falha no
@@ -1408,8 +1415,11 @@ def test_vincular_franquia_em_lote_cross_cliente_desfaz_tudo_cenario8(_fks_acion
 
     # A ordem de iteração não é garantida (o filter segue o ordering do model),
     # mas o resultado é o mesmo em qualquer ordem: ao primeiro erro, nada persiste.
+    user = django_user_model.objects.create_user(username="lote_cenario8")
     with pytest.raises(ValidationError):
-        vincular_franquia_em_lote([valido1.pk, valido2.pk, invalido.pk], franquia)
+        vincular_franquia_em_lote(
+            [valido1.pk, valido2.pk, invalido.pk], franquia, editado_por=user
+        )
 
     # Nada persistiu — nem os válidos processados antes da falha (rollback do lote).
     for ac in (valido1, valido2, invalido):
@@ -1419,7 +1429,9 @@ def test_vincular_franquia_em_lote_cross_cliente_desfaz_tudo_cenario8(_fks_acion
 
 
 @pytest.mark.django_db
-def test_vincular_franquia_em_lote_sem_flag_nao_sobrescreve_ac065(_fks_acionamento):
+def test_vincular_franquia_em_lote_sem_flag_nao_sobrescreve_ac065(
+    django_user_model, _fks_acionamento
+):
     """DD-051/ST2 (AC-06.5 REVISADO) — franquia IDÊNTICA à já vinculada NÃO é
     conflito: sem sobrescrever=True, o lote passa, vincula os itens livres e
     re-salva o já vinculado na MESMA franquia (recálculo idêntico), sem levantar.
@@ -1470,8 +1482,9 @@ def test_vincular_franquia_em_lote_sem_flag_nao_sobrescreve_ac065(_fks_acionamen
 
     # AC-06.5 revisado: franquia idêntica NÃO é conflito → sem sobrescrever, o lote
     # passa e vincula os livres normalmente (antes, DD-015, esperava ValidationError).
+    user = django_user_model.objects.create_user(username="lote_sem_flag")
     resultado = vincular_franquia_em_lote(
-        [livre1.pk, livre2.pk, ja_vinculado.pk], franquia
+        [livre1.pk, livre2.pk, ja_vinculado.pk], franquia, editado_por=user
     )
 
     assert resultado == 3
@@ -1487,7 +1500,9 @@ def test_vincular_franquia_em_lote_sem_flag_nao_sobrescreve_ac065(_fks_acionamen
 
 
 @pytest.mark.django_db
-def test_vincular_franquia_em_lote_com_flag_sobrescreve_ac065(_fks_acionamento):
+def test_vincular_franquia_em_lote_com_flag_sobrescreve_ac065(
+    django_user_model, _fks_acionamento
+):
     """DD-015/M4 (AC-06.5) — com sobrescrever=True, itens que já possuem
     franquia são re-vinculados e recalculados junto com os demais."""
     cliente, responsavel, agente = _fks_acionamento
@@ -1541,10 +1556,12 @@ def test_vincular_franquia_em_lote_com_flag_sobrescreve_ac065(_fks_acionamento):
 
     from controle_acionamentos.services import vincular_franquia_em_lote
 
+    user = django_user_model.objects.create_user(username="lote_com_flag")
     resultado = vincular_franquia_em_lote(
         [livre1.pk, livre2.pk, ja_vinculado.pk],
         franquia_nova,
         sobrescrever=True,
+        editado_por=user,
     )
 
     assert resultado == 3
@@ -1556,7 +1573,9 @@ def test_vincular_franquia_em_lote_com_flag_sobrescreve_ac065(_fks_acionamento):
 
 
 @pytest.mark.django_db
-def test_vincular_franquia_em_lote_falha_no_meio_desfaz_tudo(_fks_acionamento, monkeypatch):
+def test_vincular_franquia_em_lote_falha_no_meio_desfaz_tudo(
+    django_user_model, _fks_acionamento, monkeypatch
+):
     """DD-015/M4 (critério global 5, §12) — prova determinística do rollback:
     o 1º item do lote é salvo com sucesso DENTRO da transação; o 2º save
     explode; o atomic desfaz tudo, inclusive a escrita já efetuada."""
@@ -1611,10 +1630,14 @@ def test_vincular_franquia_em_lote_falha_no_meio_desfaz_tudo(_fks_acionamento, m
 
     monkeypatch.setattr(Acionamento, "save", save_sabotado)
 
+    from controle_acionamentos.models import AcionamentoHistorico
     from controle_acionamentos.services import vincular_franquia_em_lote
 
+    user = django_user_model.objects.create_user(username="lote_rollback")
     with pytest.raises(RuntimeError):
-        vincular_franquia_em_lote([a1.pk, a2.pk, a3.pk], franquia)
+        vincular_franquia_em_lote(
+            [a1.pk, a2.pk, a3.pk], franquia, editado_por=user
+        )
 
     # O 1º save real aconteceu (chamada 1) e a 2ª disparou a falha.
     assert chamadas["n"] == 2
@@ -1624,6 +1647,74 @@ def test_vincular_franquia_em_lote_falha_no_meio_desfaz_tudo(_fks_acionamento, m
         ac.refresh_from_db()
         assert ac.franquia_agente_id is None
         assert ac.valor_agente == originais[ac.pk]
+
+    # DD-070/ST3: a trilha desfaz junto com o lote — dado e auditoria nunca
+    # divergem: nenhuma linha de histórico sobrevive ao rollback.
+    assert AcionamentoHistorico.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_vincular_franquia_em_lote_registra_trilha(
+    django_user_model, _fks_acionamento
+):
+    """DD-070/ST3 (RED) — lacuna achada na auditoria pré-deploy: o vínculo em
+    lote muda franquia_agente e valor_agente sem gravar histórico. O service
+    passa a receber `editado_por` e a registrar a trilha das mudanças de cada
+    item, na mesma serialização da trilha de edição (None -> "", FK -> str(pk),
+    Decimal -> string). Nasce VERMELHO com TypeError: a assinatura atual não
+    aceita o argumento editado_por."""
+    from controle_acionamentos.models import AcionamentoHistorico
+    from controle_acionamentos.services import vincular_franquia_em_lote
+
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = FranquiaAgente.objects.create(
+        **_dados_franquia(
+            cliente,
+            valor_acionamento=Decimal("500.00"),
+            franquia_km=120,
+            franquia_horas=Decimal("5.00"),
+            valor_km_excedente=Decimal("1.80"),
+            valor_hora_excedente=Decimal("45.00"),
+        )
+    )
+    ac = _acionamento_valido(cliente, responsavel, agente, franquia_agente=None)
+    ac.save()
+    ac.refresh_from_db()
+    assert ac.valor_agente is None  # estado pendente antes do vínculo
+
+    user = django_user_model.objects.create_user(username="auditoria_lote")
+
+    resultado = vincular_franquia_em_lote([ac.pk], franquia, editado_por=user)
+
+    assert resultado == 1
+
+    # Valor esperado calculado NO TESTE a partir da franquia (escalonamento
+    # desligado) e dos km/horas do acionamento — nunca copiado do sistema.
+    km_total = ac.km_final - ac.km_inicio
+    km_excedente = max(0, km_total - franquia.franquia_km)
+    hora_excedente = max(Decimal("0"), ac.horas_total - franquia.franquia_horas)
+    valor_esperado = (
+        franquia.valor_acionamento
+        + km_excedente * franquia.valor_km_excedente
+        + hora_excedente * franquia.valor_hora_excedente
+        + ac.pedagio
+    )
+
+    registros = AcionamentoHistorico.objects.filter(acionamento=ac)
+
+    linhas_fk = registros.filter(campo="franquia_agente")
+    assert linhas_fk.count() == 1
+    reg_fk = linhas_fk.get()
+    assert reg_fk.valor_anterior == ""            # None -> "" (sem franquia)
+    assert reg_fk.valor_novo == str(franquia.pk)  # FK serializada pelo pk
+    assert reg_fk.editado_por == user
+
+    linhas_valor = registros.filter(campo="valor_agente")
+    assert linhas_valor.count() == 1
+    reg_valor = linhas_valor.get()
+    assert reg_valor.valor_anterior == ""         # pendente (None) -> ""
+    assert reg_valor.valor_novo == str(valor_esperado)
+    assert reg_valor.editado_por == user
 
 
 # ---------------------------------------------------------------------------
@@ -5076,7 +5167,9 @@ def test_detalhe_exibe_badge_franquia_no_cabecalho(
 
 
 @pytest.mark.django_db
-def test_lote_franquia_identica_sem_flag_nao_e_conflito(_fks_acionamento):
+def test_lote_franquia_identica_sem_flag_nao_e_conflito(
+    django_user_model, _fks_acionamento
+):
     """DD-051/ST2 (AC-06.5) — service: item já vinculado à franquia X e o lote
     seleciona a MESMA X, sem sobrescrever → não levanta ValidationError, retorna a
     contagem e o valor_agente do item permanece igual (recálculo idêntico)."""
@@ -5100,7 +5193,10 @@ def test_lote_franquia_identica_sem_flag_nao_e_conflito(_fks_acionamento):
 
     from controle_acionamentos.services import vincular_franquia_em_lote
 
-    resultado = vincular_franquia_em_lote([ac.pk], franquia)  # sem sobrescrever
+    user = django_user_model.objects.create_user(username="lote_identica")
+    resultado = vincular_franquia_em_lote(
+        [ac.pk], franquia, editado_por=user
+    )  # sem sobrescrever
 
     assert resultado == 1
     ac.refresh_from_db()
@@ -5109,7 +5205,9 @@ def test_lote_franquia_identica_sem_flag_nao_e_conflito(_fks_acionamento):
 
 
 @pytest.mark.django_db
-def test_lote_misto_sem_franquia_e_identica_sem_flag_passa(_fks_acionamento):
+def test_lote_misto_sem_franquia_e_identica_sem_flag_passa(
+    django_user_model, _fks_acionamento
+):
     """DD-051/ST2 (AC-06.5) — service: lote com um item SEM franquia + um já com a
     franquia X, aplicando X sem sobrescrever → passa e vincula os DOIS (o livre
     ganha X; o já vinculado permanece em X)."""
@@ -5138,7 +5236,10 @@ def test_lote_misto_sem_franquia_e_identica_sem_flag_passa(_fks_acionamento):
 
     from controle_acionamentos.services import vincular_franquia_em_lote
 
-    resultado = vincular_franquia_em_lote([livre.pk, ja_vinculado.pk], franquia)
+    user = django_user_model.objects.create_user(username="lote_misto")
+    resultado = vincular_franquia_em_lote(
+        [livre.pk, ja_vinculado.pk], franquia, editado_por=user
+    )
 
     assert resultado == 2
     for ac in (livre, ja_vinculado):
@@ -5147,7 +5248,9 @@ def test_lote_misto_sem_franquia_e_identica_sem_flag_passa(_fks_acionamento):
 
 
 @pytest.mark.django_db
-def test_lote_franquia_diferente_sem_flag_continua_recusando(_fks_acionamento):
+def test_lote_franquia_diferente_sem_flag_continua_recusando(
+    django_user_model, _fks_acionamento
+):
     """DD-051/ST2 (AC-06.5) — guarda do contrato que PERMANECE: item já vinculado à
     franquia Y e o lote aplica X (DIFERENTE) sem sobrescrever → ValidationError. A
     revisão isenta só franquia idêntica; conflito real (troca) segue exigindo
@@ -5172,8 +5275,11 @@ def test_lote_franquia_diferente_sem_flag_continua_recusando(_fks_acionamento):
 
     from controle_acionamentos.services import vincular_franquia_em_lote
 
+    user = django_user_model.objects.create_user(username="lote_diferente")
     with pytest.raises(ValidationError):
-        vincular_franquia_em_lote([ac.pk], franquia_x)  # sem sobrescrever
+        vincular_franquia_em_lote(
+            [ac.pk], franquia_x, editado_por=user
+        )  # sem sobrescrever
 
 
 @pytest.mark.django_db
@@ -6896,7 +7002,7 @@ class TestPersistenciaValorCliente:
 
     @pytest.mark.django_db
     def test_vinculo_em_lote_calcula_agente_e_preserva_valor_cliente(
-        self, _fks_acionamento
+        self, django_user_model, _fks_acionamento
     ):
         """5 — o vínculo em lote resolve o agente pela franquia-ouro (500 +
         2 h excedentes × 45,00 = 590,00) e NÃO mexe no valor_cliente, que
@@ -6908,7 +7014,8 @@ class TestPersistenciaValorCliente:
 
         from controle_acionamentos.services import vincular_franquia_em_lote
 
-        vincular_franquia_em_lote([ac.pk], franquia)
+        user = django_user_model.objects.create_user(username="lote_valor_cliente")
+        vincular_franquia_em_lote([ac.pk], franquia, editado_por=user)
 
         ac.refresh_from_db()
         assert ac.valor_agente == Decimal("590.00")

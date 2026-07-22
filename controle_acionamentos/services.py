@@ -721,7 +721,7 @@ def acionamentos_em_conflito_de_franquia(pks, franquia):
     )
 
 
-def vincular_franquia_em_lote(pks, franquia, sobrescrever=False):
+def vincular_franquia_em_lote(pks, franquia, sobrescrever=False, *, editado_por):
     """DD-015/M4 (AC-06.4) — vincula `franquia` a todos os acionamentos de
     `pks` e recalcula os campos derivados de cada um, em transação atômica:
     falha em qualquer item desfaz o lote inteiro (AC-06.6). Retorna a
@@ -731,6 +731,16 @@ def vincular_franquia_em_lote(pks, franquia, sobrescrever=False):
     lote já tiver franquia DIFERENTE da selecionada, o lote é recusado (AC-06.5,
     DD-051/ST2) — franquia IDÊNTICA não é conflito e passa normalmente; com True,
     os itens com outra franquia são re-vinculados e recalculados.
+
+    `editado_por` (DD-070/ST3) — autor da trilha de auditoria, keyword-only e
+    SEM default de propósito: não pode existir caminho de gravação em lote sem
+    autor (um default que pulasse o registro recriaria o furo que este ciclo
+    corrige). Para cada item, a foto do estado persistido é tirada ANTES da
+    mutação (o mesmo padrão antigo/novo da view acionamento_update) e, após o
+    save, registrar_edicao_acionamento grava as linhas de histórico das
+    mudanças (franquia_agente, valor_agente e demais CAMPOS_AUDITADOS que
+    mudarem). O registro fica DENTRO do atomic de propósito: se a trilha
+    falhar, o lote inteiro desfaz — dado e auditoria nunca divergem.
 
     Import local de Acionamento: evita import circular (models importa
     recalcular_valor_agente deste módulo).
@@ -747,9 +757,13 @@ def vincular_franquia_em_lote(pks, franquia, sobrescrever=False):
 
         atualizados = 0
         for acionamento in Acionamento.objects.filter(pk__in=pks):
+            # Foto do estado persistido ANTES da mutação (padrão antigo/novo
+            # da view acionamento_update) — é o "antes" das linhas de trilha.
+            antigo = Acionamento.objects.get(pk=acionamento.pk)
             acionamento.franquia_agente = franquia
             acionamento.full_clean()
             acionamento.save()
+            registrar_edicao_acionamento(antigo, acionamento, editado_por)
             atualizados += 1
         return atualizados
 
