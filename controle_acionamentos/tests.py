@@ -2689,6 +2689,39 @@ def test_pedagio_update_sem_franquia_gera_trilha_so_de_pedagio(
     assert reg_pedagio.editado_por == user
 
 
+@pytest.mark.django_db
+def test_pedagio_update_normaliza_casas_decimais_na_trilha(
+    client, django_user_model, _fks_acionamento
+):
+    """Backlog DD-070 (achado da auditoria ST3, RED) — POST do pedágio inline
+    com valor SEM casas decimais ("30") deve normalizar para duas casas antes
+    do save: o banco fica com Decimal("30.00") e a trilha grava valor_novo
+    "30.00" — hoje grava "30", porque o input cru vira Decimal sem quantize e
+    a serialização da trilha é fiel ao que recebe. GREEN futuro: normalizar no
+    ENDPOINT (o quantize de 2 casas ROUND_HALF_UP que o módulo de services já
+    expõe) ANTES de atribuir à instância — nunca no serializador genérico da
+    trilha, que segue fiel ao que recebe."""
+    from controle_acionamentos.models import AcionamentoHistorico
+
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente, pedagio=Decimal("0.00"))
+    ac.save()
+
+    user = _user_com_perms(django_user_model, "change_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_pedagio_update", args=[ac.pk])
+    response = client.post(url, {"pedagio": "30"})
+
+    assert response.status_code == 200
+    ac.refresh_from_db()
+    assert ac.pedagio == Decimal("30.00")
+
+    registros = AcionamentoHistorico.objects.filter(acionamento=ac, campo="pedagio")
+    assert registros.count() == 1
+    assert registros.get().valor_novo == "30.00"  # sempre com duas casas
+
+
 # ---------------------------------------------------------------------------
 # views.acionamento_vincular_franquia_lote — vínculo em lote, DD-015/M4 subtask 5
 # Endpoint POST que vincula uma franquia a vários acionamentos de uma vez,
@@ -4022,6 +4055,51 @@ def test_acionamento_update_post_gera_trilha_de_auditoria(
     for r in registros:
         assert r.editado_por == user
         assert r.acionamento == ac
+
+
+@pytest.mark.django_db
+def test_acionamento_update_normaliza_decimais_na_trilha(
+    client, django_user_model, _fks_acionamento
+):
+    """Backlog DD-070 (normalização de decimais na trilha, RED) — o endpoint
+    inline de pedágio JÁ normaliza (relê do banco antes de registrar; guarda de
+    regressão em test_pedagio_update_normaliza_casas_decimais_na_trilha). O
+    caminho que grava cru é ESTA view de edição: ela registra a trilha com a
+    instância em memória, carregando o Decimal("30") cru do form em vez do
+    "30.00" persistido. GREEN futuro (uma linha): salvo.refresh_from_db()
+    dentro do atomic, após o save e antes do registrar_edicao_acionamento,
+    espelhando o padrão do endpoint de pedágio."""
+    from controle_acionamentos.models import AcionamentoHistorico
+
+    cliente, responsavel, agente = _fks_acionamento
+    servico = _cria_servico(cliente, _SERVICOS_EM_ORDEM[0], ativo=True)
+    base = timezone.now().replace(second=0, microsecond=0)
+    ac = _acionamento_valido(
+        cliente,
+        responsavel,
+        agente,
+        franquia_agente=None,
+        pedagio=Decimal("0.00"),
+        data_hora_solicitado=base,
+        data_hora_inicio=base + timedelta(minutes=30),
+        data_hora_final=base + timedelta(hours=3),
+    )
+    aplicar_servico_ao_acionamento(ac, servico)
+    ac.save()
+    user = _user_com_perms(django_user_model, "change_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_update", args=[ac.pk])
+    payload = _post_payload_acionamento(ac, servico_cliente=servico.pk, pedagio="30")
+    response = client.post(url, payload)
+
+    assert response.status_code == 302
+    ac.refresh_from_db()
+    assert ac.pedagio == Decimal("30.00")
+
+    registros = AcionamentoHistorico.objects.filter(acionamento=ac, campo="pedagio")
+    assert registros.count() == 1
+    assert registros.get().valor_novo == "30.00"  # sempre com duas casas
 
 
 @pytest.mark.django_db

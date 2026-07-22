@@ -204,6 +204,11 @@ def acionamento_update(request, pk):
             with transaction.atomic():
                 # Trilha e save na mesma transação — ou tudo, ou nada.
                 salvo.save()  # o save() do model dispara o recálculo
+                # A trilha registra o estado PERSISTIDO, não a instância em
+                # memória do form: o refresh normaliza Decimals digitados sem
+                # casas (30 → 30.00) e qualquer divergência memória × banco —
+                # o mesmo motivo do refresh no endpoint de pedágio.
+                salvo.refresh_from_db()
                 registrar_edicao_acionamento(antigo, salvo, request.user)
             return redirect(
                 "controle_acionamentos:acionamento_detail", pk=acionamento.pk
