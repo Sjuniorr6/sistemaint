@@ -45,7 +45,7 @@
           <tr>
             <td>{{ franquia.cliente.nome_empresa }}</td>
             <td>{{ franquia.nome }}</td>
-            <td class="text-end acn-mono">R$ {{ franquia.valor_acionamento|floatformat:2 }}</td>
+            <td class="text-end acn-mono">R$ {{ franquia.valor_acionamento|floatformat:"2g" }}</td>
             <td class="text-center acn-mono">{{ franquia.franquia_km }}</td>
             <td class="text-center acn-mono">{{ franquia.franquia_horas|floatformat:2 }}</td>
             <td class="text-center">
