@@ -56,12 +56,12 @@
       <div class="row align-items-center text-center">
         <div class="col-md-6 py-2">
           <div class="text-muted small text-uppercase">Valor do cliente</div>
-          <div class="acn-hero-valor acn-mono">R$ {{ composicao_cliente.valor_cliente|floatformat:2 }}</div>
+          <div class="acn-hero-valor acn-mono">R$ {{ composicao_cliente.valor_cliente|floatformat:"2g" }}</div>
         </div>
         <div class="col-md-6 py-2 acn-hero-divisor">
           <div class="text-muted small text-uppercase">Valor do agente</div>
           {% if acionamento.valor_agente is not None %}
-            <div class="acn-hero-valor acn-mono acn-texto-dourado">R$ {{ acionamento.valor_agente|floatformat:2 }}</div>
+            <div class="acn-hero-valor acn-mono acn-texto-dourado">R$ {{ acionamento.valor_agente|floatformat:"2g" }}</div>
           {% else %}
             {% comment %}
             A pílula-link só existe para quem pode editar (mesma guarda do botão
@@ -119,23 +119,23 @@
           <div class="acn-extrato acn-extrato-limpo d-flex flex-column flex-grow-1">
             <div class="acn-extrato-linha">
               <span>Base do serviço</span>
-              <span class="acn-mono">R$ {{ composicao_cliente.valor_acionamento|floatformat:2 }}</span>
+              <span class="acn-mono">R$ {{ composicao_cliente.valor_acionamento|floatformat:"2g" }}</span>
             </div>
             <div class="acn-extrato-linha">
               <span>KM excedente
-                <span class="acn-extrato-anota">({% if composicao_cliente.km_excedente %}{{ composicao_cliente.km_excedente }} km × R$ {{ composicao_cliente.valor_unitario_km|floatformat:2 }}{% else %}sem excedente{% endif %})</span>
+                <span class="acn-extrato-anota">({% if composicao_cliente.km_excedente %}{{ composicao_cliente.km_excedente }} km × R$ {{ composicao_cliente.valor_unitario_km|floatformat:"2g" }}{% else %}sem excedente{% endif %})</span>
               </span>
-              <span class="acn-mono">R$ {{ composicao_cliente.subtotal_km|floatformat:2 }}</span>
+              <span class="acn-mono">R$ {{ composicao_cliente.subtotal_km|floatformat:"2g" }}</span>
             </div>
             <div class="acn-extrato-linha">
               <span>Hora excedente
-                <span class="acn-extrato-anota">({% if composicao_cliente.hora_excedente %}{{ composicao_cliente.hora_excedente|floatformat:"-2" }} h × R$ {{ composicao_cliente.valor_unitario_hora|floatformat:2 }}{% else %}sem excedente{% endif %})</span>
+                <span class="acn-extrato-anota">({% if composicao_cliente.hora_excedente %}{{ composicao_cliente.hora_excedente|floatformat:"-2" }} h × R$ {{ composicao_cliente.valor_unitario_hora|floatformat:"2g" }}{% else %}sem excedente{% endif %})</span>
               </span>
-              <span class="acn-mono">R$ {{ composicao_cliente.subtotal_hora|floatformat:2 }}</span>
+              <span class="acn-mono">R$ {{ composicao_cliente.subtotal_hora|floatformat:"2g" }}</span>
             </div>
             <div class="acn-extrato-linha acn-extrato-total acn-extrato-rodape">
               <span>Total</span>
-              <span class="acn-mono">R$ {{ composicao_cliente.valor_cliente|floatformat:2 }}</span>
+              <span class="acn-mono">R$ {{ composicao_cliente.valor_cliente|floatformat:"2g" }}</span>
             </div>
           </div>
         </div>
@@ -157,27 +157,27 @@
               <span>Base da franquia
                 {% if composicao.blocos > 0 %}<span class="acn-extrato-anota">escalonado · {{ composicao.blocos }} bloco{{ composicao.blocos|pluralize }}</span>{% endif %}
               </span>
-              <span class="acn-mono">R$ {{ composicao.valor_acionamento_ajustado|floatformat:2 }}</span>
+              <span class="acn-mono">R$ {{ composicao.valor_acionamento_ajustado|floatformat:"2g" }}</span>
             </div>
             <div class="acn-extrato-linha">
               <span>KM excedente
-                <span class="acn-extrato-anota">({% if composicao.km_excedente %}{{ composicao.km_excedente }} km × R$ {{ composicao.valor_unitario_km|floatformat:2 }}{% else %}sem excedente{% endif %})</span>
+                <span class="acn-extrato-anota">({% if composicao.km_excedente %}{{ composicao.km_excedente }} km × R$ {{ composicao.valor_unitario_km|floatformat:"2g" }}{% else %}sem excedente{% endif %})</span>
               </span>
-              <span class="acn-mono">R$ {{ composicao.subtotal_km|floatformat:2 }}</span>
+              <span class="acn-mono">R$ {{ composicao.subtotal_km|floatformat:"2g" }}</span>
             </div>
             <div class="acn-extrato-linha">
               <span>Hora excedente
-                <span class="acn-extrato-anota">({% if composicao.hora_excedente %}{{ composicao.hora_excedente|floatformat:"-2" }} h × R$ {{ composicao.valor_unitario_hora|floatformat:2 }}{% else %}sem excedente{% endif %})</span>
+                <span class="acn-extrato-anota">({% if composicao.hora_excedente %}{{ composicao.hora_excedente|floatformat:"-2" }} h × R$ {{ composicao.valor_unitario_hora|floatformat:"2g" }}{% else %}sem excedente{% endif %})</span>
               </span>
-              <span class="acn-mono">R$ {{ composicao.subtotal_hora|floatformat:2 }}</span>
+              <span class="acn-mono">R$ {{ composicao.subtotal_hora|floatformat:"2g" }}</span>
             </div>
             <div class="acn-extrato-linha">
               <span>Pedágio</span>
-              <span class="acn-mono">R$ {{ composicao.pedagio|floatformat:2 }}</span>
+              <span class="acn-mono">R$ {{ composicao.pedagio|floatformat:"2g" }}</span>
             </div>
             <div class="acn-extrato-linha acn-extrato-total acn-extrato-rodape">
               <span>Total</span>
-              <span class="acn-mono">R$ {{ composicao.valor_agente|floatformat:2 }}</span>
+              <span class="acn-mono">R$ {{ composicao.valor_agente|floatformat:"2g" }}</span>
             </div>
           </div>
         </div>
@@ -187,7 +187,7 @@
         <div class="card-header fw-semibold text-uppercase small acn-extrato-titulo">Composição do agente</div>
         <div class="card-body">
           <p class="text-muted mb-2">Sem franquia vinculada. O valor será calculado ao vincular uma franquia.</p>
-          <div class="text-muted small">Pedágio registrado: <span class="acn-mono">R$ {{ acionamento.pedagio|floatformat:2 }}</span></div>
+          <div class="text-muted small">Pedágio registrado: <span class="acn-mono">R$ {{ acionamento.pedagio|floatformat:"2g" }}</span></div>
         </div>
       </div>
       {% endif %}
@@ -231,7 +231,7 @@
         </div>
         <div class="col-6 col-md-3">
           <span class="acn-campo-rotulo">Valor do acionamento</span>
-          <div class="acn-mono">R$ {{ acionamento.valor_acionamento|floatformat:2 }}</div>
+          <div class="acn-mono">R$ {{ acionamento.valor_acionamento|floatformat:"2g" }}</div>
         </div>
         <div class="col-6 col-md-3">
           <span class="acn-campo-rotulo">Franquia de KM</span>
@@ -243,11 +243,11 @@
         </div>
         <div class="col-6 col-md-3">
           <span class="acn-campo-rotulo">Valor por KM excedente</span>
-          <div class="acn-mono">R$ {{ acionamento.valor_km_excedente|floatformat:2 }}</div>
+          <div class="acn-mono">R$ {{ acionamento.valor_km_excedente|floatformat:"2g" }}</div>
         </div>
         <div class="col-6 col-md-3">
           <span class="acn-campo-rotulo">Valor por hora excedente</span>
-          <div class="acn-mono">R$ {{ acionamento.valor_hora_excedente|floatformat:2 }}</div>
+          <div class="acn-mono">R$ {{ acionamento.valor_hora_excedente|floatformat:"2g" }}</div>
         </div>
       </div>
     </div>
@@ -339,7 +339,7 @@
         </div>
         <div class="col-6 col-md-3">
           <span class="acn-campo-rotulo">Pedágio</span>
-          <div class="acn-mono">R$ {{ acionamento.pedagio|floatformat:2 }}</div>
+          <div class="acn-mono">R$ {{ acionamento.pedagio|floatformat:"2g" }}</div>
         </div>
       </div>
     </div>

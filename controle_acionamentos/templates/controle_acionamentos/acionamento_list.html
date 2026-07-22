@@ -153,9 +153,9 @@
                 {% endif %}
               {% endif %}
             </td>
-            <td class="text-end acn-mono">{{ a.valor_cliente|floatformat:2 }}</td>
+            <td class="text-end acn-mono">{{ a.valor_cliente|floatformat:"2g" }}</td>
             <td class="text-end acn-mono" data-valor-agente="{{ a.pk }}">
-              {% if a.valor_agente is not None %}{{ a.valor_agente|floatformat:2 }}{% else %}—{% endif %}
+              {% if a.valor_agente is not None %}{{ a.valor_agente|floatformat:"2g" }}{% else %}—{% endif %}
             </td>
             <td class="text-end">
               {% if perms.controle_acionamentos.change_acionamento %}
@@ -164,7 +164,7 @@
                        value="{{ a.pedagio|unlocalize }}"
                        data-url="{% url 'controle_acionamentos:acionamento_pedagio_update' a.pk %}">
               {% else %}
-                {{ a.pedagio|floatformat:2 }}
+                {{ a.pedagio|floatformat:"2g" }}
               {% endif %}
             </td>
           </tr>

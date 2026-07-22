@@ -2125,7 +2125,9 @@ def test_listagem_exibe_valor_do_cliente_calculado_por_linha(
     1500,00 + 0,00 (km dentro da franquia) + 3h × 55,00 = 1665,00. A view anexa
     a cada item da página o atributo `valor_cliente` (Decimal vindo do
     compor_valor_cliente) e o template exibe o total na coluna nova
-    (floatformat:2 sob L10N pt-br → vírgula decimal)."""
+    (floatformat sob L10N pt-br → vírgula decimal).
+    Micro-etapa DD-070: o formato esperado ganhou separador de milhar
+    ("2g") — 1665,00 → 1.665,00."""
     cliente, responsavel, agente = _fks_acionamento
     base = timezone.now()
     ac = _acionamento_valido(
@@ -2154,7 +2156,7 @@ def test_listagem_exibe_valor_do_cliente_calculado_por_linha(
 
     assert response.status_code == 200
     conteudo = response.content.decode("utf-8")
-    assert "1665,00" in conteudo
+    assert "1.665,00" in conteudo
     # Cada acionamento da página carrega o total do cliente calculado na view.
     for item in response.context["acionamentos"]:
         assert item.valor_cliente == Decimal("1665.00")
@@ -2276,6 +2278,8 @@ def test_acionamento_detail_renderiza_extrato_de_composicao(
 
     Arrange do cenário C4 (franquia 660/200km/4h/3,30/55, escalonamento ON; km 285,
     7h, pedágio 50) → valor_agente 1.045,50 com 2 blocos.
+    Micro-etapa DD-070: o formato esperado ganhou separador de milhar
+    (floatformat "2g") — 1045,50 → 1.045,50.
     """
     cliente, responsavel, agente = _fks_acionamento
     franquia = FranquiaAgente.objects.create(
@@ -2315,8 +2319,8 @@ def test_acionamento_detail_renderiza_extrato_de_composicao(
     assert "Composição do agente" in conteudo   # o card do extrato existe
     assert "escalonado" in conteudo            # anotação dinâmica da 1ª linha
     assert "2 blocos" in conteudo              # blocos + pluralize
-    # floatformat:2 sob L10N pt-br (sem separador de milhar) → vírgula decimal.
-    assert "1045,50" in conteudo               # total do extrato renderizado
+    # floatformat:"2g" sob L10N pt-br → vírgula decimal + ponto de milhar.
+    assert "1.045,50" in conteudo              # total do extrato renderizado
 
 
 @pytest.mark.django_db
@@ -6969,7 +6973,8 @@ def test_home_rotulo_do_card_de_valor_do_cliente_no_mes(
 ):
     """DD-070/ST5 (RED) — a home ganha o card "Valor do cliente no mês", irmão
     do card do agente (DD-069/ST3), somando o valor_cliente persistido: com um
-    contrato-ouro no mês, a soma 1665,00 aparece na resposta."""
+    contrato-ouro no mês, a soma 1.665,00 aparece na resposta.
+    Micro-etapa DD-070: o formato esperado ganhou separador de milhar ("2g")."""
     cliente, responsavel, agente = _fks_acionamento
     ac = _acionamento_contrato_ouro(cliente, responsavel, agente)
     ac.save()
@@ -6984,7 +6989,7 @@ def test_home_rotulo_do_card_de_valor_do_cliente_no_mes(
     assert response.status_code == 200
     conteudo = response.content.decode(response.charset)
     assert "Valor do cliente no mês" in conteudo
-    assert "1665,00" in conteudo
+    assert "1.665,00" in conteudo
 
 
 @pytest.mark.django_db
@@ -6993,7 +6998,8 @@ def test_home_ultimos_acionamentos_exibem_coluna_valor_cliente(
 ):
     """DD-070/ST5 (RED) — a tabela "Últimos acionamentos" da home ganha a
     coluna "Valor cliente" (mesmo rótulo da listagem), exibindo na linha do
-    contrato-ouro o valor_cliente persistido (1665,00)."""
+    contrato-ouro o valor_cliente persistido (1.665,00).
+    Micro-etapa DD-070: o formato esperado ganhou separador de milhar ("2g")."""
     cliente, responsavel, agente = _fks_acionamento
     ac = _acionamento_contrato_ouro(cliente, responsavel, agente)
     ac.save()
@@ -7009,7 +7015,7 @@ def test_home_ultimos_acionamentos_exibem_coluna_valor_cliente(
     conteudo = response.content.decode(response.charset)
     assert "Últimos acionamentos" in conteudo
     assert "Valor cliente" in conteudo
-    assert "1665,00" in conteudo
+    assert "1.665,00" in conteudo
 
 
 @pytest.mark.django_db
@@ -7019,7 +7025,10 @@ def test_listagem_le_valor_cliente_persistido_e_nao_recalcula(
     """DD-070/ST5 (RED) — a PROVA da troca de fonte na listagem: gravando
     999,99 direto no banco via .update() (sem passar pelo save/recálculo), a
     página deve exibir o PERSISTIDO 999,99 — e não os 1665,00 que o recálculo
-    por linha (compor_valor_cliente na view, o temporário da DD-069) produz."""
+    por linha (compor_valor_cliente na view, o temporário da DD-069) produz.
+    Micro-etapa DD-070: o formato esperado ganhou separador de milhar ("2g") —
+    o guardião negativo passa a mirar "1.665,00", o render que o recálculo
+    indevido produziria no formato novo."""
     cliente, responsavel, agente = _fks_acionamento
     ac = _acionamento_contrato_ouro(cliente, responsavel, agente)
     ac.save()
@@ -7034,4 +7043,4 @@ def test_listagem_le_valor_cliente_persistido_e_nao_recalcula(
     assert response.status_code == 200
     conteudo = response.content.decode("utf-8")
     assert "999,99" in conteudo
-    assert "1665,00" not in conteudo
+    assert "1.665,00" not in conteudo

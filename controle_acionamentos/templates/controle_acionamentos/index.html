@@ -72,7 +72,7 @@
       <div class="card">
         <div class="card-body">
           <div class="acn-dash-rotulo">Valor do cliente no mês</div>
-          <div class="acn-mono acn-texto-dourado acn-dash-num">R$ {{ total_valor_cliente_mes|floatformat:2 }}</div>
+          <div class="acn-mono acn-texto-dourado acn-dash-num">R$ {{ total_valor_cliente_mes|floatformat:"2g" }}</div>
           <div class="acn-dash-nota">{{ hoje|date:"F \d\e Y" }}</div>
         </div>
       </div>
@@ -81,7 +81,7 @@
       <div class="card">
         <div class="card-body">
           <div class="acn-dash-rotulo">Valor do agente no mês</div>
-          <div class="acn-mono acn-texto-dourado acn-dash-num">R$ {{ total_valor_mes|floatformat:2 }}</div>
+          <div class="acn-mono acn-texto-dourado acn-dash-num">R$ {{ total_valor_mes|floatformat:"2g" }}</div>
           <div class="acn-dash-nota">{{ hoje|date:"F \d\e Y" }}</div>
         </div>
       </div>
@@ -168,8 +168,8 @@
             </td>
             <td>{{ a.cliente }} · {{ a.nome_servico }}</td>
             <td class="acn-mono">{{ a.data_hora_solicitado|date:"d/m/Y H:i" }}</td>
-            <td class="acn-mono text-end">{% if a.valor_cliente is not None %}R$ {{ a.valor_cliente|floatformat:2 }}{% else %}—{% endif %}</td>
-            <td class="acn-mono text-end">{% if a.valor_agente is not None %}R$ {{ a.valor_agente|floatformat:2 }}{% else %}—{% endif %}</td>
+            <td class="acn-mono text-end">{% if a.valor_cliente is not None %}R$ {{ a.valor_cliente|floatformat:"2g" }}{% else %}—{% endif %}</td>
+            <td class="acn-mono text-end">{% if a.valor_agente is not None %}R$ {{ a.valor_agente|floatformat:"2g" }}{% else %}—{% endif %}</td>
           </tr>
           {% endfor %}
         </tbody>
