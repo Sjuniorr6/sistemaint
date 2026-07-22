@@ -10,6 +10,7 @@ from controle_acionamentos.services import (
     validar_cpf,
     validar_cnh,
     recalcular_valor_agente,
+    recalcular_valor_cliente,
 )
 
 
@@ -294,9 +295,9 @@ class Acionamento(models.Model):
     )
 
     # — Serviço inline —
-    # O que o operador digita no acionamento; é a fonte default do cálculo
-    # (§8.1). Quando uma franquia é vinculada, ela faz override destes valores,
-    # mas eles permanecem registrados para auditoria.
+    # Snapshot dos parâmetros do serviço do cliente; é a fonte do valor do
+    # CLIENTE (§8.9 do PRD v1.5) — nunca do valor do agente, que vem só da
+    # franquia vinculada. Permanece registrado para auditoria.
     nome_servico = models.CharField(max_length=120, verbose_name="Nome do serviço")
     valor_acionamento = models.DecimalField(
         max_digits=10,
@@ -404,6 +405,16 @@ class Acionamento(models.Model):
         editable=False,
         verbose_name="Valor do agente",
     )
+    # Valor cobrado do CLIENTE, calculado no save a partir do snapshot inline
+    # (§8.9 do PRD v1.5). None = legado ainda não backfillado (DD-070/ST5).
+    valor_cliente = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        editable=False,
+        verbose_name="Valor do cliente",
+    )
 
     # — Auditoria —
     # criado_por (DD-051/ST1): quem registrou o acionamento. PROTECT preserva a
@@ -480,9 +491,12 @@ class Acionamento(models.Model):
                 )
 
     def save(self, *args, **kwargs):
-        # RN-07/§8: os 5 campos calculados são populados pelo service a cada save,
-        # nunca digitados. O save fica fino — só delega o cálculo e persiste.
+        # RN-07/§8 + §8.9: os campos calculados são populados pelos services a
+        # cada save, nunca digitados — o agente pela franquia, o cliente pelo
+        # snapshot inline (a ordem importa: o primeiro deriva km/horas totais
+        # que o segundo consome). O save fica fino — delega e persiste.
         recalcular_valor_agente(self)
+        recalcular_valor_cliente(self)
         super().save(*args, **kwargs)
 
     @property

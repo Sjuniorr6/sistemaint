@@ -515,6 +515,41 @@ def recalcular_valor_agente(acionamento) -> None:
     acionamento.valor_agente = resultado.valor_agente
 
 
+def _entrada_do_snapshot(acionamento) -> dict:
+    """Monta os kwargs do calcular_valor_cliente a partir do SNAPSHOT INLINE do
+    acionamento (DD-070/ST4) — espelho do _entrada_da_franquia no lado do
+    cliente. Fonte ÚNICA do mapeamento snapshot → entrada, compartilhada por
+    ``recalcular_valor_cliente`` e ``compor_valor_cliente`` para nunca
+    divergirem. Requer km_total/horas_total já derivados. Duck-typing — o
+    módulo segue sem importar models.
+    """
+    return dict(
+        valor_acionamento=acionamento.valor_acionamento,
+        franquia_km=acionamento.franquia_km,
+        franquia_horas=acionamento.franquia_horas,
+        valor_km_excedente=acionamento.valor_km_excedente,
+        valor_hora_excedente=acionamento.valor_hora_excedente,
+        km_total=acionamento.km_total,
+        horas_total=acionamento.horas_total,
+    )
+
+
+def recalcular_valor_cliente(acionamento) -> None:
+    """Preenche ``acionamento.valor_cliente`` (DD-070/ST4, §8.9 do PRD v1.5).
+
+    Ponte entre o model e a calculadora pura, espelho do contrato do
+    recalcular_valor_agente: a fonte é o SNAPSHOT INLINE do serviço gravado no
+    acionamento (nunca a franquia — lado agente), sobre os km_total/horas_total
+    JÁ derivados pelo recalcular_valor_agente no mesmo save (por isso ela roda
+    depois dele). A matemática mora toda no calcular_valor_cliente (fonte
+    única, DD-068/ST1) — sem pedágio e sem escalonamento, por regra de negócio.
+    Não persiste: quem chama (``Acionamento.save``) faz o ``super().save()``.
+    """
+    acionamento.valor_cliente = calcular_valor_cliente(
+        **_entrada_do_snapshot(acionamento)
+    )
+
+
 def aplicar_servico_ao_acionamento(acionamento, servico):
     """DD-067/ST1 — aplica um ServicoCliente a um Acionamento, em momento
     EXPLÍCITO (nunca no save()).
@@ -652,15 +687,7 @@ def compor_valor_cliente(acionamento):
     subtotal_km = _quantizar(km_excedente * acionamento.valor_km_excedente)
     subtotal_hora = _quantizar(hora_excedente * acionamento.valor_hora_excedente)
 
-    valor_cliente = calcular_valor_cliente(
-        valor_acionamento=acionamento.valor_acionamento,
-        franquia_km=acionamento.franquia_km,
-        franquia_horas=acionamento.franquia_horas,
-        valor_km_excedente=acionamento.valor_km_excedente,
-        valor_hora_excedente=acionamento.valor_hora_excedente,
-        km_total=acionamento.km_total,
-        horas_total=acionamento.horas_total,
-    )
+    valor_cliente = calcular_valor_cliente(**_entrada_do_snapshot(acionamento))
 
     return ComposicaoValorCliente(
         valor_acionamento=acionamento.valor_acionamento,

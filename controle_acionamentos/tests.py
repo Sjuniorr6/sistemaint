@@ -6763,3 +6763,149 @@ class TestRegrasSuspeitaSaneamento:
             tarifa_hora=Decimal("0.00"),
         )
         assert motivos == []
+
+
+# ---------------------------------------------------------------------------
+# DD-070 ST4 — persistência do valor do cliente (FASE RED)
+# O campo `valor_cliente` ainda NÃO existe no model Acionamento — os 5 testes
+# abaixo nascem VERMELHOS de propósito (TDD). Contrato sob teste:
+#   Acionamento.valor_cliente — DecimalField(max_digits=10, decimal_places=2,
+#       null=True, editable=False), gravado no fluxo de save como espelho do
+#       valor_agente (RN-08/§8.9 do PRD v1.5): a fonte é o snapshot inline do
+#       serviço, sem pedágio e sem escalonamento; independe da franquia.
+# Nenhuma função nova é importada — o alvo é o campo do model; o save e o
+# vincular_franquia_em_lote existentes é que passam a persisti-lo no GREEN.
+# ---------------------------------------------------------------------------
+
+
+def _acionamento_contrato_ouro(cliente, responsavel, agente, **overrides):
+    """Acionamento do contrato-ouro (DD-068/DD-069): serviço moto 1500,00,
+    franquia 100 km/4 h, tarifas 2,80/55,00, percurso 100→150 km (50 km) em
+    7 h, pedágio 0 → valor do cliente 1665,00. Espelha o setup dos testes de
+    compor_valor_cliente, por cima do _acionamento_valido."""
+    base = timezone.now()
+    dados = dict(
+        franquia_agente=None,
+        valor_acionamento=Decimal("1500.00"),
+        franquia_km=100,
+        franquia_horas=Decimal("4.00"),
+        valor_km_excedente=Decimal("2.80"),
+        valor_hora_excedente=Decimal("55.00"),
+        pedagio=Decimal("0.00"),
+        km_inicio=100,
+        km_final=150,
+        data_hora_solicitado=base,
+        data_hora_inicio=base,
+        data_hora_final=base + timedelta(hours=7),
+    )
+    dados.update(overrides)
+    return _acionamento_valido(cliente, responsavel, agente, **dados)
+
+
+def _franquia_ouro_do_agente(cliente):
+    """Franquia do agente do contrato-ouro: 500,00 base, 120 km/5 h, tarifas
+    1,80/45,00, sem escalonamento (com o percurso de 50 km nem escalonaria)."""
+    return FranquiaAgente.objects.create(
+        **_dados_franquia(
+            cliente,
+            nome="Franquia Ouro Agente",
+            valor_acionamento=Decimal("500.00"),
+            franquia_km=120,
+            franquia_horas=Decimal("5.00"),
+            valor_km_excedente=Decimal("1.80"),
+            valor_hora_excedente=Decimal("45.00"),
+        )
+    )
+
+
+class TestPersistenciaValorCliente:
+    @pytest.mark.django_db
+    def test_contrato_do_campo_valor_cliente(self):
+        """1 — contrato do campo via _meta (independe de dados), no padrão do
+        test_contrato_dos_campos_de_rastreio: valor_cliente é DecimalField com
+        max_digits=10 e decimal_places=2, null=True (legados nascem pendentes)
+        e editable=False (calculado no save, nunca digitado)."""
+        campo = Acionamento._meta.get_field("valor_cliente")
+
+        assert campo.max_digits == 10
+        assert campo.decimal_places == 2
+        assert campo.null is True
+        assert campo.editable is False
+
+    @pytest.mark.django_db
+    def test_save_sem_franquia_persiste_valor_cliente_e_agente_pendente(
+        self, _fks_acionamento
+    ):
+        """2 — contrato-ouro sem franquia: o save persiste valor_cliente
+        1665,00 (1500 + 3 h excedentes × 55,00) enquanto o valor_agente segue
+        PENDENTE (None) — as duas contas são independentes (RN-08)."""
+        cliente, responsavel, agente = _fks_acionamento
+        ac = _acionamento_contrato_ouro(cliente, responsavel, agente)
+        ac.save()
+
+        ac.refresh_from_db()
+        assert ac.valor_cliente == Decimal("1665.00")
+        assert ac.valor_agente is None
+
+    @pytest.mark.django_db
+    def test_editar_campo_fonte_recalcula_valor_cliente(self, _fks_acionamento):
+        """3 — editar um campo-fonte recalcula no save: esticando a jornada de
+        7 para 8 h, as horas excedentes vão de 3 para 4 → 1500 + 4 × 55,00 =
+        1720,00 persistidos."""
+        cliente, responsavel, agente = _fks_acionamento
+        ac = _acionamento_contrato_ouro(cliente, responsavel, agente)
+        ac.save()
+
+        ac.data_hora_final = ac.data_hora_inicio + timedelta(hours=8)
+        ac.save()
+
+        ac.refresh_from_db()
+        assert ac.valor_cliente == Decimal("1720.00")
+
+    @pytest.mark.django_db
+    def test_pedagio_altera_valor_agente_e_preserva_valor_cliente(
+        self, client, django_user_model, _fks_acionamento
+    ):
+        """4 — pedágio é exclusivo do agente: com a franquia-ouro vinculada
+        (500 + 2 h excedentes × 45,00 = 590,00), atualizar o pedágio para
+        25,00 pelo mesmo endpoint dos testes de pedágio leva o valor_agente a
+        615,00 e o valor_cliente permanece 1665,00."""
+        cliente, responsavel, agente = _fks_acionamento
+        franquia = _franquia_ouro_do_agente(cliente)
+        ac = _acionamento_contrato_ouro(
+            cliente, responsavel, agente, franquia_agente=franquia
+        )
+        ac.save()
+
+        user = _user_com_perms(django_user_model, "change_acionamento")
+        client.force_login(user)
+
+        url = reverse(
+            "controle_acionamentos:acionamento_pedagio_update", args=[ac.pk]
+        )
+        response = client.post(url, {"pedagio": "25.00"})
+
+        assert response.status_code == 200
+        ac.refresh_from_db()
+        assert ac.valor_agente == Decimal("615.00")
+        assert ac.valor_cliente == Decimal("1665.00")
+
+    @pytest.mark.django_db
+    def test_vinculo_em_lote_calcula_agente_e_preserva_valor_cliente(
+        self, _fks_acionamento
+    ):
+        """5 — o vínculo em lote resolve o agente pela franquia-ouro (500 +
+        2 h excedentes × 45,00 = 590,00) e NÃO mexe no valor_cliente, que
+        segue 1665,00 gravado desde o primeiro save."""
+        cliente, responsavel, agente = _fks_acionamento
+        franquia = _franquia_ouro_do_agente(cliente)
+        ac = _acionamento_contrato_ouro(cliente, responsavel, agente)
+        ac.save()
+
+        from controle_acionamentos.services import vincular_franquia_em_lote
+
+        vincular_franquia_em_lote([ac.pk], franquia)
+
+        ac.refresh_from_db()
+        assert ac.valor_agente == Decimal("590.00")
+        assert ac.valor_cliente == Decimal("1665.00")
