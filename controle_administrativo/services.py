@@ -436,14 +436,6 @@ def gerar_blocos_semana(semana_iso, ano, user):
     semana_ant = data_1sem.isocalendar()[1]
     ano_ant    = data_1sem.isocalendar()[0]
 
-    # Duas semanas atrás — recorrência QUINZENAL: o item fixo do bloco quinzenal
-    # reaparece a cada 2 semanas (não toda semana), ancorado na semana em que foi
-    # fixado. Buscando a origem 2 semanas atrás, as semanas intermediárias não
-    # recebem cópia e o item pula uma semana, como esperado para "quinzenal".
-    data_2sem   = data_ref - datetime.timedelta(weeks=2)
-    semana_ant2 = data_2sem.isocalendar()[1]
-    ano_ant2    = data_2sem.isocalendar()[0]
-
     for tipo in [TipoBloco.NAO_ESQUECER, TipoBloco.QUINZENAL, TipoBloco.MENSAL]:
         bloco, criado = BlocoSemanal.objects.get_or_create(
             tipo       = tipo,
@@ -455,10 +447,9 @@ def gerar_blocos_semana(semana_iso, ano, user):
         # A função é idempotente e respeita soft-delete (oculta), então rodar
         # em toda visita propaga itens recém-fixados para semanas já existentes,
         # sem duplicar e sem ressuscitar itens excluídos de propósito.
-        if tipo == TipoBloco.QUINZENAL:
-            _copiar_itens_fixos_bloco(bloco, semana_ant2, ano_ant2)
-        else:
-            _copiar_itens_fixos_bloco(bloco, semana_ant, ano_ant)
+        # Todos os blocos (inclusive o QUINZENAL) carregam o item fixo para a
+        # semana seguinte: o item aparece sempre, não a cada 2 semanas.
+        _copiar_itens_fixos_bloco(bloco, semana_ant, ano_ant)
 
     # Copia tarefas da divisão com is_fixo=True da semana anterior
     _copiar_tarefas_divisao_fixas(semana_iso, ano)

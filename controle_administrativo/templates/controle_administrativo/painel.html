@@ -1207,20 +1207,21 @@
   // ── Blocos especiais ──
   let blocoAtualId = null;
 
-  // Ajusta o rótulo do checkbox "fixo" conforme o bloco: no quinzenal o item
-  // fixo recorre a cada quinzena (2 semanas); nos demais, toda semana. (RN-01/RN-06)
+  // Ajusta o rótulo do checkbox "fixo" conforme o bloco. O item fixo carrega
+  // para a semana seguinte em todos os blocos (aparece sempre). No quinzenal o
+  // rótulo é simplificado para "Fixar tarefa".
   function ajustarRotuloFixo(prefixo, tipo) {
     const ehQuinzenal = tipo === 'quinzenal';
     const label = document.getElementById(prefixo + '-label');
     const help  = document.getElementById(prefixo + '-help');
     if (label) {
       label.textContent = ehQuinzenal
-        ? 'Fixar o item quinzenalmente'
+        ? 'Fixar tarefa'
         : 'Item fixo — carregar para a semana seguinte';
     }
     if (help) {
-      help.textContent   = ehQuinzenal ? 'O item voltará a aparecer automaticamente a cada quinzena (2 semanas).' : '';
-      help.style.display = ehQuinzenal ? '' : 'none';
+      help.textContent   = '';
+      help.style.display = 'none';
     }
   }
 
