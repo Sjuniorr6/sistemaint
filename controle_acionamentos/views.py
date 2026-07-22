@@ -33,6 +33,7 @@ from .selectors import (
     listar_historico_do_acionamento,
     listar_servicos_ativos_por_cliente,
     somar_valor_agente_no_mes,
+    somar_valor_cliente_no_mes,
 )
 from .services import (
     acionamentos_em_conflito_de_franquia,
@@ -50,7 +51,8 @@ def index(request):
     """Home dashboard do app de Acionamentos (DD-032/ST7 + DD-048).
 
     View fina: os números vêm dos selectors (contar_acionamentos_no_mes /
-    contar_sem_franquia / somar_valor_agente_no_mes) e o rótulo do mês é
+    contar_sem_franquia / somar_valor_agente_no_mes /
+    somar_valor_cliente_no_mes) e o rótulo do mês é
     renderizado no template (filtro `date`, catálogo pt-br). `ultimos` reusa
     listar_acionamentos() (já ordenado DESC e com select_related), fatiado nos
     5 primeiros — sem query nova. Sem regra de negócio aqui.
@@ -61,6 +63,8 @@ def index(request):
         "total_mes": contar_acionamentos_no_mes(hoje=hoje),
         "total_sem_franquia": contar_sem_franquia(),
         "total_valor_mes": somar_valor_agente_no_mes(hoje=hoje),
+        # DD-070/ST5: soma do valor do cliente no mês, irmã da soma do agente.
+        "total_valor_cliente_mes": somar_valor_cliente_no_mes(hoje=hoje),
         # DD-050/ST5: contadores da fileira de cadastros. O template gateia cada
         # item por perms.view_<model>; os números só são exibidos junto do link.
         "contador_clientes": contar_clientes(),
@@ -116,12 +120,9 @@ def acionamento_list(request):
     )
     paginator = Paginator(acionamentos, 25)
     pagina = paginator.get_page(request.GET.get("page"))
-    # DD-069/ST2 — valor do cliente por linha, só nos 25 itens da página (o
-    # service é puro: usa campos já carregados, zero query extra). Loop
-    # temporário até a DD-070/ST4 persistir o campo; o nome `valor_cliente` é
-    # idêntico ao futuro campo persistido para o template não mudar.
-    for acionamento in pagina:
-        acionamento.valor_cliente = compor_valor_cliente(acionamento).valor_cliente
+    # DD-070/ST5: o `valor_cliente` de cada linha agora é o CAMPO PERSISTIDO do
+    # model (calculado no save) — o loop temporário da DD-069/ST2 que recalculava
+    # por linha via compor_valor_cliente foi removido; o template lê direto.
     # Base da navegação de páginas: o template injeta &page=N sobre esta base;
     # sem o pop, o page antigo viajaria duplicado no link.
     params = request.GET.copy()

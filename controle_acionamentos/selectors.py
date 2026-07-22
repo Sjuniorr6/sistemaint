@@ -176,6 +176,26 @@ def somar_valor_agente_no_mes(hoje=None):
     return agregado["total"]
 
 
+def somar_valor_cliente_no_mes(hoje=None):
+    """DD-070/ST5 — contador do dashboard: soma de valor_cliente no mês/ano de
+    `hoje`, espelho fiel do somar_valor_agente_no_mes (mesmo recorte temporal,
+    mesmo Coalesce para Decimal("0") em mês vazio). Legado ainda sem backfill é
+    NULL e fica fora da soma, como o pendente do agente.
+    """
+    if hoje is None:
+        hoje = timezone.localdate()
+    agregado = Acionamento.objects.filter(
+        data_hora_solicitado__year=hoje.year,
+        data_hora_solicitado__month=hoje.month,
+    ).aggregate(
+        total=Coalesce(
+            Sum("valor_cliente"),
+            Value(Decimal("0"), output_field=DecimalField()),
+        )
+    )
+    return agregado["total"]
+
+
 def listar_historico_do_acionamento(acionamento):
     """DD-049/ST4 — históricos de um acionamento, mais recente primeiro
     (Meta.ordering do model), com o editor pré-carregado para o template

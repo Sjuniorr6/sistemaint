@@ -45,9 +45,12 @@
     da view. O número reusa .acn-mono + .acn-texto-dourado (fonte mono dourada);
     .acn-dash-num só dá o tamanho. O rótulo do mês é o filtro `date` sobre `hoje`
     (âncora única da view): F \d\e Y → "julho de 2026" (catálogo pt-br).
+    DD-070/ST5: com o 4º card (Valor do cliente no mês, antes do do agente), a
+    fileira passa de col-md-4 para col-6 col-md-3 — 4 irmãos iguais, quebrando
+    em duas colunas em tela estreita (mesmo grid da fileira de cadastros).
   {% endcomment %}
   <div class="row g-3 mt-1">
-    <div class="col-12 col-md-4">
+    <div class="col-6 col-md-3">
       <div class="card">
         <div class="card-body">
           <div class="acn-dash-rotulo">Acionamentos no mês</div>
@@ -56,7 +59,7 @@
         </div>
       </div>
     </div>
-    <div class="col-12 col-md-4">
+    <div class="col-6 col-md-3">
       <div class="card">
         <div class="card-body">
           <div class="acn-dash-rotulo">Sem franquia vinculada</div>
@@ -65,7 +68,16 @@
         </div>
       </div>
     </div>
-    <div class="col-12 col-md-4">
+    <div class="col-6 col-md-3">
+      <div class="card">
+        <div class="card-body">
+          <div class="acn-dash-rotulo">Valor do cliente no mês</div>
+          <div class="acn-mono acn-texto-dourado acn-dash-num">R$ {{ total_valor_cliente_mes|floatformat:2 }}</div>
+          <div class="acn-dash-nota">{{ hoje|date:"F \d\e Y" }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
       <div class="card">
         <div class="card-body">
           <div class="acn-dash-rotulo">Valor do agente no mês</div>
@@ -144,6 +156,7 @@
             <th>Código</th>
             <th>Cliente · Serviço</th>
             <th>Solicitado</th>
+            <th class="text-end">Valor cliente</th>
             <th class="text-end">Valor do agente</th>
           </tr>
         </thead>
@@ -155,6 +168,7 @@
             </td>
             <td>{{ a.cliente }} · {{ a.nome_servico }}</td>
             <td class="acn-mono">{{ a.data_hora_solicitado|date:"d/m/Y H:i" }}</td>
+            <td class="acn-mono text-end">{% if a.valor_cliente is not None %}R$ {{ a.valor_cliente|floatformat:2 }}{% else %}—{% endif %}</td>
             <td class="acn-mono text-end">{% if a.valor_agente is not None %}R$ {{ a.valor_agente|floatformat:2 }}{% else %}—{% endif %}</td>
           </tr>
           {% endfor %}

@@ -6909,3 +6909,129 @@ class TestPersistenciaValorCliente:
         ac.refresh_from_db()
         assert ac.valor_agente == Decimal("590.00")
         assert ac.valor_cliente == Decimal("1665.00")
+
+
+# ---------------------------------------------------------------------------
+# DD-070 ST5 (parte 2) — home e listagem lendo o valor_cliente PERSISTIDO (RED)
+# Três alvos que ainda NÃO existem — os 5 testes abaixo nascem VERMELHOS:
+#   * selectors.somar_valor_cliente_no_mes — espelho do somar_valor_agente_no_mes
+#     (testes 1-2 caem por ImportError, com o import LOCAL no corpo);
+#   * card "Valor do cliente no mês" na home (teste 3);
+#   * coluna "Valor cliente" na tabela de últimos acionamentos da home (teste 4);
+#   * listagem lendo o CAMPO PERSISTIDO valor_cliente em vez de recalcular por
+#     linha (teste 5 — a prova é gravar 999,99 direto via .update(), sem save).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_somar_valor_cliente_no_mes_soma_apenas_mes_corrente(_fks_acionamento):
+    """DD-070/ST5 — espelho do somar_valor_agente_no_mes: soma o valor_cliente
+    persistido só dos acionamentos do mês corrente. O contrato-ouro do mês
+    atual (1665,00) entra; o de dois meses atrás fica fora → soma == 1665,00."""
+    from controle_acionamentos.selectors import somar_valor_cliente_no_mes
+
+    cliente, responsavel, agente = _fks_acionamento
+
+    dentro = _acionamento_contrato_ouro(cliente, responsavel, agente)
+    dentro.save()
+
+    passado = timezone.now() - timedelta(days=62)
+    fora = _acionamento_contrato_ouro(
+        cliente,
+        responsavel,
+        agente,
+        data_hora_solicitado=passado,
+        data_hora_inicio=passado,
+        data_hora_final=passado + timedelta(hours=7),
+    )
+    fora.save()
+
+    resultado = somar_valor_cliente_no_mes(hoje=timezone.localdate())
+
+    assert resultado == Decimal("1665.00")
+    assert isinstance(resultado, Decimal)
+
+
+@pytest.mark.django_db
+def test_somar_valor_cliente_no_mes_zero_quando_vazio():
+    """DD-070/ST5 — mês sem acionamentos soma Decimal("0") (Coalesce), nunca
+    None — mesmo contrato do somar_valor_agente_no_mes."""
+    from datetime import date
+
+    from controle_acionamentos.selectors import somar_valor_cliente_no_mes
+
+    assert somar_valor_cliente_no_mes(hoje=date(2026, 6, 15)) == Decimal("0")
+
+
+@pytest.mark.django_db
+def test_home_rotulo_do_card_de_valor_do_cliente_no_mes(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-070/ST5 (RED) — a home ganha o card "Valor do cliente no mês", irmão
+    do card do agente (DD-069/ST3), somando o valor_cliente persistido: com um
+    contrato-ouro no mês, a soma 1665,00 aparece na resposta."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_contrato_ouro(cliente, responsavel, agente)
+    ac.save()
+
+    user = django_user_model.objects.create_user(
+        username="home_cliente", password="x"
+    )
+    client.force_login(user)
+
+    response = client.get(reverse("controle_acionamentos:index"))
+
+    assert response.status_code == 200
+    conteudo = response.content.decode(response.charset)
+    assert "Valor do cliente no mês" in conteudo
+    assert "1665,00" in conteudo
+
+
+@pytest.mark.django_db
+def test_home_ultimos_acionamentos_exibem_coluna_valor_cliente(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-070/ST5 (RED) — a tabela "Últimos acionamentos" da home ganha a
+    coluna "Valor cliente" (mesmo rótulo da listagem), exibindo na linha do
+    contrato-ouro o valor_cliente persistido (1665,00)."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_contrato_ouro(cliente, responsavel, agente)
+    ac.save()
+
+    user = django_user_model.objects.create_user(
+        username="home_coluna", password="x"
+    )
+    client.force_login(user)
+
+    response = client.get(reverse("controle_acionamentos:index"))
+
+    assert response.status_code == 200
+    conteudo = response.content.decode(response.charset)
+    assert "Últimos acionamentos" in conteudo
+    assert "Valor cliente" in conteudo
+    assert "1665,00" in conteudo
+
+
+@pytest.mark.django_db
+def test_listagem_le_valor_cliente_persistido_e_nao_recalcula(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-070/ST5 (RED) — a PROVA da troca de fonte na listagem: gravando
+    999,99 direto no banco via .update() (sem passar pelo save/recálculo), a
+    página deve exibir o PERSISTIDO 999,99 — e não os 1665,00 que o recálculo
+    por linha (compor_valor_cliente na view, o temporário da DD-069) produz."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_contrato_ouro(cliente, responsavel, agente)
+    ac.save()
+
+    Acionamento.objects.filter(pk=ac.pk).update(valor_cliente=Decimal("999.99"))
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    response = client.get(reverse("controle_acionamentos:acionamento_list"))
+
+    assert response.status_code == 200
+    conteudo = response.content.decode("utf-8")
+    assert "999,99" in conteudo
+    assert "1665,00" not in conteudo
