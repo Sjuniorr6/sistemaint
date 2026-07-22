@@ -791,9 +791,10 @@ def sincronizar_catalogo_do_cliente(cliente, formset):
 
 
 # Caminho B — o que a trilha de edição (DD-049) audita: os campos EDITÁVEIS do
-# AcionamentoForm + os CALCULADOS FINANCEIROS do model (excedentes + valor_agente),
-# para a auditoria responder "o que — e quanto de dinheiro — mudou". Os totais
-# km_total/horas_total ficam de fora: são distância/tempo, não valor financeiro.
+# AcionamentoForm + os CALCULADOS FINANCEIROS do model (excedentes, valor_agente
+# e valor_cliente), para a auditoria responder "o que — e quanto de dinheiro —
+# mudou". Os totais km_total/horas_total ficam de fora: são distância/tempo,
+# não valor financeiro.
 CAMPOS_AUDITADOS = [
     # editáveis do AcionamentoForm
     "cliente",
@@ -822,6 +823,7 @@ CAMPOS_AUDITADOS = [
     "km_excedente",
     "hora_excedente",
     "valor_agente",
+    "valor_cliente",
 ]
 
 

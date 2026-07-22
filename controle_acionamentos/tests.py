@@ -7044,3 +7044,87 @@ def test_listagem_le_valor_cliente_persistido_e_nao_recalcula(
     conteudo = response.content.decode("utf-8")
     assert "999,99" in conteudo
     assert "1.665,00" not in conteudo
+
+
+# ---------------------------------------------------------------------------
+# DD-070 ST6 — valor do cliente na trilha de auditoria (FASE RED)
+# O campo `valor_cliente` ainda NÃO está em CAMPOS_AUDITADOS (services.py) —
+# os testes 1 e 2 nascem VERMELHOS; o teste 3 nasce VERDE de propósito, porque
+# afirma uma AUSÊNCIA (pedágio não gera linha de valor_cliente) que já é
+# verdadeira hoje e deve CONTINUAR verdadeira após o GREEN (sem ruído na
+# trilha quando o valor do cliente não muda). Serialização da trilha:
+# Decimal -> str ("1665.00"), como nos testes de trilha existentes (DD-049).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_campos_auditados_incluem_valor_cliente():
+    """1 — contrato da constante: CAMPOS_AUDITADOS ganha "valor_cliente", ao
+    lado dos calculados financeiros já auditados (excedentes e valor_agente)."""
+    from controle_acionamentos.services import CAMPOS_AUDITADOS
+
+    assert "valor_cliente" in CAMPOS_AUDITADOS
+
+
+@pytest.mark.django_db
+def test_editar_jornada_gera_trilha_de_valor_cliente(
+    django_user_model, _fks_acionamento
+):
+    """2 — contrato-ouro sem franquia editado pelo fluxo que gera trilha
+    (registrar_edicao_acionamento, padrão dos testes DD-049): esticando a
+    jornada de 7 para 8 h, o valor_cliente recalcula 1665,00 → 1720,00 e a
+    trilha ganha a linha correspondente, na serialização Decimal -> string."""
+    from controle_acionamentos.services import registrar_edicao_acionamento
+
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_contrato_ouro(cliente, responsavel, agente)
+    ac.save()
+    user = _user_com_perms(django_user_model)
+
+    antigo = Acionamento.objects.get(pk=ac.pk)  # foto do estado atual
+    ac.data_hora_final = ac.data_hora_inicio + timedelta(hours=8)
+    ac.save()  # recalcula valor_cliente (1500 + 4h × 55,00 = 1720,00)
+
+    registros = registrar_edicao_acionamento(antigo, ac, user)
+
+    linhas_cliente = [r for r in registros if r.campo == "valor_cliente"]
+    assert len(linhas_cliente) == 1
+    reg = linhas_cliente[0]
+    assert reg.valor_anterior == "1665.00"  # Decimal -> string
+    assert reg.valor_novo == "1720.00"
+    assert reg.editado_por == user
+
+
+@pytest.mark.django_db
+def test_pedagio_nao_gera_trilha_de_valor_cliente_quando_nao_muda(
+    client, django_user_model, _fks_acionamento
+):
+    """3 — nasce VERDE de propósito: editar só o pedágio (endpoint inline, o
+    fluxo dos testes de trilha do pedágio) muda pedagio e valor_agente (590,00
+    → 615,00 com a franquia-ouro), mas o valor_cliente NÃO muda — a auditoria
+    do cliente não pode gerar ruído: nenhuma linha de valor_cliente."""
+    from controle_acionamentos.models import AcionamentoHistorico
+
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = _franquia_ouro_do_agente(cliente)
+    ac = _acionamento_contrato_ouro(
+        cliente, responsavel, agente, franquia_agente=franquia
+    )
+    ac.save()
+
+    user = _user_com_perms(django_user_model, "change_acionamento")
+    client.force_login(user)
+
+    url = reverse(
+        "controle_acionamentos:acionamento_pedagio_update", args=[ac.pk]
+    )
+    response = client.post(url, {"pedagio": "25.00"})
+
+    assert response.status_code == 200
+    registros = AcionamentoHistorico.objects.filter(acionamento=ac)
+    assert {r.campo for r in registros} == {"pedagio", "valor_agente"}
+    assert not registros.filter(campo="valor_cliente").exists()
+
+    reg_valor = registros.get(campo="valor_agente")
+    assert reg_valor.valor_anterior == "590.00"  # Decimal -> string
+    assert reg_valor.valor_novo == "615.00"
