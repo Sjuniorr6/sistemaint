@@ -296,6 +296,118 @@ def calcular_valor_cliente(
 
 
 # ---------------------------------------------------------------------------
+# Regras de suspeita do saneamento de legados (DD-070 ST1)
+# ---------------------------------------------------------------------------
+# Funções PURAS (sem models): recebem os valores já extraídos do registro e
+# devolvem uma lista de motivos de suspeita — lista vazia = registro limpo.
+# O script de saneamento só RELATA; nenhuma função daqui altera dado algum.
+
+# Teto acordado na ST1 da DD-070 — borda INCLUSIVA: exatamente 120 km/h é limpo.
+VELOCIDADE_MAXIMA_KMH = Decimal("120")
+
+# Faixas informadas pelos operadores do administrativo em 22/07/2026 —
+# bordas INCLUSIVAS nos dois extremos (piso e teto ainda são valores válidos).
+FAIXA_TARIFA_KM = (Decimal("1.00"), Decimal("6.00"))
+FAIXA_TARIFA_HORA = (Decimal("5.00"), Decimal("60.00"))
+FAIXA_VALOR_BASE = (Decimal("200.00"), Decimal("20000.00"))
+
+
+def avaliar_suspeita_velocidade(
+    km_inicial: Decimal, km_final: Decimal, minutos: int | None
+) -> list[str]:
+    """Suspeita por velocidade média implausível (saneamento DD-070).
+
+    Apenas RELATA motivos de suspeita — nunca altera o registro. Lista
+    vazia significa registro limpo.
+    """
+    motivos: list[str] = []
+    km_percorrido = km_final - km_inicial
+
+    # Hodômetro andando para trás: registro inconsistente por si só —
+    # não faz sentido calcular velocidade sobre um percurso negativo.
+    if km_percorrido < 0:
+        motivos.append(
+            f"km final ({km_final}) menor que km inicial ({km_inicial})"
+        )
+        return motivos
+
+    # Houve percurso, mas não há tempo apurável (None ou <= 0): impossível
+    # ter velocidade — também não calcula.
+    if km_percorrido > 0 and (minutos is None or minutos <= 0):
+        motivos.append(
+            f"tempo impossível ({minutos} min) para {km_percorrido} km percorridos"
+        )
+        return motivos
+
+    # Percurso zero com tempo válido é limpo; com percurso, a velocidade
+    # média é km / (min/60), tudo em Decimal — nunca float (§18 do CLAUDE.md).
+    if km_percorrido > 0:
+        velocidade_kmh = km_percorrido / (Decimal(minutos) / Decimal("60"))
+        if velocidade_kmh > VELOCIDADE_MAXIMA_KMH:
+            motivos.append(
+                f"velocidade média de {_quantizar(velocidade_kmh)} km/h "
+                f"acima do teto de {VELOCIDADE_MAXIMA_KMH} km/h"
+            )
+
+    return motivos
+
+
+def avaliar_suspeita_faixas(
+    valor_base: Decimal, tarifa_km: Decimal, tarifa_hora: Decimal
+) -> list[str]:
+    """Suspeita por valor fora da faixa operacional (saneamento DD-070).
+
+    Apenas RELATA motivos de suspeita — nunca altera o registro. Cada campo
+    fora da sua faixa (bordas inclusivas) gera um motivo independente; lista
+    vazia significa registro limpo.
+    """
+    motivos: list[str] = []
+
+    piso, teto = FAIXA_VALOR_BASE
+    if not piso <= valor_base <= teto:
+        motivos.append(
+            f"valor base ({valor_base}) fora da faixa de {piso} a {teto}"
+        )
+
+    piso, teto = FAIXA_TARIFA_KM
+    if not piso <= tarifa_km <= teto:
+        motivos.append(
+            f"tarifa de km ({tarifa_km}) fora da faixa de {piso} a {teto}"
+        )
+
+    piso, teto = FAIXA_TARIFA_HORA
+    if not piso <= tarifa_hora <= teto:
+        motivos.append(
+            f"tarifa de hora ({tarifa_hora}) fora da faixa de {piso} a {teto}"
+        )
+
+    return motivos
+
+
+def avaliar_suspeita_valores_identicos(
+    valor_base: Decimal, tarifa_km: Decimal, tarifa_hora: Decimal
+) -> list[str]:
+    """Suspeita por valores idênticos entre campos (saneamento DD-070).
+
+    Apenas RELATA motivos de suspeita — nunca altera o registro. Um par só é
+    suspeito se os dois valores forem iguais E ambos maiores que zero (zero a
+    zero não é digitação repetida); lista vazia significa registro limpo.
+    """
+    motivos: list[str] = []
+
+    if valor_base == tarifa_km and valor_base > 0:
+        motivos.append("valor base e tarifa de km idênticos")
+
+    if valor_base == tarifa_hora and valor_base > 0:
+        motivos.append("valor base e tarifa de hora idênticos")
+
+    if tarifa_km == tarifa_hora and tarifa_km > 0:
+        motivos.append("tarifa de km e tarifa de hora idênticas")
+
+    return motivos
+
+
+# ---------------------------------------------------------------------------
 # calcular_valor_agente_por_franquia — valor do AGENTE pela franquia (DD-068/ST2)
 # ---------------------------------------------------------------------------
 

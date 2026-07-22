@@ -6541,3 +6541,225 @@ def test_acionamento_detail_sem_franquia_composicao_cliente_preenchida(
     assert response.status_code == 200
     assert response.context["composicao"] is None
     assert response.context["composicao_cliente"] is not None
+
+
+# ---------------------------------------------------------------------------
+# DD-070 ST1 — regras de suspeita do saneamento de legados (FASE RED)
+# As três funções PURAS ainda NÃO existem em controle_acionamentos.services —
+# por isso os 14 testes abaixo nascem VERMELHOS de propósito (TDD): o import
+# LOCAL dispara ImportError isolado por teste, sem derrubar a coleta da suite.
+# Contrato sob teste (todas devolvem list[str]; lista vazia = registro limpo):
+#   avaliar_suspeita_velocidade(km_inicial, km_final, minutos) -> list[str]
+#   avaliar_suspeita_faixas(valor_base, tarifa_km, tarifa_hora) -> list[str]
+#   avaliar_suspeita_valores_identicos(valor_base, tarifa_km, tarifa_hora)
+#       -> list[str]
+# Valores monetários e de km SEMPRE em Decimal; `minutos` é int ou None.
+# O script de saneamento só RELATA suspeitas — nunca altera registro.
+# ---------------------------------------------------------------------------
+
+
+class TestRegrasSuspeitaSaneamento:
+    # -- avaliar_suspeita_velocidade ------------------------------------
+
+    def test_velocidade_contrato_ouro_e_limpa(self):
+        """1 — percurso do contrato-ouro: 50 km em 420 min (~7,1 km/h) é
+        plenamente plausível → lista vazia (registro limpo)."""
+        from controle_acionamentos.services import avaliar_suspeita_velocidade
+
+        motivos = avaliar_suspeita_velocidade(
+            km_inicial=Decimal("100"),
+            km_final=Decimal("150"),
+            minutos=420,
+        )
+        assert motivos == []
+
+    def test_velocidade_especime_absurda_gera_motivo(self):
+        """2 — espécime real do saneamento: 310 km em 4 minutos (4650 km/h)
+        é fisicamente impossível → pelo menos um motivo de suspeita."""
+        from controle_acionamentos.services import avaliar_suspeita_velocidade
+
+        motivos = avaliar_suspeita_velocidade(
+            km_inicial=Decimal("0"),
+            km_final=Decimal("310"),
+            minutos=4,
+        )
+        assert len(motivos) >= 1
+
+    def test_velocidade_borda_exatos_120_kmh_e_limpa(self):
+        """3 — borda INCLUSIVA do teto: 120 km em 60 min = exatamente
+        120 km/h ainda é aceito → lista vazia."""
+        from controle_acionamentos.services import avaliar_suspeita_velocidade
+
+        motivos = avaliar_suspeita_velocidade(
+            km_inicial=Decimal("0"),
+            km_final=Decimal("120"),
+            minutos=60,
+        )
+        assert motivos == []
+
+    def test_velocidade_borda_121_kmh_e_suspeita(self):
+        """4 — primeiro valor acima do teto: 121 km em 60 min = 121 km/h
+        estoura a borda → pelo menos um motivo."""
+        from controle_acionamentos.services import avaliar_suspeita_velocidade
+
+        motivos = avaliar_suspeita_velocidade(
+            km_inicial=Decimal("0"),
+            km_final=Decimal("121"),
+            minutos=60,
+        )
+        assert len(motivos) >= 1
+
+    def test_velocidade_tempo_impossivel_gera_motivo(self):
+        """5 — km percorrido > 0 exige tempo: minutos == 0 e minutos None
+        são ambos tempo impossível de apurar → motivo nos dois subcasos."""
+        from controle_acionamentos.services import avaliar_suspeita_velocidade
+
+        motivos_zero = avaliar_suspeita_velocidade(
+            km_inicial=Decimal("0"),
+            km_final=Decimal("50"),
+            minutos=0,
+        )
+        assert len(motivos_zero) >= 1
+
+        motivos_none = avaliar_suspeita_velocidade(
+            km_inicial=Decimal("0"),
+            km_final=Decimal("50"),
+            minutos=None,
+        )
+        assert len(motivos_none) >= 1
+
+    def test_velocidade_km_final_menor_que_inicial_gera_motivo(self):
+        """6 — hodômetro andando para trás (150 → 100) é registro
+        inconsistente → pelo menos um motivo."""
+        from controle_acionamentos.services import avaliar_suspeita_velocidade
+
+        motivos = avaliar_suspeita_velocidade(
+            km_inicial=Decimal("150"),
+            km_final=Decimal("100"),
+            minutos=60,
+        )
+        assert len(motivos) >= 1
+
+    # -- avaliar_suspeita_faixas ----------------------------------------
+
+    def test_faixas_contratos_ouro_sao_limpos(self):
+        """7 — os dois contratos-ouro da casa caem dentro de todas as
+        faixas → lista vazia em ambos."""
+        from controle_acionamentos.services import avaliar_suspeita_faixas
+
+        motivos_1500 = avaliar_suspeita_faixas(
+            valor_base=Decimal("1500"),
+            tarifa_km=Decimal("4.00"),
+            tarifa_hora=Decimal("55.00"),
+        )
+        assert motivos_1500 == []
+
+        motivos_500 = avaliar_suspeita_faixas(
+            valor_base=Decimal("500"),
+            tarifa_km=Decimal("2.80"),
+            tarifa_hora=Decimal("45.00"),
+        )
+        assert motivos_500 == []
+
+    def test_faixas_especime_estoura_tarifas_com_exatamente_dois_motivos(self):
+        """8 — espécime real: tarifa_km 4214,00 e tarifa_hora 421412,00
+        estouram os tetos, mas o valor_base 4214,00 está dentro da faixa
+        → EXATAMENTE 2 motivos."""
+        from controle_acionamentos.services import avaliar_suspeita_faixas
+
+        motivos = avaliar_suspeita_faixas(
+            valor_base=Decimal("4214.00"),
+            tarifa_km=Decimal("4214.00"),
+            tarifa_hora=Decimal("421412.00"),
+        )
+        assert len(motivos) == 2
+
+    def test_faixas_bordas_inclusivas_sao_limpas(self):
+        """9 — bordas INCLUSIVAS das faixas: o trio no piso (200/1,00/5,00)
+        e o trio no teto (20000/6,00/60,00) são ambos aceitos → vazias."""
+        from controle_acionamentos.services import avaliar_suspeita_faixas
+
+        motivos_piso = avaliar_suspeita_faixas(
+            valor_base=Decimal("200.00"),
+            tarifa_km=Decimal("1.00"),
+            tarifa_hora=Decimal("5.00"),
+        )
+        assert motivos_piso == []
+
+        motivos_teto = avaliar_suspeita_faixas(
+            valor_base=Decimal("20000.00"),
+            tarifa_km=Decimal("6.00"),
+            tarifa_hora=Decimal("60.00"),
+        )
+        assert motivos_teto == []
+
+    def test_faixas_tarifa_hora_abaixo_do_piso_gera_motivo(self):
+        """10 — tarifa_hora 4,00 fica abaixo do piso da faixa (5,00)
+        → pelo menos um motivo."""
+        from controle_acionamentos.services import avaliar_suspeita_faixas
+
+        motivos = avaliar_suspeita_faixas(
+            valor_base=Decimal("1500"),
+            tarifa_km=Decimal("4.00"),
+            tarifa_hora=Decimal("4.00"),
+        )
+        assert len(motivos) >= 1
+
+    # -- avaliar_suspeita_valores_identicos ------------------------------
+
+    def test_identicos_valor_base_igual_tarifa_km_gera_motivo(self):
+        """11 — valor_base e tarifa_km idênticos (4214,00, o espécime) é a
+        assinatura de digitação repetida → pelo menos um motivo."""
+        from controle_acionamentos.services import (
+            avaliar_suspeita_valores_identicos,
+        )
+
+        motivos = avaliar_suspeita_valores_identicos(
+            valor_base=Decimal("4214.00"),
+            tarifa_km=Decimal("4214.00"),
+            tarifa_hora=Decimal("55.00"),
+        )
+        assert len(motivos) >= 1
+
+    def test_identicos_tarifa_km_igual_tarifa_hora_gera_motivo(self):
+        """12 — tarifa_km e tarifa_hora idênticas (6,00) também são par
+        suspeito de digitação repetida → pelo menos um motivo."""
+        from controle_acionamentos.services import (
+            avaliar_suspeita_valores_identicos,
+        )
+
+        motivos = avaliar_suspeita_valores_identicos(
+            valor_base=Decimal("1500"),
+            tarifa_km=Decimal("6.00"),
+            tarifa_hora=Decimal("6.00"),
+        )
+        assert len(motivos) >= 1
+
+    def test_identicos_contrato_ouro_tres_valores_distintos_e_limpo(self):
+        """13 — contrato-ouro com três valores distintos (1500 / 4,00 /
+        55,00): nenhum par idêntico → lista vazia."""
+        from controle_acionamentos.services import (
+            avaliar_suspeita_valores_identicos,
+        )
+
+        motivos = avaliar_suspeita_valores_identicos(
+            valor_base=Decimal("1500"),
+            tarifa_km=Decimal("4.00"),
+            tarifa_hora=Decimal("55.00"),
+        )
+        assert motivos == []
+
+    def test_identicos_dois_campos_zerados_nao_gera_motivo(self):
+        """14 — tarifa_km e tarifa_hora ambas 0,00: a comparação de
+        idênticos só vale quando AMBOS os valores são > 0 — zero a zero
+        não é digitação repetida → lista vazia."""
+        from controle_acionamentos.services import (
+            avaliar_suspeita_valores_identicos,
+        )
+
+        motivos = avaliar_suspeita_valores_identicos(
+            valor_base=Decimal("1500"),
+            tarifa_km=Decimal("0.00"),
+            tarifa_hora=Decimal("0.00"),
+        )
+        assert motivos == []
