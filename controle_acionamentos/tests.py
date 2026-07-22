@@ -7153,6 +7153,41 @@ def test_listagem_le_valor_cliente_persistido_e_nao_recalcula(
     assert "1.665,00" not in conteudo
 
 
+@pytest.mark.django_db
+def test_listagem_valor_cliente_nulo_exibe_travessao(
+    client, django_user_model, _fks_acionamento
+):
+    """DD-070/ST3 (item 9 da auditoria, RED) — valor_cliente NULO na listagem
+    deve exibir o travessão ("—"), como a coluna do agente já faz. O nulo é
+    teoricamente inalcançável pelo save (que sempre calcula), mas pode nascer
+    de escrita fora da aplicação — forçado aqui com .update() de queryset, que
+    não passa pelo save. Hoje a célula renderiza vazia → o teste nasce
+    VERMELHO. Atenção ao GREEN: a comparação no template deve ser EXPLÍCITA
+    com None (nunca o filtro default — Decimal 0.00 é falsy e um zero legítimo
+    viraria travessão)."""
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente, franquia_agente=None)
+    ac.save()
+
+    Acionamento.objects.filter(pk=ac.pk).update(valor_cliente=None)
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    response = client.get(reverse("controle_acionamentos:acionamento_list"))
+
+    assert response.status_code == 200
+    conteudo = response.content.decode("utf-8")
+
+    # Recorte da LINHA deste acionamento (do código ACN até o fim do <tr>) e,
+    # dentro dela, só o trecho ANTES da célula do agente (data-valor-agente):
+    # a célula do agente também exibe "—" (pendente, sem franquia) e não pode
+    # mascarar o assert da célula do CLIENTE, que vem antes dela na linha.
+    linha = conteudo.split(ac.codigo, 1)[1].split("</tr>", 1)[0]
+    trecho_ate_celula_do_agente = linha.split("data-valor-agente", 1)[0]
+    assert "—" in trecho_ate_celula_do_agente
+
+
 # ---------------------------------------------------------------------------
 # DD-070 ST6 — valor do cliente na trilha de auditoria (FASE RED)
 # O campo `valor_cliente` ainda NÃO está em CAMPOS_AUDITADOS (services.py) —

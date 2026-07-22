@@ -153,7 +153,7 @@
                 {% endif %}
               {% endif %}
             </td>
-            <td class="text-end acn-mono">{{ a.valor_cliente|floatformat:"2g" }}</td>
+            <td class="text-end acn-mono">{% if a.valor_cliente is not None %}{{ a.valor_cliente|floatformat:"2g" }}{% else %}—{% endif %}</td>
             <td class="text-end acn-mono" data-valor-agente="{{ a.pk }}">
               {% if a.valor_agente is not None %}{{ a.valor_agente|floatformat:"2g" }}{% else %}—{% endif %}
             </td>
