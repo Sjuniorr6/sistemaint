@@ -8149,3 +8149,95 @@ def test_exportar_larguras_de_coluna_definidas(
         letra = get_column_letter(cabecalho.index(titulo) + 1)
         largura = ws.column_dimensions[letra].width
         assert largura is not None and largura >= minimo, titulo
+
+
+# ---------------------------------------------------------------------------
+# DD-052 ST2 — grupos de permissão de produção via management command (RED)
+# O comando criar_grupos_acionamentos AINDA NÃO EXISTE — os 3 testes nascem
+# VERMELHOS por CommandError de comando desconhecido (call_command dentro do
+# corpo, coleta segura). Contrato:
+#   3 grupos com conjuntos EXATOS de permissões do app (sempre view/add/
+#   change, NUNCA delete):
+#     "Acionamentos Operação"  -> as 3 de acionamento;
+#     "Acionamentos Cadastros" -> as 3 de cada entidade de cadastro (cliente,
+#       agente, responsavelagente, franquiaagente, servicocliente) = 15;
+#     "Acionamentos Gestão"    -> a união dos dois = 18.
+#   Comportamento DECLARATIVO: idempotente (rodar N vezes não duplica nem
+#   erra) e convergente (permissão intrusa pré-existente é removida).
+# ---------------------------------------------------------------------------
+
+_PERMS_OPERACAO = {"view_acionamento", "add_acionamento", "change_acionamento"}
+_PERMS_CADASTROS = {
+    f"{acao}_{entidade}"
+    for acao in ("view", "add", "change")
+    for entidade in (
+        "cliente", "agente", "responsavelagente", "franquiaagente", "servicocliente"
+    )
+}
+_PERMS_GESTAO = _PERMS_OPERACAO | _PERMS_CADASTROS
+
+
+def _codenames_do_grupo(grupo):
+    return set(grupo.permissions.values_list("codename", flat=True))
+
+
+@pytest.mark.django_db
+def test_comando_cria_tres_grupos_com_permissoes_exatas():
+    """1 — o comando cria os 3 grupos, cada um com o conjunto EXATO de
+    codenames (nem a mais — sem delete —, nem a menos)."""
+    from django.contrib.auth.models import Group
+    from django.core.management import call_command
+
+    call_command("criar_grupos_acionamentos")
+
+    esperados = {
+        "Acionamentos Operação": _PERMS_OPERACAO,
+        "Acionamentos Cadastros": _PERMS_CADASTROS,
+        "Acionamentos Gestão": _PERMS_GESTAO,
+    }
+    assert len(_PERMS_CADASTROS) == 15 and len(_PERMS_GESTAO) == 18  # sanidade
+    for nome, codenames in esperados.items():
+        grupo = Group.objects.get(name=nome)
+        assert _codenames_do_grupo(grupo) == codenames, nome
+
+
+@pytest.mark.django_db
+def test_comando_e_idempotente():
+    """2 — rodar duas vezes seguidas: sem erro, sem grupo duplicado e com os
+    mesmos conjuntos de permissões."""
+    from django.contrib.auth.models import Group
+    from django.core.management import call_command
+
+    call_command("criar_grupos_acionamentos")
+    call_command("criar_grupos_acionamentos")  # segunda rodada: não pode falhar
+
+    nomes = ["Acionamentos Operação", "Acionamentos Cadastros", "Acionamentos Gestão"]
+    assert Group.objects.filter(name__in=nomes).count() == 3  # um de cada
+    assert _codenames_do_grupo(
+        Group.objects.get(name="Acionamentos Operação")
+    ) == _PERMS_OPERACAO
+    assert _codenames_do_grupo(
+        Group.objects.get(name="Acionamentos Gestão")
+    ) == _PERMS_GESTAO
+
+
+@pytest.mark.django_db
+def test_comando_converge_grupo_com_permissao_intrusa():
+    """3 — grupo pré-existente com permissão errada a mais (delete_acionamento):
+    o comando CONVERGE para o conjunto canônico, removendo a intrusa —
+    comportamento declarativo, não incremental."""
+    from django.contrib.auth.models import Group, Permission
+    from django.core.management import call_command
+
+    grupo = Group.objects.create(name="Acionamentos Operação")
+    intrusa = Permission.objects.get(
+        codename="delete_acionamento",
+        content_type__app_label="controle_acionamentos",
+    )
+    grupo.permissions.add(intrusa)
+
+    call_command("criar_grupos_acionamentos")
+
+    grupo.refresh_from_db()
+    assert _codenames_do_grupo(grupo) == _PERMS_OPERACAO
+    assert "delete_acionamento" not in _codenames_do_grupo(grupo)
