@@ -32,6 +32,7 @@ from .selectors import (
     listar_franquias_por_cliente,
     listar_historico_do_acionamento,
     listar_servicos_ativos_por_cliente,
+    mapear_franquias_por_pk,
     somar_valor_agente_no_mes,
     somar_valor_cliente_no_mes,
 )
@@ -40,7 +41,9 @@ from .services import (
     aplicar_servico_ao_acionamento,
     compor_valor_agente,
     compor_valor_cliente,
+    formatar_valor_trilha,
     registrar_edicao_acionamento,
+    rotulo_campo_trilha,
     sincronizar_catalogo_do_cliente,
     vincular_franquia_em_lote,
 )
@@ -242,6 +245,28 @@ def acionamento_detail(request, pk):
     composicao = compor_valor_agente(acionamento)
     composicao_cliente = compor_valor_cliente(acionamento)
     historico = listar_historico_do_acionamento(acionamento)
+
+    # Apresentação da trilha (backlog DD-070 1c): resolve os nomes de franquia
+    # citados na trilha numa ÚNICA chamada ao selector e anexa a cada registro
+    # os atributos de exibição — a view orquestra, quem formata é o service.
+    pks_franquia = set()
+    for registro in historico:
+        if registro.campo == "franquia_agente":
+            for texto in (registro.valor_anterior, registro.valor_novo):
+                try:
+                    pks_franquia.add(int(texto))
+                except (TypeError, ValueError):
+                    pass  # vazio/legado não numérico: fica cru na formatação
+    nomes_franquias = mapear_franquias_por_pk(pks_franquia)
+    for registro in historico:
+        registro.rotulo = rotulo_campo_trilha(registro.campo)
+        registro.valor_anterior_exibicao = formatar_valor_trilha(
+            registro.campo, registro.valor_anterior, nomes_franquias
+        )
+        registro.valor_novo_exibicao = formatar_valor_trilha(
+            registro.campo, registro.valor_novo, nomes_franquias
+        )
+
     return render(
         request,
         "controle_acionamentos/acionamento_detail.html",

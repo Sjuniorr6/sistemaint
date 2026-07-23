@@ -205,3 +205,18 @@ def listar_historico_do_acionamento(acionamento):
     importar o model AcionamentoHistorico aqui.
     """
     return acionamento.historico.select_related("editado_por").all()
+
+
+def mapear_franquias_por_pk(pks):
+    """Backlog DD-070 1c — dict pk -> nome das franquias pedidas, em UMA query
+    (in_bulk). Pk inexistente na coleção simplesmente não aparece no dict —
+    quem consome (formatar_valor_trilha) cai no fallback cru.
+
+    Alimenta a apresentação da trilha no detalhe: troca o pk gravado no
+    histórico pelo nome da franquia. Coleção vazia nem toca o banco (in_bulk
+    devolve {} direto).
+    """
+    return {
+        pk: franquia.nome
+        for pk, franquia in FranquiaAgente.objects.in_bulk(pks).items()
+    }

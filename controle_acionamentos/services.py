@@ -7,11 +7,12 @@ vincular_franquia_em_lote) tocam a persistência por natureza.
 
 from dataclasses import dataclass
 from datetime import datetime
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import FieldDoesNotExist, ValidationError
 from django.db import transaction
 from django.utils import timezone
+from django.utils.text import capfirst
 
 
 def _so_digitos(documento: str) -> list[int]:
@@ -888,3 +889,78 @@ def registrar_edicao_acionamento(antigo, novo, editado_por):
                 )
             )
     return registros
+
+
+# --- Backlog DD-070 1c: formatação de APRESENTAÇÃO da trilha ---
+# O texto gravado em AcionamentoHistorico não muda (histórico imutável); estas
+# funções só traduzem o texto cru para exibição no detalhe. Grupos de campos
+# por tipo de formatação (subconjuntos de CAMPOS_AUDITADOS):
+_CAMPOS_TRILHA_MOEDA = {
+    "valor_cliente",
+    "valor_agente",
+    "pedagio",
+    "valor_acionamento",
+    "valor_km_excedente",
+    "valor_hora_excedente",
+}
+_CAMPOS_TRILHA_DATA = {"data_hora_solicitado", "data_hora_inicio", "data_hora_final"}
+_CAMPOS_TRILHA_KM = {"km_inicio", "km_final", "km_excedente", "franquia_km"}
+_CAMPOS_TRILHA_HORAS = {"hora_excedente", "franquia_horas"}
+
+
+def rotulo_campo_trilha(campo):
+    """Rótulo humano de um campo da trilha: o verbose_name do campo no model
+    Acionamento, com inicial maiúscula.
+
+    Campo que não existe no model (histórico legado, dado sintético) volta CRU,
+    inalterado — a trilha nunca pode quebrar por causa de um rótulo.
+
+    Import local do model: services não importa models no topo (evita ciclo —
+    models importa deste módulo — e mantém as funções puras testáveis sem DB).
+    """
+    from controle_acionamentos.models import Acionamento
+
+    try:
+        field = Acionamento._meta.get_field(campo)
+    except FieldDoesNotExist:
+        return campo
+    return capfirst(field.verbose_name)
+
+
+def _moeda_brasileira(valor: Decimal) -> str:
+    """Máscara monetária brasileira sem depender de locale do sistema: quantiza
+    a 2 casas e troca os separadores do format spec dos EUA (1,943.00) pelos
+    nossos (1.943,00) via caractere sentinela."""
+    quantizado = valor.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return f"{quantizado:,.2f}".replace(",", "\x00").replace(".", ",").replace("\x00", ".")
+
+
+def formatar_valor_trilha(campo, texto, nomes_franquias):
+    """Valor de apresentação de uma linha da trilha, formatado pelo TIPO do
+    campo (moeda R$, data d/m/Y H:i, km, horas, nome de franquia via mapa
+    pk -> nome vindo do selector — o service segue puro, sem query).
+
+    100% defensiva: string vazia volta vazia e QUALQUER parse que falhar
+    devolve o texto cru — a função jamais levanta exceção, porque apresentação
+    nunca pode derrubar o detalhe (a trilha é histórico imutável, inclusive
+    com texto legado fora do formato atual).
+    """
+    if not texto:
+        return texto
+    try:
+        if campo in _CAMPOS_TRILHA_MOEDA:
+            return "R$ " + _moeda_brasileira(Decimal(texto))
+        if campo in _CAMPOS_TRILHA_DATA:
+            return datetime.fromisoformat(texto).strftime("%d/%m/%Y %H:%M")
+        if campo in _CAMPOS_TRILHA_KM:
+            return f"{int(texto)} km"
+        if campo in _CAMPOS_TRILHA_HORAS:
+            quantizado = Decimal(texto).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            return f"{quantizado:.2f}".replace(".", ",") + " h"
+        if campo == "franquia_agente":
+            return nomes_franquias.get(int(texto), texto)
+    except (InvalidOperation, ValueError, TypeError):
+        return texto
+    return texto

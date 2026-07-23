@@ -4259,7 +4259,13 @@ def test_detalhe_renderiza_historico_de_edicoes(
     client, django_user_model, _fks_acionamento
 ):
     """O detalhe exibe a seção "Histórico de edições" com campo, valores antes/
-    depois e quem editou (username "Fulano" = fallback de __str__/get_full_name)."""
+    depois e quem editou (username "Fulano" = fallback de __str__/get_full_name).
+
+    Atualizado no backlog DD-070 1c: a seção passou a exibir o rótulo humano do
+    campo (verbose_name capitalizado) e os valores com máscara monetária — os
+    asserts acompanham a apresentação nova (rótulo dinâmico, sem hardcode)."""
+    from django.utils.text import capfirst
+
     from controle_acionamentos.models import AcionamentoHistorico
 
     cliente, responsavel, agente = _fks_acionamento
@@ -4283,9 +4289,10 @@ def test_detalhe_renderiza_historico_de_edicoes(
     assert response.status_code == 200
     conteudo = response.content.decode(response.charset)
     assert "Histórico de edições" in conteudo
-    assert "pedagio" in conteudo  # o campo (ou seu rótulo)
-    assert "0.00" in conteudo
-    assert "25.00" in conteudo
+    rotulo = capfirst(Acionamento._meta.get_field("pedagio").verbose_name)
+    assert rotulo in conteudo  # o rótulo humano do campo (DD-070 1c)
+    assert "R$ 0,00" in conteudo  # valores com máscara monetária
+    assert "R$ 25,00" in conteudo
     assert "Fulano" in conteudo  # quem editou
 
 
@@ -4386,6 +4393,154 @@ def test_detalhe_historico_com_ate_10_nao_exibe_botao(
     assert "campo_01" in conteudo
     assert "campo_02" in conteudo
     assert "campo_03" in conteudo
+
+
+# --- Backlog DD-070 1c: formatacao de apresentacao da trilha (RED) ---
+# Caminho A completo, decidido: a coluna Campo mostra rótulo humano e as
+# colunas de valor mostram valores formatados — o TEXTO GRAVADO no banco NÃO
+# muda, é pura apresentação. Funções NOVAS que ainda não existem:
+#   services.rotulo_campo_trilha(campo) -> verbose_name do campo no model
+#     Acionamento com inicial maiúscula; campo desconhecido -> texto cru
+#     inalterado (essencial: os testes do corte usam campo_01..campo_12).
+#   services.formatar_valor_trilha(campo, texto, nomes_franquias) -> valor
+#     formatado por tipo de campo (R$, data, km, h, nome de franquia via
+#     mapa pk->nome); texto impróprio/vazio -> cru, sem levantar exceção.
+#   selectors.mapear_franquias_por_pk(pks) -> dict pk->nome, UMA query.
+# RED: 1–10 falham por ImportError; o de integração falha porque o template
+# ainda mostra campo e valor crus.
+
+
+def test_rotulo_campo_trilha_usa_verbose_name_do_model():
+    """valor_cliente -> verbose_name do model com inicial maiúscula (obtido do
+    próprio model, sem hardcodar o rótulo)."""
+    from django.utils.text import capfirst
+
+    from controle_acionamentos.services import rotulo_campo_trilha
+
+    esperado = capfirst(Acionamento._meta.get_field("valor_cliente").verbose_name)
+    assert rotulo_campo_trilha("valor_cliente") == esperado
+
+
+def test_rotulo_campo_trilha_campo_desconhecido_devolve_cru():
+    """Campo que não existe no model volta cru, sem capitalizar — guarda dos
+    testes do corte (campo_01..campo_12) e de qualquer histórico legado."""
+    from controle_acionamentos.services import rotulo_campo_trilha
+
+    assert rotulo_campo_trilha("campo_01") == "campo_01"
+
+
+def test_formatar_valor_trilha_monetario():
+    """Campos monetários ganham máscara brasileira: milhar por ponto, decimal
+    por vírgula, sempre 2 casas."""
+    from controle_acionamentos.services import formatar_valor_trilha
+
+    assert formatar_valor_trilha("valor_cliente", "1943.00", {}) == "R$ 1.943,00"
+    assert formatar_valor_trilha("pedagio", "30", {}) == "R$ 30,00"
+
+
+def test_formatar_valor_trilha_data():
+    """Data serializada por str() (aware, -03:00) vira d/m/Y H:i."""
+    from controle_acionamentos.services import formatar_valor_trilha
+
+    assert (
+        formatar_valor_trilha("data_hora_final", "2026-07-22 17:00:00-03:00", {})
+        == "22/07/2026 17:00"
+    )
+
+
+def test_formatar_valor_trilha_km():
+    from controle_acionamentos.services import formatar_valor_trilha
+
+    assert formatar_valor_trilha("km_excedente", "40", {}) == "40 km"
+
+
+def test_formatar_valor_trilha_horas():
+    from controle_acionamentos.services import formatar_valor_trilha
+
+    assert formatar_valor_trilha("hora_excedente", "4.00", {}) == "4,00 h"
+
+
+def test_formatar_valor_trilha_franquia_com_mapa():
+    """FK de franquia troca o pk pelo nome via mapa pk->nome (o service segue
+    puro: quem resolve nomes no banco é o selector)."""
+    from controle_acionamentos.services import formatar_valor_trilha
+
+    assert (
+        formatar_valor_trilha("franquia_agente", "4", {4: "Franquia Ouro Moto"})
+        == "Franquia Ouro Moto"
+    )
+
+
+def test_formatar_valor_trilha_franquia_sem_mapa_devolve_cru():
+    """Pk sem correspondente no mapa (franquia apagada/mapa vazio) volta cru."""
+    from controle_acionamentos.services import formatar_valor_trilha
+
+    assert formatar_valor_trilha("franquia_agente", "4", {}) == "4"
+
+
+def test_formatar_valor_trilha_defensivo_devolve_cru():
+    """Texto impróprio num campo tipado volta cru SEM levantar exceção — a
+    trilha é histórico imutável, apresentação nunca pode quebrar o detalhe."""
+    from controle_acionamentos.services import formatar_valor_trilha
+
+    assert formatar_valor_trilha("valor_cliente", "abc", {}) == "abc"
+    assert formatar_valor_trilha("valor_cliente", "", {}) == ""
+
+
+@pytest.mark.django_db
+def test_mapear_franquias_por_pk_uma_query(django_assert_num_queries):
+    """Selector novo: coleção de pks -> dict pk->nome em UMA query; pk
+    inexistente simplesmente não aparece no dict."""
+    from controle_acionamentos.selectors import mapear_franquias_por_pk
+
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    f1 = FranquiaAgente.objects.create(
+        **_dados_franquia(cliente, nome="Franquia Ouro Moto")
+    )
+    f2 = FranquiaAgente.objects.create(
+        **_dados_franquia(cliente, nome="Franquia Prata Carro")
+    )
+    pk_inexistente = f2.pk + 1000
+
+    with django_assert_num_queries(1):
+        mapa = mapear_franquias_por_pk([f1.pk, f2.pk, pk_inexistente])
+
+    assert mapa == {f1.pk: "Franquia Ouro Moto", f2.pk: "Franquia Prata Carro"}
+
+
+@pytest.mark.django_db
+def test_detalhe_historico_exibe_rotulo_e_valor_formatados(
+    client, django_user_model, _fks_acionamento
+):
+    """Integração: com trilha real de valor_cliente (contrato-ouro, jornada
+    esticada — padrão DD-070 ST6), o detalhe mostra o rótulo humano e o valor
+    com R$; o par cru (valor_cliente + valor sem máscara) some da seção."""
+    from django.utils.text import capfirst
+
+    from controle_acionamentos.services import registrar_edicao_acionamento
+
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_contrato_ouro(cliente, responsavel, agente)
+    ac.save()
+    user = _user_com_perms(django_user_model, "view_acionamento")
+
+    antigo = Acionamento.objects.get(pk=ac.pk)  # foto do estado atual
+    ac.data_hora_final = ac.data_hora_inicio + timedelta(hours=8)
+    ac.save()  # recalcula valor_cliente (1665,00 -> 1720,00)
+    registrar_edicao_acionamento(antigo, ac, user)
+
+    client.force_login(user)
+    url = reverse("controle_acionamentos:acionamento_detail", args=[ac.pk])
+    response = client.get(url)
+
+    assert response.status_code == 200
+    conteudo = response.content.decode(response.charset)
+    rotulo = capfirst(Acionamento._meta.get_field("valor_cliente").verbose_name)
+    assert rotulo in conteudo
+    assert "R$ 1.720,00" in conteudo  # valor_novo formatado
+    # o campo cru com underscore some da seção do histórico
+    secao_historico = conteudo[conteudo.find("Histórico de edições"):]
+    assert "valor_cliente" not in secao_historico
 
 
 # --- DD-049 ST5: botao Editar gated por change_acionamento (RED) ---

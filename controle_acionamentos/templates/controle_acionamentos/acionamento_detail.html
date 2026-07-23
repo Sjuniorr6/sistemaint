@@ -391,9 +391,9 @@
         <tbody>
           {% for h in historico|slice:":10" %}
           <tr>
-            <td>{{ h.campo }}</td>
-            <td class="acn-mono">{{ h.valor_anterior }}</td>
-            <td class="acn-mono">{{ h.valor_novo }}</td>
+            <td>{{ h.rotulo }}</td>
+            <td class="acn-mono">{{ h.valor_anterior_exibicao }}</td>
+            <td class="acn-mono">{{ h.valor_novo_exibicao }}</td>
             <td>{{ h.editado_por.get_full_name|default:h.editado_por.username }}</td>
             <td class="acn-mono text-end">{{ h.editado_em|date:"d/m/Y H:i" }}</td>
           </tr>
@@ -404,9 +404,9 @@
         <tbody id="historico-restante" hidden>
           {% for h in historico|slice:"10:" %}
           <tr>
-            <td>{{ h.campo }}</td>
-            <td class="acn-mono">{{ h.valor_anterior }}</td>
-            <td class="acn-mono">{{ h.valor_novo }}</td>
+            <td>{{ h.rotulo }}</td>
+            <td class="acn-mono">{{ h.valor_anterior_exibicao }}</td>
+            <td class="acn-mono">{{ h.valor_novo_exibicao }}</td>
             <td>{{ h.editado_por.get_full_name|default:h.editado_por.username }}</td>
             <td class="acn-mono text-end">{{ h.editado_em|date:"d/m/Y H:i" }}</td>
           </tr>
