@@ -375,14 +375,17 @@
     </div>
     <div class="card-body {% if historico %}p-0{% endif %}">
       {% if historico %}
-      <table class="table table-striped align-middle mb-0">
+      {% comment %} table-layout fixed: o auto-layout não mede conteúdo hidden e
+      as colunas mudariam de largura ao revelar o tbody do restante {% endcomment %}
+      <table class="table table-striped align-middle mb-0" style="table-layout: fixed; width: 100%;">
         <thead>
           <tr>
-            <th>Campo</th>
-            <th>Valor anterior</th>
-            <th>Valor novo</th>
-            <th>Editado por</th>
-            <th>Quando</th>
+            <th style="width: 16%;">Campo</th>
+            <th style="width: 27%;">Valor anterior</th>
+            <th style="width: 27%;">Valor novo</th>
+            <th style="width: 12%;">Editado por</th>
+            {% comment %} Fantasma de largura: data invisível no formato do filtro date "d/m/Y H:i" dimensiona o bloco para o rótulo nascer no x do 1º dígito das datas — atualizar o texto se o formato mudar {% endcomment %}
+            <th style="width: 18%;" class="text-end"><span style="display: inline-block; text-align: left;"><span class="acn-mono" style="display: block; height: 0; overflow: hidden; visibility: hidden;">22/07/2026 17:39</span>Quando</span></th>
           </tr>
         </thead>
         <tbody>
@@ -392,7 +395,7 @@
             <td class="acn-mono">{{ h.valor_anterior }}</td>
             <td class="acn-mono">{{ h.valor_novo }}</td>
             <td>{{ h.editado_por.get_full_name|default:h.editado_por.username }}</td>
-            <td class="acn-mono">{{ h.editado_em|date:"d/m/Y H:i" }}</td>
+            <td class="acn-mono text-end">{{ h.editado_em|date:"d/m/Y H:i" }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -405,7 +408,7 @@
             <td class="acn-mono">{{ h.valor_anterior }}</td>
             <td class="acn-mono">{{ h.valor_novo }}</td>
             <td>{{ h.editado_por.get_full_name|default:h.editado_por.username }}</td>
-            <td class="acn-mono">{{ h.editado_em|date:"d/m/Y H:i" }}</td>
+            <td class="acn-mono text-end">{{ h.editado_em|date:"d/m/Y H:i" }}</td>
           </tr>
           {% endfor %}
         </tbody>
