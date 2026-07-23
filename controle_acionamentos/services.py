@@ -964,3 +964,125 @@ def formatar_valor_trilha(campo, texto, nomes_franquias):
     except (InvalidOperation, ValueError, TypeError):
         return texto
     return texto
+
+
+# --- Backlog pós-DD-070 item 3: exportação Excel dos pagamentos de agentes ---
+# Layout fixo da planilha de pagamentos (30 colunas, ordem do contrato de
+# testes). SQ, EVENTO, H. CHEGADA e OBS são preenchimento manual da operação.
+COLUNAS_EXPORTACAO_PAGAMENTOS = [
+    "DATA", "SQ", "EVENTO", "CLIENTE", "ORIGEM", "DESTINO", "AGENTE",
+    "PLACA AGENTE", "MOTORISTA", "PLACA MOT.", "H. SOLIC", "H. CHEGADA",
+    "H. INICIAL", "H. FINAL", "KM INICIAL", "KM FINAL", "KM TOTAL",
+    "FRANQUIA DE HORAS", "H. TRABALHADA", "H. EXTRA", "VALOR DA HORA EXTRA",
+    "VALOR H.E", "FRANQUIA DE KM", "KM EXCEDENTE", "VLR KM EXTRA",
+    "VALOR K.H", "VALOR DA DIÁRIA", "PEDÁGIO", "VALOR TOTAL", "OBS",
+]
+
+
+def _datetime_local_naive(valor):
+    """openpyxl não aceita datetime aware: normaliza ao fuso local e tira o
+    tzinfo — a célula fica com o horário que a operação enxerga."""
+    return timezone.localtime(valor).replace(tzinfo=None)
+
+
+def _linha_exportacao(acionamento, compor):
+    """Uma linha da planilha, na ordem de COLUNAS_EXPORTACAO_PAGAMENTOS.
+
+    O lado do AGENTE (parâmetros da franquia, excedentes, parcelas da
+    composição e VALOR TOTAL) só é preenchido com franquia vinculada; sem ela
+    o acionamento está PENDENTE (DD-068) e essas células saem None. PEDÁGIO é
+    sempre do registro. Colunas manuais (SQ, EVENTO, H. CHEGADA, OBS) = None.
+    """
+    franquia = acionamento.franquia_agente
+    if franquia:
+        composicao = compor(acionamento)
+        franquia_horas = franquia.franquia_horas
+        hora_extra = acionamento.hora_excedente
+        valor_hora_extra = franquia.valor_hora_excedente
+        valor_he = composicao.subtotal_hora
+        franquia_km = franquia.franquia_km
+        km_excedente = acionamento.km_excedente
+        vlr_km_extra = franquia.valor_km_excedente
+        valor_kh = composicao.subtotal_km
+        valor_diaria = composicao.valor_acionamento_ajustado
+        valor_total = acionamento.valor_agente
+    else:
+        franquia_horas = hora_extra = valor_hora_extra = valor_he = None
+        franquia_km = km_excedente = vlr_km_extra = valor_kh = None
+        valor_diaria = valor_total = None
+    return [
+        _datetime_local_naive(acionamento.data_hora_solicitado).date(),  # DATA
+        None,                                     # SQ (manual)
+        None,                                     # EVENTO (manual)
+        str(acionamento.cliente),                 # CLIENTE
+        acionamento.origem,                       # ORIGEM
+        acionamento.destino,                      # DESTINO
+        str(acionamento.agente),                  # AGENTE
+        acionamento.placa_agente,                 # PLACA AGENTE
+        acionamento.motorista,                    # MOTORISTA
+        acionamento.placa_motorista,              # PLACA MOT.
+        _datetime_local_naive(acionamento.data_hora_solicitado),  # H. SOLIC
+        None,                                     # H. CHEGADA (manual)
+        _datetime_local_naive(acionamento.data_hora_inicio),      # H. INICIAL
+        _datetime_local_naive(acionamento.data_hora_final),       # H. FINAL
+        acionamento.km_inicio,                    # KM INICIAL
+        acionamento.km_final,                     # KM FINAL
+        acionamento.km_total,                     # KM TOTAL
+        franquia_horas,                           # FRANQUIA DE HORAS
+        acionamento.horas_total,                  # H. TRABALHADA
+        hora_extra,                               # H. EXTRA
+        valor_hora_extra,                         # VALOR DA HORA EXTRA
+        valor_he,                                 # VALOR H.E
+        franquia_km,                              # FRANQUIA DE KM
+        km_excedente,                             # KM EXCEDENTE
+        vlr_km_extra,                             # VLR KM EXTRA
+        valor_kh,                                 # VALOR K.H
+        valor_diaria,                             # VALOR DA DIÁRIA
+        acionamento.pedagio,                      # PEDÁGIO
+        valor_total,                              # VALOR TOTAL
+        None,                                     # OBS (manual)
+    ]
+
+
+def montar_workbook_pagamentos(acionamentos_por_cliente, compor):
+    """Monta o xlsx de pagamentos dos agentes e devolve os BYTES do arquivo.
+
+    `acionamentos_por_cliente`: dict ORDENADO nome do cliente -> lista de
+    acionamentos JÁ na ordem certa (quem filtra, ordena e agrupa é a view via
+    selector — aqui não há query). `compor`: função que devolve a composição
+    do valor do agente (a view injeta compor_valor_agente; o parâmetro existe
+    para o service seguir puro e testável com um stub).
+
+    Uma aba por cliente, na ordem de chegada do dict, nome truncado em 31
+    caracteres (limite do Excel para título de aba). Cada aba: cabeçalho fixo
+    (COLUNAS_EXPORTACAO_PAGAMENTOS), uma linha por acionamento e a linha final
+    "Total" com a SOMA dos valor_agente não nulos como número estático —
+    nunca fórmula (o arquivo é conferido fora do sistema).
+
+    Import local do openpyxl: dependência exclusiva da exportação, não precisa
+    carregar junto com o módulo inteiro de services.
+    """
+    import io
+
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    wb.remove(wb.active)  # aba default vazia do openpyxl
+    for nome_cliente, acionamentos in acionamentos_por_cliente.items():
+        ws = wb.create_sheet(title=nome_cliente[:31])
+        ws.append(COLUNAS_EXPORTACAO_PAGAMENTOS)
+        total = Decimal("0.00")
+        for acionamento in acionamentos:
+            ws.append(_linha_exportacao(acionamento, compor))
+            if acionamento.valor_agente is not None:
+                total += acionamento.valor_agente
+        linha_total = [None] * len(COLUNAS_EXPORTACAO_PAGAMENTOS)
+        linha_total[0] = "Total"
+        linha_total[COLUNAS_EXPORTACAO_PAGAMENTOS.index("VALOR TOTAL")] = total
+        ws.append(linha_total)
+    if not wb.worksheets:
+        # xlsx exige ao menos uma aba; sem acionamento nenhum, sai só o cabeçalho
+        wb.create_sheet(title="Acionamentos").append(COLUNAS_EXPORTACAO_PAGAMENTOS)
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()

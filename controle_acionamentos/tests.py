@@ -7602,3 +7602,413 @@ def test_pedagio_nao_gera_trilha_de_valor_cliente_quando_nao_muda(
     reg_valor = registros.get(campo="valor_agente")
     assert reg_valor.valor_anterior == "590.00"  # Decimal -> string
     assert reg_valor.valor_novo == "615.00"
+
+
+# ---------------------------------------------------------------------------
+# Backlog pós-DD-070 item 3 — exportação Excel da listagem (FASE RED)
+# A view, a rota e o service AINDA NÃO EXISTEM — os 12 testes nascem VERMELHOS
+# por NoReverseMatch no reverse da rota nova (dentro do corpo, coleta segura).
+# Contrato sob teste:
+#   GET acionamentos/exportar/ (name acionamento_exportar, namespace atual),
+#   mesmos parâmetros de filtro da listagem (cliente, data_de, data_ate, ...),
+#   gated como a listagem (anônimo -> login com next; sem view -> 403).
+#   Resposta: attachment pagamentos_agentes.xlsx (openpyxl), UMA ABA POR
+#   CLIENTE em ordem alfabética, linhas em ordem cronológica CRESCENTE de
+#   data_hora_solicitado, cabeçalho fixo de 30 colunas (planilha de pagamentos
+#   dos agentes), colunas manuais (SQ, EVENTO, H. CHEGADA, OBS) vazias,
+#   acionamento SEM franquia com o lado-agente vazio (pendente), e última
+#   linha "Total" somando VALOR TOTAL como número estático (sem fórmula).
+# openpyxl importado dentro dos helpers/testes — só esta seção o usa.
+# ---------------------------------------------------------------------------
+
+
+def _workbook_da_resposta(response):
+    """Abre o xlsx do corpo da resposta em memória (openpyxl local à seção)."""
+    import io
+
+    from openpyxl import load_workbook
+
+    return load_workbook(io.BytesIO(response.content))
+
+
+def _cabecalho_da_aba(ws):
+    """Lista de títulos da linha 1 da aba."""
+    return [celula.value for celula in ws[1]]
+
+
+def _linha_como_dict(ws, numero):
+    """Mapeia a linha `numero` da aba como dict título -> valor da célula."""
+    return dict(zip(_cabecalho_da_aba(ws), [c.value for c in ws[numero]]))
+
+
+def _como_data(valor):
+    """Célula de data pode voltar date ou datetime — normaliza para date."""
+    from datetime import datetime as _dt
+
+    return valor.date() if isinstance(valor, _dt) else valor
+
+
+def _acionamento_em(cliente, responsavel, agente, base, **overrides):
+    """Acionamento válido ancorado em `base` (datas coerentes com RN-04)."""
+    dados = dict(
+        data_hora_solicitado=base,
+        data_hora_inicio=base + timedelta(minutes=30),
+        data_hora_final=base + timedelta(hours=3),
+    )
+    dados.update(overrides)
+    return _acionamento_valido(cliente, responsavel, agente, **dados)
+
+
+def _base_sem_microssegundos():
+    """Base temporal SEM microssegundos: célula de datetime no xlsx não
+    preserva microssegundo com fidelidade — o assert compararia lixo."""
+    return timezone.localtime(timezone.now()).replace(second=0, microsecond=0)
+
+
+@pytest.mark.django_db
+def test_exportar_anonimo_redireciona_para_login_com_next(client):
+    """1 — anônimo no export → 302 para o login com ?next= (padrão do
+    hardening da listagem)."""
+    url = reverse("controle_acionamentos:acionamento_exportar")
+    response = client.get(url)
+
+    assert response.status_code == 302
+    redirect = urlparse(response.url)
+    assert redirect.path == reverse("login")
+    assert parse_qs(redirect.query)["next"] == [url]
+
+
+@pytest.mark.django_db
+def test_exportar_sem_permissao_retorna_403(client, django_user_model):
+    """2 — autenticado sem view_acionamento → 403 (raise_exception, como a
+    listagem)."""
+    user = django_user_model.objects.create_user(username="comum_export", password="x")
+    client.force_login(user)
+
+    response = client.get(reverse("controle_acionamentos:acionamento_exportar"))
+
+    assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_exportar_retorna_xlsx_como_attachment(
+    client, django_user_model, _fks_acionamento
+):
+    """3 — com view_acionamento: 200, content type de xlsx e Content-Disposition
+    attachment com o nome pagamentos_agentes.xlsx."""
+    cliente, responsavel, agente = _fks_acionamento
+    _acionamento_em(cliente, responsavel, agente, _base_sem_microssegundos()).save()
+    client.force_login(_user_com_perms(django_user_model, "view_acionamento"))
+
+    response = client.get(reverse("controle_acionamentos:acionamento_exportar"))
+
+    assert response.status_code == 200
+    assert response["Content-Type"] == (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    disposition = response["Content-Disposition"]
+    assert "attachment" in disposition
+    assert "pagamentos_agentes.xlsx" in disposition
+
+
+@pytest.mark.django_db
+def test_exportar_uma_aba_por_cliente_em_ordem_alfabetica(
+    client, django_user_model, _fks_acionamento
+):
+    """4 — sem filtro, acionamentos de dois clientes: uma aba por cliente,
+    nomeada com o nome do cliente, em ordem alfabética."""
+    cliente, responsavel, agente = _fks_acionamento  # "ACME"
+    zebra = Cliente.objects.create(
+        nome_empresa="Zebra Transportes", cnpj="11444777000161"
+    )
+    base = _base_sem_microssegundos()
+    _acionamento_em(zebra, responsavel, agente, base).save()
+    _acionamento_em(cliente, responsavel, agente, base).save()
+    client.force_login(_user_com_perms(django_user_model, "view_acionamento"))
+
+    response = client.get(reverse("controle_acionamentos:acionamento_exportar"))
+
+    wb = _workbook_da_resposta(response)
+    assert wb.sheetnames == ["ACME", "Zebra Transportes"]
+
+
+@pytest.mark.django_db
+def test_exportar_filtro_de_cliente_restringe_abas(
+    client, django_user_model, _fks_acionamento
+):
+    """5 — com ?cliente= na querystring (mesmo parâmetro da listagem), só a
+    aba daquele cliente existe no arquivo."""
+    cliente, responsavel, agente = _fks_acionamento
+    zebra = Cliente.objects.create(
+        nome_empresa="Zebra Transportes", cnpj="11444777000161"
+    )
+    base = _base_sem_microssegundos()
+    _acionamento_em(zebra, responsavel, agente, base).save()
+    _acionamento_em(cliente, responsavel, agente, base).save()
+    client.force_login(_user_com_perms(django_user_model, "view_acionamento"))
+
+    response = client.get(
+        reverse("controle_acionamentos:acionamento_exportar"),
+        {"cliente": cliente.pk},
+    )
+
+    wb = _workbook_da_resposta(response)
+    assert wb.sheetnames == ["ACME"]
+
+
+@pytest.mark.django_db
+def test_exportar_filtro_de_datas_restringe_linhas(
+    client, django_user_model, _fks_acionamento
+):
+    """6 — o intervalo data_de/data_ate (mesmos parâmetros da listagem)
+    restringe as LINHAS exportadas: o acionamento fora da janela não sai."""
+    cliente, responsavel, agente = _fks_acionamento
+    base = _base_sem_microssegundos()
+    _acionamento_em(
+        cliente, responsavel, agente, base, origem="Origem Recente"
+    ).save()
+    _acionamento_em(
+        cliente,
+        responsavel,
+        agente,
+        base - timedelta(days=10),
+        origem="Origem Antiga",
+    ).save()
+    client.force_login(_user_com_perms(django_user_model, "view_acionamento"))
+
+    data_de = (base - timedelta(days=1)).date().strftime("%Y-%m-%d")
+    data_ate = (base + timedelta(days=1)).date().strftime("%Y-%m-%d")
+    response = client.get(
+        reverse("controle_acionamentos:acionamento_exportar"),
+        {"data_de": data_de, "data_ate": data_ate},
+    )
+
+    ws = _workbook_da_resposta(response)["ACME"]
+    valores = [c.value for linha in ws.iter_rows() for c in linha]
+    assert "Origem Recente" in valores
+    assert "Origem Antiga" not in valores
+
+
+@pytest.mark.django_db
+def test_exportar_cabecalho_tem_as_30_colunas_da_planilha(
+    client, django_user_model, _fks_acionamento
+):
+    """7 — o cabeçalho de cada aba tem EXATAMENTE estas 30 colunas, nesta
+    ordem (layout da planilha de pagamentos dos agentes)."""
+    colunas_esperadas = [
+        "DATA", "SQ", "EVENTO", "CLIENTE", "ORIGEM", "DESTINO", "AGENTE",
+        "PLACA AGENTE", "MOTORISTA", "PLACA MOT.", "H. SOLIC", "H. CHEGADA",
+        "H. INICIAL", "H. FINAL", "KM INICIAL", "KM FINAL", "KM TOTAL",
+        "FRANQUIA DE HORAS", "H. TRABALHADA", "H. EXTRA",
+        "VALOR DA HORA EXTRA", "VALOR H.E", "FRANQUIA DE KM", "KM EXCEDENTE",
+        "VLR KM EXTRA", "VALOR K.H", "VALOR DA DIÁRIA", "PEDÁGIO",
+        "VALOR TOTAL", "OBS",
+    ]
+    cliente, responsavel, agente = _fks_acionamento
+    _acionamento_em(cliente, responsavel, agente, _base_sem_microssegundos()).save()
+    client.force_login(_user_com_perms(django_user_model, "view_acionamento"))
+
+    response = client.get(reverse("controle_acionamentos:acionamento_exportar"))
+
+    ws = _workbook_da_resposta(response)["ACME"]
+    assert _cabecalho_da_aba(ws) == colunas_esperadas
+
+
+@pytest.mark.django_db
+def test_exportar_linha_com_franquia_preenche_campos_do_sistema(
+    client, django_user_model, _fks_acionamento
+):
+    """8 — acionamento com franquia vinculada (cenário contrato-ouro/franquia
+    ouro): a linha exporta os dados do registro, os parâmetros da FRANQUIA, as
+    parcelas de compor_valor_agente e o valor_agente persistido no VALOR TOTAL."""
+    from controle_acionamentos.services import compor_valor_agente
+
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = _franquia_ouro_do_agente(cliente)
+    base = _base_sem_microssegundos()
+    ac = _acionamento_contrato_ouro(
+        cliente,
+        responsavel,
+        agente,
+        franquia_agente=franquia,
+        data_hora_solicitado=base,
+        data_hora_inicio=base,
+        data_hora_final=base + timedelta(hours=7),
+        pedagio=Decimal("35.00"),
+        placa_agente="ABC1D23",
+        motorista="José Motorista",
+        placa_motorista="XYZ9Z99",
+    )
+    ac.save()  # persiste km/hora totais, excedentes e valor_agente (625,00)
+    composicao = compor_valor_agente(ac)
+    client.force_login(_user_com_perms(django_user_model, "view_acionamento"))
+
+    response = client.get(reverse("controle_acionamentos:acionamento_exportar"))
+
+    ws = _workbook_da_resposta(response)["ACME"]
+    linha = _linha_como_dict(ws, 2)  # única linha de dados
+
+    def _naive(dt):
+        return timezone.localtime(dt).replace(tzinfo=None)
+
+    assert _como_data(linha["DATA"]) == timezone.localtime(ac.data_hora_solicitado).date()
+    assert linha["CLIENTE"] == "ACME"
+    assert linha["ORIGEM"] == ac.origem
+    assert linha["DESTINO"] == ac.destino
+    assert linha["AGENTE"] == "Carlos Agente"
+    assert linha["PLACA AGENTE"] == "ABC1D23"
+    assert linha["MOTORISTA"] == "José Motorista"
+    assert linha["PLACA MOT."] == "XYZ9Z99"
+    assert linha["H. SOLIC"] == _naive(ac.data_hora_solicitado)
+    assert linha["H. INICIAL"] == _naive(ac.data_hora_inicio)
+    assert linha["H. FINAL"] == _naive(ac.data_hora_final)
+    assert linha["KM INICIAL"] == 100
+    assert linha["KM FINAL"] == 150
+    assert linha["KM TOTAL"] == 50
+    assert Decimal(str(linha["FRANQUIA DE HORAS"])) == franquia.franquia_horas
+    assert Decimal(str(linha["H. TRABALHADA"])) == ac.horas_total  # 7.00
+    assert Decimal(str(linha["H. EXTRA"])) == ac.hora_excedente  # 2.00
+    assert Decimal(str(linha["VALOR DA HORA EXTRA"])) == franquia.valor_hora_excedente
+    assert Decimal(str(linha["VALOR H.E"])) == composicao.subtotal_hora  # 90.00
+    assert linha["FRANQUIA DE KM"] == franquia.franquia_km  # 120
+    assert linha["KM EXCEDENTE"] == ac.km_excedente  # 0
+    assert Decimal(str(linha["VLR KM EXTRA"])) == franquia.valor_km_excedente
+    assert Decimal(str(linha["VALOR K.H"])) == composicao.subtotal_km  # 0.00
+    assert (
+        Decimal(str(linha["VALOR DA DIÁRIA"]))
+        == composicao.valor_acionamento_ajustado  # 500.00
+    )
+    assert Decimal(str(linha["PEDÁGIO"])) == Decimal("35.00")
+    assert Decimal(str(linha["VALOR TOTAL"])) == ac.valor_agente  # 625.00
+
+
+@pytest.mark.django_db
+def test_exportar_colunas_manuais_vem_vazias(
+    client, django_user_model, _fks_acionamento
+):
+    """9 — SQ, EVENTO, H. CHEGADA e OBS são preenchimento manual da operação:
+    saem VAZIOS em todas as linhas de dados."""
+    cliente, responsavel, agente = _fks_acionamento
+    base = _base_sem_microssegundos()
+    _acionamento_em(cliente, responsavel, agente, base).save()
+    _acionamento_em(cliente, responsavel, agente, base + timedelta(hours=5)).save()
+    client.force_login(_user_com_perms(django_user_model, "view_acionamento"))
+
+    response = client.get(reverse("controle_acionamentos:acionamento_exportar"))
+
+    ws = _workbook_da_resposta(response)["ACME"]
+    # linhas de dados: da 2 até a penúltima (a última é a linha Total)
+    for numero in range(2, ws.max_row):
+        linha = _linha_como_dict(ws, numero)
+        for coluna in ("SQ", "EVENTO", "H. CHEGADA", "OBS"):
+            assert linha[coluna] in (None, "")
+
+
+@pytest.mark.django_db
+def test_exportar_sem_franquia_deixa_lado_agente_vazio(
+    client, django_user_model, _fks_acionamento
+):
+    """10 — acionamento SEM franquia é pendente no lado agente: as colunas de
+    franquia/excedentes/parcelas/VALOR TOTAL saem vazias, mantendo PEDÁGIO e
+    os demais campos do registro preenchidos."""
+    cliente, responsavel, agente = _fks_acionamento
+    _acionamento_em(
+        cliente,
+        responsavel,
+        agente,
+        _base_sem_microssegundos(),
+        franquia_agente=None,
+        pedagio=Decimal("12.00"),
+    ).save()
+    client.force_login(_user_com_perms(django_user_model, "view_acionamento"))
+
+    response = client.get(reverse("controle_acionamentos:acionamento_exportar"))
+
+    ws = _workbook_da_resposta(response)["ACME"]
+    linha = _linha_como_dict(ws, 2)
+
+    colunas_lado_agente = (
+        "FRANQUIA DE HORAS", "H. EXTRA", "VALOR DA HORA EXTRA", "VALOR H.E",
+        "FRANQUIA DE KM", "KM EXCEDENTE", "VLR KM EXTRA", "VALOR K.H",
+        "VALOR DA DIÁRIA", "VALOR TOTAL",
+    )
+    for coluna in colunas_lado_agente:
+        assert linha[coluna] in (None, ""), coluna
+    assert Decimal(str(linha["PEDÁGIO"])) == Decimal("12.00")
+    assert linha["CLIENTE"] == "ACME"
+    assert linha["KM INICIAL"] == 1000
+    assert linha["KM FINAL"] == 1120
+
+
+@pytest.mark.django_db
+def test_exportar_linha_total_soma_valor_total_sem_formula(
+    client, django_user_model, _fks_acionamento
+):
+    """11 — a última linha da aba tem "Total" na primeira coluna e, em VALOR
+    TOTAL, a SOMA dos valores preenchidos como número ESTÁTICO (sem fórmula —
+    load_workbook sem data_only devolveria a string "=..." se houvesse)."""
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = _franquia_ouro_do_agente(cliente)
+    base = _base_sem_microssegundos()
+    ac1 = _acionamento_contrato_ouro(
+        cliente, responsavel, agente,
+        franquia_agente=franquia,
+        data_hora_solicitado=base,
+        data_hora_inicio=base,
+        data_hora_final=base + timedelta(hours=7),
+    )
+    ac1.save()  # 590,00
+    ac2 = _acionamento_contrato_ouro(
+        cliente, responsavel, agente,
+        franquia_agente=franquia,
+        data_hora_solicitado=base + timedelta(hours=2),
+        data_hora_inicio=base + timedelta(hours=2),
+        data_hora_final=base + timedelta(hours=9),
+        pedagio=Decimal("35.00"),
+    )
+    ac2.save()  # 625,00
+    # sem franquia: valor pendente, fica FORA da soma
+    _acionamento_em(
+        cliente, responsavel, agente, base + timedelta(hours=4)
+    ).save()
+    client.force_login(_user_com_perms(django_user_model, "view_acionamento"))
+
+    response = client.get(reverse("controle_acionamentos:acionamento_exportar"))
+
+    ws = _workbook_da_resposta(response)["ACME"]
+    linha_total = _linha_como_dict(ws, ws.max_row)
+    primeira_coluna = ws.cell(row=ws.max_row, column=1).value
+    assert primeira_coluna == "Total"
+    valor = linha_total["VALOR TOTAL"]
+    assert not isinstance(valor, str)  # número estático, nunca fórmula "=..."
+    assert Decimal(str(valor)) == ac1.valor_agente + ac2.valor_agente  # 1215,00
+
+
+@pytest.mark.django_db
+def test_exportar_linhas_em_ordem_cronologica_crescente(
+    client, django_user_model, _fks_acionamento
+):
+    """12 — as linhas de cada aba saem em ordem cronológica CRESCENTE de
+    data_hora_solicitado (a listagem é DESC; a planilha de pagamento é ASC),
+    independente da ordem de criação."""
+    cliente, responsavel, agente = _fks_acionamento
+    base = _base_sem_microssegundos()
+    # criação fora de ordem, de propósito
+    _acionamento_em(
+        cliente, responsavel, agente, base - timedelta(days=5), origem="Meio"
+    ).save()
+    _acionamento_em(
+        cliente, responsavel, agente, base, origem="Recente"
+    ).save()
+    _acionamento_em(
+        cliente, responsavel, agente, base - timedelta(days=10), origem="Antiga"
+    ).save()
+    client.force_login(_user_com_perms(django_user_model, "view_acionamento"))
+
+    response = client.get(reverse("controle_acionamentos:acionamento_exportar"))
+
+    ws = _workbook_da_resposta(response)["ACME"]
+    origens = [
+        _linha_como_dict(ws, numero)["ORIGEM"] for numero in range(2, ws.max_row)
+    ]
+    assert origens == ["Antiga", "Meio", "Recente"]

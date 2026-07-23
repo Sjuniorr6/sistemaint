@@ -13,6 +13,7 @@ urlpatterns = [
         views.acionamento_vincular_franquia_lote,
         name='acionamento_vincular_franquia_lote',
     ),
+    path('acionamentos/exportar/', views.acionamento_exportar, name='acionamento_exportar'),
     path('acionamentos/<int:pk>/', views.acionamento_detail, name='acionamento_detail'),
     path('acionamentos/<int:pk>/editar/', views.acionamento_update, name='acionamento_update'),
     path('acionamentos/<int:pk>/pedagio/', views.acionamento_pedagio_update, name='acionamento_pedagio_update'),

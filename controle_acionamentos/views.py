@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required, permission_required
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -29,6 +29,7 @@ from .selectors import (
     contar_responsaveis,
     contar_sem_franquia,
     listar_acionamentos,
+    listar_acionamentos_para_exportacao,
     listar_franquias_por_cliente,
     listar_historico_do_acionamento,
     listar_servicos_ativos_por_cliente,
@@ -42,6 +43,7 @@ from .services import (
     compor_valor_agente,
     compor_valor_cliente,
     formatar_valor_trilha,
+    montar_workbook_pagamentos,
     registrar_edicao_acionamento,
     rotulo_campo_trilha,
     sincronizar_catalogo_do_cliente,
@@ -79,6 +81,32 @@ def index(request):
     return render(request, 'controle_acionamentos/index.html', contexto)
 
 
+def _filtros_da_listagem(request):
+    """Parse TOLERANTE do querystring da listagem via FiltroAcionamentosForm
+    (valor inválido ou ausente = sem filtro, nunca erro) — compartilhado entre
+    a listagem e a exportação, que usa exatamente os mesmos filtros.
+
+    A ponte tela→domínio do status ("com"/"sem" → True/False/None) já vem do
+    clean_status do form; aqui só renomeia para o parâmetro com_franquia dos
+    selectors. Devolve (form, filtros) — a listagem precisa do form para
+    re-renderizar os campos preenchidos.
+    """
+    form = FiltroAcionamentosForm(request.GET)
+    valido = form.is_valid()
+
+    def _campo(nome):
+        return form.cleaned_data.get(nome) if valido else None
+
+    filtros = {
+        "cliente": _campo("cliente"),
+        "agente": _campo("agente"),
+        "data_de": _campo("data_de"),
+        "data_ate": _campo("data_ate"),
+        "com_franquia": _campo("status"),
+    }
+    return form, filtros
+
+
 @login_required
 @permission_required("controle_acionamentos.view_acionamento", raise_exception=True)
 def acionamento_list(request):
@@ -101,26 +129,14 @@ def acionamento_list(request):
     ordenação do selector. O contexto "acionamentos" passa a ser o Page object,
     que é iterável — o template (tabela + form de lote) segue igual.
     """
-    form = FiltroAcionamentosForm(request.GET)
-    cliente = form.cleaned_data.get("cliente") if form.is_valid() else None
-    agente = form.cleaned_data.get("agente") if form.is_valid() else None
-    data_de = form.cleaned_data.get("data_de") if form.is_valid() else None
-    data_ate = form.cleaned_data.get("data_ate") if form.is_valid() else None
-    # Ponte tela→domínio: o campo se chama "status" no form; clean_status já
-    # devolve True/False/None, que o selector consome como com_franquia.
-    com_franquia = form.cleaned_data.get("status") if form.is_valid() else None
+    form, filtros = _filtros_da_listagem(request)
+    cliente = filtros["cliente"]
     franquias = (
         listar_franquias_por_cliente(cliente)
         if cliente is not None
         else FranquiaAgente.objects.none()
     )
-    acionamentos = listar_acionamentos(
-        cliente=cliente,
-        agente=agente,
-        data_de=data_de,
-        data_ate=data_ate,
-        com_franquia=com_franquia,
-    )
+    acionamentos = listar_acionamentos(**filtros)
     paginator = Paginator(acionamentos, 25)
     pagina = paginator.get_page(request.GET.get("page"))
     # DD-070/ST5: o `valor_cliente` de cada linha agora é o CAMPO PERSISTIDO do
@@ -142,6 +158,36 @@ def acionamento_list(request):
             "filtros_querystring": filtros_querystring,
         },
     )
+
+
+@login_required
+@permission_required("controle_acionamentos.view_acionamento", raise_exception=True)
+def acionamento_exportar(request):
+    """Exportação Excel da listagem (backlog pós-DD-070 item 3) — view FINA.
+
+    Mesmo gating e mesmos filtros da listagem (helper compartilhado
+    _filtros_da_listagem); o selector devolve o queryset filtrado em ordem
+    cronológica crescente, a view só AGRUPA por cliente em dict ordenado
+    alfabeticamente e delega a montagem do arquivo ao service, injetando
+    compor_valor_agente (o service segue puro, sem query).
+    """
+    _, filtros = _filtros_da_listagem(request)
+    acionamentos = listar_acionamentos_para_exportacao(**filtros)
+
+    por_cliente = {}
+    for acionamento in acionamentos:
+        por_cliente.setdefault(str(acionamento.cliente), []).append(acionamento)
+    por_cliente = dict(sorted(por_cliente.items()))
+
+    conteudo = montar_workbook_pagamentos(por_cliente, compor_valor_agente)
+    response = HttpResponse(
+        conteudo,
+        content_type=(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ),
+    )
+    response["Content-Disposition"] = 'attachment; filename="pagamentos_agentes.xlsx"'
+    return response
 
 
 @login_required

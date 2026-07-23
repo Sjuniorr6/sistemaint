@@ -62,6 +62,24 @@ def listar_acionamentos(cliente=None, agente=None, data_de=None, data_ate=None,
     return qs
 
 
+def listar_acionamentos_para_exportacao(cliente=None, agente=None, data_de=None,
+                                        data_ate=None, com_franquia=None):
+    """Backlog pós-DD-070 item 3 — mesma base da listagem (reaproveita
+    listar_acionamentos: filtros idênticos e o select_related de
+    cliente/agente/franquia_agente, que a exportação percorre linha a linha —
+    N+1 aqui seria multiplicado pelo tamanho do arquivo), trocando SÓ a
+    ordenação: a planilha de pagamentos sai em ordem cronológica CRESCENTE de
+    data_hora_solicitado (a listagem em tela é DESC).
+    """
+    return listar_acionamentos(
+        cliente=cliente,
+        agente=agente,
+        data_de=data_de,
+        data_ate=data_ate,
+        com_franquia=com_franquia,
+    ).order_by("data_hora_solicitado")
+
+
 def listar_franquias_por_cliente(cliente):
     """DD-015/M4 (AC-06.3) — alimenta o select de franquias do vínculo em lote:
     só as franquias do cliente filtrado, em ordem alfabética por nome.
