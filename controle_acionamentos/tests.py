@@ -8012,3 +8012,50 @@ def test_exportar_linhas_em_ordem_cronologica_crescente(
         _linha_como_dict(ws, numero)["ORIGEM"] for numero in range(2, ws.max_row)
     ]
     assert origens == ["Antiga", "Meio", "Recente"]
+
+
+# Fase final do item 3 — botão "Exportar Excel" na listagem (RED).
+# O link ainda não existe no template; carrega a MESMA querystring dos filtros
+# que a paginação já usa (filtros_querystring, sem page — contrato do
+# test_acionamento_list_expoe_querystring_dos_filtros_sem_page).
+
+
+@pytest.mark.django_db
+def test_listagem_com_filtros_exibe_link_exportar_com_querystring(
+    client, django_user_model, _fks_acionamento
+):
+    """13 — listagem filtrada: o link "Exportar Excel" aponta para a rota de
+    exportação CARREGANDO a querystring dos filtros (o export respeita o que
+    a tela está mostrando)."""
+    cliente, responsavel, agente = _fks_acionamento
+    _acionamento_em(cliente, responsavel, agente, _base_sem_microssegundos()).save()
+    client.force_login(_user_com_perms(django_user_model, "view_acionamento"))
+
+    response = client.get(
+        reverse("controle_acionamentos:acionamento_list"), {"cliente": cliente.pk}
+    )
+
+    assert response.status_code == 200
+    conteudo = response.content.decode(response.charset)
+    assert "Exportar Excel" in conteudo
+    url_exportar = reverse("controle_acionamentos:acionamento_exportar")
+    assert f'href="{url_exportar}?cliente={cliente.pk}"' in conteudo
+
+
+@pytest.mark.django_db
+def test_listagem_sem_filtro_exibe_link_exportar_limpo(
+    client, django_user_model, _fks_acionamento
+):
+    """14 — listagem sem filtro nenhum: o link "Exportar Excel" aponta para a
+    rota LIMPA, sem querystring pendurada."""
+    cliente, responsavel, agente = _fks_acionamento
+    _acionamento_em(cliente, responsavel, agente, _base_sem_microssegundos()).save()
+    client.force_login(_user_com_perms(django_user_model, "view_acionamento"))
+
+    response = client.get(reverse("controle_acionamentos:acionamento_list"))
+
+    assert response.status_code == 200
+    conteudo = response.content.decode(response.charset)
+    assert "Exportar Excel" in conteudo
+    url_exportar = reverse("controle_acionamentos:acionamento_exportar")
+    assert f'href="{url_exportar}"' in conteudo

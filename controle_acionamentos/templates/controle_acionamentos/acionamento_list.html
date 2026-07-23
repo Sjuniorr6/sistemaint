@@ -51,6 +51,12 @@
       <a href="{% url 'controle_acionamentos:acionamento_list' %}" class="btn btn-outline-secondary">
         <i class="bi bi-x-circle"></i> Limpar
       </a>
+
+      {% comment %} Exporta o que a tela mostra: mesma querystring dos filtros da paginação (sem page); sem filtro, rota limpa {% endcomment %}
+      <a href="{% url 'controle_acionamentos:acionamento_exportar' %}{% if filtros_querystring %}?{{ filtros_querystring }}{% endif %}"
+         class="btn btn-outline-secondary">
+        <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+      </a>
     </div>
   </form>
 
