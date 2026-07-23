@@ -386,7 +386,7 @@
           </tr>
         </thead>
         <tbody>
-          {% for h in historico %}
+          {% for h in historico|slice:":10" %}
           <tr>
             <td>{{ h.campo }}</td>
             <td class="acn-mono">{{ h.valor_anterior }}</td>
@@ -396,7 +396,29 @@
           </tr>
           {% endfor %}
         </tbody>
+        {% if historico|length > 10 %}
+        {% comment %} Excedente do corte: já no HTML, revelado sem recarregar (Caminho A) {% endcomment %}
+        <tbody id="historico-restante" hidden>
+          {% for h in historico|slice:"10:" %}
+          <tr>
+            <td>{{ h.campo }}</td>
+            <td class="acn-mono">{{ h.valor_anterior }}</td>
+            <td class="acn-mono">{{ h.valor_novo }}</td>
+            <td>{{ h.editado_por.get_full_name|default:h.editado_por.username }}</td>
+            <td class="acn-mono">{{ h.editado_em|date:"d/m/Y H:i" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        {% endif %}
       </table>
+      {% if historico|length > 10 %}
+      <div class="p-3">
+        <button type="button" class="btn btn-outline-secondary"
+                onclick="document.getElementById('historico-restante').hidden=false; this.hidden=true;">
+          Ver todas as {{ historico|length }} edições
+        </button>
+      </div>
+      {% endif %}
       {% else %}
       <span class="acn-dash-nota">Nenhuma edição registrada.</span>
       {% endif %}

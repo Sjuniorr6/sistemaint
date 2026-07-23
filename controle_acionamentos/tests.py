@@ -4289,6 +4289,105 @@ def test_detalhe_renderiza_historico_de_edicoes(
     assert "Fulano" in conteudo  # quem editou
 
 
+# --- Backlog DD-070: corte do historico de edicoes no detalhe (RED) ---
+# Caminho A decidido: o detalhe exibe as 10 edições mais recentes e, quando
+# existirem mais, um botão "Ver todas as N edições" que expande o restante SEM
+# recarregar a página — o excedente fica no próprio HTML, escondido num bloco
+# com atributo hidden (sugestão p/ o GREEN: container com id
+# "historico-restante"), e um toggle mínimo de JS revela.
+# Criação direta via objects.create é legítima aqui: o alvo é a APRESENTAÇÃO
+# do detalhe, não o registro do histórico.
+# RED: o 1º teste FALHA (hoje o template lista tudo, sem corte nem botão);
+# o 2º pode nascer VERDE por ser asserção negativa — fica como guarda do GREEN.
+
+
+@pytest.mark.django_db
+def test_detalhe_historico_corta_em_10_com_botao_ver_todas(
+    client, django_user_model, _fks_acionamento
+):
+    """Com 12 edições, o detalhe mostra o botão "Ver todas as 12" e as 2 mais
+    antigas (excedentes do corte de 10) ficam num bloco com atributo hidden."""
+    from controle_acionamentos.models import AcionamentoHistorico
+
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()
+    user = _user_com_perms(django_user_model, "view_acionamento")
+
+    # 12 registros com timestamps distintos e crescentes: campo_01 é o mais
+    # antigo, campo_12 o mais recente (update() NÃO dispara auto_now_add —
+    # padrão ST2). Excedentes do corte de 10: campo_01 e campo_02.
+    agora = timezone.now()
+    for i in range(1, 13):
+        h = AcionamentoHistorico.objects.create(
+            acionamento=ac,
+            editado_por=user,
+            campo=f"campo_{i:02d}",
+            valor_anterior="a",
+            valor_novo="b",
+        )
+        AcionamentoHistorico.objects.filter(pk=h.pk).update(
+            editado_em=agora - timedelta(minutes=12 - i)
+        )
+
+    client.force_login(user)
+    url = reverse("controle_acionamentos:acionamento_detail", args=[ac.pk])
+    response = client.get(url)
+
+    assert response.status_code == 200
+    conteudo = response.content.decode(response.charset)
+    assert "Ver todas as 12" in conteudo
+
+    # O excedente existe no HTML, mas dentro de um container escondido:
+    # localiza o marcador, confere o atributo hidden na própria tag e que os
+    # campos antigos aparecem DEPOIS dele.
+    pos_marcador = conteudo.find('id="historico-restante"')
+    assert pos_marcador != -1  # container do restante existe
+    inicio_tag = conteudo.rfind("<", 0, pos_marcador)
+    fim_tag = conteudo.find(">", pos_marcador)
+    tag_container = conteudo[inicio_tag : fim_tag + 1]
+    assert "hidden" in tag_container  # o bloco nasce escondido
+    assert conteudo.find("campo_01") > pos_marcador
+    assert conteudo.find("campo_02") > pos_marcador
+    # e os 10 mais recentes ficam visíveis, antes do bloco escondido
+    assert -1 < conteudo.find("campo_03") < pos_marcador
+    assert -1 < conteudo.find("campo_12") < pos_marcador
+
+
+@pytest.mark.django_db
+def test_detalhe_historico_com_ate_10_nao_exibe_botao(
+    client, django_user_model, _fks_acionamento
+):
+    """Guarda (pode nascer VERDE): com só 3 edições não há botão "Ver todas" e
+    os 3 campos aparecem normalmente."""
+    from controle_acionamentos.models import AcionamentoHistorico
+
+    cliente, responsavel, agente = _fks_acionamento
+    ac = _acionamento_valido(cliente, responsavel, agente)
+    ac.save()
+    user = _user_com_perms(django_user_model, "view_acionamento")
+
+    for i in range(1, 4):
+        AcionamentoHistorico.objects.create(
+            acionamento=ac,
+            editado_por=user,
+            campo=f"campo_{i:02d}",
+            valor_anterior="a",
+            valor_novo="b",
+        )
+
+    client.force_login(user)
+    url = reverse("controle_acionamentos:acionamento_detail", args=[ac.pk])
+    response = client.get(url)
+
+    assert response.status_code == 200
+    conteudo = response.content.decode(response.charset)
+    assert "Ver todas" not in conteudo
+    assert "campo_01" in conteudo
+    assert "campo_02" in conteudo
+    assert "campo_03" in conteudo
+
+
 # --- DD-049 ST5: botao Editar gated por change_acionamento (RED) ---
 # O botão "Editar" ainda NÃO existe em nenhum template. Espelha o padrão dos
 # testes do botão Novo (gating por permissão), mas a ÂNCORA é o href da rota
