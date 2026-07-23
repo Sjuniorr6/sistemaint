@@ -8059,3 +8059,93 @@ def test_listagem_sem_filtro_exibe_link_exportar_limpo(
     assert "Exportar Excel" in conteudo
     url_exportar = reverse("controle_acionamentos:acionamento_exportar")
     assert f'href="{url_exportar}"' in conteudo
+
+
+# Acabamento visual do arquivo (RED) — SÓ estilo (negrito/preenchimento do
+# cabeçalho, number_format e larguras); o conteúdo das células não muda em
+# nada (os testes 1–12 seguem valendo como guarda do conteúdo).
+
+
+def _celula_por_titulo(ws, numero, titulo):
+    """A CÉLULA (não o valor) da linha `numero` na coluna de título `titulo`."""
+    return ws.cell(row=numero, column=_cabecalho_da_aba(ws).index(titulo) + 1)
+
+
+@pytest.mark.django_db
+def test_exportar_cabecalho_negrito_com_preenchimento(
+    client, django_user_model, _fks_acionamento
+):
+    """15 — as 30 células do cabeçalho saem em negrito com preenchimento
+    sólido FFCE29 (padrão da planilha de referência; o rgb volta com o
+    prefixo FF de alpha)."""
+    cliente, responsavel, agente = _fks_acionamento
+    _acionamento_em(cliente, responsavel, agente, _base_sem_microssegundos()).save()
+    client.force_login(_user_com_perms(django_user_model, "view_acionamento"))
+
+    response = client.get(reverse("controle_acionamentos:acionamento_exportar"))
+
+    ws = _workbook_da_resposta(response)["ACME"]
+    for celula in ws[1]:
+        assert celula.font.bold is True, celula.value
+        assert celula.fill.patternType == "solid", celula.value
+        assert celula.fill.fgColor.rgb == "FFFFCE29", celula.value
+
+
+@pytest.mark.django_db
+def test_exportar_number_format_das_celulas_de_dados(
+    client, django_user_model, _fks_acionamento
+):
+    """16 — number_format por grupo: DATA como data dd/mm/yyyy, os três
+    datetimes como dd/mm/yyyy hh:mm e as sete colunas monetárias com R$."""
+    cliente, responsavel, agente = _fks_acionamento
+    franquia = _franquia_ouro_do_agente(cliente)
+    base = _base_sem_microssegundos()
+    _acionamento_contrato_ouro(
+        cliente,
+        responsavel,
+        agente,
+        franquia_agente=franquia,
+        data_hora_solicitado=base,
+        data_hora_inicio=base,
+        data_hora_final=base + timedelta(hours=7),
+        pedagio=Decimal("35.00"),
+    ).save()
+    client.force_login(_user_com_perms(django_user_model, "view_acionamento"))
+
+    response = client.get(reverse("controle_acionamentos:acionamento_exportar"))
+
+    ws = _workbook_da_resposta(response)["ACME"]
+    assert _celula_por_titulo(ws, 2, "DATA").number_format.lower() == "dd/mm/yyyy"
+    for titulo in ("H. SOLIC", "H. INICIAL", "H. FINAL"):
+        formato = _celula_por_titulo(ws, 2, titulo).number_format.lower()
+        assert formato == "dd/mm/yyyy hh:mm", titulo
+    colunas_moeda = (
+        "VALOR DA HORA EXTRA", "VALOR H.E", "VLR KM EXTRA", "VALOR K.H",
+        "VALOR DA DIÁRIA", "PEDÁGIO", "VALOR TOTAL",
+    )
+    for titulo in colunas_moeda:
+        assert "R$" in _celula_por_titulo(ws, 2, titulo).number_format, titulo
+
+
+@pytest.mark.django_db
+def test_exportar_larguras_de_coluna_definidas(
+    client, django_user_model, _fks_acionamento
+):
+    """17 — larguras definidas em column_dimensions: datetimes com pelo menos
+    16 (senão a célula vira #####) e DATA com pelo menos 11."""
+    from openpyxl.utils import get_column_letter
+
+    cliente, responsavel, agente = _fks_acionamento
+    _acionamento_em(cliente, responsavel, agente, _base_sem_microssegundos()).save()
+    client.force_login(_user_com_perms(django_user_model, "view_acionamento"))
+
+    response = client.get(reverse("controle_acionamentos:acionamento_exportar"))
+
+    ws = _workbook_da_resposta(response)["ACME"]
+    cabecalho = _cabecalho_da_aba(ws)
+    for titulo, minimo in (
+        ("H. SOLIC", 16), ("H. INICIAL", 16), ("H. FINAL", 16), ("DATA", 11)
+    ):
+        letra = get_column_letter(cabecalho.index(titulo) + 1)
+        largura = ws.column_dimensions[letra].width
+        assert largura is not None and largura >= minimo, titulo

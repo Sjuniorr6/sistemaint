@@ -1044,6 +1044,52 @@ def _linha_exportacao(acionamento, compor):
     ]
 
 
+# Acabamento visual do arquivo (só estilo — o conteúdo das células não muda).
+# Cores/formatos seguem a planilha de referência da operação.
+_COR_CABECALHO_EXPORTACAO = "FFFFCE29"  # aRGB: FF de alpha + FFCE29
+_FORMATO_DATA_EXPORTACAO = "DD/MM/YYYY"
+_FORMATO_DATA_HORA_EXPORTACAO = "DD/MM/YYYY HH:MM"
+_FORMATO_MOEDA_EXPORTACAO = '"R$" #,##0.00'
+_FORMATO_DECIMAL_EXPORTACAO = "0.00"
+
+# number_format por título de coluna (coluna fora do dict fica sem formato).
+_FORMATOS_EXPORTACAO = {
+    "DATA": _FORMATO_DATA_EXPORTACAO,
+    **{t: _FORMATO_DATA_HORA_EXPORTACAO
+       for t in ("H. SOLIC", "H. INICIAL", "H. FINAL")},
+    **{t: _FORMATO_MOEDA_EXPORTACAO
+       for t in ("VALOR DA HORA EXTRA", "VALOR H.E", "VLR KM EXTRA",
+                 "VALOR K.H", "VALOR DA DIÁRIA", "PEDÁGIO", "VALOR TOTAL")},
+    **{t: _FORMATO_DECIMAL_EXPORTACAO
+       for t in ("H. TRABALHADA", "H. EXTRA", "FRANQUIA DE HORAS")},
+}
+
+# Largura por título de coluna (unidade do Excel; default 13 corta datetime).
+_LARGURAS_EXPORTACAO = {
+    "DATA": 12, "SQ": 8, "EVENTO": 14, "CLIENTE": 22, "ORIGEM": 25,
+    "DESTINO": 25, "AGENTE": 22, "PLACA AGENTE": 14, "MOTORISTA": 18,
+    "PLACA MOT.": 14, "H. SOLIC": 17, "H. CHEGADA": 17, "H. INICIAL": 17,
+    "H. FINAL": 17, "KM INICIAL": 12, "KM FINAL": 12, "KM TOTAL": 12,
+    "FRANQUIA DE HORAS": 16, "H. TRABALHADA": 14, "H. EXTRA": 12,
+    "VALOR DA HORA EXTRA": 16, "VALOR H.E": 14, "FRANQUIA DE KM": 14,
+    "KM EXCEDENTE": 14, "VLR KM EXTRA": 14, "VALOR K.H": 14,
+    "VALOR DA DIÁRIA": 15, "PEDÁGIO": 12, "VALOR TOTAL": 15, "OBS": 20,
+}
+
+
+def _aplicar_formatos_na_linha(ws, numero):
+    """number_format por coluna numa linha de dados — APENAS em célula com
+    valor: célula None fica sem formato e o lado pendente (sem franquia)
+    segue visualmente vazio."""
+    for indice, titulo in enumerate(COLUNAS_EXPORTACAO_PAGAMENTOS, start=1):
+        formato = _FORMATOS_EXPORTACAO.get(titulo)
+        if formato is None:
+            continue
+        celula = ws.cell(row=numero, column=indice)
+        if celula.value is not None:
+            celula.number_format = formato
+
+
 def montar_workbook_pagamentos(acionamentos_por_cliente, compor):
     """Monta o xlsx de pagamentos dos agentes e devolve os BYTES do arquivo.
 
@@ -1065,21 +1111,44 @@ def montar_workbook_pagamentos(acionamentos_por_cliente, compor):
     import io
 
     from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    negrito = Font(bold=True)
+    preenchimento_cabecalho = PatternFill(
+        start_color=_COR_CABECALHO_EXPORTACAO,
+        end_color=_COR_CABECALHO_EXPORTACAO,
+        fill_type="solid",
+    )
 
     wb = Workbook()
     wb.remove(wb.active)  # aba default vazia do openpyxl
     for nome_cliente, acionamentos in acionamentos_por_cliente.items():
         ws = wb.create_sheet(title=nome_cliente[:31])
         ws.append(COLUNAS_EXPORTACAO_PAGAMENTOS)
+        for indice, titulo in enumerate(COLUNAS_EXPORTACAO_PAGAMENTOS, start=1):
+            celula = ws.cell(row=1, column=indice)
+            celula.font = negrito
+            celula.fill = preenchimento_cabecalho
+            ws.column_dimensions[get_column_letter(indice)].width = (
+                _LARGURAS_EXPORTACAO[titulo]
+            )
         total = Decimal("0.00")
         for acionamento in acionamentos:
             ws.append(_linha_exportacao(acionamento, compor))
+            _aplicar_formatos_na_linha(ws, ws.max_row)
             if acionamento.valor_agente is not None:
                 total += acionamento.valor_agente
         linha_total = [None] * len(COLUNAS_EXPORTACAO_PAGAMENTOS)
         linha_total[0] = "Total"
         linha_total[COLUNAS_EXPORTACAO_PAGAMENTOS.index("VALOR TOTAL")] = total
         ws.append(linha_total)
+        ws.cell(row=ws.max_row, column=1).font = negrito
+        celula_soma = ws.cell(
+            row=ws.max_row,
+            column=COLUNAS_EXPORTACAO_PAGAMENTOS.index("VALOR TOTAL") + 1,
+        )
+        celula_soma.number_format = _FORMATO_MOEDA_EXPORTACAO
     if not wb.worksheets:
         # xlsx exige ao menos uma aba; sem acionamento nenhum, sai só o cabeçalho
         wb.create_sheet(title="Acionamentos").append(COLUNAS_EXPORTACAO_PAGAMENTOS)
