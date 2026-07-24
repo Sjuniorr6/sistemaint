@@ -87,6 +87,33 @@ def listar_acionamentos_para_exportacao(cliente=None, agente=None, responsavel=N
     ).order_by("data_hora_solicitado")
 
 
+def listar_duplicatas_para_criacao(cliente, km_inicio, km_final,
+                                   data_hora_inicio, data_hora_final):
+    """DD-084/ST3 — candidatos a duplicata na CRIAÇÃO de acionamento: os já
+    existentes com igualdade EXATA nos 5 campos recebidos, do mais recente ao
+    mais antigo por criado_em (ordering explícito, regra da casa).
+
+    A resposta dos operadores na DD-084/ST3 definiu a comparação pelos
+    horários de início e fim com igualdade exata, deixando
+    data_hora_solicitado de fora.
+
+    select_related("cliente"): quem exibe as duplicatas mostra o cliente de
+    cada linha — sem o join seria uma query por item (N+1).
+    """
+    return (
+        Acionamento.objects
+        .filter(
+            cliente=cliente,
+            km_inicio=km_inicio,
+            km_final=km_final,
+            data_hora_inicio=data_hora_inicio,
+            data_hora_final=data_hora_final,
+        )
+        .select_related("cliente")
+        .order_by("-criado_em")
+    )
+
+
 def listar_franquias_por_cliente(cliente):
     """DD-015/M4 (AC-06.3) — alimenta o select de franquias do vínculo em lote:
     só as franquias do cliente filtrado, em ordem alfabética por nome.

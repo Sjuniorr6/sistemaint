@@ -1236,6 +1236,124 @@ def test_listar_acionamentos_filtra_por_responsavel(_fks_acionamento):
     assert [a.pk for a in resultado] == [recente.pk, antigo.pk]
 
 
+# --- DD-084/ST3 — detecção de duplicidade na criação (selector) -------------
+# Fase RED: listar_duplicatas_para_criacao ainda não existe em selectors.py —
+# import LOCAL em cada teste para não quebrar a coleta do módulo.
+
+
+@pytest.mark.django_db
+class TestListarDuplicatasParaCriacao:
+    """Selector novo: dado o conjunto (cliente, km_inicio, km_final,
+    data_hora_inicio, data_hora_final) de um NOVO acionamento, devolve os já
+    existentes com os MESMOS 5 valores (candidatos a duplicata), do mais
+    recente ao mais antigo por criado_em. data_hora_solicitado fica FORA da
+    comparação de propósito."""
+
+    def _campos(self, ac):
+        """Os 5 campos de comparação, extraídos de um acionamento existente."""
+        return dict(
+            cliente=ac.cliente,
+            km_inicio=ac.km_inicio,
+            km_final=ac.km_final,
+            data_hora_inicio=ac.data_hora_inicio,
+            data_hora_final=ac.data_hora_final,
+        )
+
+    def test_mesmos_5_valores_devolve_o_acionamento(self, _fks_acionamento):
+        """1 — igualdade exata nos 5 campos acusa a duplicata."""
+        cliente, responsavel, agente = _fks_acionamento
+        ac = _acionamento_valido(cliente, responsavel, agente)
+        ac.save()
+
+        from controle_acionamentos.selectors import listar_duplicatas_para_criacao
+
+        resultado = listar_duplicatas_para_criacao(**self._campos(ac))
+
+        assert [d.pk for d in resultado] == [ac.pk]
+
+    def test_divergencia_em_qualquer_um_dos_5_campos_devolve_vazio(
+        self, _fks_acionamento
+    ):
+        """2 — divergir em UM único campo (um por vez) já descarta a suspeita."""
+        cliente, responsavel, agente = _fks_acionamento
+        outro_cliente = Cliente.objects.create(
+            nome_empresa="Globex", cnpj="11444777000161"
+        )
+        ac = _acionamento_valido(cliente, responsavel, agente)
+        ac.save()
+
+        from controle_acionamentos.selectors import listar_duplicatas_para_criacao
+
+        base = self._campos(ac)
+        divergencias = [
+            {"cliente": outro_cliente},
+            {"km_inicio": ac.km_inicio + 1},
+            {"km_final": ac.km_final + 1},
+            {"data_hora_inicio": ac.data_hora_inicio + timedelta(minutes=1)},
+            {"data_hora_final": ac.data_hora_final + timedelta(minutes=1)},
+        ]
+        for divergencia in divergencias:
+            resultado = listar_duplicatas_para_criacao(**{**base, **divergencia})
+            assert list(resultado) == [], (
+                f"divergência {divergencia} deveria devolver vazio"
+            )
+
+    def test_solicitado_diferente_nao_impede_a_deteccao(self, _fks_acionamento):
+        """3 — data_hora_solicitado fica FORA da comparação: o novo registro
+        simulado teria solicitado = agora, o existente tem 2h atrás — e a
+        duplicata é acusada mesmo assim (solicitado nem entra na assinatura)."""
+        cliente, responsavel, agente = _fks_acionamento
+        ac = _acionamento_valido(
+            cliente,
+            responsavel,
+            agente,
+            data_hora_solicitado=timezone.now() - timedelta(hours=2),
+        )
+        ac.save()
+
+        from controle_acionamentos.selectors import listar_duplicatas_para_criacao
+
+        resultado = listar_duplicatas_para_criacao(**self._campos(ac))
+
+        assert [d.pk for d in resultado] == [ac.pk]
+
+    def test_ordena_do_mais_recente_e_acessa_cliente_sem_query_extra(
+        self, _fks_acionamento, django_assert_num_queries
+    ):
+        """4 — ordem DESC por criado_em e select_related de cliente: avaliar o
+        queryset e ler o cliente de cada item cabe em UMA query."""
+        cliente, responsavel, agente = _fks_acionamento
+        # Datas FIXADAS: o helper gera as suas com timezone.now() interno a
+        # cada chamada — sem fixar, os dois registros divergiriam nos campos
+        # de comparação por microssegundos.
+        base = timezone.now()
+        datas = dict(
+            data_hora_solicitado=base,
+            data_hora_inicio=base + timedelta(minutes=30),
+            data_hora_final=base + timedelta(hours=3),
+        )
+        primeiro = _acionamento_valido(cliente, responsavel, agente, **datas)
+        primeiro.save()
+        segundo = _acionamento_valido(cliente, responsavel, agente, **datas)
+        segundo.save()
+        # criado_em é auto_now_add: recua o primeiro por update direto para a
+        # ordem não depender da resolução do relógio entre dois saves seguidos.
+        Acionamento.objects.filter(pk=primeiro.pk).update(
+            criado_em=timezone.now() - timedelta(minutes=5)
+        )
+
+        from controle_acionamentos.selectors import listar_duplicatas_para_criacao
+
+        with django_assert_num_queries(1):
+            duplicatas = list(
+                listar_duplicatas_para_criacao(**self._campos(primeiro))
+            )
+            nomes = [d.cliente.nome_empresa for d in duplicatas]
+
+        assert [d.pk for d in duplicatas] == [segundo.pk, primeiro.pk]
+        assert nomes == [cliente.nome_empresa, cliente.nome_empresa]
+
+
 @pytest.mark.django_db
 def test_listar_acionamentos_filtra_por_intervalo_de_data(_fks_acionamento):
     """DD-016/M5 (AC-08.1) — filtro por intervalo de data_hora_solicitado com
