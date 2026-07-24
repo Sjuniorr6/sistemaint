@@ -1,0 +1,50 @@
+{% comment %}
+  Modal "Tratativas de Contato" (Expedição): registra UMA tentativa de contato com
+  o cliente por vez — cada envio vira uma linha no histórico do chamado. Nome e
+  tratativa são obrigatórios; telefone e código de rastreio complementam.
+  Não muda o status: o chamado segue na Expedição.
+{% endcomment %}
+<div class="modal fade" id="modalContatoExpedicao" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form method="post" action="{% url 'chamados:acao' chamado.pk Acao.REGISTRAR_CONTATO %}">
+      {% csrf_token %}
+      <div class="modal-content border-0 shadow" style="border-radius: var(--ch-radius, .85rem);">
+        <div class="modal-header bg-primary border-0">
+          <h5 class="modal-title text-white"><i class="bi bi-telephone-outbound me-2"></i>Tratativa de contato</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body p-4">
+          <p class="text-muted small mb-3">Registre a tentativa de contato com o cliente.</p>
+          <div class="row g-3">
+            <div class="col-md-7">
+              <label for="{{ contato_form.nome_contato.id_for_label }}" class="form-label fw-semibold">Pessoa contatada</label>
+              {{ contato_form.nome_contato }}
+              {% for e in contato_form.nome_contato.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="col-md-5">
+              <label for="{{ contato_form.telefone.id_for_label }}" class="form-label fw-semibold">Telefone</label>
+              {{ contato_form.telefone }}
+              {% for e in contato_form.telefone.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="col-12">
+              <label for="{{ contato_form.tratativa.id_for_label }}" class="form-label fw-semibold">Tratativa</label>
+              {{ contato_form.tratativa }}
+              {% for e in contato_form.tratativa.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="col-12">
+              <label for="{{ contato_form.codigo_rastreio.id_for_label }}" class="form-label fw-semibold">
+                Código de rastreio <span class="text-muted fw-normal">(se já postado)</span>
+              </label>
+              {{ contato_form.codigo_rastreio }}
+              {% for e in contato_form.codigo_rastreio.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary fw-semibold">Registrar contato</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>

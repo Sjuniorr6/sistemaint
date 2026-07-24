@@ -73,6 +73,15 @@
   <div class="row g-4">
     {% comment %} Coluna esquerda: fatos + tratativa + ações. {% endcomment %}
     <div class="col-lg-7">
+            <div class="ch-card card"><div class="card-body">
+        <h6 class="ch-section-title"><i class="bi bi-flag me-1"></i>Situação atual</h6>
+        <div class="d-flex align-items-center gap-2 mb-2">
+          {% include 'chamados/partials/_status_badge.html' with chamado=chamado %}
+        </div>
+        <div class="ch-ev-meta">
+          Última atualização: {{ chamado.atualizado_em|date:"d/m/Y H:i" }}
+        </div>
+      </div></div>
 
       <div class="ch-card card mb-4"><div class="card-body">
         <h6 class="ch-section-title"><i class="bi bi-info-circle me-1"></i>Dados de abertura</h6>
@@ -101,6 +110,15 @@
             <dt class="col-sm-4">Responsável (Inteligência)</dt>
             <dd class="col-sm-8"><i class="bi bi-person-badge text-primary me-1"></i>{{ chamado.responsavel_inteligencia.get_username }}</dd>
           {% endif %}
+          {% if chamado.manutencao %}
+            <dt class="col-sm-4">Manutenção vinculada</dt>
+            <dd class="col-sm-8">
+              <span class="badge rounded-pill text-bg-light">
+                <i class="bi bi-wrench-adjustable me-1"></i>#{{ chamado.manutencao.id }}
+              </span>
+              <span class="ms-1">{{ chamado.manutencao.nome }}</span>
+            </dd>
+          {% endif %}
           <dt class="col-sm-4">Aberto por</dt><dd class="col-sm-8">{{ chamado.aberto_por.get_username }}</dd>
           <dt class="col-sm-4">Aberto em</dt>
           <dd class="col-sm-8"><i class="bi bi-clock me-1 text-secondary"></i>{{ chamado.aberto_em|date:"d/m/Y H:i" }}</dd>
@@ -109,13 +127,24 @@
 
 
 
-      {% comment %} Ações disponíveis conforme estado + posse (RF-07/RF-21). {% endcomment %}
-      {% if acoes %}
+      {% comment %} Ações disponíveis conforme estado + posse (RF-07/RF-21).
+        O card também aparece quando só há o laudo a oferecer (ex.: chamado já
+        resolvido, mas com manutenção vinculada). {% endcomment %}
+      {% if acoes or pode_baixar_laudo %}
       <div class="ch-card card mb-4"><div class="card-body">
         <h6 class="ch-section-title"><i class="bi bi-lightning-charge me-1"></i>Ações</h6>
         <div class="d-flex flex-wrap gap-2">
           {% for a in acoes %}
-            {% if a == Acao.ENCAMINHAR %}
+            {% if a == Acao.ACEITAR_TRATATIVA %}
+              {% comment %} Marco inicial do SLA do setor: POST direto, sem dados.
+                Enquanto não aceito, é a única ação oferecida. {% endcomment %}
+              <form method="post" action="{% url 'chamados:acao' chamado.pk Acao.ACEITAR_TRATATIVA %}" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-warning fw-semibold">
+                  <i class="bi bi-hand-thumbs-up me-1"></i> Aceitar tratativa
+                </button>
+              </form>
+            {% elif a == Acao.ENCAMINHAR %}
               <button class="btn btn-warning fw-semibold" data-bs-toggle="modal" data-bs-target="#modalEncaminhar">
                 <i class="bi bi-send me-1"></i> Encaminhar
               </button>
@@ -131,6 +160,10 @@
                   <i class="bi bi-box-arrow-in-down me-1"></i> Marcar chegada
                 </button>
               </form>
+            {% elif a == Acao.REGISTRAR_CONTATO %}
+              <button class="btn btn-outline-primary fw-semibold" data-bs-toggle="modal" data-bs-target="#modalContatoExpedicao">
+                <i class="bi bi-telephone-outbound me-1"></i> Tratativas de Contato
+              </button>
             {% elif a == Acao.ENCAMINHAR_COMERCIAL %}
               <button class="btn btn-success fw-semibold" data-bs-toggle="modal" data-bs-target="#modalEncaminharComercial">
                 <i class="bi bi-briefcase me-1"></i> Encaminhar p/ comercial
@@ -138,6 +171,10 @@
             {% elif a == Acao.FINALIZAR_COMERCIAL %}
               <button class="btn btn-success fw-semibold" data-bs-toggle="modal" data-bs-target="#modalFinalizarComercial">
                 <i class="bi bi-check2-circle me-1"></i> Finalizar chamado
+              </button>
+            {% elif a == Acao.FATURAR %}
+              <button class="btn btn-success fw-semibold" data-bs-toggle="modal" data-bs-target="#modalFaturar">
+                <i class="bi bi-cash-coin me-1"></i> Faturado
               </button>
             {% elif a == Acao.FINALIZAR %}
               <button class="btn btn-success fw-semibold" data-bs-toggle="modal" data-bs-target="#modalFinalizar">
@@ -157,6 +194,23 @@
               </button>
             {% endif %}
           {% endfor %}
+
+          {% comment %} Laudo da manutenção vinculada — mesmo arquivo/URL do botão
+            "Laudo" da tela "Registro das entradas" (download_pdfmanutencao).
+            Liberado depois que o Comercial aceita a tratativa. {% endcomment %}
+          {% if pode_baixar_laudo %}
+            <a class="btn btn-primary fw-semibold" href="{% url 'download_pdfmanutencao' chamado.manutencao_id %}">
+              <i class="bi bi-file-earmark-pdf me-1"></i> Baixar laudo
+            </a>
+          {% endif %}
+
+          {% comment %} Termo de substituição: o Financeiro precisa dele (junto do
+            laudo) para cobrar do cliente. Só aparece a quem já tem acesso ao laudo. {% endcomment %}
+          {% if pode_baixar_laudo and chamado.termo_substituicao %}
+            <a class="btn btn-outline-primary fw-semibold" href="{{ chamado.termo_substituicao.url }}" target="_blank" rel="noopener">
+              <i class="bi bi-file-earmark-text me-1"></i> Termo de substituição
+            </a>
+          {% endif %}
         </div>
       </div></div>
       {% endif %}
@@ -165,26 +219,61 @@
     {% comment %} Coluna direita: espaço para resumo/atalhos (o histórico agora é
       a timeline de progresso no topo). {% endcomment %}
     <div class="col-lg-5">
-      <div class="ch-card card"><div class="card-body">
-        <h6 class="ch-section-title"><i class="bi bi-flag me-1"></i>Situação atual</h6>
-        <div class="d-flex align-items-center gap-2 mb-2">
-          {% include 'chamados/partials/_status_badge.html' with chamado=chamado %}
-        </div>
-        <div class="ch-ev-meta">
-          Última atualização: {{ chamado.atualizado_em|date:"d/m/Y H:i" }}
-        </div>
-      </div></div>
-      {% if chamado.procedimento_realizado or chamado.tratativa %}
+
+      {% comment %} Tratativas por setor: cada bloco é o que AQUELE setor registrou
+        ao encaminhar (Quality → Inteligência, Inteligência → Expedição), com quem
+        fez e quando. Vem do log de eventos (os campos do chamado são únicos e
+        sobrescritos, então não distinguiriam os setores). {% endcomment %}
+      {% if tratativas_por_setor %}
         <div class="ch-card card mb-4"><div class="card-body">
-          <h6 class="ch-section-title"><i class="bi bi-journal-text me-1"></i>Tratativa</h6>
-          {% if chamado.procedimento_realizado %}
-            <div class="text-muted small text-uppercase fw-semibold mb-1">Procedimento realizado</div>
-            <p class="mb-3">{{ chamado.procedimento_realizado|linebreaksbr }}</p>
-          {% endif %}
-          {% if chamado.tratativa %}
-            <div class="text-muted small text-uppercase fw-semibold mb-1">Tratativa proposta</div>
-            <p class="mb-0">{{ chamado.tratativa|linebreaksbr }}</p>
-          {% endif %}
+          <h6 class="ch-section-title"><i class="bi bi-journal-text me-1"></i>Tratativas</h6>
+          {% for t in tratativas_por_setor %}
+            <div class="border rounded p-3 {% if not forloop.last %}mb-2{% endif %}">
+              <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                <span class="badge rounded-pill text-bg-primary">{{ t.setor }}</span>
+                <span class="ch-ev-meta ms-auto">
+                  {{ t.em|date:"d/m/Y H:i" }} · {{ t.autor.get_username }}
+                </span>
+              </div>
+              {% if t.procedimento %}
+                <div class="text-muted small text-uppercase fw-semibold mb-1">Procedimento realizado</div>
+                <p class="mb-2">{{ t.procedimento|linebreaksbr }}</p>
+              {% endif %}
+              {% if t.tratativa %}
+                <div class="text-muted small text-uppercase fw-semibold mb-1">Tratativa proposta</div>
+                <p class="mb-0">{{ t.tratativa|linebreaksbr }}</p>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div></div>
+      {% endif %}
+
+      {% comment %} Tentativas de contato com o cliente (Expedição). Aparecem
+        assim que houver registro e seguem visíveis da expedição em diante. {% endcomment %}
+      {% if contatos_expedicao %}
+        <div class="ch-card card mb-4"><div class="card-body">
+          <h6 class="ch-section-title">
+            <i class="bi bi-telephone-outbound me-1"></i>Tratativas de contato (Expedição)
+          </h6>
+          {% for ct in contatos_expedicao %}
+            <div class="border rounded p-3 mb-2">
+              <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                <span class="fw-semibold"><i class="bi bi-person me-1"></i>{{ ct.nome_contato }}</span>
+                {% if ct.telefone %}
+                  <span class="text-muted small"><i class="bi bi-telephone me-1"></i>{{ ct.telefone }}</span>
+                {% endif %}
+                {% if ct.codigo_rastreio %}
+                  <span class="badge rounded-pill text-bg-info">
+                    <i class="bi bi-upc-scan me-1"></i>{{ ct.codigo_rastreio }}
+                  </span>
+                {% endif %}
+                <span class="ch-ev-meta ms-auto">
+                  {{ ct.criado_em|date:"d/m/Y H:i" }} · {{ ct.registrado_por.get_username }}
+                </span>
+              </div>
+              <div>{{ ct.tratativa|linebreaksbr }}</div>
+            </div>
+          {% endfor %}
         </div></div>
       {% endif %}
 
@@ -225,11 +314,17 @@
   {% if Acao.ENCAMINHAR_EXPEDICAO in acoes %}
     {% include 'chamados/partials/modal_encaminhar_expedicao.html' %}
   {% endif %}
+  {% if Acao.REGISTRAR_CONTATO in acoes %}
+    {% include 'chamados/partials/modal_contato_expedicao.html' %}
+  {% endif %}
   {% if Acao.ENCAMINHAR_COMERCIAL in acoes %}
     {% include 'chamados/partials/modal_encaminhar_comercial.html' %}
   {% endif %}
   {% if Acao.FINALIZAR_COMERCIAL in acoes %}
     {% include 'chamados/partials/modal_finalizar_comercial.html' %}
+  {% endif %}
+  {% if Acao.FATURAR in acoes %}
+    {% include 'chamados/partials/modal_faturar.html' %}
   {% endif %}
   {% if Acao.FINALIZAR in acoes %}
     {% include 'chamados/partials/modal_procedimento.html' with modal_id="modalFinalizar" acao=Acao.FINALIZAR titulo="Finalizar chamado" %}
@@ -255,4 +350,40 @@
     });
   });
 </script>
+
+{% comment %} Alpine para o modal de finalização do Comercial: revela o anexo do
+  termo de substituição quando algum equipamento é marcado COM CUSTO. {% endcomment %}
+{% if Acao.FINALIZAR_COMERCIAL in acoes %}
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+{% endif %}
+
+{% comment %} Select2 no dropdown de manutenção do modal "Encaminhar p/ comercial".
+  jQuery não vem do base.html, então carregamos aqui (mesmo stack dos demais apps).
+  Dentro de modal, o Select2 exige `dropdownParent` para não perder o foco/z-index.
+{% endcomment %}
+{% if Acao.ENCAMINHAR_COMERCIAL in acoes %}
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+  <style>
+    /* Só o que é específico do modal; o resto (inclusive o texto preto do
+       dropdown) vem do partial _estilos.html. */
+    .select2-container { z-index: 1056; }  /* acima do modal do Bootstrap */
+  </style>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+  <script>
+    jQuery(function ($) {
+      var $modal = $('#modalEncaminharComercial');
+      $modal.on('shown.bs.modal', function () {
+        var $sel = $modal.find('select.select2');
+        if (!$sel.data('select2')) {
+          $sel.select2({
+            width: '100%',
+            placeholder: 'Selecione a manutenção',
+            dropdownParent: $modal,
+          });
+        }
+      });
+    });
+  </script>
+{% endif %}
 {% endblock %}

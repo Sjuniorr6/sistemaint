@@ -56,6 +56,7 @@
   .ch-status-EXPEDICAO    { color: #0e7490; background: #cffafe; }
   .ch-status-LABORATORIO  { color: #7c3aed; background: #ede9fe; }
   .ch-status-COMERCIAL    { color: #a16207; background: #fef9c3; }
+  .ch-status-FINANCEIRO   { color: #047857; background: #d1fae5; }
   .ch-status-BLOQUEADO    { color: #b91c1c; background: #fee2e2; }
   .ch-status-RESOLVIDO    { color: #15803d; background: #dcfce7; }
 
@@ -125,6 +126,7 @@
   .ch-progress-step.ch-ev-EXPEDICAO   .ch-progress-dot { border-color: #0891b2; }
   .ch-progress-step.ch-ev-LABORATORIO .ch-progress-dot { border-color: #7c3aed; }
   .ch-progress-step.ch-ev-COMERCIAL   .ch-progress-dot { border-color: #ca8a04; }
+  .ch-progress-step.ch-ev-FINANCEIRO  .ch-progress-dot { border-color: #059669; }
   .ch-progress-step.ch-ev-BLOQUEADO   .ch-progress-dot { border-color: #dc2626; }
   .ch-progress-step.ch-ev-RESOLVIDO   .ch-progress-dot { border-color: #16a34a; }
   /* Realce ao passar o mouse (par com o tooltip). */
@@ -147,5 +149,88 @@
   /* Título de seção dentro dos cards. */
   .ch-section-title { font-size: .95rem; font-weight: 700; color: #111827; margin-bottom: 1rem; }
 
+  /* ---------------------------------------------------------------------
+     Select2 — espelha EXATAMENTE o .form-select do Bootstrap 5.3 (altura,
+     fonte, cor, seta) para ficar igual aos campos vizinhos. Texto sempre preto.
+     Fica aqui (partial compartilhado) para valer em todas as telas do app.
+     --------------------------------------------------------------------- */
+  .select2-container { width: 100% !important; }
+
+  /* A "caixa" do select fechado: mesma altura/borda/fonte do form-select. */
+  .select2-container--default .select2-selection--single {
+    box-sizing: border-box;
+    height: calc(1.5em + .75rem + 2px);   /* == form-select (~38px) */
+    padding: .375rem 2.25rem .375rem .75rem; /* espaço à direita p/ a seta */
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.5;
+    color: #212529;
+    background-color: #fff;
+    border: 1px solid #ced4da;
+    border-radius: .375rem;
+  }
+  /* Texto do valor selecionado: alinhado verticalmente, na altura da caixa. */
+  .select2-container--default .select2-selection--single .select2-selection__rendered {
+    padding: 0;
+    line-height: calc(1.5em + .75rem);    /* centraliza sem flex (mais estável) */
+    color: #000 !important;
+    font-size: 1rem;
+  }
+  /* Placeholder com a MESMA fonte do valor, cor cinza do Bootstrap. */
+  .select2-container--default .select2-selection__placeholder {
+    color: #6c757d !important;
+    font-size: 1rem;
+  }
+  /* Seta ocupando toda a altura, alinhada à direita como no form-select. */
+  .select2-container--default .select2-selection--single .select2-selection__arrow {
+    top: 0;
+    right: .5rem;
+    height: 100%;
+    width: 1.5rem;
+  }
+  /* Botão "limpar" (x) do allowClear alinhado. */
+  .select2-container--default .select2-selection--single .select2-selection__clear {
+    margin-right: .35rem;
+    color: #6c757d;
+  }
+  /* Foco: mesmo anel azul do Bootstrap. */
+  .select2-container--default.select2-container--focus .select2-selection--single,
+  .select2-container--default.select2-container--open .select2-selection--single {
+    border-color: #86b7fe;
+    outline: 0;
+    box-shadow: 0 0 0 .25rem rgba(13, 110, 253, .25);
+  }
+  .select2-dropdown { border: 1px solid #ced4da; border-radius: .375rem; }
+
+  /* Texto das opções do dropdown (lista inteira + cada item). */
+  .select2-container--default .select2-results > .select2-results__options,
+  .select2-container--default .select2-results__option {
+    color: #000 !important;
+    font-size: 1rem;
+  }
+  /* Item sob o cursor / navegado pelo teclado: fundo claro, texto preto. */
+  .select2-container--default .select2-results__option--highlighted,
+  .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
+    background-color: #e9ecef !important;
+    color: #000 !important;
+  }
+  /* Item já selecionado. */
+  .select2-container--default .select2-results__option--selected,
+  .select2-container--default .select2-results__option[aria-selected="true"] {
+    background-color: #dee2e6 !important;
+    color: #000 !important;
+  }
+  /* Campo de busca dentro do dropdown: mesma borda/altura dos inputs. */
+  .select2-container--default .select2-search--dropdown .select2-search__field {
+    color: #000 !important;
+    border: 1px solid #ced4da;
+    border-radius: .375rem;
+    padding: .375rem .5rem;
+  }
+
   [x-cloak] { display: none !important; }
+
+    .select2-container .select2-selection--single {
+    height: 38px !important;
+  }
 </style>

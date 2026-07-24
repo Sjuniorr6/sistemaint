@@ -45,6 +45,7 @@ def chamados_visiveis_para(user):
     from chamados.permissions import (
         is_comercial,
         is_expedicao,
+        is_financeiro,
         is_laboratorio,
         is_quality,
     )
@@ -66,7 +67,37 @@ def chamados_visiveis_para(user):
         filtro |= Q(status=Status.LABORATORIO)
     if is_comercial(user):
         filtro |= Q(status=Status.COMERCIAL)
+    if is_financeiro(user):
+        filtro |= Q(status=Status.FINANCEIRO)
     return qs.filter(filtro)
+
+
+def manutencoes_para_vinculo():
+    """Manutenções que o Laboratório pode vincular ao chamado.
+
+    Espelha o queryset da tela "Registro das entradas"
+    (registrodemanutencao.views.entradasListView): mesmos status em andamento e o
+    mesmo corte de data, do mais recente para o mais antigo.
+    """
+    from datetime import date
+
+    from registrodemanutencao.models import registrodemanutencao
+
+    return (
+        registrodemanutencao.objects.filter(
+            status__in=[
+                "Pendente",
+                "Manutenção",
+                "Aguardando Aprovação",
+                "Aprovado pela Diretoria",
+                "Reprovado pela Inteligência",
+            ],
+            # __date evita comparar DateTimeField com date naive (USE_TZ ativo).
+            data_criacao__date__gte=date(2026, 1, 1),
+        )
+        .select_related("nome")  # empresa exibida no rótulo do select
+        .order_by("-id")
+    )
 
 
 def metricas_painel():
@@ -102,15 +133,27 @@ def acoes_disponiveis(user, chamado):
 
     Espelha a máquina de estados + posse, mas é só reflexo de UI; a autorização
     real está no service (RN-18). Devolve uma lista de valores de Acao.
+
+    Enquanto o setor não tiver ACEITO a tratativa, a única ação oferecida é o
+    próprio aceite (marco inicial do SLA) — o service impõe a mesma regra.
     """
     from chamados.permissions import pode_agir
-    from chamados.services import TRANSICOES
+    from chamados.services import TRANSICOES, passagem_aberta
 
     if not pode_agir(user, chamado):
         return []
+
+    passagem = passagem_aberta(chamado)
+    if passagem is not None and not passagem.esta_aceita:
+        return [Acao.ACEITAR_TRATATIVA]
 
     disponiveis = []
     for acao, transicao in TRANSICOES.items():
         if chamado.status in transicao.origens:
             disponiveis.append(acao)
+
+    # Registrar contato não é transição (não muda status): é oferecido enquanto o
+    # chamado está na Expedição, ao lado do "Marcar chegada".
+    if chamado.status == Status.EXPEDICAO:
+        disponiveis.append(Acao.REGISTRAR_CONTATO)
     return disponiveis

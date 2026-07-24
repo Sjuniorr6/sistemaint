@@ -18,6 +18,7 @@ from django.core.exceptions import PermissionDenied
 from chamados.enums import (
     GRUPO_COMERCIAL,
     GRUPO_EXPEDICAO,
+    GRUPO_FINANCEIRO,
     GRUPO_INTELIGENCIA,
     GRUPO_LABORATORIO,
     GRUPO_QUALITY,
@@ -70,9 +71,20 @@ def is_comercial(user) -> bool:
     return user.is_superuser or user.groups.filter(name=GRUPO_COMERCIAL).exists()
 
 
+def is_financeiro(user) -> bool:
+    """True se o usuário é do grupo `financeiro` (ou superuser).
+
+    Fila COMPARTILHADA: recebe os chamados com equipamento COM CUSTO para cobrar
+    do cliente (tem acesso ao laudo e ao termo anexado pelo Comercial).
+    """
+    if not user or not user.is_authenticated:
+        return False
+    return user.is_superuser or user.groups.filter(name=GRUPO_FINANCEIRO).exists()
+
+
 def is_operador(user) -> bool:
     """True se o usuário é operador do app: quality, inteligencia, expedicao,
-    laboratorio OU comercial (ou superuser).
+    laboratorio, comercial OU financeiro (ou superuser).
 
     É o gate de acesso às telas do app (fila, detalhe, ações). Quem não é operador
     não enxerga nada de chamados (RN-18: todos os operadores veem tudo; não-
@@ -84,6 +96,7 @@ def is_operador(user) -> bool:
         or is_expedicao(user)
         or is_laboratorio(user)
         or is_comercial(user)
+        or is_financeiro(user)
     )
 
 
@@ -155,7 +168,10 @@ def pode_agir(user, chamado) -> bool:
         # Fila compartilhada do laboratório (encaminha p/ comercial).
         return is_laboratorio(user)
     if estado_de_posse == Status.COMERCIAL:
-        # Fila compartilhada do comercial (por ora só recebe; sem ações).
+        # Fila compartilhada do comercial (finaliza a tratativa).
         return is_comercial(user)
+    if estado_de_posse == Status.FINANCEIRO:
+        # Fila compartilhada do financeiro (fatura e encerra).
+        return is_financeiro(user)
     # ABERTO → posse do Quality.
     return is_quality(user)
