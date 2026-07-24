@@ -1212,6 +1212,31 @@ def test_listar_acionamentos_filtra_por_agente(_fks_acionamento):
 
 
 @pytest.mark.django_db
+def test_listar_acionamentos_filtra_por_responsavel(_fks_acionamento):
+    """ST2 pós go-live — espelho do filtro por agente: listar_acionamentos com
+    responsavel devolve só os acionamentos daquele responsável, preservando a
+    ordenação DESC por data_hora_solicitado."""
+    cliente, responsavel_a, agente = _fks_acionamento
+    responsavel_b = ResponsavelAgente.objects.create(nome="Maria Supervisora")
+    base = timezone.now()
+
+    antigo = _acionamento_valido(
+        cliente, responsavel_a, agente,
+        data_hora_solicitado=base - timedelta(days=1),
+    )
+    antigo.save()
+    recente = _acionamento_valido(cliente, responsavel_a, agente)
+    recente.save()
+    _acionamento_valido(cliente, responsavel_b, agente).save()
+
+    from controle_acionamentos.selectors import listar_acionamentos
+
+    resultado = listar_acionamentos(responsavel=responsavel_a)
+
+    assert [a.pk for a in resultado] == [recente.pk, antigo.pk]
+
+
+@pytest.mark.django_db
 def test_listar_acionamentos_filtra_por_intervalo_de_data(_fks_acionamento):
     """DD-016/M5 (AC-08.1) — filtro por intervalo de data_hora_solicitado com
     fronteiras inclusivas por DATA (lookup __date): um acionamento às 14h do
@@ -1911,6 +1936,46 @@ def test_acionamento_list_filtra_por_agente_via_get(
 
 
 @pytest.mark.django_db
+def test_acionamento_list_filtra_por_responsavel_via_get(
+    client, django_user_model, _fks_acionamento
+):
+    """ST2 pós go-live — a view lê ?responsavel= do GET, valida pelo
+    FiltroAcionamentosForm e repassa ao selector; espelho do filtro por
+    agente, mesma filosofia tolerante."""
+    cliente, responsavel_a, agente = _fks_acionamento
+    responsavel_b = ResponsavelAgente.objects.create(nome="Maria Supervisora")
+
+    ac_a = _acionamento_valido(cliente, responsavel_a, agente)
+    ac_a.save()
+    ac_b = _acionamento_valido(cliente, responsavel_b, agente)
+    ac_b.save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_list")
+    response = client.get(url, {"responsavel": responsavel_a.pk})
+
+    assert response.status_code == 200
+    assert [a.pk for a in response.context["acionamentos"]] == [ac_a.pk]
+
+
+@pytest.mark.django_db
+def test_acionamento_list_renderiza_campo_de_filtro_de_responsavel(
+    client, django_user_model
+):
+    """ST2 pós go-live — a barra de filtros da listagem renderiza o campo de
+    responsável (verificado pelo name do campo, nunca por markup frágil)."""
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    response = client.get(reverse("controle_acionamentos:acionamento_list"))
+
+    assert response.status_code == 200
+    assertContains(response, 'name="responsavel"')
+
+
+@pytest.mark.django_db
 @pytest.mark.parametrize(
     "data_de_str, data_ate_str",
     [
@@ -2183,6 +2248,31 @@ def test_acionamento_list_expoe_querystring_dos_filtros_sem_page(
     assert f"cliente={cliente.pk}" in querystring
     assert "status=com" in querystring
     # O page NÃO entra na base — o template o injeta com o valor novo.
+    assert "page=" not in querystring
+
+
+@pytest.mark.django_db
+def test_acionamento_list_querystring_dos_filtros_preserva_responsavel(
+    client, django_user_model, _fks_acionamento
+):
+    """ST2 pós go-live — IRMÃO de
+    test_acionamento_list_expoe_querystring_dos_filtros_sem_page (não estendido
+    para aquele seguir verde na fase RED): o responsavel sobrevive na base de
+    querystring que alimenta paginação e link de exportação, sem o page."""
+    cliente, responsavel, agente = _fks_acionamento
+    _acionamento_valido(cliente, responsavel, agente).save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_list")
+    response = client.get(
+        url, {"responsavel": responsavel.pk, "status": "com", "page": 2}
+    )
+
+    assert response.status_code == 200
+    querystring = response.context["filtros_querystring"]
+    assert f"responsavel={responsavel.pk}" in querystring
     assert "page=" not in querystring
 
 
@@ -7883,6 +7973,134 @@ def test_exportar_filtro_de_datas_restringe_linhas(
     valores = [c.value for linha in ws.iter_rows() for c in linha]
     assert "Origem Recente" in valores
     assert "Origem Antiga" not in valores
+
+
+@pytest.mark.django_db
+def test_exportar_filtro_de_responsavel_restringe_linhas(
+    client, django_user_model, _fks_acionamento
+):
+    """ST2 pós go-live — ?responsavel= na querystring do export (mesmo
+    parâmetro da listagem) restringe as LINHAS da planilha às daquele
+    responsável; a linha do outro responsável não sai."""
+    cliente, responsavel_a, agente = _fks_acionamento
+    responsavel_b = ResponsavelAgente.objects.create(nome="Maria Supervisora")
+    base = _base_sem_microssegundos()
+    _acionamento_em(
+        cliente, responsavel_a, agente, base, origem="Origem do Resp A"
+    ).save()
+    _acionamento_em(
+        cliente, responsavel_b, agente, base, origem="Origem do Resp B"
+    ).save()
+    client.force_login(_user_com_perms(django_user_model, "view_acionamento"))
+
+    response = client.get(
+        reverse("controle_acionamentos:acionamento_exportar"),
+        {"responsavel": responsavel_a.pk},
+    )
+
+    ws = _workbook_da_resposta(response)["ACME"]
+    valores = [c.value for linha in ws.iter_rows() for c in linha]
+    assert "Origem do Resp A" in valores
+    assert "Origem do Resp B" not in valores
+
+
+# --- Mini-ciclo ST2 — nome do arquivo da exportação reflete os filtros ativos.
+# Função PURA em services.py (montar_nome_arquivo_exportacao): recebe o dict de
+# filtros validados (formato do _filtros_da_listagem) e devolve o nome SEM
+# extensão. Segmentos em ordem fixa cliente/agente/resp/periodo/status,
+# separados por "_"; identidade dos objetos via str() (mesmo mecanismo do nome
+# das abas); slugify do Django; datas dd-mm-aaaa. Sem filtro = base atual
+# (caracterização já fixada em test_exportar_retorna_xlsx_como_attachment).
+# Fase RED: a função ainda não existe → ImportError (import local ao teste).
+
+
+def _filtros_exportacao(**overrides):
+    """Dict de filtros no formato da view, tudo None por default."""
+    filtros = {
+        "cliente": None,
+        "agente": None,
+        "responsavel": None,
+        "data_de": None,
+        "data_ate": None,
+        "com_franquia": None,
+    }
+    filtros.update(overrides)
+    return filtros
+
+
+def test_nome_arquivo_exportacao_sem_filtros_devolve_base():
+    from controle_acionamentos.services import montar_nome_arquivo_exportacao
+
+    nome = montar_nome_arquivo_exportacao(_filtros_exportacao())
+
+    assert nome == "pagamentos_agentes"
+
+
+def test_nome_arquivo_exportacao_com_responsavel_acrescenta_resp_slug():
+    from controle_acionamentos.services import montar_nome_arquivo_exportacao
+
+    filtros = _filtros_exportacao(
+        responsavel=ResponsavelAgente(nome="João Supervisor")
+    )
+    nome = montar_nome_arquivo_exportacao(filtros)
+
+    assert nome == "pagamentos_agentes_resp-joao-supervisor"
+
+
+def test_nome_arquivo_exportacao_slug_limpa_acentos_e_espacos():
+    from controle_acionamentos.services import montar_nome_arquivo_exportacao
+
+    filtros = _filtros_exportacao(
+        responsavel=ResponsavelAgente(nome="José Antônio dos Reis")
+    )
+    nome = montar_nome_arquivo_exportacao(filtros)
+
+    assert nome == "pagamentos_agentes_resp-jose-antonio-dos-reis"
+
+
+def test_nome_arquivo_exportacao_todos_os_filtros_na_ordem_fixa():
+    from datetime import date
+
+    from controle_acionamentos.services import montar_nome_arquivo_exportacao
+
+    filtros = _filtros_exportacao(
+        cliente=Cliente(nome_empresa="ACME Logística"),
+        agente=Agente(nome="Carlos Agente"),
+        responsavel=ResponsavelAgente(nome="João Supervisor"),
+        data_de=date(2026, 6, 23),
+        data_ate=date(2026, 6, 25),
+        com_franquia=True,
+    )
+    nome = montar_nome_arquivo_exportacao(filtros)
+
+    assert nome == (
+        "pagamentos_agentes"
+        "_cliente-acme-logistica"
+        "_agente-carlos-agente"
+        "_resp-joao-supervisor"
+        "_de-23-06-2026"
+        "_ate-25-06-2026"
+        "_com-franquia"
+    )
+
+
+@pytest.mark.django_db
+def test_exportar_content_disposition_reflete_filtro_de_responsavel(
+    client, django_user_model, _fks_acionamento
+):
+    """Mini-ciclo ST2 — com ?responsavel= na querystring, o nome do arquivo no
+    Content-Disposition ganha o segmento resp-<slug do responsável>."""
+    cliente, responsavel, agente = _fks_acionamento  # responsável "João Supervisor"
+    _acionamento_em(cliente, responsavel, agente, _base_sem_microssegundos()).save()
+    client.force_login(_user_com_perms(django_user_model, "view_acionamento"))
+
+    response = client.get(
+        reverse("controle_acionamentos:acionamento_exportar"),
+        {"responsavel": responsavel.pk},
+    )
+
+    assert response.status_code == 200
+    assert "resp-joao-supervisor" in response["Content-Disposition"]
 
 
 @pytest.mark.django_db

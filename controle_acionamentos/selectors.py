@@ -18,8 +18,8 @@ from controle_acionamentos.models import (
 )
 
 
-def listar_acionamentos(cliente=None, agente=None, data_de=None, data_ate=None,
-                        com_franquia=None):
+def listar_acionamentos(cliente=None, agente=None, responsavel=None,
+                        data_de=None, data_ate=None, com_franquia=None):
     """DD-014/M3 — lista base de acionamentos, do mais recente ao mais antigo.
 
     Aceita um filtro opcional por cliente (AC-06.1, DD-015/M4): quando `cliente`
@@ -28,6 +28,9 @@ def listar_acionamentos(cliente=None, agente=None, data_de=None, data_ate=None,
     DD-016/M5 (AC-08.1): filtro opcional por agente. Os filtros são composáveis
     (aplicados em cascata sobre o mesmo queryset) e a ordenação DESC por
     data_hora_solicitado é aplicada independentemente deles.
+
+    ST2 pós go-live: filtro opcional por responsável (FK responsavel_agente),
+    espelho do filtro por agente — mesma filosofia composável.
 
     DD-016/M5 (AC-08.1): filtro por intervalo de data com fronteiras INCLUSIVAS
     pela parte de DATA (lookup __date) — "até o dia X" inclui qualquer hora do
@@ -53,6 +56,8 @@ def listar_acionamentos(cliente=None, agente=None, data_de=None, data_ate=None,
         qs = qs.filter(cliente=cliente)
     if agente is not None:
         qs = qs.filter(agente=agente)
+    if responsavel is not None:
+        qs = qs.filter(responsavel_agente=responsavel)
     if data_de is not None:
         qs = qs.filter(data_hora_solicitado__date__gte=data_de)
     if data_ate is not None:
@@ -62,8 +67,9 @@ def listar_acionamentos(cliente=None, agente=None, data_de=None, data_ate=None,
     return qs
 
 
-def listar_acionamentos_para_exportacao(cliente=None, agente=None, data_de=None,
-                                        data_ate=None, com_franquia=None):
+def listar_acionamentos_para_exportacao(cliente=None, agente=None, responsavel=None,
+                                        data_de=None, data_ate=None,
+                                        com_franquia=None):
     """Backlog pós-DD-070 item 3 — mesma base da listagem (reaproveita
     listar_acionamentos: filtros idênticos e o select_related de
     cliente/agente/franquia_agente, que a exportação percorre linha a linha —
@@ -74,6 +80,7 @@ def listar_acionamentos_para_exportacao(cliente=None, agente=None, data_de=None,
     return listar_acionamentos(
         cliente=cliente,
         agente=agente,
+        responsavel=responsavel,
         data_de=data_de,
         data_ate=data_ate,
         com_franquia=com_franquia,

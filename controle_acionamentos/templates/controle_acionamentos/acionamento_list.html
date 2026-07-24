@@ -17,15 +17,24 @@
     csrf; sem JS. Todos os controles são renderizados PELO form (bound), que
     re-marca os valores escolhidos.
   {% endcomment %}
+  {% comment %}
+    ST2 pós go-live — 6 filtros em fileira única: todas as colunas viraram
+    col-md-2 (6 × 2 = 12) para o Responsável caber entre Agente e De.
+  {% endcomment %}
   <form method="get" class="row g-2 mb-3 align-items-end">
-    <div class="col-md-3">
+    <div class="col-md-2">
       <label for="{{ filtro_form.cliente.id_for_label }}" class="form-label">Cliente</label>
       {{ filtro_form.cliente }}
     </div>
 
-    <div class="col-md-3">
+    <div class="col-md-2">
       <label for="{{ filtro_form.agente.id_for_label }}" class="form-label">Agente</label>
       {{ filtro_form.agente }}
+    </div>
+
+    <div class="col-md-2">
+      <label for="{{ filtro_form.responsavel.id_for_label }}" class="form-label">Responsável</label>
+      {{ filtro_form.responsavel }}
     </div>
 
     <div class="col-md-2">

@@ -43,6 +43,7 @@ from .services import (
     compor_valor_agente,
     compor_valor_cliente,
     formatar_valor_trilha,
+    montar_nome_arquivo_exportacao,
     montar_workbook_pagamentos,
     registrar_edicao_acionamento,
     rotulo_campo_trilha,
@@ -100,6 +101,7 @@ def _filtros_da_listagem(request):
     filtros = {
         "cliente": _campo("cliente"),
         "agente": _campo("agente"),
+        "responsavel": _campo("responsavel"),
         "data_de": _campo("data_de"),
         "data_ate": _campo("data_ate"),
         "com_franquia": _campo("status"),
@@ -186,7 +188,8 @@ def acionamento_exportar(request):
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         ),
     )
-    response["Content-Disposition"] = 'attachment; filename="pagamentos_agentes.xlsx"'
+    nome_arquivo = montar_nome_arquivo_exportacao(filtros)
+    response["Content-Disposition"] = f'attachment; filename="{nome_arquivo}.xlsx"'
     return response
 
 
