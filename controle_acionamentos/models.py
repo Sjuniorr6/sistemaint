@@ -34,7 +34,11 @@ class ResponsavelAgente(models.Model):
     
 class Cliente(models.Model):
     nome_empresa = models.CharField(max_length=160, verbose_name="Nome da empresa")
-    cnpj = models.CharField(max_length=18, unique=True, verbose_name="CNPJ")
+    # ST1 pós go-live — exceção ao padrão do projeto (texto opcional usa ""):
+    # aqui ausência é NULL, porque "" colidiria consigo mesma no índice unique.
+    cnpj = models.CharField(
+        max_length=18, unique=True, blank=True, null=True, verbose_name="CNPJ"
+    )
     criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
 
     class Meta:
@@ -51,7 +55,9 @@ class Cliente(models.Model):
             )
 
         self.cnpj = "".join(ch for ch in (self.cnpj or "") if ch.isdigit())
-        if not validar_cnpj(self.cnpj):
+        if not self.cnpj:
+            self.cnpj = None  # ausência vira NULL (ver comentário do campo)
+        elif not validar_cnpj(self.cnpj):
             raise ValidationError({"cnpj": "CNPJ inválido."})
 
     def __str__(self):

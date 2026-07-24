@@ -41,7 +41,18 @@
         {% for cliente in clientes %}
           <tr>
             <td>{{ cliente.nome_empresa }}</td>
-            <td class="acn-mono">{{ cliente.cnpj|cnpj }}</td>
+            <td class="acn-mono">
+              {% if not cliente.cnpj %}
+                {% comment %}
+                  ST1 pós go-live — CNPJ opcional: sem CNPJ (None ou "") a célula
+                  exibe o badge de pendência, reaproveitando a classe da DD-069
+                  (acn-badge-pendente, tema.css — só variáveis de tema).
+                {% endcomment %}
+                <span class="acn-badge-pendente"><i class="bi bi-exclamation-triangle"></i> CNPJ pendente</span>
+              {% else %}
+                {{ cliente.cnpj|cnpj }}
+              {% endif %}
+            </td>
             {% if perms.controle_acionamentos.change_cliente %}
               <td class="text-end">
                 <a href="{% url 'controle_acionamentos:cliente_update' cliente.pk %}"

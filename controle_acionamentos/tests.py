@@ -28,6 +28,7 @@ from controle_acionamentos.models import (
     ServicoCliente,
 )
 from controle_acionamentos.selectors import listar_servicos_ativos_por_cliente
+from controle_acionamentos.templatetags.formatos import cnpj as filtro_cnpj
 
 def test_cpf_valido_retorna_true():
     """Um CPF válido conhecido deve ser aceito."""
@@ -169,6 +170,101 @@ def test_cliente_cnpj_duplicado_e_rejeitado():
 
     with pytest.raises(ValidationError):
         Cliente(nome_empresa="Outra Empresa", cnpj="11222333000181").full_clean()
+
+
+# --- ST1 (melhorias pós go-live) — CNPJ opcional no cadastro de Cliente ------
+# Fase RED: o model atual exige CNPJ válido no clean e o campo é unique sem
+# null=True; a listagem ainda não exibe aviso de pendência. Os testes abaixo
+# descrevem o comportamento ALVO.
+
+
+@pytest.mark.django_db
+def test_cliente_cnpj_vazio_passa_full_clean_e_salva():
+    """ST1 — CNPJ passa a ser opcional: nome preenchido + cnpj vazio deve
+    passar no full_clean e persistir."""
+    cliente = Cliente(nome_empresa="ACME Sem CNPJ", cnpj="")
+    cliente.full_clean()  # não deve levantar
+    cliente.save()
+
+    assert cliente.pk is not None
+
+
+@pytest.mark.django_db
+def test_cliente_cnpj_vazio_persiste_como_none():
+    """ST1 — cnpj vazio deve ser normalizado para None no banco (não string
+    vazia): com unique=True, duas strings vazias colidiriam; NULLs não."""
+    cliente = Cliente(nome_empresa="ACME Sem CNPJ", cnpj="")
+    cliente.full_clean()
+    cliente.save()
+
+    assert Cliente.objects.get(pk=cliente.pk).cnpj is None
+
+
+@pytest.mark.django_db
+def test_dois_clientes_sem_cnpj_convivem_sem_violar_unicidade():
+    """ST1 — dois clientes distintos, ambos sem CNPJ, devem coexistir
+    (unicidade só vale para CNPJ preenchido)."""
+    a = Cliente(nome_empresa="ACME Sem CNPJ", cnpj="")
+    a.full_clean()
+    a.save()
+
+    b = Cliente(nome_empresa="Globex Sem CNPJ", cnpj="")
+    b.full_clean()
+    b.save()
+
+    assert Cliente.objects.count() == 2
+
+
+def _usuario_com_view_cliente(django_user_model):
+    user = django_user_model.objects.create_user(username="autorizado", password="x")
+    perm = Permission.objects.get(
+        codename="view_cliente",
+        content_type__app_label="controle_acionamentos",
+    )
+    user.user_permissions.add(perm)
+    return user
+
+
+@pytest.mark.django_db
+def test_cliente_list_exibe_cnpj_pendente_para_cliente_sem_cnpj(
+    client, django_user_model
+):
+    """ST1 — a listagem deve sinalizar 'CNPJ pendente' para cliente sem CNPJ.
+
+    RED: o clean atual não deixa criar cliente sem CNPJ, então o cliente é
+    criado válido e o campo é zerado por update direto no queryset (contorna
+    o clean; a coluna ainda é NOT NULL, por isso "" e não None)."""
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    Cliente.objects.filter(pk=cliente.pk).update(cnpj="")
+
+    client.force_login(_usuario_com_view_cliente(django_user_model))
+    response = client.get(reverse("controle_acionamentos:cliente_list"))
+
+    assert response.status_code == 200
+    assertContains(response, "CNPJ pendente")
+
+
+@pytest.mark.django_db
+def test_cliente_list_nao_exibe_cnpj_pendente_para_cliente_com_cnpj(
+    client, django_user_model
+):
+    """ST1 (espelho) — cliente com CNPJ preenchido NÃO exibe o aviso."""
+    Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+
+    client.force_login(_usuario_com_view_cliente(django_user_model))
+    response = client.get(reverse("controle_acionamentos:cliente_list"))
+
+    assert response.status_code == 200
+    assertNotContains(response, "CNPJ pendente")
+
+
+def test_filtro_cnpj_com_none_e_vazio_devolve_string_vazia():
+    """ST1 — o filtro cnpj (lib formatos) deve devolver "" para None e para
+    string vazia, sem levantar exceção (a listagem passa a renderizar clientes
+    sem CNPJ)."""
+    assert filtro_cnpj(None) == ""
+    assert filtro_cnpj("") == ""
+
 
 @pytest.mark.django_db
 def test_agente_persiste_com_dados_validos():
