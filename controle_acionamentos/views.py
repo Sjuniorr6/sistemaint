@@ -30,6 +30,7 @@ from .selectors import (
     contar_sem_franquia,
     listar_acionamentos,
     listar_acionamentos_para_exportacao,
+    listar_duplicatas_para_criacao,
     listar_franquias_por_cliente,
     listar_historico_do_acionamento,
     listar_servicos_ativos_por_cliente,
@@ -202,10 +203,38 @@ def acionamento_create(request):
     cálculo dos 5 campos derivados acontece sozinho no Acionamento.save()
     (recalcular_valor_agente). A view não contém regra de negócio nem recalcula.
     raise_exception=True: sem a permissão, devolve 403 em vez de mandar pro login.
+
+    DD-084/ST3 — aviso de duplicidade: POST válido SEM a flag
+    confirmar_duplicidade consulta o selector; havendo preexistente igual nos
+    5 campos, re-renderiza o form com o aviso e nada persiste. Com a flag
+    (operador confirmou) ou sem duplicata, o fluxo segue idêntico.
     """
     if request.method == "POST":
         form = AcionamentoForm(request.POST)
         if form.is_valid():
+            # DD-084/ST3 — checagem ANTES de qualquer persistência. list():
+            # avalia o queryset UMA vez; o [0] (mais recente, ordem do
+            # selector) e o len() saem da mesma avaliação.
+            if "confirmar_duplicidade" not in request.POST:
+                duplicatas = list(
+                    listar_duplicatas_para_criacao(
+                        cliente=form.cleaned_data["cliente"],
+                        km_inicio=form.cleaned_data["km_inicio"],
+                        km_final=form.cleaned_data["km_final"],
+                        data_hora_inicio=form.cleaned_data["data_hora_inicio"],
+                        data_hora_final=form.cleaned_data["data_hora_final"],
+                    )
+                )
+                if duplicatas:
+                    return render(
+                        request,
+                        "controle_acionamentos/acionamento_form.html",
+                        {
+                            "form": form,
+                            "duplicata": duplicatas[0],
+                            "total_duplicatas": len(duplicatas),
+                        },
+                    )
             # commit=False: carimbamos o autor (DD-051/ST1) e aplicamos o snapshot
             # do serviço (DD-067/ST2) ANTES do save do model, que é quem dispara o
             # cálculo (recalcular_valor_agente). aplicar_servico copia os 5 valores

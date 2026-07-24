@@ -6697,6 +6697,126 @@ def test_post_create_sem_servico_nao_cria(
     assert Acionamento.objects.count() == 0
 
 
+# --- DD-084/ST3 — aviso de duplicidade no acionamento_create (view) ---------
+# Fase RED: a view ainda não consulta listar_duplicatas_para_criacao nem
+# conhece a flag confirmar_duplicidade. Datas ancoradas SEM segundos: o
+# payload viaja em '%Y-%m-%dT%H:%M' (precisão de minuto) e a comparação de
+# duplicata é por igualdade EXATA — segundos no preexistente quebrariam o
+# round-trip.
+
+
+@pytest.mark.django_db
+class TestAvisoDuplicidadeNaCriacao:
+    """POST do create passa a consultar duplicatas (mesmos cliente, kms e
+    horários de início/fim): sem flag, re-renderiza com aviso e NÃO persiste;
+    com confirmar_duplicidade=1, cria normalmente."""
+
+    def _arrange(self, django_user_model, _fks_acionamento):
+        """Cliente/serviço/molde com datas fixas + usuário com add logado.
+        Devolve (cliente, responsavel, agente, datas, payload)."""
+        cliente, responsavel, agente = _fks_acionamento
+        servico = _servico_distinto(cliente)
+        base = _base_sem_microssegundos()
+        datas = dict(
+            data_hora_solicitado=base,
+            data_hora_inicio=base + timedelta(minutes=30),
+            data_hora_final=base + timedelta(hours=3),
+        )
+        molde = _acionamento_valido(cliente, responsavel, agente, **datas)
+        payload = _post_payload_acionamento(molde, servico_cliente=servico.pk)
+        return cliente, responsavel, agente, datas, payload
+
+    def test_post_sem_duplicata_preexistente_cria_e_redireciona(
+        self, client, django_user_model, _fks_acionamento
+    ):
+        """1 — guarda de regressão: sem nenhum igual no banco, o fluxo atual
+        permanece (cria e redireciona), sem contexto de duplicata."""
+        *_, payload = self._arrange(django_user_model, _fks_acionamento)
+        client.force_login(_user_com_perms(django_user_model, "add_acionamento"))
+        antes = Acionamento.objects.count()
+
+        response = client.post(
+            reverse("controle_acionamentos:acionamento_create"), payload
+        )
+
+        assert response.status_code == 302
+        assert Acionamento.objects.count() == antes + 1
+        # 302 = sem re-render: não existe contexto (nem chave duplicata).
+        assert response.context is None
+
+    def test_post_com_duplicata_reexibe_aviso_e_nao_persiste(
+        self, client, django_user_model, _fks_acionamento
+    ):
+        """2 — coração da feature: POST válido igual a um preexistente nos 5
+        campos, SEM a flag → 200 re-renderizando com a duplicata no contexto
+        e NADA persistido."""
+        cliente, responsavel, agente, datas, payload = self._arrange(
+            django_user_model, _fks_acionamento
+        )
+        preexistente = _acionamento_valido(cliente, responsavel, agente, **datas)
+        preexistente.save()
+        client.force_login(_user_com_perms(django_user_model, "add_acionamento"))
+        antes = Acionamento.objects.count()
+
+        response = client.post(
+            reverse("controle_acionamentos:acionamento_create"), payload
+        )
+
+        assert response.status_code == 200
+        assert response.context["duplicata"] == preexistente
+        assert response.context["total_duplicatas"] == 1
+        assert Acionamento.objects.count() == antes
+
+    def test_post_com_flag_confirmar_cria_mesmo_com_duplicata(
+        self, client, django_user_model, _fks_acionamento
+    ):
+        """3 — guarda da confirmação: mesmo cenário do 2, mas o POST leva
+        confirmar_duplicidade=1 → cria e redireciona."""
+        cliente, responsavel, agente, datas, payload = self._arrange(
+            django_user_model, _fks_acionamento
+        )
+        _acionamento_valido(cliente, responsavel, agente, **datas).save()
+        payload["confirmar_duplicidade"] = "1"
+        client.force_login(_user_com_perms(django_user_model, "add_acionamento"))
+        antes = Acionamento.objects.count()
+
+        response = client.post(
+            reverse("controle_acionamentos:acionamento_create"), payload
+        )
+
+        assert response.status_code == 302
+        assert Acionamento.objects.count() == antes + 1
+
+    def test_post_com_duas_duplicatas_expoe_a_mais_recente_e_o_total(
+        self, client, django_user_model, _fks_acionamento
+    ):
+        """4 — com DUAS duplicatas, o contexto traz a mais RECENTE por
+        criado_em (ordem do selector) e total_duplicatas=2, sem persistir."""
+        cliente, responsavel, agente, datas, payload = self._arrange(
+            django_user_model, _fks_acionamento
+        )
+        antiga = _acionamento_valido(cliente, responsavel, agente, **datas)
+        antiga.save()
+        recente = _acionamento_valido(cliente, responsavel, agente, **datas)
+        recente.save()
+        # criado_em é auto_now_add: recua a antiga por update direto (mesmo
+        # arranjo do teste do selector) para a ordem ser determinística.
+        Acionamento.objects.filter(pk=antiga.pk).update(
+            criado_em=timezone.now() - timedelta(minutes=5)
+        )
+        client.force_login(_user_com_perms(django_user_model, "add_acionamento"))
+        antes = Acionamento.objects.count()
+
+        response = client.post(
+            reverse("controle_acionamentos:acionamento_create"), payload
+        )
+
+        assert response.status_code == 200
+        assert response.context["duplicata"] == recente
+        assert response.context["total_duplicatas"] == 2
+        assert Acionamento.objects.count() == antes
+
+
 @pytest.mark.django_db
 def test_acionamento_legado_sem_servico_e_valido_e_pendente(_fks_acionamento):
     """6 — acionamento legado SEM serviço continua VÁLIDO (full_clean passa);
