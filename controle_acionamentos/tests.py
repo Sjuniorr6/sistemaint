@@ -6816,6 +6816,82 @@ class TestAvisoDuplicidadeNaCriacao:
         assert response.context["total_duplicatas"] == 2
         assert Acionamento.objects.count() == antes
 
+    def test_aviso_tem_botao_de_confirmacao_no_form(
+        self, client, django_user_model, _fks_acionamento
+    ):
+        """5 — o re-render do aviso traz o botão que reenvia o MESMO POST com a
+        flag: name="confirmar_duplicidade", value="1" e o texto de ação
+        'Criar mesmo assim' (dentro do form de criação, que é o único form da
+        página — o reenvio carrega os campos preenchidos junto)."""
+        cliente, responsavel, agente, datas, payload = self._arrange(
+            django_user_model, _fks_acionamento
+        )
+        _acionamento_valido(cliente, responsavel, agente, **datas).save()
+        client.force_login(_user_com_perms(django_user_model, "add_acionamento"))
+
+        response = client.post(
+            reverse("controle_acionamentos:acionamento_create"), payload
+        )
+
+        assert response.status_code == 200
+        conteudo = response.content.decode()
+        # Substring ÚNICA com os dois atributos juntos, nessa ordem — contrato
+        # com o template que o GREEN vai escrever. value="1" isolado seria
+        # satisfeito por qualquer <option> de select de FK da página.
+        assert 'name="confirmar_duplicidade" value="1"' in conteudo
+        assert "Criar mesmo assim" in conteudo
+
+    def test_aviso_tem_link_para_o_detalhe_da_duplicata(
+        self, client, django_user_model, _fks_acionamento
+    ):
+        """6 — o aviso linka o DETALHE da duplicata exibida (href montado com
+        reverse de acionamento_detail, nunca URL hardcoded)."""
+        cliente, responsavel, agente, datas, payload = self._arrange(
+            django_user_model, _fks_acionamento
+        )
+        preexistente = _acionamento_valido(cliente, responsavel, agente, **datas)
+        preexistente.save()
+        client.force_login(_user_com_perms(django_user_model, "add_acionamento"))
+
+        response = client.post(
+            reverse("controle_acionamentos:acionamento_create"), payload
+        )
+
+        assert response.status_code == 200
+        url_detalhe = reverse(
+            "controle_acionamentos:acionamento_detail", args=[preexistente.pk]
+        )
+        assert f'href="{url_detalhe}"' in response.content.decode()
+
+    def test_aviso_menciona_e_mais_1_somente_com_multiplas_duplicatas(
+        self, client, django_user_model, _fks_acionamento
+    ):
+        """7 — com DUAS duplicatas o aviso complementa com 'e mais 1'; com UMA
+        apenas, o texto NÃO aparece (espelho no mesmo teste)."""
+        cliente, responsavel, agente, datas, payload = self._arrange(
+            django_user_model, _fks_acionamento
+        )
+        _acionamento_valido(cliente, responsavel, agente, **datas).save()
+        extra = _acionamento_valido(cliente, responsavel, agente, **datas)
+        extra.save()
+        client.force_login(_user_com_perms(django_user_model, "add_acionamento"))
+
+        response = client.post(
+            reverse("controle_acionamentos:acionamento_create"), payload
+        )
+
+        assert response.status_code == 200
+        assert "e mais 1" in response.content.decode()
+
+        # Espelho: removida a extra, resta UMA duplicata — sem o complemento.
+        extra.delete()
+        response = client.post(
+            reverse("controle_acionamentos:acionamento_create"), payload
+        )
+
+        assert response.status_code == 200
+        assert "e mais 1" not in response.content.decode()
+
 
 @pytest.mark.django_db
 def test_acionamento_legado_sem_servico_e_valido_e_pendente(_fks_acionamento):

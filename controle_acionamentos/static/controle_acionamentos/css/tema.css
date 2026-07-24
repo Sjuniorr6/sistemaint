@@ -852,6 +852,86 @@ html.acn-foco .header-bottom:hover {
   transition: opacity 0.15s ease;
 }
 
+/* ===== DD-084/ST3 — aviso de duplicidade na criação (mockups dd084) =====
+   Mesma técnica do .alert-warning (color-mix do dourado sobre a surface).
+   Tudo por variáveis do tema — funciona nas duas peles. */
+.acn-escopo .acn-aviso-duplicidade {
+  background: color-mix(in srgb, var(--acn-gold) 10%, var(--acn-surface));
+  border: 1px solid color-mix(in srgb, var(--acn-gold) 55%, var(--acn-surface));
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+}
+/* Título: o ícone herda a cor do texto da pele; só o TEXTO é dourado
+   (gold-texto já resolve o contraste: dourado no Noite, marrom no Âmbar). */
+.acn-escopo .acn-aviso-duplicidade-titulo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.acn-escopo .acn-aviso-duplicidade-titulo span {
+  color: var(--acn-gold-texto);
+  font-weight: 700;
+}
+.acn-escopo .acn-aviso-duplicidade-texto {
+  color: var(--acn-muted);
+  margin-bottom: 0.75rem;
+}
+/* Pele clara: muted puro desbota no fundo dourado — mesmo reforço 60/40 do
+   .acn-badge-pendente. */
+.acn-escopo.acn-ambar .acn-aviso-duplicidade-texto {
+  color: color-mix(in srgb, var(--acn-muted) 60%, var(--acn-text));
+}
+/* Card embutido: mais escuro que o aviso no Noite (bg da pele); no Âmbar o
+   mockup pede o inverso — creme mais CLARO (surface). */
+.acn-escopo .acn-aviso-duplicidade-card {
+  background: var(--acn-bg);
+  border: 1px solid color-mix(in srgb, var(--acn-gold) 35%, var(--acn-surface));
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+}
+.acn-escopo.acn-ambar .acn-aviso-duplicidade-card {
+  background: var(--acn-surface);
+}
+.acn-escopo .acn-aviso-duplicidade-cabecalho {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--acn-line);
+}
+.acn-escopo .acn-aviso-duplicidade-cabecalho a {
+  color: var(--acn-gold-texto);
+  font-weight: 600;
+}
+.acn-escopo .acn-aviso-duplicidade-grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  padding: 0.6rem 1rem 0.75rem;
+  font-weight: 600;
+}
+.acn-escopo .acn-aviso-duplicidade-rotulo {
+  display: block;
+  color: var(--acn-muted);
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+/* Botão de confirmação: outline dourado do mockup (não é o btn-primary nem o
+   btn-outline-secondary — ação de exceção, cara de aviso). */
+.acn-escopo .acn-btn-confirmar-duplicidade {
+  background: transparent;
+  color: var(--acn-gold-texto);
+  border: 1px solid color-mix(in srgb, var(--acn-gold) 60%, var(--acn-surface));
+  border-radius: 8px;
+  font-weight: 600;
+}
+.acn-escopo .acn-btn-confirmar-duplicidade:hover {
+  background: color-mix(in srgb, var(--acn-gold) 15%, var(--acn-surface));
+  border-color: var(--acn-gold);
+  color: var(--acn-gold-texto);
+}
+
 /* Linha com erro de validação: fundo e borda no vermelho da pele (mesma técnica
    color-mix dos alerts), para o operador achar a linha a corrigir. */
 .acn-escopo .acn-servico-linha-erro td {
