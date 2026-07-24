@@ -40,23 +40,46 @@ class Status(models.TextChoices):
     EXPEDICAO = "EXPEDICAO", "Expedição"
     LABORATORIO = "LABORATORIO", "Laboratório"
     COMERCIAL = "COMERCIAL", "Comercial"
+    FINANCEIRO = "FINANCEIRO", "Financeiro"
     BLOQUEADO = "BLOQUEADO", "Bloqueado"
     RESOLVIDO = "RESOLVIDO", "Resolvido"
+
+
+class Setor(models.TextChoices):
+    """Setor que detém o chamado — usado nas passagens que medem o SLA.
+
+    Mapeia 1:1 com os status de trabalho (ver `setor_do_status` em services.py):
+    ABERTO→QUALITY, ENCAMINHADO→INTELIGENCIA, e os demais homônimos.
+    """
+
+    QUALITY = "QUALITY", "Quality"
+    INTELIGENCIA = "INTELIGENCIA", "Inteligência"
+    EXPEDICAO = "EXPEDICAO", "Expedição"
+    LABORATORIO = "LABORATORIO", "Laboratório"
+    COMERCIAL = "COMERCIAL", "Comercial"
+    FINANCEIRO = "FINANCEIRO", "Financeiro"
 
 
 class Acao(models.TextChoices):
     """Ações que provocam transição de estado (cada uma vira um ChamadoEvento)."""
 
     ABRIR = "ABRIR", "Abrir"
+    # Aceite do setor: NÃO muda o status, só carimba o início da tratativa (SLA).
+    ACEITAR_TRATATIVA = "ACEITAR_TRATATIVA", "Aceitar tratativa"
     ENCAMINHAR = "ENCAMINHAR", "Encaminhar"
     # Encaminhamento da Inteligência para a Expedição (equipamento em manutenção).
     ENCAMINHAR_EXPEDICAO = "ENCAMINHAR_EXPEDICAO", "Encaminhar para expedição"
     # Expedição confirma que os equipamentos chegaram na base → vai ao Laboratório.
     MARCAR_CHEGADA = "MARCAR_CHEGADA", "Marcar chegada"
+    # Registro de tentativa de contato com o cliente (não muda o status).
+    REGISTRAR_CONTATO = "REGISTRAR_CONTATO", "Registrar contato"
     # Laboratório dá a tratativa no equipamento e encaminha para o Comercial.
     ENCAMINHAR_COMERCIAL = "ENCAMINHAR_COMERCIAL", "Encaminhar para comercial"
-    # Comercial finaliza: tratativa + custo (com/sem) por equipamento → RESOLVIDO.
+    # Comercial finaliza: tratativa + custo (com/sem) por equipamento. Destino
+    # condicional — RESOLVIDO (sem custo) ou FINANCEIRO (havendo custo).
     FINALIZAR_COMERCIAL = "FINALIZAR_COMERCIAL", "Finalizar chamado"
+    # Financeiro registra valor + NF e encerra o chamado.
+    FATURAR = "FATURAR", "Faturado"
     FINALIZAR = "FINALIZAR", "Finalizar"
     RESOLVER = "RESOLVER", "Resolver"
     BLOQUEAR = "BLOQUEAR", "Bloquear"
@@ -71,3 +94,4 @@ GRUPO_LABORATORIO = "laboratorio"
 # Reaproveita o grupo COMERCIAL já existente no sistema (maiúsculo, diferente do
 # padrão minúsculo dos demais papéis do app).
 GRUPO_COMERCIAL = "COMERCIAL"
+GRUPO_FINANCEIRO = "financeiro"

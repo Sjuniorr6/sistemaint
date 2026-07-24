@@ -15,8 +15,34 @@ from django.db import transaction
 from django.db.models import Max
 from django.utils import timezone
 
-from chamados.enums import Acao, Status
+from chamados.enums import Acao, Setor, Status
 from chamados.permissions import is_inteligencia, is_quality
+
+
+# ---------------------------------------------------------------------------
+# Passagens por setor (SLA) — mapeamento status → setor
+# ---------------------------------------------------------------------------
+
+# Cada status de TRABALHO pertence a um setor. RESOLVIDO e BLOQUEADO não são de
+# setor: o primeiro é terminal, o segundo é uma pausa (o dono anterior segue).
+_SETOR_POR_STATUS = {
+    Status.ABERTO: Setor.QUALITY,
+    Status.ENCAMINHADO: Setor.INTELIGENCIA,
+    Status.EXPEDICAO: Setor.EXPEDICAO,
+    Status.LABORATORIO: Setor.LABORATORIO,
+    Status.COMERCIAL: Setor.COMERCIAL,
+    Status.FINANCEIRO: Setor.FINANCEIRO,
+}
+
+
+def setor_do_status(status):
+    """Setor dono de um status de trabalho; None p/ RESOLVIDO/BLOQUEADO."""
+    return _SETOR_POR_STATUS.get(status)
+
+
+def passagem_aberta(chamado):
+    """Passagem corrente do chamado (a que ainda não foi finalizada), ou None."""
+    return chamado.passagens.filter(finalizado_em__isnull=True).order_by("id").last()
 
 
 # ---------------------------------------------------------------------------
@@ -141,6 +167,7 @@ def abrir_chamado(
                     tratativa_snapshot=tratativa,
                     responsavel_inteligencia=responsavel_inteligencia,
                 )
+                _abrir_passagens_iniciais(chamado, autor, agora, encaminhar)
                 return chamado
         except Exception as exc:  # noqa: BLE001 — só o UNIQUE de protocolo justifica retry
             if _e_colisao_de_protocolo(exc):
@@ -156,6 +183,132 @@ def _e_colisao_de_protocolo(exc) -> bool:
     from django.db import IntegrityError
 
     return isinstance(exc, IntegrityError) and "protocolo" in str(exc).lower()
+
+
+def _abrir_passagens_iniciais(chamado, autor, agora, encaminhar):
+    """Cria a(s) passagem(ns) de setor da abertura do chamado (SLA).
+
+    Fluxo normal: o Quality abre e já é o dono — a passagem nasce ACEITA
+    (aceito_em = aberto_em), sem exigir clique de quem acabou de criar.
+
+    Fluxo "abrir já encaminhado" (RN-08): o chamado nasce em ENCAMINHADO, então a
+    passagem do Quality nasce e já se fecha no mesmo instante (ele abriu e passou
+    adiante), e abre-se a passagem da Inteligência aguardando aceite.
+    """
+    from chamados.models import PassagemSetor
+
+    PassagemSetor.objects.create(
+        chamado=chamado,
+        setor=Setor.QUALITY,
+        chegou_em=agora,
+        aceito_em=agora,
+        aceito_por=autor,
+        finalizado_em=agora if encaminhar else None,
+        finalizado_por=autor if encaminhar else None,
+        acao_saida=Acao.ENCAMINHAR if encaminhar else "",
+    )
+    if encaminhar:
+        PassagemSetor.objects.create(
+            chamado=chamado,
+            setor=Setor.INTELIGENCIA,
+            chegou_em=agora,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Aceite da tratativa (marco inicial do SLA do setor)
+# ---------------------------------------------------------------------------
+
+
+def aceitar_tratativa(chamado, autor):
+    """Registra que o setor assumiu o chamado (NÃO muda o status).
+
+    Só carimba `aceito_em/aceito_por` na passagem corrente e grava o evento no log
+    (origem == destino, pois o estado não muda). A posse é a mesma das ações
+    (pode_agir): quem não é dono do estado atual não aceita.
+    """
+    from chamados.models import ChamadoEvento
+    from chamados.permissions import pode_agir
+
+    if not pode_agir(autor, chamado):
+        raise PermissionDenied("Você não tem permissão para aceitar este chamado.")
+
+    passagem = passagem_aberta(chamado)
+    if passagem is None:
+        raise ValidationError("Não há passagem de setor aberta para aceitar.")
+    if passagem.esta_aceita:
+        raise ValidationError("Esta tratativa já foi aceita.")
+
+    agora = timezone.now()
+    with transaction.atomic():
+        passagem.aceito_em = agora
+        passagem.aceito_por = autor
+        passagem.save(update_fields=["aceito_em", "aceito_por"])
+
+        # O aceite entra no log como evento sem mudança de estado.
+        ChamadoEvento.objects.create(
+            chamado=chamado,
+            acao=Acao.ACEITAR_TRATATIVA,
+            estado_origem=chamado.status,
+            estado_destino=chamado.status,
+            autor=autor,
+        )
+    return chamado
+
+
+# ---------------------------------------------------------------------------
+# Tentativas de contato com o cliente (Expedição) — não mudam o status
+# ---------------------------------------------------------------------------
+
+
+def registrar_contato(chamado, autor, *, nome_contato, tratativa,
+                      telefone="", codigo_rastreio=""):
+    """Registra UMA tentativa de contato da Expedição com o cliente.
+
+    Não muda o status: o chamado segue em EXPEDICAO enquanto o equipamento não
+    chega. Exige a mesma posse das ações do setor e que a tratativa já tenha sido
+    aceita (o contato é trabalho do setor, entra no SLA em curso).
+    """
+    from chamados.models import ChamadoEvento, ContatoExpedicao
+    from chamados.permissions import pode_agir
+
+    if chamado.status != Status.EXPEDICAO:
+        raise ValidationError(
+            "Só é possível registrar contato enquanto o chamado está na Expedição."
+        )
+    if not pode_agir(autor, chamado):
+        raise PermissionDenied("Você não tem permissão para registrar contato.")
+
+    passagem = passagem_aberta(chamado)
+    if passagem is not None and not passagem.esta_aceita:
+        raise ValidationError("Aceite a tratativa antes de registrar contatos.")
+
+    with transaction.atomic():
+        contato = ContatoExpedicao(
+            chamado=chamado,
+            nome_contato=nome_contato,
+            telefone=telefone or "",
+            tratativa=tratativa,
+            codigo_rastreio=codigo_rastreio or "",
+            registrado_por=autor,
+        )
+        contato.full_clean(exclude=["chamado", "registrado_por"])
+        contato.save()
+
+        # Entra no log (sem mudança de estado) para aparecer na trilha do chamado.
+        ChamadoEvento.objects.create(
+            chamado=chamado,
+            acao=Acao.REGISTRAR_CONTATO,
+            estado_origem=chamado.status,
+            estado_destino=chamado.status,
+            autor=autor,
+            tratativa_snapshot=(
+                f"{contato.nome_contato}: {contato.tratativa}"
+                + (f" · Rastreio: {contato.codigo_rastreio}"
+                   if contato.codigo_rastreio else "")
+            ),
+        )
+    return contato
 
 
 # ---------------------------------------------------------------------------
@@ -219,11 +372,20 @@ TRANSICOES = {
         posse=POSSE_DONO_ATUAL,  # dono de LABORATORIO = grupo laboratorio
     ),
     Acao.FINALIZAR_COMERCIAL: Transicao(
-        # O Comercial finaliza: informa tratativa + custo (com/sem) POR EQUIPAMENTO
-        # e encerra o chamado (RESOLVIDO). Validação específica abaixo.
+        # O Comercial informa tratativa + custo (com/sem) POR EQUIPAMENTO. O
+        # destino é CONDICIONAL (destino=None → resolvido em `executar`):
+        #   - algum equipamento COM CUSTO → segue para o FINANCEIRO (cobrança);
+        #   - todos SEM CUSTO            → encerra o chamado (RESOLVIDO).
         origens=(Status.COMERCIAL,),
-        destino=Status.RESOLVIDO,
+        destino=None,
         posse=POSSE_DONO_ATUAL,  # dono de COMERCIAL = grupo comercial
+    ),
+    Acao.FATURAR: Transicao(
+        # O Financeiro registra valor + NF e ENCERRA o chamado.
+        origens=(Status.FINANCEIRO,),
+        destino=Status.RESOLVIDO,
+        posse=POSSE_DONO_ATUAL,  # dono de FINANCEIRO = grupo financeiro
+        campos_obrigatorios=("valor_faturamento", "nota_fiscal"),
     ),
     Acao.FINALIZAR: Transicao(
         origens=(Status.ABERTO,),
@@ -312,6 +474,16 @@ def executar(chamado, acao, dados, autor):
     if not _posse_autorizada(autor, chamado, transicao.posse):
         raise PermissionDenied("Você não tem permissão para esta ação neste chamado.")
 
+    # (2b) Aceite obrigatório: o setor precisa ter assumido a tratativa antes de
+    # agir sobre ela (é o marco inicial do SLA). Bloquear/Reabrir são exceção —
+    # pausar/retomar não depende de aceite e não mexe nas passagens.
+    if acao not in (Acao.BLOQUEAR, Acao.REABRIR):
+        passagem_atual = passagem_aberta(chamado)
+        if passagem_atual is not None and not passagem_atual.esta_aceita:
+            raise ValidationError(
+                "Aceite a tratativa antes de executar esta ação."
+            )
+
     # (3) campos obrigatórios da ação (RN-09..RN-12).
     for campo in transicao.campos_obrigatorios:
         valor = dados.get(campo)
@@ -330,15 +502,34 @@ def executar(chamado, acao, dados, autor):
             chamado, dados.get("tratativas_equipamento")
         )
 
-    # (3c) Finalizar (Comercial) exige tratativa + custo por equipamento.
+    # (3c) Finalizar (Comercial) exige tratativa + custo por equipamento e, se
+    # houver algum COM CUSTO, o termo de substituição anexado (PDF).
     finalizacao_equip = None
     if acao == Acao.FINALIZAR_COMERCIAL:
         finalizacao_equip = _validar_finalizacao_comercial(
             chamado, dados.get("finalizacao_equipamento")
         )
+        if tem_equipamento_com_custo(finalizacao_equip):
+            termo = dados.get("termo_substituicao") or chamado.termo_substituicao
+            if not termo:
+                raise ValidationError(
+                    {"termo_substituicao":
+                     "Anexe o termo de substituição (PDF): há equipamento com custo."}
+                )
 
-    # Destino: fixo, ou derivado do log na reabertura (ADR-005).
-    destino = transicao.destino or estado_ativo_anterior_ao_bloqueio(chamado)
+    # Destino: fixo, ou dinâmico quando a transição declara destino=None.
+    #  - REABRIR: derivado do log (ADR-005);
+    #  - FINALIZAR_COMERCIAL: FINANCEIRO se houver custo, senão RESOLVIDO.
+    if transicao.destino is not None:
+        destino = transicao.destino
+    elif acao == Acao.FINALIZAR_COMERCIAL:
+        destino = (
+            Status.FINANCEIRO
+            if tem_equipamento_com_custo(finalizacao_equip)
+            else Status.RESOLVIDO
+        )
+    else:
+        destino = estado_ativo_anterior_ao_bloqueio(chamado)
 
     with transaction.atomic():
         origem = chamado.status
@@ -350,6 +541,11 @@ def executar(chamado, acao, dados, autor):
             chamado.tratativa = dados["tratativa"]
         if acao == Acao.ENCAMINHAR:
             chamado.responsavel_inteligencia = dados["responsavel_inteligencia"]
+
+        # Faturamento (Financeiro): valor + NF gravados ao encerrar o chamado.
+        if acao == Acao.FATURAR:
+            chamado.valor_faturamento = dados["valor_faturamento"]
+            chamado.nota_fiscal = dados["nota_fiscal"]
 
         # Encaminhar p/ Comercial: grava uma linha de tratativa por equipamento e
         # consolida o texto em `chamado.tratativa` (usado no detalhe/snapshot).
@@ -363,11 +559,18 @@ def executar(chamado, acao, dados, autor):
             chamado.tratativa = "\n".join(
                 f"{item['numero']}: {item['tratativa']}" for item in tratativas_equip
             )
+            # Vínculo com a manutenção (entrada de equipamento), informado pelo lab.
+            if dados.get("manutencao") is not None:
+                chamado.manutencao = dados["manutencao"]
 
         # Finalizar (Comercial): completa as linhas de cada equipamento com a
         # tratativa do comercial e o custo (com/sem). Consolida no snapshot.
         if finalizacao_equip:
             from chamados.enums import CustoEquipamento
+
+            # Termo de substituição (só chega quando há equipamento com custo).
+            if dados.get("termo_substituicao"):
+                chamado.termo_substituicao = dados["termo_substituicao"]
 
             for item in finalizacao_equip:
                 # Atualiza a linha existente do equipamento (criada pelo lab); se
@@ -399,6 +602,10 @@ def executar(chamado, acao, dados, autor):
                 "procedimento_realizado",
                 "tratativa",
                 "responsavel_inteligencia",
+                "manutencao",
+                "termo_substituicao",
+                "valor_faturamento",
+                "nota_fiscal",
                 "status",
                 "atualizado_em",
             ]
@@ -424,7 +631,41 @@ def executar(chamado, acao, dados, autor):
                 dados.get("responsavel_inteligencia") if acao == Acao.ENCAMINHAR else None
             ),
         )
+
+        _mover_passagens(chamado, acao, origem, destino, autor)
     return chamado
+
+
+def _mover_passagens(chamado, acao, origem, destino, autor):
+    """Fecha a passagem do setor que agiu e abre a do setor de destino (SLA).
+
+    Bloquear/Reabrir não mexem nas passagens: o chamado continua com o mesmo dono,
+    apenas pausado — e o tempo de bloqueio conta normalmente na passagem corrente
+    (decisão de projeto desta versão).
+    """
+    from chamados.models import PassagemSetor
+
+    if acao in (Acao.BLOQUEAR, Acao.REABRIR):
+        return
+    if setor_do_status(origem) == setor_do_status(destino):
+        return  # não trocou de setor: nada a fechar/abrir
+
+    agora = timezone.now()
+
+    passagem = passagem_aberta(chamado)
+    if passagem is not None:
+        passagem.finalizado_em = agora
+        passagem.finalizado_por = autor
+        passagem.acao_saida = acao
+        passagem.save(
+            update_fields=["finalizado_em", "finalizado_por", "acao_saida"]
+        )
+
+    setor_destino = setor_do_status(destino)
+    if setor_destino is not None:
+        PassagemSetor.objects.create(
+            chamado=chamado, setor=setor_destino, chegou_em=agora
+        )
 
 
 def _exigir(valor, campo):
@@ -501,3 +742,12 @@ def _validar_finalizacao_comercial(chamado, finalizacoes):
             {"numero": numero, "tratativa": dados_eq["tratativa"], "custo": dados_eq["custo"]}
         )
     return normalizadas
+
+
+def tem_equipamento_com_custo(finalizacoes) -> bool:
+    """True se ao menos um equipamento foi marcado COM CUSTO."""
+    from chamados.enums import CustoEquipamento
+
+    return any(
+        item.get("custo") == CustoEquipamento.COM_CUSTO for item in finalizacoes or []
+    )

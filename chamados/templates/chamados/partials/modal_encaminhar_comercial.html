@@ -15,7 +15,7 @@
         </div>
         <div class="modal-body p-4">
           <p class="text-muted small mb-3">Informe a tratativa dada a cada equipamento.</p>
-          {% for field in comercial_form %}
+          {% for field in comercial_form.campos_tratativa %}
             <div class="mb-3">
               <label for="{{ field.id_for_label }}" class="form-label fw-semibold">
                 <i class="bi bi-hdd me-1"></i>{{ field.label }}
@@ -24,6 +24,17 @@
               {% for e in field.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
             </div>
           {% endfor %}
+
+          {% comment %} Vínculo com a manutenção (entrada de equipamento) — select2
+            com as manutenções em andamento, rotuladas "#ID · Empresa". {% endcomment %}
+          <hr class="my-3">
+          <div class="mb-0">
+            <label for="{{ comercial_form.manutencao.id_for_label }}" class="form-label fw-semibold">
+              <i class="bi bi-wrench-adjustable me-1"></i>{{ comercial_form.manutencao.label }}
+            </label>
+            {{ comercial_form.manutencao }}
+            {% for e in comercial_form.manutencao.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+          </div>
         </div>
         <div class="modal-footer border-0 pt-0">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>

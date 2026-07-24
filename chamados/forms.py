@@ -3,8 +3,11 @@
 Os forms são o portão que valida a entrada antes de chamar o service; as regras
 de fluxo (transição, posse) NÃO se repetem aqui — moram em services.py. Os
 dropdowns de responsável listam só o grupo certo (RF-05, RF-21)."""
+from decimal import Decimal
+
 from django import forms
 from django.contrib.auth import get_user_model
+from django.core.validators import FileExtensionValidator
 
 from acompanhamento.models import Clientes
 from produto.models import Produto
@@ -177,11 +180,83 @@ class EncaminharExpedicaoForm(forms.Form):
     )
 
 
+class FaturarForm(forms.Form):
+    """Modal "Faturado" (Financeiro → encerra o chamado).
+
+    Um valor e uma NF para o chamado inteiro, registrados ao encerrar.
+    """
+
+    valor_faturamento = forms.DecimalField(
+        label="Valor do faturamento",
+        max_digits=12,
+        decimal_places=2,
+        min_value=Decimal("0"),
+        widget=forms.NumberInput(
+            attrs={"class": "form-control", "step": "0.01", "placeholder": "0,00"}
+        ),
+    )
+    nota_fiscal = forms.CharField(
+        label="Nota fiscal (NF)",
+        max_length=60,
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Número da NF"}
+        ),
+    )
+
+
+class ContatoExpedicaoForm(forms.Form):
+    """Modal "Tratativas de Contato" (Expedição → cliente).
+
+    Uma tentativa por registro: nome e tratativa são obrigatórios; telefone e
+    código de rastreio complementam (o rastreio só existe depois da postagem).
+    """
+
+    nome_contato = forms.CharField(
+        max_length=120,
+        label="Pessoa contatada",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    telefone = forms.CharField(
+        max_length=30,
+        required=False,
+        label="Telefone",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    tratativa = forms.CharField(
+        label="Tratativa",
+        widget=forms.Textarea(
+            attrs={
+                "class": "form-control",
+                "rows": 3,
+                "placeholder": "Ex.: sem sucesso / cliente vai enviar dia 20…",
+            }
+        ),
+    )
+    codigo_rastreio = forms.CharField(
+        max_length=60,
+        required=False,
+        label="Código de rastreio",
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Se já postado"}
+        ),
+    )
+
+
+class ManutencaoChoiceField(forms.ModelChoiceField):
+    """ModelChoiceField que rotula a manutenção como "#ID · Empresa"."""
+
+    def label_from_instance(self, obj):
+        empresa = getattr(obj.nome, "nome", "") if obj.nome_id else ""
+        return f"#{obj.id} · {empresa}" if empresa else f"#{obj.id}"
+
+
 class EncaminharComercialForm(forms.Form):
     """Modal Encaminhar para Comercial (Laboratório → fila do Comercial).
 
     A tratativa é POR EQUIPAMENTO: o form é construído dinamicamente com um campo
     de texto para cada equipamento do chamado (numero_equipamento é multi-valor).
+    Além das tratativas, o laboratório vincula a MANUTENÇÃO (entrada de
+    equipamento) correspondente ao chamado — obrigatório.
     Sem responsável (posse do grupo inteiro, fila compartilhada).
     """
 
@@ -202,12 +277,27 @@ class EncaminharComercialForm(forms.Form):
                 ),
             )
 
+        # Vínculo com a manutenção (entrada de equipamento) — obrigatório. Fica
+        # por último no form para renderizar abaixo das tratativas no modal.
+        from chamados.selectors import manutencoes_para_vinculo
+
+        self.fields["manutencao"] = ManutencaoChoiceField(
+            queryset=manutencoes_para_vinculo(),
+            label="Manutenção vinculada",
+            empty_label="Selecione a manutenção",
+            widget=forms.Select(attrs={"class": "form-select select2"}),
+        )
+
     def tratativas_por_equipamento(self):
         """Pares {numero, tratativa} a partir do cleaned_data (após is_valid)."""
         return [
             {"numero": numero, "tratativa": self.cleaned_data.get(f"tratativa_{i}", "")}
             for i, numero in enumerate(self.equipamentos)
         ]
+
+    def campos_tratativa(self):
+        """Só os campos de tratativa (para o template renderizar por equipamento)."""
+        return [self[f"tratativa_{i}"] for i, _ in enumerate(self.equipamentos)]
 
 
 class FinalizarComercialForm(forms.Form):
@@ -234,8 +324,41 @@ class FinalizarComercialForm(forms.Form):
             self.fields[f"custo_{i}"] = forms.ChoiceField(
                 label=f"Custo de {numero}",
                 choices=CustoEquipamento.choices,
-                widget=forms.Select(attrs={"class": "form-select"}),
+                widget=forms.Select(
+                    attrs={
+                        "class": "form-select ch-custo",
+                        # Alpine observa estes selects para revelar o campo do
+                        # termo quando algum equipamento fica COM CUSTO.
+                        "@change": "recalcular()",
+                        "x-ref": f"custo{i}",
+                    }
+                ),
             )
+
+        # Termo de substituição: exigido quando houver equipamento COM CUSTO.
+        # `required=False` aqui porque a obrigatoriedade é condicional (clean()).
+        self.fields["termo_substituicao"] = forms.FileField(
+            required=False,
+            label="Termo de substituição (PDF)",
+            validators=[FileExtensionValidator(allowed_extensions=["pdf"])],
+            widget=forms.ClearableFileInput(
+                attrs={"class": "form-control", "accept": "application/pdf,.pdf"}
+            ),
+        )
+
+    def clean(self):
+        cleaned = super().clean()
+        # Regra: ao menos um equipamento COM CUSTO ⇒ termo obrigatório.
+        tem_custo = any(
+            cleaned.get(f"custo_{i}") == CustoEquipamento.COM_CUSTO
+            for i, _ in enumerate(self.equipamentos)
+        )
+        if tem_custo and not cleaned.get("termo_substituicao"):
+            self.add_error(
+                "termo_substituicao",
+                "Anexe o termo de substituição (PDF): há equipamento com custo.",
+            )
+        return cleaned
 
     def finalizacao_por_equipamento(self):
         """Trios {numero, tratativa, custo} do cleaned_data (após is_valid)."""

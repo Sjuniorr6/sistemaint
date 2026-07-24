@@ -30,32 +30,8 @@
     border-left: 4px solid #64748b;
   }
 
-  /* Alinha o Select2 com o visual do form-select do Bootstrap 5.3. */
-  .select2-container .select2-selection--single {
-    height: calc(1.5em + .75rem + 2px);
-    padding: .375rem .75rem;
-    border: 1px solid #ced4da;
-    border-radius: .375rem;
-    display: flex;
-    align-items: center;
-  }
-  .select2-container--default .select2-selection--single .select2-selection__rendered {
-    padding-left: 0;
-    line-height: 1.5;
-    color: #212529;
-  }
-  .select2-container--default .select2-selection--single .select2-selection__arrow {
-    height: calc(1.5em + .75rem);
-  }
-  .select2-container--default.select2-container--focus .select2-selection--single {
-    border-color: #86b7fe;
-    box-shadow: 0 0 0 .25rem rgba(13, 110, 253, .25);
-  }
-  .select2-dropdown { border: 1px solid #ced4da; border-radius: .375rem; }
-
-  .select2-container--default .select2-results>.select2-results__options{
-    color: black !important;
-  }
+  /* Os estilos do Select2 (incluindo o texto preto do dropdown) ficam no
+     partial _estilos.html, compartilhado por todas as telas do app. */
 </style>
 
 <div class="container ch-wrap py-4" style="max-width: 820px;">

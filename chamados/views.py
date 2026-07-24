@@ -11,12 +11,14 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from chamados.enums import Acao
+from chamados.enums import Acao, Setor
 from chamados.forms import (
     AberturaChamadoForm,
+    ContatoExpedicaoForm,
     EncaminharComercialForm,
     EncaminharExpedicaoForm,
     EncaminharForm,
+    FaturarForm,
     FinalizarComercialForm,
     FinalizarForm,
     MotivoForm,
@@ -36,6 +38,7 @@ _FORM_POR_ACAO = {
     # Marcar chegada não coleta dados: só registra a transição EXPEDICAO→LABORATORIO.
     Acao.MARCAR_CHEGADA: (None, ()),
     # ENCAMINHAR_COMERCIAL é tratado à parte (form dinâmico por equipamento).
+    Acao.FATURAR: (FaturarForm, ("valor_faturamento", "nota_fiscal")),
     Acao.FINALIZAR: (FinalizarForm, ("procedimento_realizado",)),
     Acao.RESOLVER: (FinalizarForm, ("procedimento_realizado",)),
     Acao.BLOQUEAR: (MotivoForm, ("motivo",)),
@@ -85,6 +88,10 @@ def detalhe(request, pk):
     contexto = {
         "chamado": chamado,
         "eventos": eventos,
+        # Procedimento/tratativa POR SETOR — derivados do log (os campos do
+        # chamado são únicos e sobrescritos a cada encaminhamento; a fonte fiel
+        # de "quem escreveu o quê" são os snapshots dos eventos).
+        "tratativas_por_setor": _tratativas_por_setor(eventos),
         "acoes": acoes_disponiveis(request.user, chamado),
         "Acao": Acao,
         # Só para o dropdown de responsável do modal Encaminhar (RF-05); a
@@ -100,9 +107,70 @@ def detalhe(request, pk):
         "finalizar_comercial_form": FinalizarComercialForm(
             equipamentos=services.equipamentos_do_chamado(chamado)
         ),
+        # Modal "Faturado" (Financeiro): valor + NF.
+        "faturar_form": FaturarForm(),
         "tratativas_equipamento": chamado.tratativas_equipamento.all(),
+        # Tentativas de contato da Expedição — visíveis da expedição em diante.
+        "contato_form": ContatoExpedicaoForm(),
+        "contatos_expedicao": chamado.contatos_expedicao.select_related(
+            "registrado_por"
+        ).all(),
+        # Laudo da manutenção vinculada: liberado a partir do momento em que o
+        # Comercial ACEITA a tratativa (o chamado já chegou nele com a manutenção
+        # vinculada pelo laboratório). Segue disponível depois de resolvido.
+        "pode_baixar_laudo": _pode_baixar_laudo(chamado),
     }
     return render(request, "chamados/detalhe.html", contexto)
+
+
+# Ação que gravou procedimento/tratativa → setor que a executou. ABRIR entra
+# porque no "abrir já encaminhado" (RN-08) o Quality preenche tudo na abertura
+# (não há ENCAMINHAR separado); no fluxo normal o ABRIR não tem snapshots e é
+# filtrado, ficando só o ENCAMINHAR.
+_SETOR_DA_ACAO = {
+    Acao.ABRIR: "Quality",
+    Acao.ENCAMINHAR: "Quality",
+    Acao.ENCAMINHAR_EXPEDICAO: "Inteligência",
+}
+
+
+def _tratativas_por_setor(eventos):
+    """Procedimento + tratativa de cada setor, reconstruídos do log de eventos.
+
+    Só os encaminhamentos que gravam procedimento/tratativa entram (Quality e
+    Inteligência); o Comercial tem card próprio (por equipamento). Cada item traz
+    o setor, quem fez, quando, e os textos daquela etapa — sem sobrescrever nada.
+    """
+    itens = []
+    for e in eventos:
+        setor = _SETOR_DA_ACAO.get(e.acao)
+        if setor is None:
+            continue
+        if not (e.procedimento_snapshot or e.tratativa_snapshot):
+            continue
+        itens.append({
+            "setor": setor,
+            "autor": e.autor,
+            "em": e.criado_em,
+            "procedimento": e.procedimento_snapshot,
+            "tratativa": e.tratativa_snapshot,
+        })
+    return itens
+
+
+def _pode_baixar_laudo(chamado) -> bool:
+    """True quando o laudo da manutenção vinculada deve ser oferecido.
+
+    Exige: manutenção vinculada (feita pelo laboratório ao encaminhar) e que a
+    passagem do Comercial — ou a do Financeiro, que recebe o chamado depois para
+    cobrar — já tenha sido ACEITA. Uma vez aceita, o botão continua disponível
+    (inclusive depois de RESOLVIDO), pois a passagem permanece registrada.
+    """
+    if chamado.manutencao_id is None:
+        return False
+    return chamado.passagens.filter(
+        setor__in=(Setor.COMERCIAL, Setor.FINANCEIRO), aceito_em__isnull=False
+    ).exists()
 
 
 @exige_quality
@@ -165,6 +233,42 @@ def acao(request, pk, acao):
         messages.error(request, "Ação inválida.")
         return redirect("chamados:detalhe", pk=pk)
 
+    # Registro de contato da Expedição: não é transição, só acrescenta histórico.
+    if acao == Acao.REGISTRAR_CONTATO:
+        form = ContatoExpedicaoForm(request.POST)
+        if not form.is_valid():
+            for erros in form.errors.values():
+                for erro in erros:
+                    messages.error(request, erro)
+            return redirect("chamados:detalhe", pk=pk)
+        try:
+            services.registrar_contato(
+                chamado, request.user,
+                nome_contato=form.cleaned_data["nome_contato"],
+                tratativa=form.cleaned_data["tratativa"],
+                telefone=form.cleaned_data.get("telefone", ""),
+                codigo_rastreio=form.cleaned_data.get("codigo_rastreio", ""),
+            )
+        except PermissionDenied as exc:
+            messages.error(request, str(exc) or "Sem permissão para registrar contato.")
+        except ValidationError as exc:
+            messages.error(request, " ".join(exc.messages))
+        else:
+            messages.success(request, "Contato registrado.")
+        return redirect("chamados:detalhe", pk=pk)
+
+    # Aceite não é transição de estado: só carimba o início da tratativa (SLA).
+    if acao == Acao.ACEITAR_TRATATIVA:
+        try:
+            services.aceitar_tratativa(chamado, request.user)
+        except PermissionDenied as exc:
+            messages.error(request, str(exc) or "Sem permissão para aceitar.")
+        except ValidationError as exc:
+            messages.error(request, " ".join(exc.messages))
+        else:
+            messages.success(request, "Tratativa aceita.")
+        return redirect("chamados:detalhe", pk=pk)
+
     dados = {}
     if acao == Acao.ENCAMINHAR_COMERCIAL:
         # Form dinâmico: uma tratativa por equipamento do chamado.
@@ -175,17 +279,26 @@ def acao(request, pk, acao):
                 for erro in erros:
                     messages.error(request, erro)
             return redirect("chamados:detalhe", pk=pk)
-        dados = {"tratativas_equipamento": form.tratativas_por_equipamento()}
+        dados = {
+            "tratativas_equipamento": form.tratativas_por_equipamento(),
+            "manutencao": form.cleaned_data["manutencao"],
+        }
     elif acao == Acao.FINALIZAR_COMERCIAL:
-        # Form dinâmico: tratativa + custo por equipamento.
+        # Form dinâmico: tratativa + custo por equipamento (+ termo em PDF quando
+        # houver equipamento com custo — por isso request.FILES aqui).
         equipamentos = services.equipamentos_do_chamado(chamado)
-        form = FinalizarComercialForm(request.POST, equipamentos=equipamentos)
+        form = FinalizarComercialForm(
+            request.POST, request.FILES, equipamentos=equipamentos
+        )
         if not form.is_valid():
             for erros in form.errors.values():
                 for erro in erros:
                     messages.error(request, erro)
             return redirect("chamados:detalhe", pk=pk)
-        dados = {"finalizacao_equipamento": form.finalizacao_por_equipamento()}
+        dados = {
+            "finalizacao_equipamento": form.finalizacao_por_equipamento(),
+            "termo_substituicao": form.cleaned_data.get("termo_substituicao"),
+        }
     else:
         form_cls, chaves = _FORM_POR_ACAO[acao]
         if form_cls is not None:

@@ -6,11 +6,21 @@ auditoria e das métricas (RN-05, ADR-003). Nenhum campo mutável muda aqui — 
 pela máquina de estados em `services.py` (ADR-004). Por isso os models ficam
 declarativos: validação de coerência de dados no `clean()`, sem regra de fluxo.
 """
+from decimal import Decimal
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.validators import FileExtensionValidator, MinValueValidator
 from django.db import models
 
-from chamados.enums import Acao, Categoria, CustoEquipamento, MeioContato, Status
+from chamados.enums import (
+    Acao,
+    Categoria,
+    CustoEquipamento,
+    MeioContato,
+    Setor,
+    Status,
+)
 
 
 class Chamado(models.Model):
@@ -72,6 +82,37 @@ class Chamado(models.Model):
     )
 
     # — Campos mutáveis (só via ação da máquina de estados, RN-04) —
+    # Manutenção vinculada pelo Laboratório ao encaminhar para o Comercial
+    # (entrada de equipamento do app registrodemanutencao). Nasce vazia.
+    manutencao = models.ForeignKey(
+        "registrodemanutencao.registrodemanutencao",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="chamados",
+        verbose_name="Manutenção vinculada",
+    )
+    # Termo de substituição anexado pelo Comercial ao finalizar, obrigatório
+    # quando ao menos um equipamento é marcado COM CUSTO. Só PDF.
+    termo_substituicao = models.FileField(
+        upload_to="chamados/termos/",
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(allowed_extensions=["pdf"])],
+        verbose_name="Termo de substituição (PDF)",
+    )
+    # — Faturamento (preenchido pelo Financeiro ao encerrar, quando há custo) —
+    valor_faturamento = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal("0"))],
+        verbose_name="Valor do faturamento",
+    )
+    nota_fiscal = models.CharField(
+        max_length=60, blank=True, verbose_name="Nota fiscal (NF)"
+    )
     procedimento_realizado = models.TextField(
         null=True, blank=True, verbose_name="Procedimento realizado"
     )
@@ -271,3 +312,144 @@ class TratativaEquipamento(models.Model):
 
     def __str__(self):
         return f"{self.chamado.protocolo} · {self.numero_equipamento}"
+
+
+class ContatoExpedicao(models.Model):
+    """Tentativa de contato com o cliente registrada pela Expedição.
+
+    Enquanto o equipamento não chega à base, a Expedição liga/escreve para o
+    cliente várias vezes. Cada tentativa vira uma linha aqui (histórico), com o
+    que foi tratado e — quando o cliente já postou — o código de rastreio.
+
+    Fica visível no chamado da Expedição em diante (é informação de atendimento,
+    não de SLA).
+    """
+
+    chamado = models.ForeignKey(
+        Chamado,
+        on_delete=models.PROTECT,
+        related_name="contatos_expedicao",
+        verbose_name="Chamado",
+    )
+    nome_contato = models.CharField(
+        max_length=120, verbose_name="Pessoa contatada"
+    )
+    telefone = models.CharField(
+        max_length=30, blank=True, verbose_name="Telefone"
+    )
+    tratativa = models.TextField(verbose_name="Tratativa do contato")
+    codigo_rastreio = models.CharField(
+        max_length=60, blank=True, verbose_name="Código de rastreio"
+    )
+
+    registrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="contatos_expedicao",
+        verbose_name="Registrado por",
+    )
+    criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Registrado em")
+
+    class Meta:
+        verbose_name = "Contato da expedição"
+        verbose_name_plural = "Contatos da expedição"
+        ordering = ["-criado_em"]  # mais recente primeiro
+
+    def clean(self):
+        super().clean()
+        self.nome_contato = (self.nome_contato or "").strip()
+        if not self.nome_contato:
+            raise ValidationError(
+                {"nome_contato": "Informe o nome de quem foi contatado."}
+            )
+        self.tratativa = (self.tratativa or "").strip()
+        if not self.tratativa:
+            raise ValidationError({"tratativa": "Descreva a tratativa do contato."})
+        self.telefone = (self.telefone or "").strip()
+        self.codigo_rastreio = (self.codigo_rastreio or "").strip()
+
+    def __str__(self):
+        return f"{self.chamado.protocolo} · {self.nome_contato}"
+
+
+class PassagemSetor(models.Model):
+    """Passagem do chamado por UM setor — base do SLA (uso interno/admin).
+
+    Uma linha por vez que o chamado entra num setor, com três marcos:
+      - `chegou_em`: quando o setor recebeu o chamado (abertura ou encaminhamento);
+      - `aceito_em`: quando alguém do setor clicou "Aceitar tratativa";
+      - `finalizado_em`: quando o setor encaminhou adiante ou encerrou o chamado.
+
+    Daí saem os tempos de ESPERA (chegada→aceite) e de TRABALHO (aceite→saída).
+    Não é exibida a nenhum usuário do fluxo — só no Django admin.
+    """
+
+    chamado = models.ForeignKey(
+        Chamado,
+        on_delete=models.PROTECT,
+        related_name="passagens",
+        verbose_name="Chamado",
+    )
+    setor = models.CharField(
+        max_length=20, choices=Setor.choices, db_index=True, verbose_name="Setor"
+    )
+
+    chegou_em = models.DateTimeField(verbose_name="Chegou em")
+    aceito_em = models.DateTimeField(null=True, blank=True, verbose_name="Aceito em")
+    aceito_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="passagens_aceitas",
+        verbose_name="Aceito por",
+    )
+    finalizado_em = models.DateTimeField(
+        null=True, blank=True, verbose_name="Finalizado em"
+    )
+    finalizado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="passagens_finalizadas",
+        verbose_name="Finalizado por",
+    )
+    # Ação que encerrou a passagem (encaminhou adiante, finalizou, etc.).
+    acao_saida = models.CharField(
+        max_length=25, blank=True, choices=Acao.choices, verbose_name="Ação de saída"
+    )
+
+    class Meta:
+        verbose_name = "Passagem por setor (SLA)"
+        verbose_name_plural = "Passagens por setor (SLA)"
+        ordering = ["id"]  # ordem cronológica do fluxo
+
+    # — Durações derivadas (não persistidas): None enquanto faltar o marco. —
+    @property
+    def espera(self):
+        """Tempo parado até alguém do setor aceitar (chegada → aceite)."""
+        if self.aceito_em and self.chegou_em:
+            return self.aceito_em - self.chegou_em
+        return None
+
+    @property
+    def trabalho(self):
+        """Tempo de tratativa do setor (aceite → saída) — o SLA principal."""
+        if self.finalizado_em and self.aceito_em:
+            return self.finalizado_em - self.aceito_em
+        return None
+
+    @property
+    def total(self):
+        """Tempo total do chamado no setor (chegada → saída)."""
+        if self.finalizado_em and self.chegou_em:
+            return self.finalizado_em - self.chegou_em
+        return None
+
+    @property
+    def esta_aceita(self) -> bool:
+        return self.aceito_em is not None
+
+    def __str__(self):
+        return f"{self.chamado.protocolo} · {self.get_setor_display()}"

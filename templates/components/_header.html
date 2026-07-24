@@ -298,8 +298,8 @@
                         </ul>
                     </li>
 
-                    <!-- Chamados (operadores: quality/inteligencia/expedicao/laboratorio/comercial) -->
-                    {% if user.is_superuser or user|has_group:"quality" or user|has_group:"inteligencia" or user|has_group:"expedicao" or user|has_group:"laboratorio" or user|has_group:"COMERCIAL" %}
+                    <!-- Chamados (operadores: quality/inteligencia/expedicao/laboratorio/comercial/financeiro) -->
+                    {% if user.is_superuser or user|has_group:"quality" or user|has_group:"inteligencia" or user|has_group:"expedicao" or user|has_group:"laboratorio" or user|has_group:"COMERCIAL" or user|has_group:"financeiro" %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="dropdownChamados" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-headset"></i> Chamados

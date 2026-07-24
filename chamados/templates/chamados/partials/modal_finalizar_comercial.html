@@ -2,10 +2,24 @@
   Modal "Finalizar chamado" (Comercial → RESOLVIDO): para CADA equipamento do
   chamado, o Comercial informa a tratativa e seleciona o custo (com/sem).
   `finalizar_comercial_form` é montado dinamicamente na view.
+
+  Se ALGUM equipamento for marcado COM CUSTO, o anexo do termo de substituição
+  (PDF) é revelado e vira obrigatório — a regra também é validada no form e no
+  service (defesa em profundidade).
 {% endcomment %}
 <div class="modal fade" id="modalFinalizarComercial" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
-    <form method="post" action="{% url 'chamados:acao' chamado.pk Acao.FINALIZAR_COMERCIAL %}">
+    {% comment %} enctype multipart: o modal envia arquivo (o termo em PDF). {% endcomment %}
+    <form method="post" enctype="multipart/form-data"
+          action="{% url 'chamados:acao' chamado.pk Acao.FINALIZAR_COMERCIAL %}"
+          x-data="{
+            temCusto: false,
+            recalcular() {
+              this.temCusto = Array.from($el.querySelectorAll('select.ch-custo'))
+                .some(s => s.value === 'COM_CUSTO');
+            }
+          }"
+          x-init="recalcular()">
       {% csrf_token %}
       <div class="modal-content border-0 shadow" style="border-radius: var(--ch-radius, .85rem);">
         <div class="modal-header bg-success border-0">
@@ -29,6 +43,24 @@
               </div>
             </div>
           {% endfor %}
+
+          {% comment %} Termo de substituição: revelado só quando há COM CUSTO. {% endcomment %}
+          <div x-show="temCusto" x-cloak class="border border-warning rounded p-3 bg-light">
+            <div class="fw-semibold text-warning-emphasis mb-1">
+              <i class="bi bi-exclamation-triangle me-1"></i>Termo de substituição obrigatório
+            </div>
+            <p class="text-muted small mb-2">
+              Há equipamento marcado como <strong>Com custo</strong>. Anexe o termo de
+              substituição em <strong>PDF</strong>.
+            </p>
+            <label for="{{ finalizar_comercial_form.termo_substituicao.id_for_label }}" class="form-label small fw-semibold">
+              Arquivo (somente PDF)
+            </label>
+            {{ finalizar_comercial_form.termo_substituicao }}
+            {% for e in finalizar_comercial_form.termo_substituicao.errors %}
+              <div class="text-danger small mt-1">{{ e }}</div>
+            {% endfor %}
+          </div>
         </div>
         <div class="modal-footer border-0 pt-0">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
