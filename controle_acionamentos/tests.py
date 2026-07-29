@@ -8869,3 +8869,18 @@ def test_comando_converge_grupo_com_permissao_intrusa():
     grupo.refresh_from_db()
     assert _codenames_do_grupo(grupo) == _PERMS_OPERACAO
     assert "delete_acionamento" not in _codenames_do_grupo(grupo)
+
+
+# ---------------------------------------------------------------
+# Cache busting do tema.css (sem card — decisão do Murilo)
+# ---------------------------------------------------------------
+@pytest.mark.django_db
+def test_tema_css_linkado_com_parametro_de_versao(client, django_user_model):
+    """O link do tema.css em _tema_assets.html deve carregar o parâmetro de
+    versão (?v=) — cache busting. Protege o sufixo de ser removido sem querer:
+    se alguém tirar o ?v=1 do template, este teste quebra."""
+    client.force_login(_usuario_com_view_cliente(django_user_model))
+    response = client.get(reverse("controle_acionamentos:cliente_list"))
+
+    assert response.status_code == 200
+    assertContains(response, "tema.css?v=")
