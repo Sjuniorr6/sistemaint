@@ -13,21 +13,18 @@
     .card {
         max-width: 100%;
         width: 100%;
-        margin: 1.5rem auto; /* Aumentado de 1rem para 1.5rem */
+        margin: 1.5rem auto;
         border: none;
         border-radius: 0.75rem;
-        overflow: visible;
+        overflow: hidden;   /* mantém o cabeçalho dentro do raio da borda */
         box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
     }
 
     .card-header {
         background: linear-gradient(90deg, #0056b3 0%, #009BDE 100%);
         border: none;
         color: #FFFFFF;
-        padding: 1.5rem 2rem; /* Aumentado de 1rem 1.5rem para 1.5rem 2rem */
+        padding: 1.25rem 1.5rem;
         width: 100%;
     }
 
@@ -61,22 +58,28 @@
 
     /* ───── TABELA ─────────────────────────────────────────────────────────── */
     .table-responsive {
-        margin-top: 1.5rem; /* Aumentado de 1rem para 1.5rem */
-        display: flex;
-        justify-content: center;
+        margin-top: 1.5rem;
         width: 100%;
-        padding: 0 2rem; /* Aumentado de 0 1rem para 0 2rem */
-        overflow: visible;
+        padding: 0 1rem 0.75rem;
+        /* Rolagem horizontal quando a tela for estreita demais para as 14 colunas */
+        overflow-x: auto;
+        overflow-y: hidden;
     }
     table.table {
-        border-collapse: separate; 
-        border-spacing: 0.5rem;
+        border-collapse: separate;
+        border-spacing: 0.25rem;
         width: 100%;
-        max-width: 100%;
-        margin: 0 auto;
-        table-layout: fixed;
-        font-size: 1.1rem;
+        /* Garante que as colunas nunca fiquem ilegíveis: abaixo disso, rola */
+        min-width: 1050px;
+        margin: 0;
+        table-layout: fixed;   /* distribui as colunas de mês igualmente */
+        font-size: 0.95rem;
     }
+
+    /* Larguras: cliente enxuto, 12 meses + média dividem o restante */
+    table.table col.col-cliente { width: 8.5rem; }
+    table.table col.col-mes     { width: auto; }
+    table.table col.col-media   { width: 5.5rem; }
 
     table.table thead {
         background-color: transparent;
@@ -87,29 +90,51 @@
         color: #6C757D;
         font-weight: 600;
         text-transform: uppercase;
-        font-size: 0.9rem;
+        font-size: 0.68rem;
+        letter-spacing: 0.2px;
         border: none;
         text-align: center;
-        padding: 0.75rem 0.5rem;
+        padding: 0.5rem 0.15rem;
+        /* Sem nowrap: o nome do mês quebra em vez de ser cortado */
         white-space: normal;
-        width: auto;
-        min-width: 150px;
-        word-break: break-word;
-        line-height: 1.2;
+        word-break: normal;
+        overflow-wrap: anywhere;
+        line-height: 1.15;
     }
 
     table.table thead th:first-child {
         color: #343A40;
         text-align: left;
-        padding-left: 1.5rem;
-        min-width: 200px;
-        font-size: 1rem;
+        padding-left: 0.75rem;
+        font-size: 0.75rem;
+        white-space: normal;
     }
 
     table.table thead th.active-month {
         background-color: #0062CC;
         color: #FFFFFF;
         border-radius: 0.25rem;
+    }
+
+    /* ─── COLUNA DE MÉDIA ───────────────────────────────────────── */
+    table.table thead th.col-media-head {
+        background-color: #0056B3;
+        color: #FFFFFF;
+        border-radius: 0.25rem;
+    }
+    table.table tbody td.media-cell {
+        background-color: #E7F1FF;
+        color: #0A3D7A;
+        font-weight: 700;
+        cursor: default;
+        font-variant-numeric: tabular-nums;
+    }
+    table.table tbody td.media-cell:hover {
+        background-color: #E7F1FF;
+    }
+    table.table tfoot tr.total-row td.media-cell {
+        background-color: #D6E7FF;
+        color: #0A3D7A;
     }
 
     /* ─── CORPO DA TABELA ───────────────────────────────────────── */
@@ -120,21 +145,46 @@
         border-radius: 0.25rem;
         text-align: center;
         vertical-align: middle;
-        padding: 0.75rem 0.5rem;
+        padding: 0.4rem 0.25rem;
         cursor: pointer;
         transition: background-color 0.2s;
-        width: auto;
-        min-width: 150px;
-        word-break: break-word;
+        /* overflow hidden mantém todas as linhas com a mesma altura,
+           independentemente do tamanho do código de rastreio */
+        overflow: hidden;
         white-space: normal;
         line-height: 1.2;
-        overflow: visible;
-        height: auto;
-        min-height: 60px;
-        font-size: 1rem;
+        height: 3.1rem;
+        font-size: 0.95rem;
+    }
+    table.table tbody td:first-child {
+        text-align: left;
+        padding-left: 0.75rem;
+        font-weight: 500;
+        color: #343A40;
+        cursor: default;
+        font-size: 0.8rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    table.table tbody td:first-child:hover {
+        background-color: #F8F9FA;
     }
     table.table tbody td:hover {
         background-color: #E9ECEF;
+    }
+    /* Código de rastreio abaixo do valor: resumido em uma linha.
+       O conteúdo completo aparece no modal (clique) e no tooltip. */
+    table.table tbody td .rastreio {
+        display: block;
+        max-width: 100%;
+        font-size: 0.6rem;
+        color: #6C757D;
+        line-height: 1.1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        cursor: pointer;
     }
 
     .equipamento-base {
@@ -163,28 +213,60 @@
         color: #343A40;
         font-weight: 700;
         border: none;
+        border-top: 2px solid #E9ECEF;
+        border-radius: 0.25rem;
         text-align: center;
-        padding: 0.75rem 0.5rem;
+        padding: 0.6rem 0.25rem;
         white-space: normal;
-        width: auto;
-        min-width: 150px;
         word-break: break-word;
         line-height: 1.2;
-        font-size: 1rem;
+        font-size: 0.95rem;
+        font-variant-numeric: tabular-nums;
     }
     table.table tfoot tr.total-row td:first-child {
         text-align: left;
-        padding-left: 1.5rem;
-        min-width: 200px;
-        font-size: 1.1rem;
+        padding-left: 0.75rem;
+        font-size: 0.9rem;
     }
 
     /* ─── CARD BODY ─────────────────────────────────────────── */
     .card-body {
         width: 100%;
-        display: flex;
-        justify-content: center;
-        align-items: center;
+        padding: 0.5rem 0 1rem;
+        overflow: visible;
+    }
+
+    /* ─── RESPONSIVO ─────────────────────────────────────────── */
+    @media (max-width: 1400px) {
+        table.table { font-size: 0.85rem; }
+        table.table col.col-cliente { width: 7.5rem; }
+        table.table col.col-media   { width: 5rem; }
+        table.table thead th { font-size: 0.62rem; }
+        table.table tbody td { font-size: 0.85rem; }
+        table.table tbody td:first-child { font-size: 0.75rem; }
+    }
+
+    /* Abaixo de 1050px a tabela passa a rolar horizontalmente (min-width),
+       com a coluna do cliente fixa para não se perder a referência da linha. */
+    @media (max-width: 1050px) {
+        .table-responsive { padding: 0 0.5rem 0.75rem; }
+        table.table thead th:first-child,
+        table.table tbody td:first-child,
+        table.table tfoot tr.total-row td:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 3;
+        }
+        table.table thead th:first-child,
+        table.table tfoot tr.total-row td:first-child {
+            background-color: #FFFFFF;
+        }
+        table.table tbody td:first-child {
+            background-color: #F8F9FA;
+            box-shadow: 2px 0 4px rgba(0, 0, 0, 0.06);
+        }
+        .card-header { padding: 1rem; }
+        .card-header h4 { font-size: 1.15rem; }
     }
 
     /* ─── INDICADORES ─────────────────────────────────────────── */
@@ -240,13 +322,21 @@
     </div>
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table table-bordered table-hover">
+            <table class="table table-hover">
+                <colgroup>
+                    <col class="col-cliente">
+                    {% for mes_codigo, mes_nome in meses %}
+                        <col class="col-mes">
+                    {% endfor %}
+                    <col class="col-media">
+                </colgroup>
                 <thead class="table-light">
                     <tr>
                         <th class="text-center">Cliente</th>
                         {% for mes_codigo, mes_nome in meses %}
                             <th>{{ mes_nome }}</th>
                         {% endfor %}
+                        <th class="col-media-head" title="Média de equipamentos por mês (considera apenas os meses preenchidos)">Média/Mês</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -263,16 +353,17 @@
                                             data-valor="{{ valor.valor|default:'' }}"
                                             data-enviado="{{ valor.enviado|yesno:'true,false' }}"
                                             data-codigo-rastreio="{{ valor.codigo_rastreio|default:'' }}">
-                                                                                         <div style="display: flex; flex-direction: column; align-items: center; gap: 1px;">
-                                                 <span>{{ valor.valor|default:'-' }}</span>
-                                                 {% if valor.codigo_rastreio %}
-                                                     <small style="font-size: 0.60em; color: #666; word-break: break-all;">{{ valor.codigo_rastreio }}</small>
-                                                 {% endif %}
-                                             </div>
+                                            <div class="d-flex flex-column align-items-center" style="gap: 1px;">
+                                                <span>{{ valor.valor|default:'-' }}</span>
+                                                {% if valor.codigo_rastreio %}
+                                                    <small class="rastreio" title="{{ valor.codigo_rastreio }}">{{ valor.codigo_rastreio }}</small>
+                                                {% endif %}
+                                            </div>
                                         </td>
                                     {% endwith %}
                                 {% endwith %}
                             {% endfor %}
+                            <td class="media-cell text-center">{{ valores|media_por_cliente:cliente.id }}</td>
                         </tr>
                     {% endfor %}
                 </tbody>
@@ -284,6 +375,7 @@
                                 {{ valores|total_por_mes:mes_codigo }}
                             </td>
                         {% endfor %}
+                        <td class="media-cell text-center">{{ valores|media_geral }}</td>
                     </tr>
                 </tfoot>
             </table>
@@ -328,6 +420,13 @@
 // Variáveis globais
 let modalInstance = null;
 let celulaAtual = null;
+
+// Escapa texto vindo do servidor antes de inserir via innerHTML
+function escaparHtml(texto) {
+    const div = document.createElement('div');
+    div.textContent = texto;
+    return div.innerHTML;
+}
 
 // Função para inicializar o modal
 function inicializarModal() {
@@ -476,10 +575,14 @@ function salvarValor() {
             celulaAtual.dataset.valor = data.valor;
             celulaAtual.dataset.enviado = data.enviado;
             celulaAtual.dataset.codigoRastreio = data.codigo_rastreio || '';
-            let html = data.valor ? parseInt(data.valor) : '';
+            // Reconstrói a célula com a mesma estrutura renderizada pelo servidor
+            let html = `<div class="d-flex flex-column align-items-center" style="gap: 1px;">`;
+            html += `<span>${data.valor ? parseInt(data.valor) : '-'}</span>`;
             if (data.codigo_rastreio) {
-                html += `<br><small style="font-size: 0.7em; color: #666;">${data.codigo_rastreio}</small>`;
+                const cod = escaparHtml(data.codigo_rastreio);
+                html += `<small class="rastreio" title="${cod}">${cod}</small>`;
             }
+            html += `</div>`;
             celulaAtual.innerHTML = html;
             
             console.log('🔍 DEBUG - Código de rastreio após atualização:');

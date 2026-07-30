@@ -58,6 +58,50 @@ def total_por_mes(valores, mes):
         return 0
 
 @register.filter
+def media_por_cliente(valores, cliente_id):
+    """
+    Calcula a média mensal de equipamentos enviados para um cliente.
+
+    A média considera apenas os meses que possuem valor registrado, para que
+    meses ainda não preenchidos (ex.: meses futuros do ano corrente) não
+    puxem o resultado para baixo.
+    """
+    try:
+        cliente_id = int(cliente_id)
+        total = 0
+        meses_com_valor = 0
+        for valor in valores:
+            if valor.cliente_id == cliente_id and valor.valor:
+                total += int(valor.valor)
+                meses_com_valor += 1
+        if not meses_com_valor:
+            return '-'
+        return round(total / meses_com_valor, 1)
+    except Exception as e:
+        print(f"Erro no filtro media_por_cliente: {str(e)}")
+        return '-'
+
+@register.filter
+def media_geral(valores, arg=None):
+    """
+    Calcula a média mensal geral (todos os clientes), usando o mesmo critério
+    de media_por_cliente: apenas meses com valor registrado entram na conta.
+    """
+    try:
+        total = 0
+        meses_com_valor = 0
+        for valor in valores:
+            if valor.valor:
+                total += int(valor.valor)
+                meses_com_valor += 1
+        if not meses_com_valor:
+            return '-'
+        return round(total / meses_com_valor, 1)
+    except Exception as e:
+        print(f"Erro no filtro media_geral: {str(e)}")
+        return '-'
+
+@register.filter
 def badge_style(status):
     mapping = {
         'Aguardando Liberação RFB': 'background:#1e7e34;color:#fff;border:2px solid #000;font-weight:bold;',
