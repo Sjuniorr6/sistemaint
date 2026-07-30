@@ -28,6 +28,7 @@ from controle_acionamentos.models import (
     ServicoCliente,
 )
 from controle_acionamentos.selectors import listar_servicos_ativos_por_cliente
+from controle_acionamentos.templatetags.formatos import cnpj as filtro_cnpj
 
 def test_cpf_valido_retorna_true():
     """Um CPF válido conhecido deve ser aceito."""
@@ -169,6 +170,101 @@ def test_cliente_cnpj_duplicado_e_rejeitado():
 
     with pytest.raises(ValidationError):
         Cliente(nome_empresa="Outra Empresa", cnpj="11222333000181").full_clean()
+
+
+# --- ST1 (melhorias pós go-live) — CNPJ opcional no cadastro de Cliente ------
+# Fase RED: o model atual exige CNPJ válido no clean e o campo é unique sem
+# null=True; a listagem ainda não exibe aviso de pendência. Os testes abaixo
+# descrevem o comportamento ALVO.
+
+
+@pytest.mark.django_db
+def test_cliente_cnpj_vazio_passa_full_clean_e_salva():
+    """ST1 — CNPJ passa a ser opcional: nome preenchido + cnpj vazio deve
+    passar no full_clean e persistir."""
+    cliente = Cliente(nome_empresa="ACME Sem CNPJ", cnpj="")
+    cliente.full_clean()  # não deve levantar
+    cliente.save()
+
+    assert cliente.pk is not None
+
+
+@pytest.mark.django_db
+def test_cliente_cnpj_vazio_persiste_como_none():
+    """ST1 — cnpj vazio deve ser normalizado para None no banco (não string
+    vazia): com unique=True, duas strings vazias colidiriam; NULLs não."""
+    cliente = Cliente(nome_empresa="ACME Sem CNPJ", cnpj="")
+    cliente.full_clean()
+    cliente.save()
+
+    assert Cliente.objects.get(pk=cliente.pk).cnpj is None
+
+
+@pytest.mark.django_db
+def test_dois_clientes_sem_cnpj_convivem_sem_violar_unicidade():
+    """ST1 — dois clientes distintos, ambos sem CNPJ, devem coexistir
+    (unicidade só vale para CNPJ preenchido)."""
+    a = Cliente(nome_empresa="ACME Sem CNPJ", cnpj="")
+    a.full_clean()
+    a.save()
+
+    b = Cliente(nome_empresa="Globex Sem CNPJ", cnpj="")
+    b.full_clean()
+    b.save()
+
+    assert Cliente.objects.count() == 2
+
+
+def _usuario_com_view_cliente(django_user_model):
+    user = django_user_model.objects.create_user(username="autorizado", password="x")
+    perm = Permission.objects.get(
+        codename="view_cliente",
+        content_type__app_label="controle_acionamentos",
+    )
+    user.user_permissions.add(perm)
+    return user
+
+
+@pytest.mark.django_db
+def test_cliente_list_exibe_cnpj_pendente_para_cliente_sem_cnpj(
+    client, django_user_model
+):
+    """ST1 — a listagem deve sinalizar 'CNPJ pendente' para cliente sem CNPJ.
+
+    RED: o clean atual não deixa criar cliente sem CNPJ, então o cliente é
+    criado válido e o campo é zerado por update direto no queryset (contorna
+    o clean; a coluna ainda é NOT NULL, por isso "" e não None)."""
+    cliente = Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+    Cliente.objects.filter(pk=cliente.pk).update(cnpj="")
+
+    client.force_login(_usuario_com_view_cliente(django_user_model))
+    response = client.get(reverse("controle_acionamentos:cliente_list"))
+
+    assert response.status_code == 200
+    assertContains(response, "CNPJ pendente")
+
+
+@pytest.mark.django_db
+def test_cliente_list_nao_exibe_cnpj_pendente_para_cliente_com_cnpj(
+    client, django_user_model
+):
+    """ST1 (espelho) — cliente com CNPJ preenchido NÃO exibe o aviso."""
+    Cliente.objects.create(nome_empresa="ACME", cnpj="11222333000181")
+
+    client.force_login(_usuario_com_view_cliente(django_user_model))
+    response = client.get(reverse("controle_acionamentos:cliente_list"))
+
+    assert response.status_code == 200
+    assertNotContains(response, "CNPJ pendente")
+
+
+def test_filtro_cnpj_com_none_e_vazio_devolve_string_vazia():
+    """ST1 — o filtro cnpj (lib formatos) deve devolver "" para None e para
+    string vazia, sem levantar exceção (a listagem passa a renderizar clientes
+    sem CNPJ)."""
+    assert filtro_cnpj(None) == ""
+    assert filtro_cnpj("") == ""
+
 
 @pytest.mark.django_db
 def test_agente_persiste_com_dados_validos():
@@ -1116,6 +1212,149 @@ def test_listar_acionamentos_filtra_por_agente(_fks_acionamento):
 
 
 @pytest.mark.django_db
+def test_listar_acionamentos_filtra_por_responsavel(_fks_acionamento):
+    """ST2 pós go-live — espelho do filtro por agente: listar_acionamentos com
+    responsavel devolve só os acionamentos daquele responsável, preservando a
+    ordenação DESC por data_hora_solicitado."""
+    cliente, responsavel_a, agente = _fks_acionamento
+    responsavel_b = ResponsavelAgente.objects.create(nome="Maria Supervisora")
+    base = timezone.now()
+
+    antigo = _acionamento_valido(
+        cliente, responsavel_a, agente,
+        data_hora_solicitado=base - timedelta(days=1),
+    )
+    antigo.save()
+    recente = _acionamento_valido(cliente, responsavel_a, agente)
+    recente.save()
+    _acionamento_valido(cliente, responsavel_b, agente).save()
+
+    from controle_acionamentos.selectors import listar_acionamentos
+
+    resultado = listar_acionamentos(responsavel=responsavel_a)
+
+    assert [a.pk for a in resultado] == [recente.pk, antigo.pk]
+
+
+# --- DD-084/ST3 — detecção de duplicidade na criação (selector) -------------
+# Fase RED: listar_duplicatas_para_criacao ainda não existe em selectors.py —
+# import LOCAL em cada teste para não quebrar a coleta do módulo.
+
+
+@pytest.mark.django_db
+class TestListarDuplicatasParaCriacao:
+    """Selector novo: dado o conjunto (cliente, km_inicio, km_final,
+    data_hora_inicio, data_hora_final) de um NOVO acionamento, devolve os já
+    existentes com os MESMOS 5 valores (candidatos a duplicata), do mais
+    recente ao mais antigo por criado_em. data_hora_solicitado fica FORA da
+    comparação de propósito."""
+
+    def _campos(self, ac):
+        """Os 5 campos de comparação, extraídos de um acionamento existente."""
+        return dict(
+            cliente=ac.cliente,
+            km_inicio=ac.km_inicio,
+            km_final=ac.km_final,
+            data_hora_inicio=ac.data_hora_inicio,
+            data_hora_final=ac.data_hora_final,
+        )
+
+    def test_mesmos_5_valores_devolve_o_acionamento(self, _fks_acionamento):
+        """1 — igualdade exata nos 5 campos acusa a duplicata."""
+        cliente, responsavel, agente = _fks_acionamento
+        ac = _acionamento_valido(cliente, responsavel, agente)
+        ac.save()
+
+        from controle_acionamentos.selectors import listar_duplicatas_para_criacao
+
+        resultado = listar_duplicatas_para_criacao(**self._campos(ac))
+
+        assert [d.pk for d in resultado] == [ac.pk]
+
+    def test_divergencia_em_qualquer_um_dos_5_campos_devolve_vazio(
+        self, _fks_acionamento
+    ):
+        """2 — divergir em UM único campo (um por vez) já descarta a suspeita."""
+        cliente, responsavel, agente = _fks_acionamento
+        outro_cliente = Cliente.objects.create(
+            nome_empresa="Globex", cnpj="11444777000161"
+        )
+        ac = _acionamento_valido(cliente, responsavel, agente)
+        ac.save()
+
+        from controle_acionamentos.selectors import listar_duplicatas_para_criacao
+
+        base = self._campos(ac)
+        divergencias = [
+            {"cliente": outro_cliente},
+            {"km_inicio": ac.km_inicio + 1},
+            {"km_final": ac.km_final + 1},
+            {"data_hora_inicio": ac.data_hora_inicio + timedelta(minutes=1)},
+            {"data_hora_final": ac.data_hora_final + timedelta(minutes=1)},
+        ]
+        for divergencia in divergencias:
+            resultado = listar_duplicatas_para_criacao(**{**base, **divergencia})
+            assert list(resultado) == [], (
+                f"divergência {divergencia} deveria devolver vazio"
+            )
+
+    def test_solicitado_diferente_nao_impede_a_deteccao(self, _fks_acionamento):
+        """3 — data_hora_solicitado fica FORA da comparação: o novo registro
+        simulado teria solicitado = agora, o existente tem 2h atrás — e a
+        duplicata é acusada mesmo assim (solicitado nem entra na assinatura)."""
+        cliente, responsavel, agente = _fks_acionamento
+        ac = _acionamento_valido(
+            cliente,
+            responsavel,
+            agente,
+            data_hora_solicitado=timezone.now() - timedelta(hours=2),
+        )
+        ac.save()
+
+        from controle_acionamentos.selectors import listar_duplicatas_para_criacao
+
+        resultado = listar_duplicatas_para_criacao(**self._campos(ac))
+
+        assert [d.pk for d in resultado] == [ac.pk]
+
+    def test_ordena_do_mais_recente_e_acessa_cliente_sem_query_extra(
+        self, _fks_acionamento, django_assert_num_queries
+    ):
+        """4 — ordem DESC por criado_em e select_related de cliente: avaliar o
+        queryset e ler o cliente de cada item cabe em UMA query."""
+        cliente, responsavel, agente = _fks_acionamento
+        # Datas FIXADAS: o helper gera as suas com timezone.now() interno a
+        # cada chamada — sem fixar, os dois registros divergiriam nos campos
+        # de comparação por microssegundos.
+        base = timezone.now()
+        datas = dict(
+            data_hora_solicitado=base,
+            data_hora_inicio=base + timedelta(minutes=30),
+            data_hora_final=base + timedelta(hours=3),
+        )
+        primeiro = _acionamento_valido(cliente, responsavel, agente, **datas)
+        primeiro.save()
+        segundo = _acionamento_valido(cliente, responsavel, agente, **datas)
+        segundo.save()
+        # criado_em é auto_now_add: recua o primeiro por update direto para a
+        # ordem não depender da resolução do relógio entre dois saves seguidos.
+        Acionamento.objects.filter(pk=primeiro.pk).update(
+            criado_em=timezone.now() - timedelta(minutes=5)
+        )
+
+        from controle_acionamentos.selectors import listar_duplicatas_para_criacao
+
+        with django_assert_num_queries(1):
+            duplicatas = list(
+                listar_duplicatas_para_criacao(**self._campos(primeiro))
+            )
+            nomes = [d.cliente.nome_empresa for d in duplicatas]
+
+        assert [d.pk for d in duplicatas] == [segundo.pk, primeiro.pk]
+        assert nomes == [cliente.nome_empresa, cliente.nome_empresa]
+
+
+@pytest.mark.django_db
 def test_listar_acionamentos_filtra_por_intervalo_de_data(_fks_acionamento):
     """DD-016/M5 (AC-08.1) — filtro por intervalo de data_hora_solicitado com
     fronteiras inclusivas por DATA (lookup __date): um acionamento às 14h do
@@ -1815,6 +2054,46 @@ def test_acionamento_list_filtra_por_agente_via_get(
 
 
 @pytest.mark.django_db
+def test_acionamento_list_filtra_por_responsavel_via_get(
+    client, django_user_model, _fks_acionamento
+):
+    """ST2 pós go-live — a view lê ?responsavel= do GET, valida pelo
+    FiltroAcionamentosForm e repassa ao selector; espelho do filtro por
+    agente, mesma filosofia tolerante."""
+    cliente, responsavel_a, agente = _fks_acionamento
+    responsavel_b = ResponsavelAgente.objects.create(nome="Maria Supervisora")
+
+    ac_a = _acionamento_valido(cliente, responsavel_a, agente)
+    ac_a.save()
+    ac_b = _acionamento_valido(cliente, responsavel_b, agente)
+    ac_b.save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_list")
+    response = client.get(url, {"responsavel": responsavel_a.pk})
+
+    assert response.status_code == 200
+    assert [a.pk for a in response.context["acionamentos"]] == [ac_a.pk]
+
+
+@pytest.mark.django_db
+def test_acionamento_list_renderiza_campo_de_filtro_de_responsavel(
+    client, django_user_model
+):
+    """ST2 pós go-live — a barra de filtros da listagem renderiza o campo de
+    responsável (verificado pelo name do campo, nunca por markup frágil)."""
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    response = client.get(reverse("controle_acionamentos:acionamento_list"))
+
+    assert response.status_code == 200
+    assertContains(response, 'name="responsavel"')
+
+
+@pytest.mark.django_db
 @pytest.mark.parametrize(
     "data_de_str, data_ate_str",
     [
@@ -2087,6 +2366,31 @@ def test_acionamento_list_expoe_querystring_dos_filtros_sem_page(
     assert f"cliente={cliente.pk}" in querystring
     assert "status=com" in querystring
     # O page NÃO entra na base — o template o injeta com o valor novo.
+    assert "page=" not in querystring
+
+
+@pytest.mark.django_db
+def test_acionamento_list_querystring_dos_filtros_preserva_responsavel(
+    client, django_user_model, _fks_acionamento
+):
+    """ST2 pós go-live — IRMÃO de
+    test_acionamento_list_expoe_querystring_dos_filtros_sem_page (não estendido
+    para aquele seguir verde na fase RED): o responsavel sobrevive na base de
+    querystring que alimenta paginação e link de exportação, sem o page."""
+    cliente, responsavel, agente = _fks_acionamento
+    _acionamento_valido(cliente, responsavel, agente).save()
+
+    user = _user_com_perms(django_user_model, "view_acionamento")
+    client.force_login(user)
+
+    url = reverse("controle_acionamentos:acionamento_list")
+    response = client.get(
+        url, {"responsavel": responsavel.pk, "status": "com", "page": 2}
+    )
+
+    assert response.status_code == 200
+    querystring = response.context["filtros_querystring"]
+    assert f"responsavel={responsavel.pk}" in querystring
     assert "page=" not in querystring
 
 
@@ -6393,6 +6697,202 @@ def test_post_create_sem_servico_nao_cria(
     assert Acionamento.objects.count() == 0
 
 
+# --- DD-084/ST3 — aviso de duplicidade no acionamento_create (view) ---------
+# Fase RED: a view ainda não consulta listar_duplicatas_para_criacao nem
+# conhece a flag confirmar_duplicidade. Datas ancoradas SEM segundos: o
+# payload viaja em '%Y-%m-%dT%H:%M' (precisão de minuto) e a comparação de
+# duplicata é por igualdade EXATA — segundos no preexistente quebrariam o
+# round-trip.
+
+
+@pytest.mark.django_db
+class TestAvisoDuplicidadeNaCriacao:
+    """POST do create passa a consultar duplicatas (mesmos cliente, kms e
+    horários de início/fim): sem flag, re-renderiza com aviso e NÃO persiste;
+    com confirmar_duplicidade=1, cria normalmente."""
+
+    def _arrange(self, django_user_model, _fks_acionamento):
+        """Cliente/serviço/molde com datas fixas + usuário com add logado.
+        Devolve (cliente, responsavel, agente, datas, payload)."""
+        cliente, responsavel, agente = _fks_acionamento
+        servico = _servico_distinto(cliente)
+        base = _base_sem_microssegundos()
+        datas = dict(
+            data_hora_solicitado=base,
+            data_hora_inicio=base + timedelta(minutes=30),
+            data_hora_final=base + timedelta(hours=3),
+        )
+        molde = _acionamento_valido(cliente, responsavel, agente, **datas)
+        payload = _post_payload_acionamento(molde, servico_cliente=servico.pk)
+        return cliente, responsavel, agente, datas, payload
+
+    def test_post_sem_duplicata_preexistente_cria_e_redireciona(
+        self, client, django_user_model, _fks_acionamento
+    ):
+        """1 — guarda de regressão: sem nenhum igual no banco, o fluxo atual
+        permanece (cria e redireciona), sem contexto de duplicata."""
+        *_, payload = self._arrange(django_user_model, _fks_acionamento)
+        client.force_login(_user_com_perms(django_user_model, "add_acionamento"))
+        antes = Acionamento.objects.count()
+
+        response = client.post(
+            reverse("controle_acionamentos:acionamento_create"), payload
+        )
+
+        assert response.status_code == 302
+        assert Acionamento.objects.count() == antes + 1
+        # 302 = sem re-render: não existe contexto (nem chave duplicata).
+        assert response.context is None
+
+    def test_post_com_duplicata_reexibe_aviso_e_nao_persiste(
+        self, client, django_user_model, _fks_acionamento
+    ):
+        """2 — coração da feature: POST válido igual a um preexistente nos 5
+        campos, SEM a flag → 200 re-renderizando com a duplicata no contexto
+        e NADA persistido."""
+        cliente, responsavel, agente, datas, payload = self._arrange(
+            django_user_model, _fks_acionamento
+        )
+        preexistente = _acionamento_valido(cliente, responsavel, agente, **datas)
+        preexistente.save()
+        client.force_login(_user_com_perms(django_user_model, "add_acionamento"))
+        antes = Acionamento.objects.count()
+
+        response = client.post(
+            reverse("controle_acionamentos:acionamento_create"), payload
+        )
+
+        assert response.status_code == 200
+        assert response.context["duplicata"] == preexistente
+        assert response.context["total_duplicatas"] == 1
+        assert Acionamento.objects.count() == antes
+
+    def test_post_com_flag_confirmar_cria_mesmo_com_duplicata(
+        self, client, django_user_model, _fks_acionamento
+    ):
+        """3 — guarda da confirmação: mesmo cenário do 2, mas o POST leva
+        confirmar_duplicidade=1 → cria e redireciona."""
+        cliente, responsavel, agente, datas, payload = self._arrange(
+            django_user_model, _fks_acionamento
+        )
+        _acionamento_valido(cliente, responsavel, agente, **datas).save()
+        payload["confirmar_duplicidade"] = "1"
+        client.force_login(_user_com_perms(django_user_model, "add_acionamento"))
+        antes = Acionamento.objects.count()
+
+        response = client.post(
+            reverse("controle_acionamentos:acionamento_create"), payload
+        )
+
+        assert response.status_code == 302
+        assert Acionamento.objects.count() == antes + 1
+
+    def test_post_com_duas_duplicatas_expoe_a_mais_recente_e_o_total(
+        self, client, django_user_model, _fks_acionamento
+    ):
+        """4 — com DUAS duplicatas, o contexto traz a mais RECENTE por
+        criado_em (ordem do selector) e total_duplicatas=2, sem persistir."""
+        cliente, responsavel, agente, datas, payload = self._arrange(
+            django_user_model, _fks_acionamento
+        )
+        antiga = _acionamento_valido(cliente, responsavel, agente, **datas)
+        antiga.save()
+        recente = _acionamento_valido(cliente, responsavel, agente, **datas)
+        recente.save()
+        # criado_em é auto_now_add: recua a antiga por update direto (mesmo
+        # arranjo do teste do selector) para a ordem ser determinística.
+        Acionamento.objects.filter(pk=antiga.pk).update(
+            criado_em=timezone.now() - timedelta(minutes=5)
+        )
+        client.force_login(_user_com_perms(django_user_model, "add_acionamento"))
+        antes = Acionamento.objects.count()
+
+        response = client.post(
+            reverse("controle_acionamentos:acionamento_create"), payload
+        )
+
+        assert response.status_code == 200
+        assert response.context["duplicata"] == recente
+        assert response.context["total_duplicatas"] == 2
+        assert Acionamento.objects.count() == antes
+
+    def test_aviso_tem_botao_de_confirmacao_no_form(
+        self, client, django_user_model, _fks_acionamento
+    ):
+        """5 — o re-render do aviso traz o botão que reenvia o MESMO POST com a
+        flag: name="confirmar_duplicidade", value="1" e o texto de ação
+        'Criar mesmo assim' (dentro do form de criação, que é o único form da
+        página — o reenvio carrega os campos preenchidos junto)."""
+        cliente, responsavel, agente, datas, payload = self._arrange(
+            django_user_model, _fks_acionamento
+        )
+        _acionamento_valido(cliente, responsavel, agente, **datas).save()
+        client.force_login(_user_com_perms(django_user_model, "add_acionamento"))
+
+        response = client.post(
+            reverse("controle_acionamentos:acionamento_create"), payload
+        )
+
+        assert response.status_code == 200
+        conteudo = response.content.decode()
+        # Substring ÚNICA com os dois atributos juntos, nessa ordem — contrato
+        # com o template que o GREEN vai escrever. value="1" isolado seria
+        # satisfeito por qualquer <option> de select de FK da página.
+        assert 'name="confirmar_duplicidade" value="1"' in conteudo
+        assert "Criar mesmo assim" in conteudo
+
+    def test_aviso_tem_link_para_o_detalhe_da_duplicata(
+        self, client, django_user_model, _fks_acionamento
+    ):
+        """6 — o aviso linka o DETALHE da duplicata exibida (href montado com
+        reverse de acionamento_detail, nunca URL hardcoded)."""
+        cliente, responsavel, agente, datas, payload = self._arrange(
+            django_user_model, _fks_acionamento
+        )
+        preexistente = _acionamento_valido(cliente, responsavel, agente, **datas)
+        preexistente.save()
+        client.force_login(_user_com_perms(django_user_model, "add_acionamento"))
+
+        response = client.post(
+            reverse("controle_acionamentos:acionamento_create"), payload
+        )
+
+        assert response.status_code == 200
+        url_detalhe = reverse(
+            "controle_acionamentos:acionamento_detail", args=[preexistente.pk]
+        )
+        assert f'href="{url_detalhe}"' in response.content.decode()
+
+    def test_aviso_menciona_e_mais_1_somente_com_multiplas_duplicatas(
+        self, client, django_user_model, _fks_acionamento
+    ):
+        """7 — com DUAS duplicatas o aviso complementa com 'e mais 1'; com UMA
+        apenas, o texto NÃO aparece (espelho no mesmo teste)."""
+        cliente, responsavel, agente, datas, payload = self._arrange(
+            django_user_model, _fks_acionamento
+        )
+        _acionamento_valido(cliente, responsavel, agente, **datas).save()
+        extra = _acionamento_valido(cliente, responsavel, agente, **datas)
+        extra.save()
+        client.force_login(_user_com_perms(django_user_model, "add_acionamento"))
+
+        response = client.post(
+            reverse("controle_acionamentos:acionamento_create"), payload
+        )
+
+        assert response.status_code == 200
+        assert "e mais 1" in response.content.decode()
+
+        # Espelho: removida a extra, resta UMA duplicata — sem o complemento.
+        extra.delete()
+        response = client.post(
+            reverse("controle_acionamentos:acionamento_create"), payload
+        )
+
+        assert response.status_code == 200
+        assert "e mais 1" not in response.content.decode()
+
+
 @pytest.mark.django_db
 def test_acionamento_legado_sem_servico_e_valido_e_pendente(_fks_acionamento):
     """6 — acionamento legado SEM serviço continua VÁLIDO (full_clean passa);
@@ -7790,6 +8290,134 @@ def test_exportar_filtro_de_datas_restringe_linhas(
 
 
 @pytest.mark.django_db
+def test_exportar_filtro_de_responsavel_restringe_linhas(
+    client, django_user_model, _fks_acionamento
+):
+    """ST2 pós go-live — ?responsavel= na querystring do export (mesmo
+    parâmetro da listagem) restringe as LINHAS da planilha às daquele
+    responsável; a linha do outro responsável não sai."""
+    cliente, responsavel_a, agente = _fks_acionamento
+    responsavel_b = ResponsavelAgente.objects.create(nome="Maria Supervisora")
+    base = _base_sem_microssegundos()
+    _acionamento_em(
+        cliente, responsavel_a, agente, base, origem="Origem do Resp A"
+    ).save()
+    _acionamento_em(
+        cliente, responsavel_b, agente, base, origem="Origem do Resp B"
+    ).save()
+    client.force_login(_user_com_perms(django_user_model, "view_acionamento"))
+
+    response = client.get(
+        reverse("controle_acionamentos:acionamento_exportar"),
+        {"responsavel": responsavel_a.pk},
+    )
+
+    ws = _workbook_da_resposta(response)["ACME"]
+    valores = [c.value for linha in ws.iter_rows() for c in linha]
+    assert "Origem do Resp A" in valores
+    assert "Origem do Resp B" not in valores
+
+
+# --- Mini-ciclo ST2 — nome do arquivo da exportação reflete os filtros ativos.
+# Função PURA em services.py (montar_nome_arquivo_exportacao): recebe o dict de
+# filtros validados (formato do _filtros_da_listagem) e devolve o nome SEM
+# extensão. Segmentos em ordem fixa cliente/agente/resp/periodo/status,
+# separados por "_"; identidade dos objetos via str() (mesmo mecanismo do nome
+# das abas); slugify do Django; datas dd-mm-aaaa. Sem filtro = base atual
+# (caracterização já fixada em test_exportar_retorna_xlsx_como_attachment).
+# Fase RED: a função ainda não existe → ImportError (import local ao teste).
+
+
+def _filtros_exportacao(**overrides):
+    """Dict de filtros no formato da view, tudo None por default."""
+    filtros = {
+        "cliente": None,
+        "agente": None,
+        "responsavel": None,
+        "data_de": None,
+        "data_ate": None,
+        "com_franquia": None,
+    }
+    filtros.update(overrides)
+    return filtros
+
+
+def test_nome_arquivo_exportacao_sem_filtros_devolve_base():
+    from controle_acionamentos.services import montar_nome_arquivo_exportacao
+
+    nome = montar_nome_arquivo_exportacao(_filtros_exportacao())
+
+    assert nome == "pagamentos_agentes"
+
+
+def test_nome_arquivo_exportacao_com_responsavel_acrescenta_resp_slug():
+    from controle_acionamentos.services import montar_nome_arquivo_exportacao
+
+    filtros = _filtros_exportacao(
+        responsavel=ResponsavelAgente(nome="João Supervisor")
+    )
+    nome = montar_nome_arquivo_exportacao(filtros)
+
+    assert nome == "pagamentos_agentes_resp-joao-supervisor"
+
+
+def test_nome_arquivo_exportacao_slug_limpa_acentos_e_espacos():
+    from controle_acionamentos.services import montar_nome_arquivo_exportacao
+
+    filtros = _filtros_exportacao(
+        responsavel=ResponsavelAgente(nome="José Antônio dos Reis")
+    )
+    nome = montar_nome_arquivo_exportacao(filtros)
+
+    assert nome == "pagamentos_agentes_resp-jose-antonio-dos-reis"
+
+
+def test_nome_arquivo_exportacao_todos_os_filtros_na_ordem_fixa():
+    from datetime import date
+
+    from controle_acionamentos.services import montar_nome_arquivo_exportacao
+
+    filtros = _filtros_exportacao(
+        cliente=Cliente(nome_empresa="ACME Logística"),
+        agente=Agente(nome="Carlos Agente"),
+        responsavel=ResponsavelAgente(nome="João Supervisor"),
+        data_de=date(2026, 6, 23),
+        data_ate=date(2026, 6, 25),
+        com_franquia=True,
+    )
+    nome = montar_nome_arquivo_exportacao(filtros)
+
+    assert nome == (
+        "pagamentos_agentes"
+        "_cliente-acme-logistica"
+        "_agente-carlos-agente"
+        "_resp-joao-supervisor"
+        "_de-23-06-2026"
+        "_ate-25-06-2026"
+        "_com-franquia"
+    )
+
+
+@pytest.mark.django_db
+def test_exportar_content_disposition_reflete_filtro_de_responsavel(
+    client, django_user_model, _fks_acionamento
+):
+    """Mini-ciclo ST2 — com ?responsavel= na querystring, o nome do arquivo no
+    Content-Disposition ganha o segmento resp-<slug do responsável>."""
+    cliente, responsavel, agente = _fks_acionamento  # responsável "João Supervisor"
+    _acionamento_em(cliente, responsavel, agente, _base_sem_microssegundos()).save()
+    client.force_login(_user_com_perms(django_user_model, "view_acionamento"))
+
+    response = client.get(
+        reverse("controle_acionamentos:acionamento_exportar"),
+        {"responsavel": responsavel.pk},
+    )
+
+    assert response.status_code == 200
+    assert "resp-joao-supervisor" in response["Content-Disposition"]
+
+
+@pytest.mark.django_db
 def test_exportar_cabecalho_tem_as_30_colunas_da_planilha(
     client, django_user_model, _fks_acionamento
 ):
@@ -8241,3 +8869,18 @@ def test_comando_converge_grupo_com_permissao_intrusa():
     grupo.refresh_from_db()
     assert _codenames_do_grupo(grupo) == _PERMS_OPERACAO
     assert "delete_acionamento" not in _codenames_do_grupo(grupo)
+
+
+# ---------------------------------------------------------------
+# Cache busting do tema.css (sem card — decisão do Murilo)
+# ---------------------------------------------------------------
+@pytest.mark.django_db
+def test_tema_css_linkado_com_parametro_de_versao(client, django_user_model):
+    """O link do tema.css em _tema_assets.html deve carregar o parâmetro de
+    versão (?v=) — cache busting. Protege o sufixo de ser removido sem querer:
+    se alguém tirar o ?v=1 do template, este teste quebra."""
+    client.force_login(_usuario_com_view_cliente(django_user_model))
+    response = client.get(reverse("controle_acionamentos:cliente_list"))
+
+    assert response.status_code == 200
+    assertContains(response, "tema.css?v=")

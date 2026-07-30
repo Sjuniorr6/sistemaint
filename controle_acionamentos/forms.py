@@ -186,6 +186,12 @@ class FiltroAcionamentosForm(forms.Form):
         required=False,
         widget=forms.Select(attrs={"class": "form-select"}),
     )
+    # ST2 pós go-live — filtro por responsável, espelho de cliente/agente.
+    responsavel = forms.ModelChoiceField(
+        queryset=ResponsavelAgente.objects.all(),
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
     # ISO = o que o <input type="date"> envia; dd/mm/aaaa = URL digitada à brasileira.
     data_de = forms.DateField(
         required=False,

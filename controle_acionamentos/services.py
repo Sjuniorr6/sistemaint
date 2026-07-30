@@ -12,7 +12,7 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from django.core.exceptions import FieldDoesNotExist, ValidationError
 from django.db import transaction
 from django.utils import timezone
-from django.utils.text import capfirst
+from django.utils.text import capfirst, slugify
 
 
 def _so_digitos(documento: str) -> list[int]:
@@ -964,6 +964,32 @@ def formatar_valor_trilha(campo, texto, nomes_franquias):
     except (InvalidOperation, ValueError, TypeError):
         return texto
     return texto
+
+
+def montar_nome_arquivo_exportacao(filtros):
+    """Mini-ciclo ST2 — nome do arquivo da exportação, SEM extensão: base
+    pagamentos_agentes + um segmento por filtro ativo, na ordem fixa
+    cliente/agente/resp/de/ate/status, unidos por "_". Identidade dos objetos
+    via str() + slugify (mesmo mecanismo do nome das abas); datas dd-mm-aaaa.
+    PURA: lê o dict de filtros validados da view (formato do
+    _filtros_da_listagem), sem importar models.
+    """
+    segmentos = ["pagamentos_agentes"]
+    if filtros.get("cliente") is not None:
+        segmentos.append(f"cliente-{slugify(str(filtros['cliente']))}")
+    if filtros.get("agente") is not None:
+        segmentos.append(f"agente-{slugify(str(filtros['agente']))}")
+    if filtros.get("responsavel") is not None:
+        segmentos.append(f"resp-{slugify(str(filtros['responsavel']))}")
+    if filtros.get("data_de") is not None:
+        segmentos.append(f"de-{filtros['data_de'].strftime('%d-%m-%Y')}")
+    if filtros.get("data_ate") is not None:
+        segmentos.append(f"ate-{filtros['data_ate'].strftime('%d-%m-%Y')}")
+    if filtros.get("com_franquia") is not None:
+        segmentos.append(
+            "com-franquia" if filtros["com_franquia"] else "sem-franquia"
+        )
+    return "_".join(segmentos)
 
 
 # --- Backlog pós-DD-070 item 3: exportação Excel dos pagamentos de agentes ---

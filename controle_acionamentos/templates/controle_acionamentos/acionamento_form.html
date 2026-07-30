@@ -229,6 +229,81 @@
       </div>
     </div>
 
+    {% if duplicata %}
+    {% comment %}
+      DD-084/ST3 — aviso de duplicidade (mockups dd084_st3_aviso_duplicidade_*):
+      só renderiza quando o POST válido encontrou preexistente igual nos 5
+      campos. Fica DENTRO do form: o botão "Criar mesmo assim" reenvia o MESMO
+      POST acrescido de confirmar_duplicidade=1 (ordem name/value é contrato
+      com o teste 5). Cores 100% por variáveis do tema (tema.css).
+    {% endcomment %}
+    {% comment %}
+      Guarda da tecla Enter: Enter num campo dispara o PRIMEIRO submit do
+      form; este botão neutro (sem name/value, invisível) garante que a
+      submissão implícita vá SEM a flag — re-roda a detecção em vez de
+      confirmar sem querer.
+    {% endcomment %}
+    <button type="submit" class="d-none" tabindex="-1" aria-hidden="true"></button>
+    <div class="acn-aviso-duplicidade mb-3" id="acn-aviso-duplicidade">
+      <div class="acn-aviso-duplicidade-titulo">
+        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+        <span>Possível duplicidade</span>
+      </div>
+      <p class="acn-aviso-duplicidade-texto">
+        Já existe um acionamento deste cliente com os mesmos KM inicial e
+        final e os mesmos horários de início e fim:
+      </p>
+
+      <div class="acn-aviso-duplicidade-card">
+        <div class="acn-aviso-duplicidade-cabecalho">
+          <span class="acn-mono fw-semibold">{{ duplicata.codigo }}</span>
+          <a href="{% url 'controle_acionamentos:acionamento_detail' duplicata.pk %}"
+             target="_blank" rel="noopener">
+            Abrir detalhe <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+          </a>
+        </div>
+        <div class="acn-aviso-duplicidade-grade">
+          <div>
+            <span class="acn-aviso-duplicidade-rotulo">Cliente</span>
+            {{ duplicata.cliente }}
+          </div>
+          <div>
+            <span class="acn-aviso-duplicidade-rotulo">KM inicial / final</span>
+            {{ duplicata.km_inicio }} / {{ duplicata.km_final }}
+          </div>
+          <div>
+            <span class="acn-aviso-duplicidade-rotulo">Início</span>
+            {{ duplicata.data_hora_inicio|date:"d/m/Y H:i" }}
+          </div>
+          <div>
+            <span class="acn-aviso-duplicidade-rotulo">Fim</span>
+            {{ duplicata.data_hora_final|date:"d/m/Y H:i" }}
+          </div>
+        </div>
+      </div>
+
+      {% if total_duplicatas > 1 %}
+        <p class="acn-aviso-duplicidade-texto">
+          e mais {{ total_duplicatas|add:"-1" }} acionamento{{ total_duplicatas|add:"-1"|pluralize }} com os mesmos dados
+        </p>
+      {% endif %}
+      <p class="acn-aviso-duplicidade-texto">
+        Nada foi criado ainda. O novo acionamento só é registrado ao confirmar.
+      </p>
+      <button type="submit" class="btn acn-btn-confirmar-duplicidade"
+              name="confirmar_duplicidade" value="1">
+        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i> Criar mesmo assim
+      </button>
+    </div>
+    {% comment %} O re-render do POST volta ao topo — rola até o aviso para o operador vê-lo. {% endcomment %}
+    <script>
+      (function () {
+        var aviso = document.getElementById('acn-aviso-duplicidade');
+        if (aviso) aviso.scrollIntoView({ block: 'center' });
+      })();
+    </script>
+    {% endif %}
+
     {# — Rodapé — #}
     <div class="acn-rodape-acao mt-4">
       <span>Os valores do cliente e do agente são calculados ao salvar e conferidos na tela de detalhe.</span>
