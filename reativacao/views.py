@@ -165,9 +165,19 @@ class ReativacaoListView(PermissionRequiredMixin, LoginRequiredMixin, View):
                 motivo_reativacao=motivo_reativacao_filtro
             )
 
+        # Dropdown de clientes: quando há filtro de status, mostra só os clientes
+        # que possuem reativação naquele status. 'reativacao_nome' é o related_name
+        # real da FK 'nome' em Reativacao; .distinct() evita cliente repetido quando
+        # ele tem várias reativações no mesmo status (o join gera uma linha por match).
+        clientes_choices = Clientes.objects.all()
+        if status_reativacao_filtro:
+            clientes_choices = clientes_choices.filter(
+                reativacao_nome__status_reativacao=status_reativacao_filtro
+            ).distinct()
+
         return render(request, 'reativacao_list.html', {
             'reativacoes': reativacoes,  # queryset completa
-            'clientes_choices': Clientes.objects.all(),
+            'clientes_choices': clientes_choices,
             'status_reativacao_choices': Reativacao.STATUS_CHOICES,
             'motivos_choices': Reativacao.MOTIVO_CHOICES,
         })
