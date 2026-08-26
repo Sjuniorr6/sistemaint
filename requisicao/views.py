@@ -2859,3 +2859,82 @@ def export_historico_excel(request):
 
 
 
+
+
+# ============================================================================
+# API DE REQUISIÇÕES — CLIENTE / DATA / QUANTIDADE / IDS
+# ============================================================================
+
+from django.core.paginator import Paginator
+from django.utils.dateparse import parse_date
+from rest_framework.decorators import permission_classes
+from rest_framework.permissions import IsAuthenticated
+
+
+def _ids_equipamentos(valor):
+    """Quebra o campo `id_equipamentos` na lista de IDs.
+
+    O campo é uma string livre com os IDs separados por espaço ou quebra de
+    linha — `.split()` sem argumento normaliza os dois casos e descarta
+    sobras em branco.
+    """
+    return valor.split() if valor else []
+
+
+def _quantidade(valor):
+    """`numero_de_equipamentos` é CharField livre: pode vir vazio ou não numérico."""
+    try:
+        return int(valor)
+    except (TypeError, ValueError):
+        return 0
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def api_requisicoes_ids(request):
+    """Requisições geradas pelo sistema: cliente, data, quantidade e IDs.
+
+    Filtros (querystring, todos opcionais):
+      - `cliente`    — busca parcial no nome do cliente
+      - `data_inicio`, `data_fim` — `YYYY-MM-DD`, inclusivos
+      - `page`, `page_size` — paginação (page_size máximo 500)
+    """
+    requisicoes = Requisicoes.objects.select_related("nome").order_by("-id")
+
+    cliente = request.GET.get("cliente", "").strip()
+    if cliente:
+        requisicoes = requisicoes.filter(nome__nome__icontains=cliente)
+
+    data_inicio = parse_date(request.GET.get("data_inicio", "") or "")
+    if data_inicio:
+        requisicoes = requisicoes.filter(data__date__gte=data_inicio)
+
+    data_fim = parse_date(request.GET.get("data_fim", "") or "")
+    if data_fim:
+        requisicoes = requisicoes.filter(data__date__lte=data_fim)
+
+    # Listagem sempre paginada: `id_equipamentos` chega a dezenas de milhares
+    # de caracteres por linha, então devolver o queryset inteiro estoura memória.
+    page_size = min(max(_quantidade(request.GET.get("page_size")) or 100, 1), 500)
+    paginator = Paginator(requisicoes, page_size)
+    pagina = paginator.get_page(request.GET.get("page") or 1)
+
+    dados = [
+        {
+            "id": req.id,
+            "cliente": req.nome.nome if req.nome else "",
+            "data": req.data.isoformat() if req.data else None,
+            "quantidade": _quantidade(req.numero_de_equipamentos),
+            "ids": _ids_equipamentos(req.id_equipamentos),
+        }
+        for req in pagina.object_list
+    ]
+
+    return Response(
+        {
+            "total": paginator.count,
+            "page": pagina.number,
+            "num_pages": paginator.num_pages,
+            "requisicoes": dados,
+        }
+    )

@@ -102,4 +102,5 @@ path('manutencao/configurado/<int:id>/', views.configurado_manutencao, name='con
     
     # API de Requisições
     path('api/requisicoes/', views.api_requisicoes, name='api_requisicoes'),
+    path('api/requisicoes/ids/', views.api_requisicoes_ids, name='api_requisicoes_ids'),
 ]
