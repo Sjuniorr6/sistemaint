@@ -52,6 +52,7 @@ def test_retorna_cliente_data_quantidade_e_ids(cliente_api, url, cliente_acme, p
         cliente_acme,
         produto,
         numero_de_equipamentos="3",
+        contrato="Retornavel",
         id_equipamentos="  ID-001   ID-002\nID-003 ",
     )
 
@@ -61,9 +62,37 @@ def test_retorna_cliente_data_quantidade_e_ids(cliente_api, url, cliente_acme, p
     (item,) = corpo["requisicoes"]
     assert item["cliente"] == "ACME LTDA"
     assert item["quantidade"] == 3
+    assert item["contrato"] == "Retornavel"
     # A string de ids é separada por espaços/quebras — o split normaliza ambos.
     assert item["ids"] == ["ID-001", "ID-002", "ID-003"]
     assert item["data"]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "gravado, esperado",
+    [("Retornavel", "Retornavel"), ("Descartavel", "Descartavel"), (None, ""), ("", "")],
+)
+def test_contrato_reflete_o_gravado_e_nunca_devolve_nulo(
+    cliente_api, url, cliente_acme, produto, gravado, esperado
+):
+    _requisicao(cliente_acme, produto, contrato=gravado)
+
+    (item,) = cliente_api.get(url).json()["requisicoes"]
+
+    assert item["contrato"] == esperado
+
+
+@pytest.mark.django_db
+def test_filtra_por_contrato(cliente_api, url, cliente_acme, produto):
+    _requisicao(cliente_acme, produto, contrato="Retornavel")
+    _requisicao(cliente_acme, produto, contrato="Descartavel")
+    _requisicao(cliente_acme, produto, contrato=None)
+
+    corpo = cliente_api.get(url, {"contrato": "retornavel"}).json()
+
+    assert corpo["total"] == 1
+    assert corpo["requisicoes"][0]["contrato"] == "Retornavel"
 
 
 @pytest.mark.django_db

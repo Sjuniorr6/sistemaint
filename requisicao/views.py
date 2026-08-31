@@ -2892,10 +2892,11 @@ def _quantidade(valor):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def api_requisicoes_ids(request):
-    """Requisições geradas pelo sistema: cliente, data, quantidade e IDs.
+    """Requisições geradas pelo sistema: cliente, data, quantidade, contrato e IDs.
 
     Filtros (querystring, todos opcionais):
       - `cliente`    — busca parcial no nome do cliente
+      - `contrato`   — `Retornavel` ou `Descartavel` (ignora maiúsculas)
       - `data_inicio`, `data_fim` — `YYYY-MM-DD`, inclusivos
       - `page`, `page_size` — paginação (page_size máximo 500)
     """
@@ -2904,6 +2905,10 @@ def api_requisicoes_ids(request):
     cliente = request.GET.get("cliente", "").strip()
     if cliente:
         requisicoes = requisicoes.filter(nome__nome__icontains=cliente)
+
+    contrato = request.GET.get("contrato", "").strip()
+    if contrato:
+        requisicoes = requisicoes.filter(contrato__iexact=contrato)
 
     data_inicio = parse_date(request.GET.get("data_inicio", "") or "")
     if data_inicio:
@@ -2925,6 +2930,7 @@ def api_requisicoes_ids(request):
             "cliente": req.nome.nome if req.nome else "",
             "data": req.data.isoformat() if req.data else None,
             "quantidade": _quantidade(req.numero_de_equipamentos),
+            "contrato": req.contrato or "",
             "ids": _ids_equipamentos(req.id_equipamentos),
         }
         for req in pagina.object_list

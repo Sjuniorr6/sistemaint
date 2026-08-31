@@ -33,6 +33,7 @@ Todos são opcionais e combináveis na querystring.
 | Parâmetro | Formato | Descrição |
 |---|---|---|
 | `cliente` | texto | Filtra pelo nome do cliente. Busca parcial, ignora maiúsculas/minúsculas. |
+| `contrato` | `Retornavel` \| `Descartavel` | Filtra pelo tipo de isca. Ignora maiúsculas/minúsculas. Sem acento. |
 | `data_inicio` | `AAAA-MM-DD` | Só requisições criadas a partir desta data (inclusive). |
 | `data_fim` | `AAAA-MM-DD` | Só requisições criadas até esta data (inclusive). |
 | `page` | inteiro | Página desejada. Padrão `1`. |
@@ -56,6 +57,7 @@ gera erro.
       "cliente": "ACME LOGISTICA LTDA",
       "data": "2026-08-26T14:30:05.123456-03:00",
       "quantidade": 3,
+      "contrato": "Retornavel",
       "ids": ["ID-001", "ID-002", "ID-003"]
     }
   ]
@@ -73,6 +75,7 @@ gera erro.
 | `requisicoes[].cliente` | texto | Nome do cliente. String vazia se não houver. |
 | `requisicoes[].data` | texto ISO-8601 | Data/hora de criação, fuso `America/Sao_Paulo` (`-03:00`). |
 | `requisicoes[].quantidade` | inteiro | Quantidade de equipamentos **solicitada**. |
+| `requisicoes[].contrato` | texto | Tipo de isca: `Retornavel` ou `Descartavel`. String vazia quando não preenchida. |
 | `requisicoes[].ids` | lista de texto | IDs dos equipamentos vinculados. Lista vazia se ainda não configurada. |
 
 ### Dois pontos que evitam interpretação errada
@@ -84,6 +87,11 @@ não `quantidade`.
 
 **`total` é do filtro inteiro, não da página.** Para paginar até o fim, itere
 enquanto `page < num_pages` — não compare com o tamanho de `requisicoes`.
+
+**`contrato` pode vir vazio.** Os valores são `Retornavel` e `Descartavel`
+(sem acento, como estão gravados), mas uma minoria de requisições antigas
+está com o campo em branco — hoje 15 de 3112. Trate `""` como "não
+informado", não presuma um dos dois.
 
 ---
 
