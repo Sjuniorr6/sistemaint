@@ -56,6 +56,7 @@ class Requisicoes(models.Model):
         ('Sem Custo', 'Sem Custo'),
         ('Dados invalidos', 'Dados invalidos'),
         ('Reprovado Pelo CEO','Reprovado Pelo CEO'),
+        ('Cancelado', 'Cancelado'),
     ]
     motivoc = [
         ('Tipo de Faturamento', 'Tipo de Faturamento'),
