@@ -1,0 +1,156 @@
+{% extends "iscas/base_iscas.html" %}
+{% comment %}Painel operacional (ISC-RF-38).{% endcomment %}
+{% block titulo_iscas %}Painel{% endblock %}
+
+{% block iscas_conteudo %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h1 class="h3 mb-0">Painel operacional</h1>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{% url 'iscas:solicitacao_criar' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Nova solicitação</a>
+    <a href="{% url 'iscas:entrada' %}" class="btn btn-outline-light btn-sm"><i class="bi bi-box-arrow-in-down"></i> Entrada de estoque</a>
+  </div>
+</div>
+
+{% if sem_deposito %}
+  <div class="alert alert-warning py-3">
+    <h6 class="mb-2"><i class="bi bi-exclamation-triangle"></i> Nenhum depósito cadastrado</h6>
+    <p class="mb-2 small">
+      O depósito é o ponto de estoque da empresa (matriz, filial, almoxarifado): onde o
+      equipamento novo dá entrada antes de ir para os agentes, e para onde as iscas
+      retornáveis voltam quando o cliente devolve.
+    </p>
+    <a href="{% url 'iscas:deposito_criar' %}" class="btn btn-warning btn-sm">
+      <i class="bi bi-plus-lg"></i> Cadastrar depósito
+    </a>
+  </div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="card iscas-card h-100"><div class="card-body">
+      <div class="iscas-rotulo">Em campo (agentes)</div>
+      <div class="iscas-metrica text-info">{{ total_em_campo }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card iscas-card h-100"><div class="card-body">
+      <div class="iscas-rotulo">Em depósito</div>
+      <div class="iscas-metrica">{{ total_em_deposito }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card iscas-card h-100"><div class="card-body">
+      <div class="iscas-rotulo">Solicitações abertas</div>
+      <div class="iscas-metrica text-warning">{{ solicitacoes_abertas }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card iscas-card h-100"><div class="card-body">
+      <div class="iscas-rotulo">Retornáveis com cliente</div>
+      <div class="iscas-metrica">{{ retornaveis_com_cliente }}</div>
+      {% if retornaveis_atrasados %}
+        <a href="{% url 'iscas:retornaveis' %}" class="small text-danger text-decoration-none">
+          {{ retornaveis_atrasados }} há mais de {{ config.dias_alerta_retornavel }} dias
+        </a>
+      {% endif %}
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-lg-6">
+    <div class="card iscas-card h-100">
+      <div class="card-header">Unidades por situação</div>
+      <div class="card-body p-0 tabela-rolavel">
+        <table class="table table-dark table-sm iscas-tabela mb-0">
+          <tbody>
+          {% for situacao, total in por_situacao.items %}
+            <tr>
+              <td>{{ situacao }}</td>
+              <td class="text-end fw-bold">{{ total }}</td>
+            </tr>
+          {% empty %}
+            <tr><td class="text-muted">Nenhuma unidade cadastrada ainda.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-6">
+    <div class="card iscas-card h-100">
+      <div class="card-header">
+        Em rota há mais de {{ config.horas_alerta_em_rota }}h
+        <span class="text-muted small fw-normal">— pendência de registro</span>
+      </div>
+      <div class="card-body p-0 tabela-rolavel">
+        <table class="table table-dark table-sm iscas-tabela mb-0">
+          <tbody>
+          {% for atribuicao in em_rota_paradas %}
+            <tr>
+              <td>
+                <a href="{% url 'iscas:solicitacao_detalhe' atribuicao.solicitacao_id %}">
+                  #{{ atribuicao.solicitacao_id }}
+                </a>
+                — {{ atribuicao.agente.nome }}
+              </td>
+              <td class="text-end small text-warning">desde {{ atribuicao.em_rota_em|date:"d/m H:i" }}</td>
+            </tr>
+          {% empty %}
+            <tr><td class="text-muted">Nada parado em rota.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-6">
+    <div class="card iscas-card h-100">
+      <div class="card-header">Agentes com saldo abaixo de {{ config.saldo_minimo_alerta }}</div>
+      <div class="card-body p-0 tabela-rolavel">
+        <table class="table table-dark table-sm iscas-tabela mb-0">
+          <tbody>
+          {% for linha in agentes_saldo_baixo %}
+            <tr>
+              <td><a href="{% url 'iscas:agente_detalhe' linha.agente.pk %}">{{ linha.agente.nome }}</a></td>
+              <td class="text-end">{{ linha.disponivel }} disponível(is)</td>
+            </tr>
+          {% empty %}
+            <tr><td class="text-muted">Todos os agentes com saldo adequado.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-6">
+    <div class="card iscas-card h-100">
+      <div class="card-header text-warning">
+        <i class="bi bi-exclamation-triangle"></i> Agentes sem coordenada
+      </div>
+      <div class="card-body p-0 tabela-rolavel">
+        <table class="table table-dark table-sm iscas-tabela mb-0">
+          <tbody>
+          {% for agente in agentes_sem_coordenada %}
+            <tr>
+              <td><a href="{% url 'iscas:agente_detalhe' agente.pk %}">{{ agente.nome }}</a></td>
+              <td class="text-end small text-muted">{{ agente.cidade }}/{{ agente.uf }}</td>
+            </tr>
+          {% empty %}
+            <tr><td class="text-muted">Todos os agentes estão no mapa.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% if agentes_sem_coordenada %}
+          <div class="p-2 small text-muted border-top border-secondary">
+            Estes agentes não aparecem na busca por proximidade. Ajuste o pin na ficha de cada um.
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

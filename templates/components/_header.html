@@ -313,6 +313,15 @@
                     </li>
                     {% endif %}
 
+                    <!-- Iscas Fast (grupo "Operadores Iscas") -->
+                    {% if user.is_superuser or user|has_group:"Operadores Iscas" %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'iscas:painel' %}">
+                            <i class="bi bi-geo-alt-fill"></i> Iscas Fast
+                        </a>
+                    </li>
+                    {% endif %}
+
                     <!-- Compras -->
                     <!-- <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="dropdownCompras" role="button" data-bs-toggle="dropdown" aria-expanded="false">

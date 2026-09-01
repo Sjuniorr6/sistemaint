@@ -1,0 +1,212 @@
+{% extends "iscas/base_iscas.html" %}
+{% comment %}
+Envio para manutenção (ISC-RF-13, ISC-RN-14).
+
+Mesma seleção unitária da baixa: o operador escolhe as iscas específicas num
+TomSelect alimentado pelo endpoint da custódia. Saber qual peça foi para o
+conserto — e qual voltou — depende do identificador.
+{% endcomment %}
+{% block titulo_iscas %}Manutenção{% endblock %}
+
+{% block iscas_conteudo %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css">
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+
+<style>
+  /* O TomSelect vem com paleta clara; alinhamos às superfícies do app. */
+  .ts-wrapper .ts-control {
+    background: #1e2227; border-color: var(--iscas-borda); color: var(--iscas-texto);
+  }
+  .ts-wrapper.focus .ts-control { border-color: var(--iscas-azul); }
+  .ts-dropdown {
+    background: #21252a; color: var(--iscas-texto); border-color: var(--iscas-borda);
+  }
+  .ts-dropdown .option:hover, .ts-dropdown .active { background: #363d45; color: #fff; }
+  .ts-control .item {
+    background: #2f3740 !important; color: var(--iscas-texto) !important;
+    border: 1px solid var(--iscas-borda);
+  }
+  .ts-control input { color: var(--iscas-texto) !important; }
+  [x-cloak] { display: none !important; }
+</style>
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h1 class="h3 mb-0">Enviar para manutenção</h1>
+  <a href="{% url 'iscas:manutencao_retorno' %}" class="btn btn-outline-light btn-sm">
+    <i class="bi bi-arrow-return-left"></i> Registrar retorno da manutenção
+  </a>
+</div>
+
+<div class="alert alert-secondary py-2 small">
+  Manutenção <strong>não é baixa</strong>: a unidade sai do saldo disponível, mas o ciclo é
+  reversível — ela volta ao estoque pelo registro de retorno.
+</div>
+
+<form method="post" novalidate x-data="envioManutencao()">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <div class="alert alert-danger py-2">
+      {% for erro in form.non_field_errors %}<div>{{ erro }}</div>{% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="card iscas-card mb-3">
+    <div class="card-header">Onde está o equipamento</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12 col-md-4">
+          <label class="form-label small" for="{{ form.tipo_origem.id_for_label }}">
+            {{ form.tipo_origem.label }} <span class="text-danger">*</span>
+          </label>
+          {{ form.tipo_origem }}
+        </div>
+
+        <div class="col-12 col-md-8" x-show="tipo === 'DEPOSITO'">
+          <label class="form-label small" for="{{ form.origem_deposito.id_for_label }}">
+            {{ form.origem_deposito.label }} <span class="text-danger">*</span>
+          </label>
+          {{ form.origem_deposito }}
+          {% for erro in form.origem_deposito.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+        </div>
+
+        <div class="col-12 col-md-8" x-show="tipo === 'AGENTE'" x-cloak>
+          <label class="form-label small" for="{{ form.origem_agente.id_for_label }}">
+            {{ form.origem_agente.label }} <span class="text-danger">*</span>
+          </label>
+          {{ form.origem_agente }}
+          {% for erro in form.origem_agente.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card iscas-card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span>Unidades a enviar</span>
+      <span class="badge bg-secondary" x-text="selecionadas + ' selecionada(s)'"></span>
+    </div>
+    <div class="card-body">
+      <label class="form-label small" for="id_unidades">
+        {{ form.unidades.label }} <span class="text-danger">*</span>
+      </label>
+      <select name="unidades" id="id_unidades" multiple placeholder="Escolha a origem primeiro…"></select>
+      <div class="form-text small">{{ form.unidades.help_text }}</div>
+      {% for erro in form.unidades.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+
+      <template x-if="carregando">
+        <div class="small text-muted mt-2">Carregando unidades…</div>
+      </template>
+      <template x-if="!carregando && origemEscolhida && !disponiveis">
+        <div class="alert alert-secondary py-2 small mt-2 mb-0">
+          Nenhuma unidade disponível nesta custódia. Unidades reservadas para uma
+          solicitação não aparecem aqui — cancele a atribuição antes de enviá-las.
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <div class="card iscas-card mb-3">
+    <div class="card-header">Observação <span class="text-muted small fw-normal">— opcional</span></div>
+    <div class="card-body">
+      {{ form.justificativa }}
+      <div class="form-text small">
+        Vale registrar: é o que permite identificar depois se um modelo dá defeito recorrente.
+      </div>
+      {% for erro in form.justificativa.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+    </div>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary" :disabled="!selecionadas">Enviar para manutenção</button>
+    <a href="{% url 'iscas:unidade_lista' %}" class="btn btn-outline-light">Cancelar</a>
+  </div>
+</form>
+
+<script>
+function envioManutencao() {
+  return {
+    tipo: 'DEPOSITO',
+    selecionadas: 0,
+    carregando: false,
+    origemEscolhida: false,
+    disponiveis: 0,
+    seletor: null,
+
+    init() {
+      this.seletor = new TomSelect('#id_unidades', {
+        plugins: ['remove_button'],
+        valueField: 'id',
+        labelField: 'rotulo',
+        searchField: ['identificador', 'modelo', 'codigo'],
+        maxOptions: null,
+        onChange: () => { this.selecionadas = this.seletor.getValue().length; },
+        render: {
+          option: (dado, escape) =>
+            `<div><strong>${escape(dado.identificador)}</strong>
+             <span style="opacity:.7"> — ${escape(dado.modelo)}</span></div>`,
+          no_results: () => '<div class="no-results">Nenhuma unidade encontrada.</div>',
+        },
+      });
+
+      const seletorTipo = document.querySelector('#id_tipo_origem');
+      this.tipo = seletorTipo.value;
+      seletorTipo.addEventListener('change', () => {
+        this.tipo = seletorTipo.value;
+        // Limpa a origem que saiu de vista: um valor remanescente mudaria a
+        // custódia sem o operador perceber.
+        const outro = this.tipo === 'AGENTE' ? '#id_origem_deposito' : '#id_origem_agente';
+        document.querySelector(outro).value = '';
+        this.carregar();
+      });
+
+      document.querySelector('#id_origem_deposito')
+        .addEventListener('change', () => this.carregar());
+      document.querySelector('#id_origem_agente')
+        .addEventListener('change', () => this.carregar());
+
+      this.carregar();
+    },
+
+    idDaOrigem() {
+      const campo = this.tipo === 'AGENTE' ? '#id_origem_agente' : '#id_origem_deposito';
+      return document.querySelector(campo).value;
+    },
+
+    async carregar() {
+      const id = this.idDaOrigem();
+      this.seletor.clear();
+      this.seletor.clearOptions();
+      this.selecionadas = 0;
+      this.origemEscolhida = Boolean(id);
+      this.disponiveis = 0;
+
+      if (!id) {
+        this.seletor.settings.placeholder = 'Escolha a origem primeiro…';
+        this.seletor.inputState();
+        return;
+      }
+
+      this.carregando = true;
+      try {
+        const resposta = await fetch(
+          `{% url 'iscas:api_unidades_custodia' %}?tipo=${this.tipo}&id=${id}`
+        );
+        const dados = await resposta.json();
+        this.seletor.addOptions(dados.unidades || []);
+        this.disponiveis = (dados.unidades || []).length;
+        this.seletor.settings.placeholder = this.disponiveis
+          ? 'Busque pelo identificador ou modelo…'
+          : 'Nenhuma unidade disponível';
+        this.seletor.inputState();
+      } catch (e) {
+        this.seletor.settings.placeholder = 'Falha ao carregar as unidades';
+        this.seletor.inputState();
+      } finally {
+        this.carregando = false;
+      }
+    },
+  };
+}
+</script>
+{% endblock %}

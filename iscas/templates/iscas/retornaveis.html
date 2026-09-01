@@ -1,0 +1,79 @@
+{% extends "iscas/base_iscas.html" %}
+{% comment %}
+Retornáveis em posse de cliente (ISC-RF-31, ISC-RF-32, ISC-RF-33).
+
+Alpine controla a seleção; o form envia os ids escolhidos. O retorno é por
+cliente — um lançamento tem uma origem só.
+{% endcomment %}
+{% block titulo_iscas %}Retornáveis{% endblock %}
+{% block iscas_conteudo %}
+<h1 class="h3 mb-3">Retornáveis em posse de clientes</h1>
+
+<div class="alert alert-secondary py-2 small">
+  Unidades em posse há mais de <strong>{{ config.dias_alerta_retornavel }} dias</strong> aparecem sinalizadas.
+  Selecione unidades <strong>de um mesmo cliente</strong> para registrar o retorno.
+</div>
+
+<form method="post" action="{% url 'iscas:registrar_retorno' %}" x-data="{selecionadas: []}">
+  {% csrf_token %}
+  <input type="hidden" name="unidades" :value="selecionadas.join(',')">
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-4">
+      <div class="card iscas-card">
+        <div class="card-header">Destino do retorno</div>
+        <div class="card-body">
+          <div class="mb-2">
+            <label class="form-label small">{{ form.destino_deposito.label }}</label>
+            {{ form.destino_deposito }}
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">{{ form.destino_agente.label }}</label>
+            {{ form.destino_agente }}
+          </div>
+          <div class="mb-3">
+            <label class="form-label small">{{ form.ocorrido_em.label }}</label>
+            {{ form.ocorrido_em }}
+          </div>
+          <button class="btn btn-primary w-100" :disabled="!selecionadas.length">
+            Registrar retorno de <span x-text="selecionadas.length"></span> unidade(s)
+          </button>
+          <div class="form-text small mt-2">Informe exatamente um destino.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-8">
+      <div class="card iscas-card">
+        <div class="card-header">Em posse ({{ linhas|length }})</div>
+        <div class="card-body p-0 tabela-rolavel">
+          <table class="table table-dark table-hover iscas-tabela mb-0">
+            <thead>
+              <tr><th style="width:2.5rem"></th><th>Unidade</th><th>Cliente</th><th>Modelo</th><th class="text-end">Em posse</th></tr>
+            </thead>
+            <tbody>
+            {% for linha in linhas %}
+              <tr {% if linha.atrasada %}class="table-warning text-dark"{% endif %}>
+                <td>
+                  <input type="checkbox" class="form-check-input" value="{{ linha.unidade.pk }}"
+                         x-model="selecionadas">
+                </td>
+                <td><a href="{% url 'iscas:unidade_detalhe' linha.unidade.identificador %}">{{ linha.unidade.identificador }}</a></td>
+                <td class="small">{{ linha.cliente }}</td>
+                <td class="small">{{ linha.unidade.modelo.nome }}</td>
+                <td class="text-end small">
+                  {{ linha.dias }} dia{{ linha.dias|pluralize }}
+                  {% if linha.atrasada %}<i class="bi bi-exclamation-triangle"></i>{% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5" class="text-muted">Nenhum retornável em posse de cliente.</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}

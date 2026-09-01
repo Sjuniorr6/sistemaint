@@ -1,0 +1,255 @@
+{% extends "iscas/base_iscas.html" %}
+{% comment %}
+Transferência entre custódias internas (ISC-RF-11).
+
+Dois seletores de tipo — origem e destino — cada um revelando o select certo.
+As unidades vêm da ORIGEM: é de lá que elas saem. Trocar a origem recarrega a
+lista, porque as iscas disponíveis mudam com ela.
+{% endcomment %}
+{% block titulo_iscas %}Transferência{% endblock %}
+
+{% block iscas_conteudo %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css">
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+
+<style>
+  .ts-wrapper .ts-control {
+    background: #1e2227; border-color: var(--iscas-borda); color: var(--iscas-texto);
+  }
+  .ts-wrapper.focus .ts-control { border-color: var(--iscas-azul); }
+  .ts-dropdown {
+    background: #21252a; color: var(--iscas-texto); border-color: var(--iscas-borda);
+  }
+  .ts-dropdown .option:hover, .ts-dropdown .active { background: #363d45; color: #fff; }
+  .ts-control .item {
+    background: #2f3740 !important; color: var(--iscas-texto) !important;
+    border: 1px solid var(--iscas-borda);
+  }
+  .ts-control input { color: var(--iscas-texto) !important; }
+  [x-cloak] { display: none !important; }
+</style>
+
+<h1 class="h3 mb-3">Transferir equipamento</h1>
+
+<div class="alert alert-secondary py-2 small">
+  Transferência move estoque entre <strong>depósito e agentes</strong> — o total do sistema
+  não muda. Entrega ao cliente é feita pela confirmação da solicitação.
+</div>
+
+<form method="post" novalidate x-data="transferencia()">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <div class="alert alert-danger py-2">
+      {% for erro in form.non_field_errors %}<div>{{ erro }}</div>{% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-lg-6">
+      <div class="card iscas-card h-100">
+        <div class="card-header"><i class="bi bi-box-arrow-up"></i> Sai de</div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label small" for="{{ form.tipo_origem.id_for_label }}">
+              {{ form.tipo_origem.label }} <span class="text-danger">*</span>
+            </label>
+            {{ form.tipo_origem }}
+          </div>
+
+          <div x-show="tipoOrigem === 'DEPOSITO'">
+            <label class="form-label small" for="{{ form.origem_deposito.id_for_label }}">
+              {{ form.origem_deposito.label }} <span class="text-danger">*</span>
+            </label>
+            {{ form.origem_deposito }}
+            {% for erro in form.origem_deposito.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+          </div>
+
+          <div x-show="tipoOrigem === 'AGENTE'" x-cloak>
+            <label class="form-label small" for="{{ form.origem_agente.id_for_label }}">
+              {{ form.origem_agente.label }} <span class="text-danger">*</span>
+            </label>
+            {{ form.origem_agente }}
+            {% for erro in form.origem_agente.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+      <div class="card iscas-card h-100">
+        <div class="card-header"><i class="bi bi-box-arrow-in-down"></i> Vai para</div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label small" for="{{ form.tipo_destino.id_for_label }}">
+              {{ form.tipo_destino.label }} <span class="text-danger">*</span>
+            </label>
+            {{ form.tipo_destino }}
+          </div>
+
+          <div x-show="tipoDestino === 'DEPOSITO'" x-cloak>
+            <label class="form-label small" for="{{ form.destino_deposito.id_for_label }}">
+              {{ form.destino_deposito.label }} <span class="text-danger">*</span>
+            </label>
+            {{ form.destino_deposito }}
+            {% for erro in form.destino_deposito.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+          </div>
+
+          <div x-show="tipoDestino === 'AGENTE'">
+            <label class="form-label small" for="{{ form.destino_agente.id_for_label }}">
+              {{ form.destino_agente.label }} <span class="text-danger">*</span>
+            </label>
+            {{ form.destino_agente }}
+            {% for erro in form.destino_agente.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card iscas-card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span>Unidades a transferir</span>
+      <span class="badge bg-secondary" x-text="selecionadas + ' selecionada(s)'"></span>
+    </div>
+    <div class="card-body">
+      <label class="form-label small" for="id_unidades">
+        {{ form.unidades.label }} <span class="text-danger">*</span>
+      </label>
+      <select name="unidades" id="id_unidades" multiple placeholder="Escolha a origem primeiro…"></select>
+      <div class="d-flex justify-content-between flex-wrap gap-2 mt-1">
+        <div class="form-text small mb-0">{{ form.unidades.help_text }}</div>
+        <button type="button" class="btn btn-outline-light btn-sm" x-show="disponiveis"
+                @click="selecionarTodas()">
+          <i class="bi bi-check-all"></i> Selecionar todas (<span x-text="disponiveis"></span>)
+        </button>
+      </div>
+      {% for erro in form.unidades.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+
+      <template x-if="carregando">
+        <div class="small text-muted mt-2">Carregando unidades…</div>
+      </template>
+      <template x-if="!carregando && origemEscolhida && !disponiveis">
+        <div class="alert alert-secondary py-2 small mt-2 mb-0">
+          Nenhuma unidade disponível nesta origem. Unidades reservadas para uma
+          solicitação não aparecem aqui — cancele a atribuição antes de transferi-las.
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <div class="card iscas-card mb-3">
+    <div class="card-header">Observação <span class="text-muted small fw-normal">— opcional</span></div>
+    <div class="card-body">
+      {{ form.justificativa }}
+      {% for erro in form.justificativa.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+    </div>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary" :disabled="!selecionadas">Transferir</button>
+    <a href="{% url 'iscas:painel_saldo' %}" class="btn btn-outline-light">Cancelar</a>
+  </div>
+</form>
+
+<script>
+function transferencia() {
+  return {
+    tipoOrigem: 'DEPOSITO',
+    tipoDestino: 'AGENTE',
+    selecionadas: 0,
+    carregando: false,
+    origemEscolhida: false,
+    disponiveis: 0,
+    seletor: null,
+
+    init() {
+      this.seletor = new TomSelect('#id_unidades', {
+        plugins: ['remove_button'],
+        valueField: 'id',
+        labelField: 'rotulo',
+        searchField: ['identificador', 'modelo', 'codigo'],
+        maxOptions: null,
+        onChange: () => { this.selecionadas = this.seletor.getValue().length; },
+        render: {
+          option: (dado, escape) =>
+            `<div><strong>${escape(dado.identificador)}</strong>
+             <span style="opacity:.7"> — ${escape(dado.modelo)}</span></div>`,
+          no_results: () => '<div class="no-results">Nenhuma unidade encontrada.</div>',
+        },
+      });
+
+      const origem = document.querySelector('#id_tipo_origem');
+      const destino = document.querySelector('#id_tipo_destino');
+      this.tipoOrigem = origem.value;
+      this.tipoDestino = destino.value;
+
+      origem.addEventListener('change', () => {
+        this.tipoOrigem = origem.value;
+        // Limpa o campo que saiu de vista; a lista de unidades depende da
+        // origem, então recarrega.
+        const outro = this.tipoOrigem === 'AGENTE' ? '#id_origem_deposito' : '#id_origem_agente';
+        document.querySelector(outro).value = '';
+        this.carregar();
+      });
+      destino.addEventListener('change', () => {
+        this.tipoDestino = destino.value;
+        const outro = this.tipoDestino === 'AGENTE' ? '#id_destino_deposito' : '#id_destino_agente';
+        document.querySelector(outro).value = '';
+      });
+
+      document.querySelector('#id_origem_deposito')
+        .addEventListener('change', () => this.carregar());
+      document.querySelector('#id_origem_agente')
+        .addEventListener('change', () => this.carregar());
+
+      this.carregar();
+    },
+
+    idDaOrigem() {
+      const campo = this.tipoOrigem === 'AGENTE' ? '#id_origem_agente' : '#id_origem_deposito';
+      return document.querySelector(campo).value;
+    },
+
+    async carregar() {
+      const id = this.idDaOrigem();
+      this.seletor.clear();
+      this.seletor.clearOptions();
+      this.selecionadas = 0;
+      this.origemEscolhida = Boolean(id);
+      this.disponiveis = 0;
+
+      if (!id) {
+        this.seletor.settings.placeholder = 'Escolha a origem primeiro…';
+        this.seletor.inputState();
+        return;
+      }
+
+      this.carregando = true;
+      try {
+        const resposta = await fetch(
+          `{% url 'iscas:api_unidades_custodia' %}?tipo=${this.tipoOrigem}&id=${id}`
+        );
+        const dados = await resposta.json();
+        this.seletor.addOptions(dados.unidades || []);
+        this.disponiveis = (dados.unidades || []).length;
+        this.seletor.settings.placeholder = this.disponiveis
+          ? 'Busque pelo identificador ou modelo…'
+          : 'Nenhuma unidade disponível';
+        this.seletor.inputState();
+      } catch (e) {
+        this.seletor.settings.placeholder = 'Falha ao carregar as unidades';
+        this.seletor.inputState();
+      } finally {
+        this.carregando = false;
+      }
+    },
+
+    selecionarTodas() {
+      Object.keys(this.seletor.options).forEach((id) => this.seletor.addItem(id, true));
+      this.selecionadas = this.seletor.getValue().length;
+    },
+  };
+}
+</script>
+{% endblock %}

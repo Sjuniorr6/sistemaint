@@ -1,0 +1,17 @@
+{% extends "iscas/base_iscas.html" %}
+{% block titulo_iscas %}{{ titulo }}{% endblock %}
+{% block iscas_conteudo %}
+<h1 class="h3 mb-3">{{ titulo }}</h1>
+<div class="card iscas-card">
+  <div class="card-body">
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% include "iscas/_form_campos.html" %}
+      <div class="d-flex gap-2 mt-4">
+        <button class="btn btn-primary">Salvar</button>
+        <a href="{% url 'iscas:modelo_lista' %}" class="btn btn-outline-light">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

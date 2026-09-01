@@ -52,5 +52,6 @@ urlpatterns = [
     path('controle-administrativo/', include('controle_administrativo.urls')),
     path('controle-acionamentos/', include('controle_acionamentos.urls')),
     path('chamados/', include('chamados.urls')),
+    path('iscas/', include('iscas.urls')),
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -1,0 +1,157 @@
+{% extends "iscas/base_iscas.html" %}
+{% comment %}
+Listagem de solicitações: filtro, busca, paginação e lixeira.
+
+A tabela é paginada em 25 (a view). O que muda a percepção de "tem muita
+coisa aqui" não é a paginação sozinha, é saber QUANTAS existem e conseguir
+achar uma — daí o total no cabeçalho e a busca por #id ou cliente.
+{% endcomment %}
+{% block titulo_iscas %}Solicitações{% endblock %}
+
+{% block iscas_conteudo %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-0">
+      {% if excluidas %}Solicitações excluídas{% else %}Solicitações{% endif %}
+    </h1>
+    <div class="small text-muted">
+      {{ total }} {% if excluidas %}na lixeira{% else %}no total{% endif %}
+      {% if pagina.paginator.num_pages > 1 %}
+        · página {{ pagina.number }} de {{ pagina.paginator.num_pages }}
+      {% endif %}
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if excluidas %}
+      <a href="{% url 'iscas:solicitacao_lista' %}" class="btn btn-outline-light btn-sm">
+        <i class="bi bi-arrow-left"></i> Voltar à lista
+      </a>
+    {% else %}
+      <a href="?excluidas=1" class="btn btn-outline-light btn-sm" title="Solicitações excluídas">
+        <i class="bi bi-trash"></i> Lixeira
+      </a>
+      <a href="{% url 'iscas:solicitacao_criar' %}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg"></i> Nova solicitação
+      </a>
+    {% endif %}
+  </div>
+</div>
+
+<form method="get" class="mb-3">
+  {% if excluidas %}<input type="hidden" name="excluidas" value="1">{% endif %}
+  <div class="row g-2">
+    <div class="col-12 col-sm-6 col-lg-4">
+      <div class="input-group input-group-sm">
+        <span class="input-group-text bg-dark border-secondary text-muted">
+          <i class="bi bi-search"></i>
+        </span>
+        <input type="search" name="q" value="{{ busca }}" class="form-control"
+               placeholder="Buscar por #número ou cliente">
+      </div>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+      <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">Todos os status</option>
+        {% for valor, rotulo in status_choices %}
+          <option value="{{ valor }}" {% if status_atual == valor %}selected{% endif %}>{{ rotulo }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-outline-light btn-sm">Filtrar</button>
+      {% if busca or status_atual %}
+        <a href="?{% if excluidas %}excluidas=1{% endif %}" class="btn btn-link btn-sm text-muted">Limpar</a>
+      {% endif %}
+    </div>
+  </div>
+</form>
+
+<div class="card iscas-card">
+  <div class="card-body p-0 tabela-rolavel">
+    <table class="table table-dark table-hover iscas-tabela mb-0 align-middle">
+      <thead>
+        <tr>
+          <th style="width:5rem">#</th>
+          <th>Cliente</th>
+          <th class="d-none d-md-table-cell">Itens</th>
+          <th class="d-none d-lg-table-cell" style="width:9rem">Aberta</th>
+          <th style="width:8rem">Status</th>
+          <th style="width:3rem"></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for solicitacao in pagina %}
+        <tr>
+          <td>
+            <a href="{% url 'iscas:solicitacao_detalhe' solicitacao.pk %}"
+               class="fw-bold text-decoration-none">#{{ solicitacao.pk }}</a>
+          </td>
+          <td>
+            <a href="{% url 'iscas:solicitacao_detalhe' solicitacao.pk %}"
+               class="text-decoration-none">{{ solicitacao.cliente }}</a>
+            {# No celular as colunas de itens e data somem; o essencial delas #}
+            {# volta aqui embaixo, para a linha não virar só um número. #}
+            <div class="small text-muted d-md-none">
+              {% for item in solicitacao.itens.all %}{{ item.quantidade }}× {{ item.modelo.codigo }}{% if not forloop.last %} · {% endif %}{% endfor %}
+              — {{ solicitacao.aberta_em|date:"d/m/y" }}
+            </div>
+          </td>
+          <td class="small d-none d-md-table-cell">
+            {% for item in solicitacao.itens.all %}
+              <span class="badge bg-dark">{{ item.quantidade }}× {{ item.modelo.codigo }}</span>
+            {% endfor %}
+          </td>
+          <td class="small text-muted d-none d-lg-table-cell">
+            {{ solicitacao.aberta_em|date:"d/m/Y H:i" }}
+          </td>
+          <td>
+            <span class="badge
+              {% if solicitacao.status == 'ENTREGUE' %}bg-success
+              {% elif solicitacao.status == 'CANCELADA' %}bg-secondary
+              {% elif solicitacao.status == 'EM_ROTA' %}bg-info
+              {% elif solicitacao.status == 'ATRIBUIDA' %}bg-primary
+              {% else %}bg-warning text-dark{% endif %}">
+              {{ solicitacao.get_status_display }}
+            </span>
+          </td>
+          <td class="text-end">
+            {% if excluidas %}
+              <form method="post" action="{% url 'iscas:solicitacao_restaurar' solicitacao.pk %}">
+                {% csrf_token %}
+                <button class="btn btn-outline-light btn-sm" title="Restaurar">
+                  <i class="bi bi-arrow-counterclockwise"></i>
+                </button>
+              </form>
+            {% else %}
+              <form method="post" action="{% url 'iscas:solicitacao_excluir' solicitacao.pk %}"
+                    onsubmit="return confirm('Excluir a solicitação #{{ solicitacao.pk }}? Ela sai da lista, mas pode ser restaurada pela lixeira.')">
+                {% csrf_token %}
+                <button class="btn btn-outline-danger btn-sm" title="Excluir">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="6" class="text-muted p-4 text-center">
+            {% if busca or status_atual %}
+              Nenhuma solicitação encontrada com esse filtro.
+              <a href="?{% if excluidas %}excluidas=1{% endif %}">Limpar filtros</a>.
+            {% elif excluidas %}
+              A lixeira está vazia.
+            {% else %}
+              Nenhuma solicitação ainda.
+              <a href="{% url 'iscas:solicitacao_criar' %}">Abrir a primeira</a>.
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include "iscas/_paginacao.html" %}
+{% endblock %}

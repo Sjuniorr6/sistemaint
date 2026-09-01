@@ -1,0 +1,222 @@
+{% extends "iscas/base_iscas.html" %}
+{% comment %}
+Extrato de movimentações (ISC-RF-34, ISC-RF-37).
+
+Cada lançamento é um cartão, não uma linha de tabela. A versão anterior gastava
+até três linhas por movimentação (a principal, a justificativa e o formulário
+de estorno), o que quebrava o alinhamento das colunas e tornava a leitura
+confusa. O cartão comporta os identificadores das unidades e o vínculo do
+estorno sem disputar espaço com as colunas.
+{% endcomment %}
+{% block titulo_iscas %}Extrato{% endblock %}
+
+{% block iscas_conteudo %}
+<style>
+  /* A faixa colorida à esquerda dá o tipo do lançamento antes da leitura:
+     entrada e retorno entram, entrega e baixa saem, o resto é movimento. */
+  .mov { border-left: 4px solid var(--iscas-borda); }
+  .mov--entra    { border-left-color: var(--iscas-ok); }
+  .mov--sai      { border-left-color: var(--iscas-erro); }
+  .mov--move     { border-left-color: var(--iscas-azul); }
+  .mov--estorno  { border-left-color: var(--iscas-alerta); }
+  .mov--anulada  { opacity: .62; }
+  .mov + .mov { border-top: 1px solid var(--iscas-borda); }
+  .mov:hover { background: #262c33; }
+  .mov-id { font-variant-numeric: tabular-nums; color: var(--iscas-texto-fraco); }
+  .mov-fluxo { font-size: .95rem; }
+  .mov-seta { color: var(--iscas-texto-fraco); margin: 0 .35rem; }
+  .chip-unidade {
+    display: inline-block; font-size: .74rem; padding: .1rem .4rem; margin: .1rem .15rem 0 0;
+    background: #171a1e; border: 1px solid var(--iscas-borda); border-radius: .25rem;
+    color: var(--iscas-texto-suave); text-decoration: none;
+  }
+  .chip-unidade:hover { background: #2f3740; color: #fff; }
+  .filtros-abertos { display: block; }
+</style>
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-1">Extrato de movimentações</h1>
+    <div class="small text-muted">
+      Todo movimento de equipamento, do mais recente ao mais antigo.
+      Registros são imutáveis: nada aqui é editado ou apagado.
+    </div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <button class="btn btn-outline-light btn-sm" data-bs-toggle="collapse" data-bs-target="#filtros">
+      <i class="bi bi-funnel"></i> Filtros
+      {% if filtros_ativos %}<span class="badge bg-primary ms-1">{{ filtros_ativos }}</span>{% endif %}
+    </button>
+    <a href="{% url 'iscas:extrato_csv' %}?{{ querystring }}" class="btn btn-outline-light btn-sm">
+      <i class="bi bi-download"></i> CSV
+    </a>
+  </div>
+</div>
+
+<div class="collapse {% if filtros_ativos %}filtros-abertos{% endif %} mb-3" id="filtros">
+  <div class="card iscas-card">
+    <div class="card-body">
+      <form method="get">
+        <div class="row g-2">
+          {% for campo in form %}
+            <div class="col-6 col-md-4 col-lg-3">
+              <label class="form-label small">{{ campo.label }}</label>
+              {{ campo }}
+            </div>
+          {% endfor %}
+          <div class="col-12 d-flex align-items-end gap-2 mt-2">
+            <button class="btn btn-primary btn-sm">Aplicar</button>
+            <a href="{% url 'iscas:extrato' %}" class="btn btn-outline-light btn-sm">Limpar</a>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% if filtros_ativos %}
+  <div class="alert alert-info py-2 small d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span>
+      <i class="bi bi-funnel-fill"></i>
+      Mostrando resultado filtrado — {{ pagina.paginator.count }} lançamento(s).
+    </span>
+    <a href="{% url 'iscas:extrato' %}" class="btn btn-outline-light btn-sm">Ver tudo</a>
+  </div>
+{% endif %}
+
+<div class="card iscas-card">
+  <div class="card-body p-0">
+    {% for mov in pagina %}
+      <div class="mov p-3
+        {% if mov.tipo == 'ESTORNO' %}mov--estorno
+        {% elif mov.tipo == 'ENTRADA' or mov.tipo == 'RETORNO' or mov.tipo == 'RETORNO_MANUTENCAO' %}mov--entra
+        {% elif mov.eh_saida_definitiva %}mov--sai
+        {% else %}mov--move{% endif %}
+        {% if mov.foi_estornada %}mov--anulada{% endif %}">
+
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+          <div class="flex-grow-1">
+            {# Linha 1: o que aconteceu #}
+            <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
+              <span class="fw-bold">{{ mov.get_tipo_display }}</span>
+              <span class="badge bg-dark">{{ mov.quantidade_linhas }} unidade{{ mov.quantidade_linhas|pluralize }}</span>
+
+              {% if mov.motivo_baixa %}
+                <span class="badge bg-danger">{{ mov.get_motivo_baixa_display }}</span>
+              {% endif %}
+
+              {% if mov.foi_estornada %}
+                <span class="badge bg-secondary">
+                  <i class="bi bi-x-circle"></i> anulada pelo estorno #{{ mov.estorno.pk }}
+                </span>
+              {% endif %}
+              {% if mov.estorno_de_id %}
+                <span class="badge bg-warning text-dark">
+                  <i class="bi bi-arrow-counterclockwise"></i> desfaz o lançamento #{{ mov.estorno_de_id }}
+                </span>
+              {% endif %}
+            </div>
+
+            {# Linha 2: de onde para onde #}
+            <div class="mov-fluxo">
+              {{ mov.origem }}<span class="mov-seta">→</span><strong>{{ mov.destino }}</strong>
+            </div>
+
+            {# Linha 3: quando, quem, e o número do lançamento #}
+            <div class="small text-muted mt-1">
+              <span class="mov-id">#{{ mov.pk }}</span>
+              · {{ mov.ocorrido_em|date:"d/m/Y H:i" }}
+              · {{ mov.autor.get_username }}
+              {% if mov.nota_fiscal %} · NF {{ mov.nota_fiscal }}{% endif %}
+              {% if mov.lote %} · lote {{ mov.lote }}{% endif %}
+              {% if mov.solicitacao_id %}
+                · <a href="{% url 'iscas:solicitacao_detalhe' mov.solicitacao_id %}">solicitação #{{ mov.solicitacao_id }}</a>
+              {% endif %}
+            </div>
+
+            {% if mov.justificativa %}
+              <div class="small mt-2" style="color: var(--iscas-texto-suave)">
+                <i class="bi bi-chat-left-text"></i> {{ mov.justificativa }}
+              </div>
+            {% endif %}
+
+            {# Identificadores: é o que responde "quais iscas foram?" #}
+            <div class="mt-2">
+              {% for identificador in mov.identificadores|slice:":12" %}
+                <a href="{% url 'iscas:unidade_detalhe' identificador %}" class="chip-unidade">{{ identificador }}</a>
+              {% endfor %}
+              {% if mov.quantidade_linhas > 12 %}
+                <span class="chip-unidade">e mais {{ mov.quantidade_linhas|add:"-12" }}</span>
+              {% endif %}
+            </div>
+          </div>
+
+          {% comment %}
+          O botão de estorno está desativado por ora, a pedido: é operação
+          destrutiva e o app está entrando em uso. A ROTA continua de pé
+          (`iscas:estornar`), então um lançamento errado ainda tem correção —
+          por URL direta, por quem souber. Para trazer o botão de volta, troque
+          `mostrar_estorno` para True na view do extrato.
+          {% endcomment %}
+          {% if mostrar_estorno %}
+            <div class="text-end">
+              {% if mov.tipo != 'ESTORNO' and not mov.foi_estornada %}
+                <button class="btn btn-outline-warning btn-sm" data-bs-toggle="collapse"
+                        data-bs-target="#estorno{{ mov.pk }}">
+                  <i class="bi bi-arrow-counterclockwise"></i> Estornar
+                </button>
+              {% endif %}
+            </div>
+          {% endif %}
+        </div>
+
+        {% if mostrar_estorno and mov.tipo != 'ESTORNO' and not mov.foi_estornada %}
+          <div class="collapse mt-3" id="estorno{{ mov.pk }}">
+            <form method="post" action="{% url 'iscas:estornar' mov.pk %}"
+                  class="border border-secondary rounded p-3">
+              {% csrf_token %}
+              <label class="form-label small">
+                Por que está desfazendo o lançamento #{{ mov.pk }}?
+              </label>
+              {{ form_estorno.justificativa }}
+              <div class="d-flex gap-2 align-items-center mt-2 flex-wrap">
+                <button class="btn btn-warning btn-sm"
+                        onclick="return confirm('Desfazer o lançamento #{{ mov.pk }}? As unidades voltam para {{ mov.origem|escapejs }}.')">
+                  Confirmar estorno
+                </button>
+                <span class="small text-muted">
+                  O lançamento original continua no histórico, marcado como anulado.
+                </span>
+              </div>
+            </form>
+          </div>
+        {% endif %}
+      </div>
+    {% empty %}
+      <div class="p-4 text-center">
+        <div class="text-muted mb-2">
+          {% if filtros_ativos %}
+            Nenhum lançamento corresponde aos filtros.
+          {% else %}
+            Nenhuma movimentação registrada ainda.
+          {% endif %}
+        </div>
+        {% if filtros_ativos %}
+          <a href="{% url 'iscas:extrato' %}" class="btn btn-outline-light btn-sm">Limpar filtros</a>
+        {% else %}
+          <a href="{% url 'iscas:entrada' %}" class="btn btn-primary btn-sm">Registrar entrada de estoque</a>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% include "iscas/_paginacao.html" %}
+
+<div class="d-flex flex-wrap gap-3 mt-3 small text-muted">
+  <span><span class="badge" style="background:var(--iscas-ok)">&nbsp;</span> entrou no estoque</span>
+  <span><span class="badge" style="background:var(--iscas-azul)">&nbsp;</span> mudou de lugar</span>
+  <span><span class="badge" style="background:var(--iscas-erro)">&nbsp;</span> saiu em definitivo</span>
+  <span><span class="badge" style="background:var(--iscas-alerta)">&nbsp;</span> estorno</span>
+</div>
+{% endblock %}

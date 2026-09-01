@@ -1,0 +1,37 @@
+{% extends "iscas/base_iscas.html" %}
+{% block titulo_iscas %}Clientes{% endblock %}
+{% block iscas_conteudo %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h1 class="h3 mb-0">Clientes</h1>
+  <a href="{% url 'iscas:cliente_criar' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Novo cliente</a>
+</div>
+
+<form method="get" class="mb-3">
+  <div class="input-group input-group-sm" style="max-width:26rem">
+    <input type="search" name="q" value="{{ busca }}" class="form-control" placeholder="Buscar por nome">
+    <button class="btn btn-outline-light"><i class="bi bi-search"></i></button>
+  </div>
+</form>
+
+<div class="card iscas-card">
+  <div class="card-body p-0 tabela-rolavel">
+    <table class="table table-dark table-hover iscas-tabela mb-0">
+      <thead><tr><th>Nome / Razão social</th><th>Documento</th><th>Contato</th><th>Cidade</th><th></th></tr></thead>
+      <tbody>
+      {% for cliente in clientes %}
+        <tr>
+          <td>
+            <a href="{% url 'iscas:cliente_detalhe' cliente.pk %}">{{ cliente.nome_razao_social }}</a>
+            {% if not cliente.tem_coordenada %}<i class="bi bi-exclamation-triangle text-warning" title="Sem coordenada"></i>{% endif %}
+          </td>
+          <td class="small text-muted">{{ cliente.documento_mascarado }}</td>
+          <td class="small">{{ cliente.contato_nome }} {{ cliente.telefone }}</td>
+          <td class="small">{{ cliente.cidade }}/{{ cliente.uf }}</td>
+          <td class="text-end"><a href="{% url 'iscas:cliente_editar' cliente.pk %}" class="btn btn-outline-light btn-sm"><i class="bi bi-pencil"></i></a></td>
+        </tr>
+      {% empty %}<tr><td colspan="5" class="text-muted">Nenhum cliente cadastrado.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

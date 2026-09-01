@@ -1,0 +1,157 @@
+{% extends "iscas/base_iscas.html" %}
+{% comment %}Ficha do agente — único lugar que exibe o CPF completo (ISC-RN-16).{% endcomment %}
+{% block titulo_iscas %}{{ agente.nome }}{% endblock %}
+{% block iscas_conteudo %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ agente.nome }}
+      {% if not agente.is_active %}<span class="badge bg-secondary">inativo</span>{% endif %}
+    </h1>
+    <div class="text-muted small">
+      CPF {{ cpf_completo }} — {{ agente.telefone }}{% if agente.email %} — {{ agente.email }}{% endif %}
+    </div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{% url 'iscas:agente_editar' agente.pk %}" class="btn btn-outline-light btn-sm"><i class="bi bi-pencil"></i> Editar</a>
+    <a href="{% url 'iscas:historico_agente' agente.pk %}" class="btn btn-outline-light btn-sm"><i class="bi bi-journal-text"></i> Histórico</a>
+    {% if agente.is_active %}
+      <form method="post" action="{% url 'iscas:agente_desativar' agente.pk %}">
+        {% csrf_token %}
+        <button class="btn btn-outline-danger btn-sm" onclick="return confirm('Desativar este agente?')">Desativar</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-lg-5">
+    <div class="card iscas-card mb-3">
+      <div class="card-header">Saldo em custódia</div>
+      <div class="card-body p-0 tabela-rolavel">
+        <table class="table table-dark table-sm iscas-tabela mb-0">
+          <thead><tr><th>Modelo</th><th class="text-end">Total</th><th class="text-end">Disp.</th><th class="text-end">Reserv.</th></tr></thead>
+          <tbody>
+          {% for saldo in saldos %}
+            <tr>
+              <td>{{ saldo.modelo__nome }}</td>
+              <td class="text-end">{{ saldo.total }}</td>
+              <td class="text-end fw-bold text-info">{{ saldo.disponivel }}</td>
+              <td class="text-end text-muted">{{ saldo.reservado }}</td>
+            </tr>
+          {% empty %}<tr><td colspan="4" class="text-muted">Sem equipamento em custódia.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card iscas-card">
+      <div class="card-header">Endereço e posição</div>
+      <div class="card-body">
+        <p class="small mb-2">{{ agente.endereco_completo }}</p>
+
+        {% if agente.tem_coordenada %}
+          <div class="small text-muted mb-2">
+            {{ agente.latitude }}, {{ agente.longitude }}
+            — <span class="badge bg-dark">{{ agente.geo_origem }}</span>
+          </div>
+        {% else %}
+          <div class="alert alert-warning py-2 small">
+            <i class="bi bi-exclamation-triangle"></i>
+            Sem coordenada: este agente não aparece na busca por proximidade.
+            Clique no mapa para posicionar o pin, ou
+            <a href="{% url 'iscas:agente_editar' agente.pk %}" class="alert-link">edite o endereço</a>
+            para geocodificar de novo.
+          </div>
+        {% endif %}
+
+        {# O mapa aparece SEMPRE: sem ele, um agente sem coordenada não teria #}
+        {# como ganhar uma — que era o beco sem saída de antes.               #}
+        <div id="mapaAgente" class="mapa-caixa" style="height:280px"></div>
+
+        <form method="post" action="{% url 'iscas:agente_ajustar_pin' agente.pk %}" class="mt-2">
+          {% csrf_token %}
+          {# `stringformat` garante ponto decimal: sob locale pt-br o Django #}
+          {# renderiza -23,55052, que o backend rejeita como coordenada.     #}
+          <input type="hidden" name="latitude" id="pinLat"
+                 value="{% if agente.tem_coordenada %}{{ agente.latitude|stringformat:'.6f' }}{% endif %}">
+          <input type="hidden" name="longitude" id="pinLng"
+                 value="{% if agente.tem_coordenada %}{{ agente.longitude|stringformat:'.6f' }}{% endif %}">
+          <button class="btn btn-outline-info btn-sm w-100" id="btnSalvarPin"
+                  {% if not agente.tem_coordenada %}disabled{% endif %}>
+            Salvar posição ajustada
+          </button>
+          <div class="form-text small">
+            {% if agente.tem_coordenada %}
+              Arraste o pin para corrigir a geocodificação.
+            {% else %}
+              Clique no mapa para posicionar o pin deste agente.
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-7">
+    <div class="card iscas-card">
+      <div class="card-header">
+        Movimentações
+        <span class="text-muted small fw-normal">— {{ recebidas }} recebida(s), {{ enviadas }} enviada(s)</span>
+      </div>
+      <div class="card-body p-0 tabela-rolavel" style="max-height:520px; overflow-y:auto">
+        <table class="table table-dark table-sm iscas-tabela mb-0">
+          <thead><tr><th>Quando</th><th>Tipo</th><th>Origem → Destino</th><th class="text-end">Qtd</th></tr></thead>
+          <tbody>
+          {% for mov in movimentacoes|slice:":100" %}
+            <tr>
+              <td class="small text-muted">{{ mov.ocorrido_em|date:"d/m/y H:i" }}</td>
+              <td class="small">{{ mov.get_tipo_display }}</td>
+              <td class="small">{{ mov.origem }} → {{ mov.destino }}</td>
+              <td class="text-end">{{ mov.quantidade_linhas }}</td>
+            </tr>
+          {% empty %}<tr><td colspan="4" class="text-muted">Nenhuma movimentação.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  // `stringformat` força ponto decimal; sem ele o locale pt-br gera vírgula,
+  // que é SyntaxError e derruba este script inteiro.
+  var lat = {% if agente.tem_coordenada %}{{ agente.latitude|stringformat:".6f" }}{% else %}null{% endif %};
+  var lng = {% if agente.tem_coordenada %}{{ agente.longitude|stringformat:".6f" }}{% else %}null{% endif %};
+  var temPin = (lat !== null && lng !== null);
+
+  // Sem coordenada, abre numa visão ampla da cidade do agente para o operador
+  // se localizar e clicar no ponto certo.
+  var mapa = L.map('mapaAgente').setView(temPin ? [lat, lng] : [-23.55052, -46.633308], temPin ? 15 : 10);
+  L.tileLayer('{{ config.tiles_url|escapejs }}', {
+    attribution: '{{ config.tiles_atribuicao|escapejs }}', maxZoom: 19,
+  }).addTo(mapa);
+
+  var pin = null;
+  function posicionar(latitude, longitude) {
+    document.getElementById('pinLat').value = latitude.toFixed(6);
+    document.getElementById('pinLng').value = longitude.toFixed(6);
+    document.getElementById('btnSalvarPin').disabled = false;
+
+    if (pin) {
+      pin.setLatLng([latitude, longitude]);
+    } else {
+      pin = L.marker([latitude, longitude], {draggable: true}).addTo(mapa);
+      pin.on('dragend', function (evento) {
+        var posicao = evento.target.getLatLng();
+        posicionar(posicao.lat, posicao.lng);
+      });
+    }
+  }
+
+  if (temPin) { posicionar(lat, lng); }
+  mapa.on('click', function (evento) { posicionar(evento.latlng.lat, evento.latlng.lng); });
+  setTimeout(function () { mapa.invalidateSize(); }, 200);
+});
+</script>
+{% endblock %}

@@ -89,8 +89,32 @@ INSTALLED_APPS = [
     'controle_administrativo',
     'controle_acionamentos',
     'chamados',
+    'iscas',
     'django_celery_beat',
 ]
+
+# — Iscas Fast —
+# CPF do agente é cifrado em repouso, com hash (SHA-256 + pepper) para
+# unicidade (ISC-ADR-14). Sem estes valores em produção o app recusa a operar;
+# em DEBUG deriva do SECRET_KEY. Gere a chave com:
+#   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# A perda da chave torna os CPFs ilegíveis — entra na rotina de backup de segredos.
+ISCAS_CPF_KEY = os.getenv("ISCAS_CPF_KEY", "")
+ISCAS_CPF_PEPPER = os.getenv("ISCAS_CPF_PEPPER", "")
+
+# User-Agent identificando a aplicação é exigido pela política do Nominatim.
+ISCAS_NOMINATIM_URL = os.getenv(
+    "ISCAS_NOMINATIM_URL", "https://nominatim.openstreetmap.org/search"
+)
+ISCAS_NOMINATIM_USER_AGENT = os.getenv(
+    "ISCAS_NOMINATIM_USER_AGENT", "GSInt-IscasFast/1.0 (inteligencia@grupogoldensat.com.br)"
+)
+ISCAS_GEOCODE_TIMEOUT = float(os.getenv("ISCAS_GEOCODE_TIMEOUT", "3"))
+
+# ViaCEP: resolve CEP → endereço no cadastro de agente e cliente. Não devolve
+# coordenada — essa continua vindo do Nominatim, com o número já preenchido.
+ISCAS_VIACEP_URL = os.getenv("ISCAS_VIACEP_URL", "https://viacep.com.br/ws")
+ISCAS_CEP_TIMEOUT = float(os.getenv("ISCAS_CEP_TIMEOUT", "3"))
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
@@ -135,6 +159,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
 
                 'registrodemanutencao.context_processors.manutencoes_pendentes',
+                'iscas.context_processors.secao_ativa',
             ],
         },
     },
@@ -180,6 +205,14 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+        # `timeout`: quanto o SQLite espera por um lock antes de devolver
+        # "database is locked". O padrão (5s) já ajuda, mas explicitar deixa
+        # claro que o app depende disso — o SQLite serializa escritas no banco
+        # inteiro, e a reserva de iscas (iscas/services/reserva.py) disputa
+        # saldo sob concorrência.
+        'OPTIONS': {
+            'timeout': 20,
+        },
     }
 }
 LOGOUT_REDIRECT_URL ="/"

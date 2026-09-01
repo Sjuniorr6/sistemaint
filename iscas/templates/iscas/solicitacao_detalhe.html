@@ -1,0 +1,431 @@
+{% extends "iscas/base_iscas.html" %}
+{% comment %}
+Solicitação: entrega + cobertura num painel só, atribuições e histórico.
+
+Cancelar e excluir são ações raras e destrutivas: viram botão no cabeçalho e
+formulário em modal. Como cartões abertos na coluna, ocupavam permanentemente
+o espaço do que se usa toda hora — atribuir e acompanhar — e deixavam dois
+campos de texto destrutivos sempre a um clique de distância.
+{% endcomment %}
+{% block titulo_iscas %}Solicitação #{{ solicitacao.pk }}{% endblock %}
+
+{% block iscas_conteudo %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+  <div>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <h1 class="h3 mb-0">Solicitação #{{ solicitacao.pk }}</h1>
+      <span class="badge fs-6
+        {% if solicitacao.status == 'ENTREGUE' %}bg-success
+        {% elif solicitacao.status == 'CANCELADA' %}bg-secondary
+        {% elif solicitacao.status == 'EM_ROTA' %}bg-info
+        {% elif solicitacao.status == 'ATRIBUIDA' %}bg-primary
+        {% else %}bg-warning text-dark{% endif %}">
+        {{ solicitacao.get_status_display }}
+      </span>
+      {% if not solicitacao.is_active %}
+        <span class="badge bg-danger"><i class="bi bi-trash"></i> excluída</span>
+      {% endif %}
+    </div>
+    <div class="text-muted small mt-1">
+      <a href="{% url 'iscas:cliente_detalhe' solicitacao.cliente.pk %}">{{ solicitacao.cliente }}</a>
+      — aberta em {{ solicitacao.aberta_em|date:"d/m/Y H:i" }} por {{ solicitacao.aberta_por.get_username }}
+    </div>
+  </div>
+
+  <div class="d-flex gap-2 flex-wrap">
+    {% if solicitacao.is_active %}
+      {% if not solicitacao.eh_terminal %}
+        <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal"
+                data-bs-target="#modalCancelar">
+          <i class="bi bi-x-circle"></i> Cancelar
+        </button>
+      {% endif %}
+      <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal"
+              data-bs-target="#modalExcluir">
+        <i class="bi bi-trash"></i> Excluir
+      </button>
+    {% else %}
+      <form method="post" action="{% url 'iscas:solicitacao_restaurar' solicitacao.pk %}">
+        {% csrf_token %}
+        <button class="btn btn-outline-light btn-sm">
+          <i class="bi bi-arrow-counterclockwise"></i> Restaurar
+        </button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if not solicitacao.is_active %}
+  <div class="alert alert-secondary py-2 small">
+    Esta solicitação está excluída e não aparece na listagem. O histórico
+    permanece — use <strong>Restaurar</strong> para devolvê-la à operação.
+  </div>
+{% endif %}
+{% if solicitacao.observacao %}
+  <div class="alert alert-secondary py-2"><strong>Observação:</strong> {{ solicitacao.observacao }}</div>
+{% endif %}
+{% if solicitacao.motivo_cancelamento %}
+  <div class="alert alert-secondary py-2"><strong>Cancelada:</strong> {{ solicitacao.motivo_cancelamento }}</div>
+{% endif %}
+
+{# ── Entrega + cobertura: para onde vai e o que já está coberto ── #}
+<div class="card iscas-card mb-3">
+  <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span>Entrega e cobertura</span>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+      {% if solicitacao.entrega_em_outro_endereco %}
+        <span class="badge bg-warning text-dark">
+          <i class="bi bi-exclamation-triangle"></i> endereço diferente do cadastro
+        </span>
+      {% endif %}
+      {% if cobertura_total %}
+        <span class="badge bg-success">cobertura total</span>
+      {% else %}
+        <span class="badge bg-warning text-dark">cobertura parcial</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="row g-4">
+      {# Dados da entrega #}
+      <div class="col-12 col-lg-7">
+        <div class="row g-3 small">
+          <div class="col-12">
+            <div class="text-muted">Endereço de entrega</div>
+            <div>{{ solicitacao.endereco_entrega }}</div>
+          </div>
+          <div class="col-6 col-md-4">
+            <div class="text-muted">CNPJ / CPF</div>
+            <div>{{ solicitacao.documento|default:"—" }}</div>
+          </div>
+          <div class="col-6 col-md-4">
+            <div class="text-muted">Contato</div>
+            <div>{{ solicitacao.contato_nome|default:"—" }}</div>
+          </div>
+          <div class="col-6 col-md-4">
+            <div class="text-muted">Telefone</div>
+            <div>{{ solicitacao.telefone|default:"—" }}</div>
+          </div>
+          <div class="col-6 col-md-4">
+            <div class="text-muted">Comercial responsável</div>
+            <div>{{ solicitacao.comercial_responsavel|default:"—" }}</div>
+          </div>
+          <div class="col-12 col-md-8">
+            <div class="text-muted">E-mail</div>
+            <div>{{ solicitacao.email|default:"—" }}</div>
+          </div>
+        </div>
+      </div>
+
+      {# Cobertura por modelo #}
+      <div class="col-12 col-lg-5">
+        <div class="table-responsive">
+          <table class="table table-dark table-sm iscas-tabela mb-0">
+            <thead>
+              <tr>
+                <th>Modelo</th>
+                <th class="text-end">Pedido</th>
+                <th class="text-end">Atrib.</th>
+                <th class="text-end">Falta</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for linha in cobertura %}
+              <tr>
+                <td>{{ linha.modelo.nome }}</td>
+                <td class="text-end">{{ linha.solicitado }}</td>
+                <td class="text-end">{{ linha.atribuido }}</td>
+                <td class="text-end {% if linha.falta %}text-warning fw-bold{% endif %}">{{ linha.falta }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-lg-5">
+    {% if not solicitacao.eh_terminal %}
+      <div class="card iscas-card">
+        <div class="card-header">Atribuir a um agente</div>
+        <div class="card-body">
+          <a href="{% url 'iscas:mapa' %}?cliente={{ solicitacao.cliente.pk }}"
+             class="btn btn-outline-info btn-sm w-100 mb-3">
+            <i class="bi bi-geo-alt"></i> Buscar agentes próximos no mapa
+          </a>
+          <form method="post" action="{% url 'iscas:solicitacao_atribuir' solicitacao.pk %}">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label class="form-label small">{{ form_atribuicao.agente.label }}</label>
+              {{ form_atribuicao.agente }}
+              <div class="form-text small">
+                {% if form_atribuicao.fields.agente.queryset %}
+                  Só aparecem agentes com equipamento disponível dos modelos que faltam.
+                {% else %}
+                  Nenhum agente tem, no momento, equipamento disponível dos modelos que faltam.
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="small mb-3">
+              <div class="text-muted mb-1">Ainda cabe nesta solicitação:</div>
+              {% for linha in cobertura %}
+                <span class="badge {% if linha.falta %}bg-dark{% else %}bg-secondary{% endif %} me-1">
+                  {{ linha.modelo.codigo }}:
+                  {% if linha.falta %}{{ linha.falta }}{% else %}completo{% endif %}
+                </span>
+              {% endfor %}
+            </div>
+
+            <button class="btn btn-primary w-100" {% if cobertura_total %}disabled{% endif %}>
+              <i class="bi bi-person-plus"></i> Escolher equipamentos do agente
+            </button>
+            <div class="form-text small mt-2">
+              {% if cobertura_total %}
+                O pedido já está totalmente atribuído. Para enviar mais, aumente a quantidade da solicitação.
+              {% else %}
+                No próximo passo você escolhe quais unidades do agente vão para o cliente.
+                A reserva não move estoque: as unidades ficam com o agente, indisponíveis para outras solicitações.
+              {% endif %}
+            </div>
+          </form>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="col-12 col-lg-7">
+    <div class="card iscas-card mb-3">
+      <div class="card-header">Atribuições</div>
+      <div class="card-body p-0">
+        {% for item in atribuicoes %}
+          <div class="p-3 {% if not forloop.last %}border-bottom border-secondary{% endif %}">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+              <div>
+                <strong><a href="{% url 'iscas:agente_detalhe' item.atribuicao.agente.pk %}">{{ item.atribuicao.agente.nome }}</a></strong>
+                <div class="small text-muted">
+                  {{ item.atribuicao.agente.telefone }} — {{ item.atribuicao.agente.cidade }}/{{ item.atribuicao.agente.uf }}
+                </div>
+              </div>
+              <span class="badge
+                {% if item.atribuicao.status == 'ENTREGUE' %}bg-success
+                {% elif item.atribuicao.status == 'CANCELADA' %}bg-secondary
+                {% elif item.atribuicao.status == 'EM_ROTA' %}bg-info
+                {% else %}bg-primary{% endif %}">
+                {{ item.atribuicao.get_status_display }}
+              </span>
+            </div>
+
+            {% if item.unidades %}
+              <div class="small mt-2 text-muted">
+                {{ item.unidades|length }} unidade(s) reservada(s):
+                {% for unidade in item.unidades|slice:":8" %}
+                  <a href="{% url 'iscas:unidade_detalhe' unidade.identificador %}" class="badge bg-dark text-decoration-none">{{ unidade.identificador }}</a>
+                {% endfor %}
+                {% if item.unidades|length > 8 %}<span class="text-muted">…</span>{% endif %}
+              </div>
+            {% endif %}
+
+            {% if item.atribuicao.entregue_em %}
+              <div class="small mt-2 text-success">
+                Entregue em {{ item.atribuicao.entregue_em|date:"d/m/Y H:i" }}
+                {% if item.atribuicao.recebido_por %}— recebido por {{ item.atribuicao.recebido_por }}{% endif %}
+              </div>
+            {% endif %}
+            {% if item.atribuicao.motivo_cancelamento %}
+              <div class="small mt-2 text-muted">Cancelada: {{ item.atribuicao.motivo_cancelamento }}</div>
+            {% endif %}
+
+            {% if not item.atribuicao.eh_terminal %}
+              <div class="d-flex gap-2 flex-wrap mt-3">
+                <a href="{{ item.link_whatsapp }}" target="_blank" rel="noopener"
+                   class="btn btn-success btn-sm">
+                  <i class="bi bi-whatsapp"></i> WhatsApp
+                </a>
+                <a href="{% url 'iscas:atribuicao_mensagem' item.atribuicao.pk %}"
+                   class="btn btn-outline-light btn-sm">Ver texto</a>
+
+                {% if item.atribuicao.status == 'RESERVADA' %}
+                  <form method="post" action="{% url 'iscas:atribuicao_rota' item.atribuicao.pk %}" class="d-inline">
+                    {% csrf_token %}
+                    <button class="btn btn-outline-info btn-sm"><i class="bi bi-truck"></i> Em rota</button>
+                  </form>
+                {% endif %}
+
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal"
+                        data-bs-target="#modalEntrega{{ item.atribuicao.pk }}">
+                  <i class="bi bi-check2-circle"></i> Confirmar entrega
+                </button>
+                <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal"
+                        data-bs-target="#modalCancelarAtrib{{ item.atribuicao.pk }}">Cancelar</button>
+              </div>
+            {% endif %}
+          </div>
+        {% empty %}
+          <div class="p-3 text-muted">Nenhuma atribuição ainda. Busque agentes próximos para começar.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="card iscas-card">
+      <div class="card-header">Histórico</div>
+      <div class="card-body p-0 tabela-rolavel">
+        <table class="table table-dark table-sm iscas-tabela mb-0">
+          <tbody>
+          {% for evento in eventos %}
+            <tr>
+              <td class="text-muted small" style="width:8rem">{{ evento.created_at|date:"d/m/Y H:i" }}</td>
+              <td>
+                {% if evento.atribuicao_id %}<span class="text-muted small">atribuição #{{ evento.atribuicao_id }}:</span>{% endif %}
+                {{ evento.status_anterior|default:"—" }} → <strong>{{ evento.status_novo }}</strong>
+              </td>
+              <td class="text-end small text-muted">{{ evento.autor.get_username }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ══════════════════ MODAIS ══════════════════ #}
+
+{% if solicitacao.is_active %}
+  {% if not solicitacao.eh_terminal %}
+    <div class="modal fade" id="modalCancelar" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <form method="post" action="{% url 'iscas:solicitacao_cancelar' solicitacao.pk %}"
+              class="modal-content bg-dark text-light border border-secondary">
+          {% csrf_token %}
+          <div class="modal-header border-secondary">
+            <h5 class="modal-title text-danger">Cancelar solicitação #{{ solicitacao.pk }}</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Fechar"></button>
+          </div>
+          <div class="modal-body">
+            <p class="small text-muted">
+              O cancelamento libera todas as reservas ativas — as unidades voltam
+              ao saldo dos agentes. A solicitação continua na lista, com o status
+              cancelada.
+            </p>
+            <label class="form-label small" for="motivoSolicitacao">Motivo do cancelamento</label>
+            <textarea name="motivo" id="motivoSolicitacao" rows="3" class="form-control"
+                      placeholder="Obrigatório." required></textarea>
+          </div>
+          <div class="modal-footer border-secondary">
+            <button type="button" class="btn btn-outline-light btn-sm" data-bs-dismiss="modal">
+              Voltar
+            </button>
+            <button class="btn btn-danger btn-sm">Cancelar e liberar reservas</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="modal fade" id="modalExcluir" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <form method="post" action="{% url 'iscas:solicitacao_excluir' solicitacao.pk %}"
+            class="modal-content bg-dark text-light border border-secondary">
+        {% csrf_token %}
+        <div class="modal-header border-secondary">
+          <h5 class="modal-title text-danger">Excluir solicitação #{{ solicitacao.pk }}</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                  aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted">
+            A solicitação sai da lista sem apagar o histórico, e pode ser
+            restaurada pela lixeira. Para desistência do cliente use
+            <strong>cancelar</strong>: libera as reservas e mantém o registro visível.
+          </p>
+          <label class="form-label small">Motivo (opcional)</label>
+          <input type="text" name="motivo" class="form-control form-control-sm"
+                 placeholder="ex.: aberta em duplicidade">
+        </div>
+        <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-outline-light btn-sm" data-bs-dismiss="modal">
+            Voltar
+          </button>
+          <button class="btn btn-danger btn-sm">
+            <i class="bi bi-trash"></i> Excluir solicitação
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endif %}
+
+{% for item in atribuicoes %}
+  {% if not item.atribuicao.eh_terminal %}
+    <div class="modal fade" id="modalEntrega{{ item.atribuicao.pk }}" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <form method="post" action="{% url 'iscas:atribuicao_entregar' item.atribuicao.pk %}"
+              class="modal-content bg-dark text-light border border-secondary">
+          {% csrf_token %}
+          <div class="modal-header border-secondary">
+            <h5 class="modal-title">Confirmar entrega — {{ item.atribuicao.agente.nome }}</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Fechar"></button>
+          </div>
+          <div class="modal-body">
+            <p class="small text-muted">
+              É aqui que a custódia passa ao cliente: as
+              {{ item.unidades|length }} unidade(s) reservada(s) deixam o saldo do agente.
+            </p>
+            <div class="row g-2">
+              <div class="col-12 col-md-6">
+                <label class="form-label small">{{ form_entrega.entregue_em.label }}</label>
+                {{ form_entrega.entregue_em }}
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label small">{{ form_entrega.recebido_por.label }}</label>
+                {{ form_entrega.recebido_por }}
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer border-secondary">
+            <button type="button" class="btn btn-outline-light btn-sm" data-bs-dismiss="modal">
+              Voltar
+            </button>
+            <button class="btn btn-primary btn-sm">Confirmar entrega</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal fade" id="modalCancelarAtrib{{ item.atribuicao.pk }}" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <form method="post" action="{% url 'iscas:atribuicao_cancelar' item.atribuicao.pk %}"
+              class="modal-content bg-dark text-light border border-secondary">
+          {% csrf_token %}
+          <div class="modal-header border-secondary">
+            <h5 class="modal-title text-danger">Cancelar atribuição — {{ item.atribuicao.agente.nome }}</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Fechar"></button>
+          </div>
+          <div class="modal-body">
+            <p class="small text-muted">
+              As unidades reservadas voltam ao saldo do agente, disponíveis para
+              outras solicitações.
+            </p>
+            <label class="form-label small" for="motivoAtrib{{ item.atribuicao.pk }}">Motivo do cancelamento</label>
+            <textarea name="motivo" id="motivoAtrib{{ item.atribuicao.pk }}" rows="3"
+                      class="form-control" placeholder="Obrigatório." required></textarea>
+          </div>
+          <div class="modal-footer border-secondary">
+            <button type="button" class="btn btn-outline-light btn-sm" data-bs-dismiss="modal">
+              Voltar
+            </button>
+            <button class="btn btn-danger btn-sm">Cancelar e devolver ao saldo</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  {% endif %}
+{% endfor %}
+{% endblock %}

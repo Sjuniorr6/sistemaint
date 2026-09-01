@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+{% comment %}
+Base do app Iscas Fast: navegação própria + libs do mapa.
+
+HTMX e Alpine.js vêm por CDN, como o Bootstrap do base.html do GSInt. Leaflet e
+markercluster idem — o ARCHITECTURE previa vendorização em static/, mas o
+padrão do projeto é CDN e manter os dois estilos misturados só criaria confusão
+de manutenção. Trocar para arquivos locais é substituir estas tags.
+{% endcomment %}
+
+{% block title %}{% block titulo_iscas %}Iscas Fast{% endblock %} | Iscas Fast |{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js"></script>
+<script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script>
+
+<style>
+/* Paleta do Iscas Fast.
+   O fundo do GSInt é #45494E — cinza médio, que é o pior caso para contraste:
+   texto claro demais some, escuro demais também. Os tons abaixo foram
+   escolhidos para dar no mínimo 4.5:1 (WCAG AA) contra a superfície onde cada
+   um aparece, e o texto secundário fica em 7:1 em vez do cinza fraco do
+   `text-muted` do Bootstrap, que sobre superfície escura é ilegível. */
+:root {
+    --iscas-superficie: #2b3036;      /* card */
+    --iscas-superficie-alta: #21252a; /* cabeçalho de card e de tabela */
+    --iscas-borda: #454c54;
+    --iscas-texto: #f4f6f8;           /* 13.5:1 sobre a superfície */
+    --iscas-texto-suave: #c8cfd6;     /*  8.2:1 — o "secundário" legível */
+    --iscas-texto-fraco: #9aa4ae;     /*  4.6:1 — mínimo AA, só p/ apoio */
+    --iscas-azul: #4d9fff;
+    --iscas-ok: #4ade80;
+    --iscas-alerta: #fbbf24;
+    --iscas-erro: #f87171;
+}
+
+/* O app inteiro herda o texto claro; sem isto, elementos fora de card
+   ficam com o cinza padrão do Bootstrap e somem no fundo. */
+.iscas-app { color: var(--iscas-texto); }
+.iscas-app h1, .iscas-app h2, .iscas-app h3,
+.iscas-app h4, .iscas-app h5, .iscas-app h6 { color: var(--iscas-texto); }
+
+/* `text-muted` do Bootstrap é #6c757d: 2.8:1 aqui, ilegível. Reescrevemos
+   dentro do app — é a causa direta do "letras ruins de enxergar". */
+.iscas-app .text-muted { color: var(--iscas-texto-suave) !important; }
+.iscas-app .form-text { color: var(--iscas-texto-fraco); }
+.iscas-app small, .iscas-app .small { color: inherit; }
+
+.iscas-nav {
+    background: var(--iscas-superficie-alta);
+    border: 1px solid var(--iscas-borda);
+    border-radius: .5rem;
+    padding: .4rem .6rem;
+    margin-bottom: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    flex-wrap: wrap;
+}
+.iscas-nav-grupo { display: flex; align-items: center; gap: .15rem; }
+
+/* Separador entre grupos: o que dá hierarquia sem gastar rótulo. */
+.iscas-nav-sep {
+    width: 1px; align-self: stretch; margin: .15rem .4rem;
+    background: var(--iscas-borda);
+}
+
+.iscas-nav-link {
+    display: inline-flex; align-items: center; gap: .4rem;
+    color: var(--iscas-texto-suave);
+    padding: .4rem .75rem;
+    border: 0; background: transparent;
+    border-radius: .35rem;
+    font-size: .93rem; font-weight: 500;
+    text-decoration: none; white-space: nowrap;
+    transition: background .15s, color .15s;
+}
+.iscas-nav-link:hover { background: #363d45; color: #fff; }
+.iscas-nav-link.ativo { background: var(--iscas-azul); color: #08182b; font-weight: 600; }
+.iscas-nav-link.dropdown-toggle::after { margin-left: .1rem; }
+
+/* A ação primária vai para a direita, separada da navegação: ela CRIA algo,
+   as outras só levam a algum lugar. */
+.iscas-nav-acao {
+    margin-left: auto;
+    display: inline-flex; align-items: center; gap: .4rem;
+    padding: .4rem .85rem;
+    border-radius: .35rem;
+    background: var(--iscas-azul); color: #08182b;
+    font-size: .9rem; font-weight: 600;
+    text-decoration: none; white-space: nowrap;
+    transition: filter .15s;
+}
+.iscas-nav-acao:hover { filter: brightness(1.12); color: #08182b; }
+
+.iscas-nav .dropdown-menu {
+    background: var(--iscas-superficie);
+    border: 1px solid var(--iscas-borda);
+}
+.iscas-nav .dropdown-item { color: var(--iscas-texto-suave); }
+.iscas-nav .dropdown-item:hover { background: #363d45; color: #fff; }
+.iscas-nav .dropdown-item.active { background: var(--iscas-azul); color: #08182b; }
+
+@media (max-width: 575.98px) {
+    /* No celular a barra vira rolagem horizontal: quebrar onze destinos em
+       quatro linhas empurraria o conteúdo para fora da tela. */
+    .iscas-nav { flex-wrap: nowrap; overflow-x: auto; }
+    .iscas-nav-acao { margin-left: .35rem; }
+}
+
+.iscas-card {
+    background: var(--iscas-superficie);
+    border: 1px solid var(--iscas-borda);
+    border-radius: .5rem; color: var(--iscas-texto);
+}
+.iscas-card .card-header {
+    background: var(--iscas-superficie-alta);
+    border-bottom: 1px solid var(--iscas-borda);
+    color: var(--iscas-texto); font-weight: 600;
+}
+.iscas-card .card-body { color: var(--iscas-texto); }
+
+/* As tabelas usam `table-dark`, cuja cor própria briga com a do card.
+   Fixamos aqui para não depender da ordem de carga do Bootstrap. */
+.iscas-tabela { font-size: .9rem; color: var(--iscas-texto); margin-bottom: 0; }
+.iscas-tabela > :not(caption) > * > * {
+    background-color: transparent; color: var(--iscas-texto);
+    border-bottom-color: var(--iscas-borda); padding: .55rem .75rem;
+}
+.iscas-tabela thead th {
+    background-color: var(--iscas-superficie-alta) !important;
+    color: var(--iscas-texto) !important;
+    font-weight: 600; white-space: nowrap;
+    border-bottom: 2px solid var(--iscas-borda);
+}
+.iscas-tabela tbody tr:hover > * { background-color: #343b43 !important; }
+.iscas-tabela .text-muted { color: var(--iscas-texto-suave) !important; }
+.iscas-tabela a { color: var(--iscas-azul); text-decoration: none; }
+.iscas-tabela a:hover { text-decoration: underline; }
+
+/* Linhas destacadas do Bootstrap (table-warning) vêm com fundo claro e
+   texto claro herdado — combinação ilegível. Forçamos texto escuro. */
+.iscas-tabela .table-warning > * { background-color: #f6d365 !important; color: #241c00 !important; }
+.iscas-tabela .table-warning a { color: #1a3a63 !important; }
+.iscas-tabela .table-primary > * { background-color: #cfe2ff !important; color: #04203f !important; }
+
+.iscas-metrica { font-size: 2rem; font-weight: 700; line-height: 1.1; color: var(--iscas-texto); }
+.iscas-rotulo {
+    font-size: .78rem; color: var(--iscas-texto-suave);
+    text-transform: uppercase; letter-spacing: .05em; font-weight: 600;
+}
+
+/* Formulários: o padrão do Bootstrap é claro e destoa das superfícies. */
+.iscas-app .form-control, .iscas-app .form-select {
+    background-color: #1e2227; border-color: var(--iscas-borda); color: var(--iscas-texto);
+}
+.iscas-app .form-control:focus, .iscas-app .form-select:focus {
+    background-color: #1e2227; color: var(--iscas-texto);
+    border-color: var(--iscas-azul); box-shadow: 0 0 0 .2rem rgba(77,159,255,.25);
+}
+.iscas-app .form-control::placeholder { color: #7c8792; }
+.iscas-app .form-label { color: var(--iscas-texto-suave); font-weight: 500; }
+.iscas-app .input-group-text { background-color: var(--iscas-superficie-alta); border-color: var(--iscas-borda); color: var(--iscas-texto-suave); }
+.iscas-app .form-control:disabled, .iscas-app .form-select:disabled { background-color: #2a2f35; color: var(--iscas-texto-fraco); }
+
+.iscas-app .btn-outline-light { color: var(--iscas-texto); border-color: #5b636c; }
+.iscas-app .btn-outline-light:hover { background-color: #3d444c; color: #fff; border-color: #6b737c; }
+
+/* Alertas: os tons pastel do Bootstrap com texto claro herdado ficam
+   ilegíveis. Recompomos com fundo translúcido e texto na cor do estado. */
+.iscas-app .alert { border-width: 1px; }
+.iscas-app .alert-secondary { background-color: #2f353c; border-color: var(--iscas-borda); color: var(--iscas-texto-suave); }
+.iscas-app .alert-warning { background-color: rgba(251,191,36,.12); border-color: rgba(251,191,36,.45); color: #ffd97a; }
+.iscas-app .alert-danger { background-color: rgba(248,113,113,.12); border-color: rgba(248,113,113,.45); color: #ffa8a8; }
+.iscas-app .alert-success { background-color: rgba(74,222,128,.12); border-color: rgba(74,222,128,.45); color: #86efac; }
+.iscas-app .alert-info { background-color: rgba(77,159,255,.12); border-color: rgba(77,159,255,.45); color: #93c5fd; }
+.iscas-app .alert-link { color: inherit; font-weight: 600; text-decoration: underline; }
+
+.iscas-app .text-warning { color: var(--iscas-alerta) !important; }
+.iscas-app .text-danger  { color: var(--iscas-erro) !important; }
+.iscas-app .text-success { color: var(--iscas-ok) !important; }
+.iscas-app .text-info    { color: var(--iscas-azul) !important; }
+.iscas-app a { color: white; }
+
+/* `bg-dark` em badge sobre card escuro some. Damos borda e contraste. */
+.iscas-app .badge.bg-dark { background-color: #171a1e !important; color: var(--iscas-texto); border: 1px solid var(--iscas-borda); font-weight: 500; }
+.iscas-app .badge.bg-secondary { background-color: #5a636d !important; color: #fff; }
+.iscas-app .badge.bg-warning { color: #241c00 !important; }
+.badge-situacao { font-size: .75rem; }
+
+.iscas-app .card-body dt { color: var(--iscas-texto-suave); font-weight: 600; }
+.iscas-app .card-body dd { color: var(--iscas-texto); }
+.iscas-app .page-link { background-color: var(--iscas-superficie); border-color: var(--iscas-borda); color: var(--iscas-texto); }
+.iscas-app .page-item.disabled .page-link { background-color: var(--iscas-superficie-alta); color: var(--iscas-texto-fraco); }
+.iscas-app hr.dropdown-divider { border-color: var(--iscas-borda); }
+
+#mapa, .mapa-caixa { height: 520px; border-radius: .5rem; z-index: 1; }
+/* O Leaflet injeta texto escuro nos popups; o app não pode sobrescrever. */
+.leaflet-popup-content { color: #1a1a1a; }
+
+/* O operador registra confirmações fora da mesa: 360px precisa funcionar. */
+@media (max-width: 576px) {
+    .iscas-nav { display: flex; overflow-x: auto; white-space: nowrap; }
+    .iscas-metrica { font-size: 1.5rem; }
+    #mapa, .mapa-caixa { height: 360px; }
+    .tabela-rolavel { overflow-x: auto; }
+    .iscas-tabela { font-size: .85rem; }
+}
+</style>
+
+<div class="iscas-app">
+
+<nav class="iscas-nav" aria-label="Seções do Iscas Fast">
+  {% comment %}
+  Esta barra é a ÚNICA navegação entre as abas do app — o menu do topo virou
+  link direto para o painel. Por isso ela agrupa por função em vez de listar
+  onze itens em fila: com tudo no mesmo nível, "Modelos" pesava igual a
+  "Solicitações", e a fila quebrava em duas linhas sem hierarquia nenhuma.
+  {% endcomment %}
+  <div class="iscas-nav-grupo">
+    <a class="iscas-nav-link {% if secao == 'painel' %}ativo{% endif %}" href="{% url 'iscas:painel' %}">
+      <i class="bi bi-speedometer2"></i> Painel
+    </a>
+    <a class="iscas-nav-link {% if secao == 'mapa' %}ativo{% endif %}" href="{% url 'iscas:mapa' %}">
+      <i class="bi bi-geo-alt"></i> Mapa
+    </a>
+    <a class="iscas-nav-link {% if secao == 'solicitacoes' %}ativo{% endif %}" href="{% url 'iscas:solicitacao_lista' %}">
+      <i class="bi bi-clipboard-check"></i> Solicitações
+    </a>
+  </div>
+
+  <span class="iscas-nav-sep" aria-hidden="true"></span>
+
+  <div class="iscas-nav-grupo">
+    <a class="iscas-nav-link {% if secao == 'saldos' %}ativo{% endif %}" href="{% url 'iscas:painel_saldo' %}">
+      <i class="bi bi-boxes"></i> Saldos
+    </a>
+    <a class="iscas-nav-link {% if secao == 'unidades' %}ativo{% endif %}" href="{% url 'iscas:unidade_lista' %}">
+      <i class="bi bi-upc-scan"></i> Unidades
+    </a>
+    <a class="iscas-nav-link {% if secao == 'retornaveis' %}ativo{% endif %}" href="{% url 'iscas:retornaveis' %}">
+      <i class="bi bi-arrow-repeat"></i> Retornáveis
+    </a>
+    <a class="iscas-nav-link {% if secao == 'extrato' %}ativo{% endif %}" href="{% url 'iscas:extrato' %}">
+      <i class="bi bi-journal-text"></i> Extrato
+    </a>
+  </div>
+
+  <span class="iscas-nav-sep" aria-hidden="true"></span>
+
+  {% comment %}
+  Cadastros ficam num menu só: são as telas menos visitadas do app — mexe-se
+  nelas para incluir um agente ou um modelo, não no dia a dia da operação.
+  {% endcomment %}
+  <div class="dropdown iscas-nav-grupo">
+    <button class="iscas-nav-link dropdown-toggle {% if secao == 'agentes' or secao == 'clientes' or secao == 'depositos' or secao == 'modelos' %}ativo{% endif %}"
+            type="button" data-bs-toggle="dropdown" aria-expanded="false">
+      <i class="bi bi-folder2-open"></i> Cadastros
+    </button>
+    <ul class="dropdown-menu dropdown-menu-dark">
+      <li><a class="dropdown-item {% if secao == 'agentes' %}active{% endif %}" href="{% url 'iscas:agente_lista' %}"><i class="bi bi-person-badge"></i> Agentes</a></li>
+      <li><a class="dropdown-item {% if secao == 'clientes' %}active{% endif %}" href="{% url 'iscas:cliente_lista' %}"><i class="bi bi-building"></i> Clientes</a></li>
+      <li><a class="dropdown-item {% if secao == 'depositos' %}active{% endif %}" href="{% url 'iscas:deposito_lista' %}"><i class="bi bi-house-gear"></i> Depósitos</a></li>
+      <li><a class="dropdown-item {% if secao == 'modelos' %}active{% endif %}" href="{% url 'iscas:modelo_lista' %}"><i class="bi bi-tags"></i> Modelos</a></li>
+    </ul>
+  </div>
+
+  <a class="iscas-nav-acao" href="{% url 'iscas:solicitacao_criar' %}">
+    <i class="bi bi-plus-lg"></i> Nova solicitação
+  </a>
+</nav>
+
+{% if messages %}
+  {% for message in messages %}
+    <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+      {{ message }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+    </div>
+  {% endfor %}
+{% endif %}
+
+{% block iscas_conteudo %}{% endblock %}
+
+</div>{# .iscas-app #}
+{% endblock %}

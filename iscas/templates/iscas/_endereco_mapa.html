@@ -1,0 +1,266 @@
+{% comment %}
+Bloco de endereço com busca por CEP e mapa de conferência.
+
+Fluxo: o operador digita o CEP → o ViaCEP preenche rua/bairro/cidade/UF → ele
+digita só o número → o mapa mostra o pin do endereço completo. Se o pin estiver
+torto, arrasta; a posição ajustada é salva junto, marcada como MANUAL.
+
+Compartilhado por agente_form.html e cliente_form.html.
+{% endcomment %}
+<div class="row g-3" x-data="enderecoComMapa()">
+
+  <div class="col-12 col-md-4">
+    <label class="form-label small" for="{{ form.cep.id_for_label }}">
+      CEP <span class="text-danger">*</span>
+    </label>
+    <div class="input-group">
+      {{ form.cep }}
+      <button type="button" class="btn btn-outline-light" @click="buscarCep()" :disabled="buscandoCep">
+        <span x-show="!buscandoCep"><i class="bi bi-search"></i></span>
+        <span x-show="buscandoCep" class="spinner-border spinner-border-sm"></span>
+      </button>
+    </div>
+    <div class="form-text small">Digite o CEP para preencher o endereço.</div>
+    <template x-if="erroCep">
+      <div class="text-warning small mt-1" x-text="erroCep"></div>
+    </template>
+    {% for erro in form.cep.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+  </div>
+
+  <div class="col-12 col-md-6">
+    <label class="form-label small" for="{{ form.logradouro.id_for_label }}">
+      Logradouro <span class="text-danger">*</span>
+    </label>
+    {{ form.logradouro }}
+    {% for erro in form.logradouro.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+  </div>
+
+  <div class="col-6 col-md-2">
+    <label class="form-label small" for="{{ form.numero.id_for_label }}">Número</label>
+    {{ form.numero }}
+    {% for erro in form.numero.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+  </div>
+
+  <div class="col-6 col-md-4">
+    <label class="form-label small" for="{{ form.complemento.id_for_label }}">Complemento</label>
+    {{ form.complemento }}
+  </div>
+
+  <div class="col-12 col-md-4">
+    <label class="form-label small" for="{{ form.bairro.id_for_label }}">Bairro</label>
+    {{ form.bairro }}
+  </div>
+
+  <div class="col-8 col-md-3">
+    <label class="form-label small" for="{{ form.cidade.id_for_label }}">
+      Cidade <span class="text-danger">*</span>
+    </label>
+    {{ form.cidade }}
+    {% for erro in form.cidade.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+  </div>
+
+  <div class="col-4 col-md-1">
+    <label class="form-label small" for="{{ form.uf.id_for_label }}">
+      UF <span class="text-danger">*</span>
+    </label>
+    {{ form.uf }}
+    {% for erro in form.uf.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+  </div>
+
+  <div class="col-12">
+    <div class="card iscas-card">
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><i class="bi bi-geo-alt"></i> Confira a posição no mapa</span>
+        <div class="d-flex align-items-center gap-2">
+          <template x-if="pinMovido">
+            <span class="badge bg-info">posição ajustada à mão</span>
+          </template>
+          <button type="button" class="btn btn-outline-light btn-sm" @click="localizar()" :disabled="buscandoPin">
+            <span x-show="!buscandoPin"><i class="bi bi-crosshair"></i> Localizar no mapa</span>
+            <span x-show="buscandoPin">Localizando…</span>
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="mapaEndereco" class="mapa-caixa" style="height:300px"></div>
+
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-2">
+          <div class="form-text small mb-0">
+            Arraste o pin se ele não estiver no lugar certo — a posição ajustada é salva com o cadastro.
+          </div>
+          <div class="small text-muted" x-show="temPin">
+            <span x-text="latitude"></span>, <span x-text="longitude"></span>
+          </div>
+        </div>
+
+        <template x-if="erroPin">
+          <div class="alert alert-warning py-2 small mt-2 mb-0" x-text="erroPin"></div>
+        </template>
+        <template x-if="!temPin && !erroPin">
+          <div class="alert alert-secondary py-2 small mt-2 mb-0">
+            Preencha o endereço e clique em <strong>Localizar no mapa</strong> para conferir a posição.
+            Sem coordenada, o cadastro é salvo mesmo assim, mas fica fora da busca por proximidade.
+          </div>
+        </template>
+
+        {{ form.latitude_ajustada }}
+        {{ form.longitude_ajustada }}
+        {{ form.pin_movido }}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function enderecoComMapa() {
+  return {
+    mapa: null,
+    pin: null,
+    temPin: false,
+    pinMovido: false,
+    latitude: null,
+    longitude: null,
+    buscandoCep: false,
+    buscandoPin: false,
+    erroCep: '',
+    erroPin: '',
+
+    campo(nome) { return document.querySelector('#id_' + nome); },
+
+    init() {
+      // Vêm como string com ponto decimal (ver `_contexto_endereco` na view).
+      // Interpolar float aqui produziria vírgula sob locale pt-br, que é
+      // SyntaxError e mataria este script inteiro.
+      const latSalva = {{ latitude_js }};
+      const lngSalva = {{ longitude_js }};
+      const centro = (latSalva !== null && lngSalva !== null) ? [latSalva, lngSalva] : [-23.55052, -46.633308];
+
+      this.mapa = L.map('mapaEndereco').setView(centro, latSalva !== null ? 16 : 11);
+      L.tileLayer('{{ config.tiles_url|escapejs }}', {
+        attribution: '{{ config.tiles_atribuicao|escapejs }}',
+        maxZoom: 19,
+      }).addTo(this.mapa);
+
+      if (latSalva !== null && lngSalva !== null) {
+        this.colocarPin(latSalva, lngSalva, false);
+      }
+
+      // Clicar no mapa também posiciona — às vezes é mais rápido que arrastar.
+      this.mapa.on('click', (evento) => {
+        this.colocarPin(evento.latlng.lat, evento.latlng.lng, true);
+      });
+
+      // Buscar o CEP ao sair do campo é o caminho natural: o operador digita
+      // e passa para o próximo campo sem precisar clicar na lupa.
+      const campoCep = this.campo('cep');
+      if (campoCep) {
+        campoCep.addEventListener('blur', () => {
+          if (this.cepLimpo().length === 8) { this.buscarCep(); }
+        });
+      }
+
+      // Com o número preenchido, o endereço está completo: vale localizar.
+      const campoNumero = this.campo('numero');
+      if (campoNumero) {
+        campoNumero.addEventListener('blur', () => {
+          if (campoNumero.value.trim() && !this.pinMovido) { this.localizar(); }
+        });
+      }
+
+      // O Leaflet calcula o tamanho no init; dentro de um card recém-montado
+      // isso pode sair errado e o mapa renderiza cinza pela metade.
+      setTimeout(() => this.mapa.invalidateSize(), 200);
+    },
+
+    cepLimpo() { return (this.campo('cep')?.value || '').replace(/\D/g, ''); },
+
+    async buscarCep() {
+      const cep = this.cepLimpo();
+      this.erroCep = '';
+      if (cep.length !== 8) { this.erroCep = 'O CEP precisa ter 8 dígitos.'; return; }
+
+      this.buscandoCep = true;
+      try {
+        const resposta = await fetch(`{% url 'iscas:api_cep' %}?cep=${cep}`);
+        const dados = await resposta.json();
+        if (!dados.ok) { this.erroCep = dados.erro; return; }
+
+        const e = dados.endereco;
+        this.campo('cep').value = e.cep;
+        // Não sobrescreve o que o operador já digitou: CEP de cidade pequena
+        // vem sem logradouro, e apagar o que ele preencheu seria hostil.
+        if (e.logradouro) this.campo('logradouro').value = e.logradouro;
+        if (e.bairro) this.campo('bairro').value = e.bairro;
+        if (e.cidade) this.campo('cidade').value = e.cidade;
+        if (e.uf) this.campo('uf').value = e.uf;
+
+        const numero = this.campo('numero');
+        if (numero && !numero.value.trim()) { numero.focus(); }
+        if (numero && numero.value.trim() && !this.pinMovido) { this.localizar(); }
+      } catch (erro) {
+        this.erroCep = 'Não foi possível consultar o CEP. Digite o endereço à mão.';
+      } finally {
+        this.buscandoCep = false;
+      }
+    },
+
+    enderecoCompleto() {
+      // Espelha `endereco_para_geocodificacao` do backend: sem CEP e sem
+      // complemento. Incluí-los faz o Nominatim devolver VAZIO até para
+      // endereços óbvios — verificado contra o serviço real.
+      const valor = (nome) => (this.campo(nome)?.value || '').trim();
+      const partes = [valor('logradouro'), valor('numero'), valor('bairro')].filter(Boolean);
+      const cidade = valor('cidade'), uf = valor('uf');
+      if (cidade) partes.push(uf ? `${cidade} - ${uf}` : cidade);
+      return partes.join(', ');
+    },
+
+    async localizar() {
+      const endereco = this.enderecoCompleto();
+      this.erroPin = '';
+      if (!endereco) { this.erroPin = 'Preencha o endereço antes de localizar.'; return; }
+
+      this.buscandoPin = true;
+      try {
+        const resposta = await fetch(
+          `{% url 'iscas:api_geocodificar' %}?endereco=${encodeURIComponent(endereco)}`
+        );
+        const dados = await resposta.json();
+        if (!dados.ok) {
+          this.erroPin = dados.erro + ' Posicione o pin clicando no mapa.';
+          return;
+        }
+        // Prévia: não conta como ajuste manual. Se o operador arrastar depois,
+        // aí sim vira MANUAL e a geocodificação para de sobrescrever.
+        this.colocarPin(dados.latitude, dados.longitude, false);
+        this.mapa.setView([dados.latitude, dados.longitude], 17);
+      } catch (erro) {
+        this.erroPin = 'Não foi possível localizar o endereço. Clique no mapa para posicionar.';
+      } finally {
+        this.buscandoPin = false;
+      }
+    },
+
+    colocarPin(lat, lng, manual) {
+      this.latitude = Number(lat).toFixed(6);
+      this.longitude = Number(lng).toFixed(6);
+      this.temPin = true;
+      if (manual) { this.pinMovido = true; }
+
+      this.campo('latitude_ajustada').value = this.latitude;
+      this.campo('longitude_ajustada').value = this.longitude;
+      this.campo('pin_movido').value = this.pinMovido ? '1' : '';
+
+      if (this.pin) {
+        this.pin.setLatLng([lat, lng]);
+      } else {
+        this.pin = L.marker([lat, lng], {draggable: true}).addTo(this.mapa);
+        this.pin.on('dragend', (evento) => {
+          const posicao = evento.target.getLatLng();
+          this.colocarPin(posicao.lat, posicao.lng, true);
+        });
+      }
+    },
+  };
+}
+</script>

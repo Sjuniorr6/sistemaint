@@ -1,0 +1,22 @@
+{% comment %}Renderiza os campos de um form com marcação Bootstrap.{% endcomment %}
+{% if form.non_field_errors %}
+  <div class="alert alert-danger py-2">
+    {% for erro in form.non_field_errors %}<div>{{ erro }}</div>{% endfor %}
+  </div>
+{% endif %}
+<div class="row g-3">
+{% for campo in form %}
+  {% if campo.is_hidden %}
+    {{ campo }}
+  {% else %}
+    <div class="col-12 col-md-6">
+      <label class="form-label small" for="{{ campo.id_for_label }}">
+        {{ campo.label }}{% if campo.field.required %} <span class="text-danger">*</span>{% endif %}
+      </label>
+      {{ campo }}
+      {% if campo.help_text %}<div class="form-text small">{{ campo.help_text }}</div>{% endif %}
+      {% for erro in campo.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+    </div>
+  {% endif %}
+{% endfor %}
+</div>

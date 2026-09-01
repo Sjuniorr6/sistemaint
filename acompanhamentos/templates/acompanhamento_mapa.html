@@ -13,17 +13,128 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        body { background: #1a1d21; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
-        #map { height: 65vh; border-radius: 12px; border: 1px solid #2d3748; }
+        /* ── Tokens ──
+           As cores já usadas na tela, nomeadas. Mudar o tema passa a ser
+           mexer aqui, não caçar hex repetido em vinte regras. */
+        :root {
+            --fundo: #1a1d21;
+            --superficie: #2d3748;
+            --superficie-alta: #232b38;
+            --borda: #3a4657;
+            --texto: #e2e8f0;
+            --texto-suave: #94a3b8;
+            --raio: 12px;
+            --gap: 12px;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            background: var(--fundo);
+            color: var(--texto);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            margin: 0;
+        }
+
+        /* A página é uma coluna flex de altura cheia: cabeçalho e console
+           ocupam o que precisam, e o MAPA fica com todo o resto. Antes o mapa
+           tinha 65vh fixos e, somado às faixas acima, estourava a dobra — no
+           celular sobrava uma nesga de mapa. */
+        .pagina {
+            display: flex;
+            flex-direction: column;
+            gap: var(--gap);
+            height: 100dvh;
+            padding: var(--gap);
+            max-width: 1600px;
+            margin-inline: auto;
+        }
+
+        /* ── Cabeçalho ── */
+        .cabecalho {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .cabecalho-titulo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+        .cabecalho h1 {
+            font-size: 1.15rem;
+            font-weight: 600;
+            margin: 0;
+            white-space: nowrap;
+        }
+        .voltar {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 14px;
+            border-radius: 8px;
+            border: 1px solid var(--borda);
+            background: var(--superficie);
+            color: var(--texto-suave);
+            text-decoration: none;
+            font-size: .85rem;
+            transition: background .2s, color .2s;
+        }
+        .voltar:hover { background: var(--superficie-alta); color: var(--texto); }
+
+        /* Estado da conexão: encostado à direita, é informação de canto. */
+        .conexao {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .conexao #dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: #f59e0b;
+            flex: none;
+        }
+        .conexao-texto { display: flex; flex-direction: column; line-height: 1.25; }
+        .conexao-texto span { font-size: .85rem; }
+        .conexao-texto small { color: var(--texto-suave); font-size: .72rem; }
+
+        /* ── Console: agente/origem + progresso, um bloco só ──
+           Eram duas faixas empilhadas da mesma cor, o que fazia a tela parecer
+           uma pilha de barras sem hierarquia. Lado a lado no desktop, o
+           stepper fica com a largura que ele precisa e a identificação ocupa
+           só o necessário. */
+        .console {
+            display: grid;
+            grid-template-columns: minmax(200px, auto) 1fr;
+            gap: var(--gap);
+            align-items: stretch;
+        }
+        @media (max-width: 900px) {
+            .console { grid-template-columns: 1fr; }
+        }
+
+        #map {
+            flex: 1;
+            min-height: 260px;
+            border-radius: var(--raio);
+            border: 1px solid var(--superficie);
+            position: relative;
+        }
 
         /* ── Status Stepper ── */
         .stepper-container {
-            background: #2d3748;
-            border-radius: 12px;
+            background: var(--superficie);
+            border-radius: var(--raio);
             padding: 16px 20px;
-            margin-bottom: 16px;
+            margin-bottom: 0;
             overflow-x: auto;
+            display: flex;
+            align-items: center;
         }
+        .stepper-container .stepper { width: 100%; }
         .stepper { display: flex; align-items: center; gap: 0; min-width: max-content; }
         .step { display: flex; flex-direction: column; align-items: center; position: relative; flex: 1; min-width: 80px; }
         .step-circle {
@@ -83,14 +194,27 @@
 
         /* ── Info bar ── */
         .info-bar {
-            background: #2d3748;
-            border-radius: 10px;
+            background: var(--superficie);
+            border-radius: var(--raio);
             padding: 12px 18px;
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 24px;
             flex-wrap: wrap;
-            margin-bottom: 12px;
+            margin-bottom: 0;
+        }
+        .info-item { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        .info-item small {
+            color: var(--texto-suave);
+            font-size: .68rem;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+        .info-item strong {
+            font-size: .92rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         .badge-status {
             padding: 4px 12px;
@@ -108,7 +232,15 @@
         .panic-card.test .panic-title { color: #fde68a; }
 
         /* ── Panic Overlay ── */
-        .panic-overlay { position: sticky; top: 12px; z-index: 2000; margin-bottom: 12px; }
+        .panic-overlay {
+            position: fixed;
+            top: 16px;
+            left: 0;
+            right: 0;
+            z-index: 2000;
+            width: min(420px, calc(100vw - 32px));
+            margin-inline: auto;
+        }
         .panic-card {
             border-radius: 12px; padding: 14px;
             background: rgba(239, 68, 68, 0.15);
@@ -134,11 +266,12 @@
 
         /* ── Photos info ── */
         .photos-info {
-            background: #2d3748;
-            border-radius: 10px;
+            background: var(--superficie);
+            border-radius: var(--raio);
             padding: 10px 16px;
-            margin-bottom: 12px;
+            margin-bottom: 0;
             font-size: 0.85rem;
+            flex: none;
         }
         .photo-badge {
             display: inline-flex;
@@ -368,64 +501,67 @@
 </head>
 
 <body>
-<div class="container-fluid mt-3 mb-5">
-    <div class="row">
-        <div class="col-12 col-md-6">
-            <a class="dropdown-item" href="{% url 'acompanhamentosPanicoList' %}">
-                <i class="bi bi-arrow-left"></i> Voltar
-            </a>
-            <h4 class="mb-3">🗺️ Missão #{{ acompanhamento.id }}</h4>
-        </div>
-    </div>
+<div class="pagina">
 
-    <div class="row">
-        <div class="col-12">
-            <!-- Container dos alertas (fixo no canto superior direito) -->
-            <div id="alertas-agendamento-container"></div>
-
-            <!-- Badge com contagem de alertas -->
-            <div id="alertas-badge-count" title="Clique para ver alertas">
-                <i class="bi bi-bell-fill"></i> <span id="alertas-count-num">0</span>
-            </div>
-
-            <!-- Som de notificação (beep curto) -->
-            <audio id="alerta-sound" preload="auto">
-                <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgipKRfGNXW3eOj4V0Z2BsfI+PiXdsYWl2h4+Ld29ka3KCjYp0b2lsdIOMiHVwamx0gYuIdnBqbnOAioZ3cmpuc4CJhXhya25zgImEeHJrb3OAiIR5c2tvc4CHg3lzbHBzgIaCenRscHR/hYF7dG1wdH+EgHx1bXF0foN/fHVucXR+g398dnBxdH6CfX13cHJ0fYF8fndwcnV9gHt/eHFzdXx/e4B4cnN1fH97gHlzc3V8fXuBeXN0dXx8e4B6dHR2fHt7gHp1dXZ8ent/e3Z1d3x5en9+d3Z3fHh6fn97d3h4fHd5fX98eHl5e3Z5fH9+eXp5e3V5e39/enp6e3R5en+Ae3t6e3N5eX+Ae3x7e3J5eH+BfHx8e3F4d3+CfX18e3B4d3+CfX5+e3B3dn+Dfn5+e293dn+Df39/e252dX+EgH9/e212dH+EgICAfG11c3+FgYCAe2x0c3+GgoGBe2tzcn+Gg4GBe2pycn+HhIKBemlyc36HhIKBemhxc36Ih4OBemdwdH6Ih4OAeWZvdH+Jh4SAeGVudH+KiISAd2RtdYCKiYSAdmNsdYCLiYWAdWJrdYGMioWAc2FqdYGNi4WAdF9pdIKNi4aAc15odIKOjIaAdV1ndIOPjYeAd1xmdIOQjYeAeVtldISRjoeAeltldISSj4iBe1pkdIWTj4mBfFljc4WUkIqBfVhic4aVkIuBfldhcoaWkYyCgFZgcoaXkomCgVVfcoeYk4qDglRecoiZk4uDg1NdcYialIuEhFJccYmalYyEhVFbcIqbl42Fh1BacIudlo6GiFBZb4udl4+HiU9Yboyen5CIik5Xboyfo5GJi01Wbo2gpZKKjExVbY6hppSLjUtUbI+iqJWMjkpTa5CjqZaOj0lSapGlq5ePkEhRaZKmrJmQkUdQaJOnrpqSlEdPZ5SosJyTlEZOZpWps52Ul0VNZZaqtJ+VmERMZJertaCXmkNLY5ittqKZnEJKYpqvuKObnUFJYZuxuqWdnkBIYJyyy6qgn0BHX5y0za2ip0BGXZ22z7CkqUBFXJ640rKnrEBEW5+61bSqr0BDWqC82Letr0BCWKG+3Luwsj9BWaLA3r6ytD9AWKPB4MC1tj8/V6TD4sO3uT8+VaXF5ca6vD89VKXH58m9vz88U6bI6cy/wj87UqfK7M/CxT86UajL7tLFyD85UKnN8NXIyz84T6rO8tjLzj83TqvP9NvO0T82TavR9t7R1D81TKzS+OHU1z80S63T+uTX2j8zSq7V/OfZ3T8ySa/X/urb" type="audio/wav">
-            </audio>
-        </div>
-    </div>
-
-
-    <!-- ══════ STATUS STEPPER ══════ -->
-    <div class="stepper-container">
-        <div class="stepper" id="stepper"></div>
-    </div>
-
-    <!-- ══════ INFO BAR ══════ -->
-    <div class="info-bar">
-        <div>
-            <small class="text-secondary">Agente</small><br>
-            <strong>{{ nome_agente }}</strong>
-        </div>
-        <div>
-            <small class="text-secondary">Origem</small><br>
-            <strong>{{ origem }}</strong>
-        </div>
-        <div>
-            <small class="text-secondary">Status</small><br>
+    <!-- ══════ CABEÇALHO ══════ -->
+    <header class="cabecalho">
+        <a class="voltar" href="{% url 'acompanhamentosPanicoList' %}">
+            <i class="bi bi-arrow-left"></i><span>Voltar</span>
+        </a>
+        <div class="cabecalho-titulo">
+            <h1>Missão #{{ acompanhamento.id }}</h1>
             <span class="badge-status" id="statusBadge" style="background:#3b82f6;color:white;">
                 {{ status }}
             </span>
         </div>
-        <div class="ms-auto text-end">
-            <span id="dot" style="width:10px;height:10px;border-radius:50%;background:#f59e0b;display:inline-block;"></span>
-            <span id="statusText" style="font-size:0.85rem;">Aguardando...</span><br>
-            <small class="text-secondary">Última: <strong id="lastUpdate">-</strong></small>
+        <div class="conexao" title="Estado da conexão com o rastreamento">
+            <span id="dot"></span>
+            <div class="conexao-texto">
+                <span id="statusText">Aguardando...</span>
+                <small>Última: <strong id="lastUpdate">-</strong></small>
+            </div>
+        </div>
+    </header>
+
+    <!-- Elementos de notificação: sem layout próprio, posicionados por CSS. -->
+    <div id="alertas-agendamento-container"></div>
+    <div id="alertas-badge-count" title="Clique para ver alertas">
+        <i class="bi bi-bell-fill"></i> <span id="alertas-count-num">0</span>
+    </div>
+    <audio id="alerta-sound" preload="auto">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgipKRfGNXW3eOj4V0Z2BsfI+PiXdsYWl2h4+Ld29ka3KCjYp0b2lsdIOMiHVwamx0gYuIdnBqbnOAioZ3cmpuc4CJhXhya25zgImEeHJrb3OAiIR5c2tvc4CHg3lzbHBzgIaCenRscHR/hYF7dG1wdH+EgHx1bXF0foN/fHVucXR+g398dnBxdH6CfX13cHJ0fYF8fndwcnV9gHt/eHFzdXx/e4B4cnN1fH97gHlzc3V8fXuBeXN0dXx8e4B6dHR2fHt7gHp1dXZ8ent/e3Z1d3x5en9+d3Z3fHh6fn97d3h4fHd5fX98eHl5e3Z5fH9+eXp5e3V5e39/enp6e3R5en+Ae3t6e3N5eX+Ae3x7e3J5eH+BfHx8e3F4d3+CfX18e3B4d3+CfX5+e3B3dn+Dfn5+e293dn+Df39/e252dX+EgH9/e212dH+EgICAfG11c3+FgYCAe2x0c3+GgoGBe2tzcn+Gg4GBe2pycn+HhIKBemlyc36HhIKBemhxc36Ih4OBemdwdH6Ih4OAeWZvdH+Jh4SAeGVudH+KiISAd2RtdYCKiYSAdmNsdYCLiYWAdWJrdYGMioWAc2FqdYGNi4WAdF9pdIKNi4aAc15odIKOjIaAdV1ndIOPjYeAd1xmdIOQjYeAeVtldISRjoeAeltldISSj4iBe1pkdIWTj4mBfFljc4WUkIqBfVhic4aVkIuBfldhcoaWkYyCgFZgcoaXkomCgVVfcoeYk4qDglRecoiZk4uDg1NdcYialIuEhFJccYmalYyEhVFbcIqbl42Fh1BacIudlo6GiFBZb4udl4+HiU9Yboyen5CIik5Xboyfo5GJi01Wbo2gpZKKjExVbY6hppSLjUtUbI+iqJWMjkpTa5CjqZaOj0lSapGlq5ePkEhRaZKmrJmQkUdQaJOnrpqSlEdPZ5SosJyTlEZOZpWps52Ul0VNZZaqtJ+VmERMZJertaCXmkNLY5ittqKZnEJKYpqvuKObnUFJYZuxuqWdnkBIYJyyy6qgn0BHX5y0za2ip0BGXZ22z7CkqUBFXJ640rKnrEBEW5+61bSqr0BDWqC82Letr0BCWKG+3Luwsj9BWaLA3r6ytD9AWKPB4MC1tj8/V6TD4sO3uT8+VaXF5ca6vD89VKXH58m9vz88U6bI6cy/wj87UqfK7M/CxT86UajL7tLFyD85UKnN8NXIyz84T6rO8tjLzj83TqvP9NvO0T82TavR9t7R1D81TKzS+OHU1z80S63T+uTX2j8zSq7V/OfZ3T8ySa/X/urb" type="audio/wav">
+    </audio>
+
+    <!-- ══════ CONSOLE: identificação + progresso ══════ -->
+    <section class="console">
+        <div class="info-bar">
+            <div class="info-item">
+                <small>Agente</small>
+                <strong>{{ nome_agente }}</strong>
+            </div>
+            <div class="info-item">
+                <small>Origem</small>
+                <strong>{{ origem }}</strong>
+            </div>
+        </div>
+        <div class="stepper-container">
+            <div class="stepper" id="stepper"></div>
+        </div>
+    </section>
+
+    <!-- ══════ MAPA ══════ -->
+    <div id="map">
+        <div class="route-info" id="routeInfo" style="display:none;"></div>
+        <div class="map-mode-toggle">
+            <button class="map-mode-btn active" id="btnModeGps" onclick="setMapMode('gps')">📍 GPS Real</button>
+            <button class="map-mode-btn" id="btnModeOsrm" onclick="setMapMode('osrm')">🗺️ Rota por Ruas</button>
         </div>
     </div>
 
-    <!-- ══════ FOTOS INFO ══════ -->
-
+    <div class="photos-info d-none" id="photosInfo">
+        <strong>📷 Fotos:</strong>
+        <span id="photosContent"></span>
+    </div>
 
     <!-- ══════ PANIC OVERLAY ══════ -->
     <div id="panicOverlay" class="panic-overlay d-none" role="alert" aria-live="assertive">
@@ -447,20 +583,6 @@
                 </button>
             </div>
         </div>
-    </div>
-
-    <!-- ══════ MAPA ══════ -->
-    <div id="map" class="mt-2" style="position: relative;">
-        <div class="route-info" id="routeInfo" style="display:none;"></div>
-        <div class="map-mode-toggle">
-            <button class="map-mode-btn active" id="btnModeGps" onclick="setMapMode('gps')">📍 GPS Real</button>
-            <button class="map-mode-btn" id="btnModeOsrm" onclick="setMapMode('osrm')">🗺️ Rota por Ruas</button>
-        </div>
-    </div>
-
-    <div class="photos-info d-none mt-2" id="photosInfo">
-        <strong>📷 Fotos:</strong>
-        <span id="photosContent"></span>
     </div>
 </div>
 

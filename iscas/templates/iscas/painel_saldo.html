@@ -1,0 +1,159 @@
+{% extends "iscas/base_iscas.html" %}
+{% comment %}
+Saldo por custódia e por modelo (ISC-RF-15).
+
+Uma linha por depósito/agente, com os totais; o detalhe por modelo abre sob
+demanda. A versão anterior era uma linha por (custódia × modelo) — com 40
+agentes e 6 modelos, 240 linhas de números onde não dava para achar quem tem
+saldo de quê. A pergunta que a tela responde é "quem tem estoque?", e só
+depois "de qual modelo?".
+{% endcomment %}
+{% block titulo_iscas %}Saldos{% endblock %}
+
+{% block iscas_conteudo %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-0">Saldos</h1>
+    <div class="small text-muted">
+      {{ total_geral.total }} unidade(s) em custódia ·
+      <span class="text-info">{{ total_geral.disponivel }} disponível(is)</span> ·
+      {{ total_geral.reservado }} reservada(s)
+    </div>
+  </div>
+  <a href="{% url 'iscas:transferencia' %}" class="btn btn-primary btn-sm">
+    <i class="bi bi-arrow-left-right"></i> Transferir
+  </a>
+</div>
+
+<form method="get" class="mb-3">
+  {% if mostrar_zerados %}<input type="hidden" name="sem_saldo" value="1">{% endif %}
+  <div class="row g-2 align-items-center">
+    <div class="col-12 col-sm-6 col-lg-4">
+      <div class="input-group input-group-sm">
+        <span class="input-group-text bg-dark border-secondary text-muted">
+          <i class="bi bi-search"></i>
+        </span>
+        <input type="search" name="q" value="{{ busca }}" class="form-control"
+               placeholder="Buscar depósito ou agente">
+        <button class="btn btn-outline-light">Filtrar</button>
+      </div>
+    </div>
+    <div class="col-auto">
+      {% if mostrar_zerados %}
+        <a href="?{% if busca %}q={{ busca }}{% endif %}" class="btn btn-link btn-sm text-muted">
+          Ocultar quem está zerado
+        </a>
+      {% else %}
+        <a href="?sem_saldo=1{% if busca %}&q={{ busca }}{% endif %}"
+           class="btn btn-link btn-sm text-muted">
+          Mostrar quem está zerado{% if zerados %} ({{ zerados }}){% endif %}
+        </a>
+      {% endif %}
+    </div>
+  </div>
+</form>
+
+{% comment %}
+O mesmo bloco serve depósitos e agentes: muda o título, o ícone e se o nome
+vira link. Duplicar a tabela era o que fazia as duas divergirem com o tempo.
+{% endcomment %}
+{% for grupo in grupos %}
+  <div class="card iscas-card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span><i class="bi {{ grupo.icone }}"></i> {{ grupo.titulo }}</span>
+      <span class="badge bg-secondary">{{ grupo.blocos|length }}</span>
+    </div>
+    <div class="card-body p-0 tabela-rolavel">
+      <table class="table table-dark table-hover iscas-tabela mb-0 align-middle">
+        <thead>
+          <tr>
+            <th>{{ grupo.rotulo }}</th>
+            <th class="text-end d-none d-sm-table-cell" style="width:6rem">Total</th>
+            <th class="text-end" style="width:7rem">Disponível</th>
+            <th class="text-end d-none d-md-table-cell" style="width:7rem">Reservado</th>
+            <th style="width:3rem"></th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for bloco in grupo.blocos %}
+          <tr role="button" data-bs-toggle="collapse"
+              data-bs-target="#detalhe{{ grupo.prefixo }}{{ bloco.entidade.pk }}"
+              aria-expanded="false">
+            <td>
+              {% if grupo.url_nome %}
+                <a href="{% url grupo.url_nome bloco.entidade.pk %}"
+                   class="text-decoration-none">{{ bloco.entidade.nome }}</a>
+              {% else %}
+                {{ bloco.entidade.nome }}
+              {% endif %}
+              <div class="small text-muted">
+                {{ bloco.modelos }} modelo(s)
+                {# No celular as colunas de total e reservado somem; o número #}
+                {# essencial delas volta aqui, para a linha não mentir. #}
+                <span class="d-sm-none">· {{ bloco.total }} no total</span>
+                <span class="d-md-none">· {{ bloco.reservado }} reservada(s)</span>
+              </div>
+            </td>
+            <td class="text-end d-none d-sm-table-cell">{{ bloco.total }}</td>
+            <td class="text-end fw-bold {% if bloco.disponivel %}text-info{% else %}text-muted{% endif %}">
+              {{ bloco.disponivel }}
+            </td>
+            <td class="text-end d-none d-md-table-cell {% if bloco.reservado %}text-warning{% else %}text-muted{% endif %}">
+              {{ bloco.reservado }}
+            </td>
+            <td class="text-end text-muted"><i class="bi bi-chevron-down"></i></td>
+          </tr>
+          <tr class="collapse" id="detalhe{{ grupo.prefixo }}{{ bloco.entidade.pk }}">
+            <td colspan="5" class="p-0">
+              <table class="table table-dark table-sm mb-0" style="background:#21252a">
+                <thead>
+                  <tr class="small text-muted">
+                    <th class="ps-4">Modelo</th>
+                    <th class="text-end" style="width:6rem">Total</th>
+                    <th class="text-end" style="width:7rem">Disponível</th>
+                    <th class="text-end" style="width:7rem">Reservado</th>
+                    <th style="width:3rem"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                {% for saldo in bloco.saldos %}
+                  <tr>
+                    <td class="ps-4 small">
+                      {{ saldo.modelo__nome }}
+                      <span class="badge bg-dark ms-1">{{ saldo.modelo__codigo }}</span>
+                    </td>
+                    <td class="text-end small">{{ saldo.total }}</td>
+                    <td class="text-end small fw-bold text-info">{{ saldo.disponivel }}</td>
+                    <td class="text-end small {% if saldo.reservado %}text-warning{% else %}text-muted{% endif %}">
+                      {{ saldo.reservado }}
+                    </td>
+                    <td></td>
+                  </tr>
+                {% endfor %}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="5" class="text-muted p-4 text-center">
+              {% if busca %}
+                Nenhum resultado para “{{ busca }}”.
+                <a href="?{% if mostrar_zerados %}sem_saldo=1{% endif %}">Limpar busca</a>.
+              {% else %}
+                {{ grupo.vazio }}
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endfor %}
+
+<div class="form-text small mt-2">
+  Clique numa linha para ver o detalhe por modelo.
+  Saldo é sempre derivado do livro-razão — nenhum número aqui é campo editável.
+</div>
+{% endblock %}

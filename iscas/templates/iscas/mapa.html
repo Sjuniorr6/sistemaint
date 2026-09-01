@@ -1,0 +1,473 @@
+{% extends "iscas/base_iscas.html" %}
+{% comment %}
+Mapa e busca por proximidade (ISC-RF-16 a ISC-RF-21).
+
+A sincronia mapa ↔ tabela é Alpine ouvindo eventos do Leaflet, sem round-trip
+ao servidor (ISC-RF-20). A busca chama o endpoint JSON e redesenha as camadas.
+{% endcomment %}
+{% block titulo_iscas %}Mapa{% endblock %}
+
+{% block iscas_conteudo %}
+<h1 class="h3 mb-3">Quem está perto e tem saldo?</h1>
+
+<div class="row g-3" x-data="mapaIscas()">
+  <div class="col-12 col-lg-5">
+    <div class="card iscas-card mb-3">
+      <div class="card-header">Busca por proximidade</div>
+      <div class="card-body">
+        <form @submit.prevent="buscar()">
+          <div class="mb-2">
+            <label class="form-label small">{{ form.solicitacao.label }}</label>
+            {{ form.solicitacao }}
+            <div class="form-text small">
+              O pedido já traz cliente, modelos e quantidades.
+              Ou clique no mapa para buscar a partir de um ponto.
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small">{{ form.raio_km.label }}</label>
+            {{ form.raio_km }}
+          </div>
+
+          <!-- O que a solicitação escolhida ainda precisa: confirma ao
+               operador o que ele está atendendo, sem abrir o pedido. -->
+          <template x-if="faltaDaSolicitacao.length">
+            <div class="small mb-3">
+              <div class="text-muted mb-1">Esta solicitação ainda precisa de:</div>
+              <template x-for="item in faltaDaSolicitacao" :key="item.codigo">
+                <span class="badge bg-dark me-1">
+                  <span x-text="item.codigo"></span>:
+                  <span x-text="item.falta"></span>
+                </span>
+              </template>
+            </div>
+          </template>
+
+          <button type="submit" class="btn btn-primary w-100" :disabled="carregando">
+            <span x-show="!carregando"><i class="bi bi-search"></i> Buscar agentes</span>
+            <span x-show="carregando">Buscando…</span>
+          </button>
+        </form>
+        <template x-if="erro">
+          <div class="alert alert-warning mt-2 mb-0 py-2 small" x-text="erro"></div>
+        </template>
+      </div>
+    </div>
+
+
+
+    <!-- <div class="card iscas-card mb-3" x-show="mostrarSolicitacoes">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-flag"></i> Solicitações em aberto</span>
+        <span class="badge bg-secondary" x-text="descobertas.length"></span>
+      </div>
+      <div class="card-body p-0" style="max-height:260px; overflow-y:auto;">
+        <table class="table table-dark table-sm iscas-tabela mb-0">
+          <tbody>
+            <template x-for="s in descobertas" :key="s.id">
+              <tr @click="focarSolicitacao(s.id)" style="cursor:pointer;"
+                  :class="solicitacaoSelecionada === s.id ? 'table-primary' : ''">
+                <td>
+                  <div>
+                    <i class="bi bi-flag-fill" style="color:#f87171"></i>
+                    <span x-text="s.cliente"></span>
+                  </div>
+                  <div class="small text-muted">
+                    #<span x-text="s.id"></span> — <span x-text="s.status_display"></span>
+                  </div>
+                </td>
+                <td class="text-end">
+                  <span class="badge bg-danger">faltam <span x-text="s.falta_total"></span></span>
+                </td>
+              </tr>
+            </template>
+            <tr x-show="!descobertas.length">
+              <td class="text-muted small">
+                <template x-if="solicitacoes.length">
+                  <span>
+                    Nenhuma solicitação aguardando agente — as
+                    <span x-text="solicitacoes.length"></span> em aberto já estão
+                    cobertas e seguem no mapa, em âmbar, até a entrega.
+                  </span>
+                </template>
+                <template x-if="!solicitacoes.length">
+                  <span>Nenhuma solicitação em aberto.</span>
+                </template>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="p-2 small text-muted border-top border-secondary">
+        Clique numa linha para centralizar o mapa e buscar agentes próximos.
+        <template x-if="cobertas.length">
+          <span>
+            <span x-text="cobertas.length"></span> já coberta(s) não aparece(m)
+            aqui — continua(m) no mapa até a entrega.
+          </span>
+        </template>
+      </div>
+    </div> -->
+
+    {% if sem_coordenada %}
+      <div class="card iscas-card mt-3 border-warning">
+        <div class="card-header text-warning">
+          <i class="bi bi-exclamation-triangle"></i> Fora da busca ({{ sem_coordenada|length }})
+        </div>
+        <div class="card-body p-0">
+          <table class="table table-dark table-sm iscas-tabela mb-0">
+            <tbody>
+            {% for agente in sem_coordenada %}
+              <tr><td><a href="{% url 'iscas:agente_detalhe' agente.pk %}">{{ agente.nome }}</a></td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          <div class="p-2 small text-muted border-top border-secondary">
+            Sem coordenada: não participam da busca por proximidade. Ajuste o pin na ficha.
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="col-12 col-lg-7">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+      <div class="d-flex align-items-center gap-3 small">
+        <span><i class="bi bi-geo-alt-fill" style="color:#4d9fff"></i> Agentes</span>
+        <span><i class="bi bi-flag-fill" style="color:#f87171"></i> Descoberta</span>
+        <span><i class="bi bi-flag-fill" style="color:#fbbf24"></i> Coberta</span>
+      </div>
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" id="mostrarSolicitacoes"
+               x-model="mostrarSolicitacoes" @change="alternarSolicitacoes()">
+        <label class="form-check-label small" for="mostrarSolicitacoes">
+          Solicitações no mapa
+          <span class="badge bg-secondary" x-text="solicitacoes.length"></span>
+        </label>
+      </div>
+    </div>
+
+    <div id="mapa"></div>
+    <div class="small text-muted mt-1">
+      Distância em linha reta. Clique no mapa para buscar a partir de um ponto arbitrário.
+    </div>
+    <template x-if="solicitacoesSemCoordenada">
+      <div class="alert alert-warning py-2 small mt-2 mb-0">
+        <i class="bi bi-exclamation-triangle"></i>
+        <span x-text="solicitacoesSemCoordenada"></span>
+        solicitação(ões) não aparecem no mapa: o cliente está sem coordenada.
+      </div>
+    </template>
+  </div>
+
+  <div class="col-12">
+        <div class="card iscas-card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Candidatos</span>
+        <span class="badge bg-secondary" x-text="resultados.length"></span>
+      </div>
+      <div class="card-body p-0" style="max-height:420px; overflow-y:auto;">
+        <table class="table table-dark table-sm iscas-tabela mb-0">
+          <thead>
+            <tr><th>Agente</th><th class="text-end">Dist.</th><th class="text-end">Disp.</th></tr>
+          </thead>
+          <tbody>
+            <template x-for="(item, indice) in resultados" :key="item.id">
+              <tr @mouseenter="destacar(item.id)" @click="focar(item.id)"
+                  :class="selecionado === item.id ? 'table-primary' : ''"
+                  style="cursor:pointer;">
+                <td>
+                  <div x-text="item.nome"></div>
+                  <div class="small text-muted" x-text="item.cidade"></div>
+                </td>
+                <td class="text-end" x-text="item.distancia_km + ' km'"></td>
+                <td class="text-end fw-bold" x-text="item.disponivel"></td>
+              </tr>
+            </template>
+            <tr x-show="!resultados.length && !carregando">
+              <td colspan="3" class="text-muted small">Nenhum candidato ainda.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+</div>
+
+<script>
+function mapaIscas() {
+  return {
+    mapa: null,
+    cluster: null,
+    camadaBusca: null,
+    camadaSolicitacoes: null,
+    marcadores: {},
+    marcadoresSolicitacao: {},
+    resultados: [],
+    solicitacoes: [],
+    solicitacoesSemCoordenada: 0,
+    faltaDaSolicitacao: [],
+    mostrarSolicitacoes: true,
+    solicitacaoSelecionada: null,
+    selecionado: null,
+    carregando: false,
+    erro: '',
+
+    /* A lista é worklist: só o que ainda precisa de agente. Os marcadores
+       continuam mostrando tudo — uma solicitação coberta ainda é uma entrega
+       em andamento, e sumir do mapa esconderia onde ela está. Daí os dois
+       números da tela contarem coisas diferentes, cada um com seu rótulo. */
+    get descobertas() { return this.solicitacoes.filter(s => s.falta_total > 0) },
+    get cobertas() { return this.solicitacoes.filter(s => !s.falta_total) },
+
+    init() {
+      this.mapa = L.map('mapa').setView([-23.55052, -46.633308], 9);
+      L.tileLayer('{{ config.tiles_url|escapejs }}', {
+        attribution: '{{ config.tiles_atribuicao|escapejs }}',
+        maxZoom: 19,
+      }).addTo(this.mapa);
+
+      // markercluster cobre o requisito de 500 marcadores sem degradação.
+      this.cluster = L.markerClusterGroup();
+      this.mapa.addLayer(this.cluster);
+      this.camadaBusca = L.layerGroup().addTo(this.mapa);
+
+      /* Solicitações num cluster próprio, com regras diferentes das dos
+         agentes. O problema concreto: várias solicitações do MESMO cliente
+         caem na mesma coordenada e os pinos se sobrepõem exatamente — só o
+         último desenhado fica clicável, e os outros somem sem deixar sinal.
+
+         `maxClusterRadius: 1` agrupa apenas o que está praticamente no mesmo
+         ponto: solicitações de clientes vizinhos, mas distintos, continuam
+         cada uma com seu pino. Clicar no grupo abre o leque (spiderfy) e cada
+         solicitação vira um pino próprio, com seu popup.
+
+         `spiderfyOnMaxZoom` garante que no zoom máximo o leque ainda abre —
+         sem isso, coordenadas idênticas nunca se separam, por mais que o
+         operador aproxime. */
+      this.camadaSolicitacoes = L.markerClusterGroup({
+        maxClusterRadius: 1,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: false,
+        spiderfyDistanceMultiplier: 1.6,
+        iconCreateFunction: (cluster) => {
+          // A cor do grupo é a do caso mais urgente que ele esconde: se
+          // qualquer solicitação ali dentro está descoberta, o grupo é
+          // vermelho. Um grupo âmbar sobre uma descoberta seria mentira.
+          const filhos = cluster.getAllChildMarkers();
+          const alguemDescoberto = filhos.some(m => m.options.descoberta);
+          const cor = alguemDescoberto ? '#f87171' : '#fbbf24';
+          return L.divIcon({
+            className: '',
+            html: `<div style="background:${cor};width:30px;height:30px;
+                   border-radius:50%;border:2px solid #fff;color:#1a1d21;
+                   display:flex;align-items:center;justify-content:center;
+                   font-weight:700;font-size:12px;
+                   box-shadow:0 1px 6px rgba(0,0,0,.6)">${filhos.length}</div>`,
+            iconSize: [30, 30],
+          });
+        },
+      }).addTo(this.mapa);
+
+      this.mapa.on('click', (evento) => {
+        document.querySelector('#id_latitude').value = evento.latlng.lat.toFixed(6);
+        document.querySelector('#id_longitude').value = evento.latlng.lng.toFixed(6);
+        document.querySelector('#id_solicitacao').value = '';
+        this.faltaDaSolicitacao = [];
+        this.buscar();
+      });
+
+      this.carregarAgentes();
+      this.carregarSolicitacoes();
+    },
+
+    async carregarSolicitacoes() {
+      try {
+        const resposta = await fetch('{% url "iscas:api_solicitacoes" %}');
+        const geojson = await resposta.json();
+        this.solicitacoesSemCoordenada = geojson.sem_coordenada || 0;
+        this.solicitacoes = geojson.features.map(f => ({
+          ...f.properties,
+          lat: f.geometry.coordinates[1],
+          lng: f.geometry.coordinates[0],
+        }));
+        this.desenharSolicitacoes();
+      } catch (e) {
+        this.erro = 'Não foi possível carregar as solicitações.';
+      }
+    },
+
+    desenharSolicitacoes() {
+      this.camadaSolicitacoes.clearLayers();
+      this.marcadoresSolicitacao = {};
+
+      this.solicitacoes.forEach((s) => {
+        // Vermelho = falta equipamento, precisa de atribuição agora.
+        // Âmbar = já coberta, aguardando rota ou entrega.
+        const cor = s.descoberta ? '#f87171' : '#fbbf24';
+
+        const itens = s.itens.map(i =>
+          `<tr><td>${i.modelo}</td>
+           <td style="text-align:right">${i.atribuido}/${i.solicitado}</td>
+           <td style="text-align:right;color:${i.falta ? '#c0392b' : '#1e8449'}">
+             ${i.falta ? 'faltam ' + i.falta : 'ok'}</td></tr>`
+        ).join('');
+
+        const agentes = s.agentes.length
+          ? `<div style="margin-top:.4rem"><strong>Atribuída a:</strong> ${s.agentes.join(', ')}</div>`
+          : '';
+        const prazo = s.prazo ? `<div><strong>Prazo:</strong> ${s.prazo}</div>` : '';
+        const observacao = s.observacao
+          ? `<div style="margin-top:.4rem"><em>${s.observacao}</em></div>` : '';
+
+        const marcador = L.marker([s.lat, s.lng], {
+          descoberta: s.descoberta,
+          icon: L.divIcon({
+            className: '',
+            html: `<div style="background:${cor};width:22px;height:22px;border-radius:50% 50% 50% 0;
+                   transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5)"></div>`,
+            iconSize: [22, 22],
+            iconAnchor: [11, 22],
+          }),
+        }).bindPopup(
+          `<strong>Solicitação #${s.id}</strong> — ${s.status_display}
+           ${s.falta_total
+             ? `<span style="color:#c0392b;font-weight:700">· faltam ${s.falta_total}</span>`
+             : '<span style="color:#1e8449;font-weight:700">· coberta</span>'}<br>
+           <strong>${s.cliente}</strong><br>
+           <small>${s.endereco}</small>
+           ${s.telefone ? '<br><small>' + s.telefone + '</small>' : ''}
+           <hr class="my-1">
+           <table style="font-size:.85em;width:100%">${itens}</table>
+           ${agentes}${prazo}${observacao}
+           <hr class="my-1">
+           <a href="/iscas/solicitacoes/${s.id}/">Abrir solicitação</a>`,
+          {maxWidth: 320}
+        );
+
+        this.marcadoresSolicitacao[s.id] = marcador;
+        this.camadaSolicitacoes.addLayer(marcador);
+      });
+    },
+
+    alternarSolicitacoes() {
+      if (this.mostrarSolicitacoes) {
+        this.mapa.addLayer(this.camadaSolicitacoes);
+      } else {
+        this.mapa.removeLayer(this.camadaSolicitacoes);
+      }
+    },
+
+    focarSolicitacao(id) {
+      this.solicitacaoSelecionada = id;
+      const solicitacao = this.solicitacoes.find(s => s.id === id);
+      const marcador = this.marcadoresSolicitacao[id];
+      if (!solicitacao || !marcador) { return; }
+
+      this.mapa.setView([solicitacao.lat, solicitacao.lng], 13);
+      // `zoomToShowLayer` abre o leque do cluster (ou aproxima) e só então
+      // devolve o controle — sem isso, o popup de uma solicitação agrupada
+      // com outra no mesmo endereço simplesmente não aparece.
+      this.camadaSolicitacoes.zoomToShowLayer(marcador, () => marcador.openPopup());
+
+      // Já dispara a busca: é o que o operador faria em seguida de qualquer
+      // forma. Seleciona a SOLICITAÇÃO, então a busca sai filtrada pelos
+      // modelos que faltam nela.
+      document.querySelector('#id_solicitacao').value = id;
+      document.querySelector('#id_latitude').value = '';
+      document.querySelector('#id_longitude').value = '';
+      this.buscar();
+    },
+
+    async carregarAgentes() {
+      const resposta = await fetch('{% url "iscas:api_agentes" %}');
+      const geojson = await resposta.json();
+      geojson.features.forEach((feature) => {
+        const [lng, lat] = feature.geometry.coordinates;
+        const p = feature.properties;
+        const saldos = p.saldos.length
+          ? p.saldos.map(s => `${s.disponivel}/${s.total} ${s.modelo}`).join('<br>')
+          : '<em>sem saldo</em>';
+        const marcador = L.marker([lat, lng]).bindPopup(
+          `<strong>${p.nome}</strong><br>${p.telefone || ''}<br>
+           <small>${p.cidade}/${p.uf}</small><hr class="my-1">${saldos}`
+        );
+        this.marcadores[p.id] = marcador;
+        this.cluster.addLayer(marcador);
+      });
+    },
+
+    async buscar() {
+      this.carregando = true;
+      this.erro = '';
+      const params = new URLSearchParams({
+        raio_km: document.querySelector('#id_raio_km').value || 50,
+      });
+      const solicitacao = document.querySelector('#id_solicitacao').value;
+      if (solicitacao) { params.set('solicitacao', solicitacao); }
+      else {
+        const lat = document.querySelector('#id_latitude').value;
+        const lng = document.querySelector('#id_longitude').value;
+        if (!lat || !lng) {
+          this.erro = 'Escolha uma solicitação ou clique no mapa.';
+          this.carregando = false;
+          return;
+        }
+        params.set('latitude', lat);
+        params.set('longitude', lng);
+      }
+
+      try {
+        const resposta = await fetch(`{% url "iscas:api_proximidade" %}?${params}`);
+        const dados = await resposta.json();
+        if (!resposta.ok) { this.erro = dados.erro || 'Falha na busca.'; return; }
+        this.resultados = dados.agentes;
+        this.faltaDaSolicitacao = dados.solicitacao ? dados.solicitacao.falta : [];
+        this.desenhar(dados);
+      } catch (e) {
+        this.erro = 'Não foi possível consultar o servidor.';
+      } finally {
+        this.carregando = false;
+      }
+    },
+
+    desenhar(dados) {
+      this.camadaBusca.clearLayers();
+      const origem = [dados.origem.latitude, dados.origem.longitude];
+
+      L.circleMarker(origem, {radius: 9, color: '#dc3545', fillOpacity: .9})
+        .bindPopup(dados.cliente ? `<strong>${dados.cliente.properties.nome}</strong>` : 'Ponto de referência')
+        .addTo(this.camadaBusca);
+      L.circle(origem, {radius: dados.raio_km * 1000, color: '#0d6efd', fillOpacity: .05})
+        .addTo(this.camadaBusca);
+
+      // Linha até cada candidato (ISC-RF-19).
+      dados.agentes.forEach((a) => {
+        L.polyline([origem, [a.latitude, a.longitude]],
+                   {color: '#0d6efd', weight: 1, opacity: .5}).addTo(this.camadaBusca);
+      });
+
+      if (dados.agentes.length) {
+        const pontos = [origem, ...dados.agentes.map(a => [a.latitude, a.longitude])];
+        this.mapa.fitBounds(L.latLngBounds(pontos), {padding: [40, 40]});
+      } else {
+        this.mapa.setView(origem, 10);
+      }
+    },
+
+    destacar(id) { this.selecionado = id; },
+
+    focar(id) {
+      this.selecionado = id;
+      const marcador = this.marcadores[id];
+      if (marcador) {
+        this.mapa.setView(marcador.getLatLng(), 13);
+        marcador.openPopup();
+      }
+    },
+  };
+}
+</script>
+
+<div style="display:none">{{ form.latitude }}{{ form.longitude }}</div>
+{% endblock %}

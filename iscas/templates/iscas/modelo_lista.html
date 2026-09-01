@@ -1,0 +1,38 @@
+{% extends "iscas/base_iscas.html" %}
+{% block titulo_iscas %}Modelos{% endblock %}
+{% block iscas_conteudo %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h1 class="h3 mb-0">Modelos de equipamento</h1>
+  <a href="{% url 'iscas:modelo_criar' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Novo modelo</a>
+</div>
+
+<div class="card iscas-card">
+  <div class="card-body p-0 tabela-rolavel">
+    <table class="table table-dark table-hover iscas-tabela mb-0">
+      <thead><tr><th>Nome</th><th>Código</th><th>Fabricante</th><th>Tipo</th><th></th></tr></thead>
+      <tbody>
+      {% for linha in linhas %}
+        <tr>
+          <td>{{ linha.modelo.nome }}</td>
+          <td class="small text-muted">{{ linha.modelo.codigo }}</td>
+          <td class="small">{{ linha.modelo.fabricante }}</td>
+          <td>
+            <span class="badge {% if linha.modelo.eh_retornavel %}bg-info{% else %}bg-secondary{% endif %}">
+              {{ linha.modelo.get_tipo_display }}
+            </span>
+            {% if linha.bloqueado %}
+              <i class="bi bi-lock-fill text-muted" title="Tipo imutável: já há unidades movimentadas"></i>
+            {% endif %}
+          </td>
+          <td class="text-end"><a href="{% url 'iscas:modelo_editar' linha.modelo.pk %}" class="btn btn-outline-light btn-sm"><i class="bi bi-pencil"></i></a></td>
+        </tr>
+      {% empty %}<tr><td colspan="5" class="text-muted">Nenhum modelo cadastrado.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<div class="form-text small mt-2">
+  <i class="bi bi-lock-fill"></i> O tipo não pode mudar depois que existem unidades movimentadas — alterá-lo
+  reescreveria o significado do histórico já gravado.
+</div>
+{% endblock %}

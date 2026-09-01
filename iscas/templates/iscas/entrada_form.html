@@ -1,0 +1,149 @@
+{% extends "iscas/base_iscas.html" %}
+{% comment %}Entrada de unidades novas, em lote (ISC-RF-07, ISC-RF-08).{% endcomment %}
+{% block titulo_iscas %}Entrada de estoque{% endblock %}
+{% block iscas_conteudo %}
+<h1 class="h3 mb-3">Entrada de estoque</h1>
+
+{% if not tem_deposito %}
+  <div class="alert alert-warning py-3">
+    <h6 class="mb-2"><i class="bi bi-exclamation-triangle"></i> Nenhum depósito cadastrado</h6>
+    <p class="mb-2 small">
+      O depósito é o ponto de estoque da empresa — onde o equipamento novo entra antes
+      de ser distribuído aos agentes. Sem nenhum cadastrado, a entrada só pode ir direto
+      para um agente.
+    </p>
+    <a href="{% url 'iscas:deposito_criar' %}" class="btn btn-warning btn-sm">
+      <i class="bi bi-plus-lg"></i> Cadastrar depósito
+    </a>
+  </div>
+{% endif %}
+
+<form method="post" novalidate x-data="entradaEstoque()">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <div class="alert alert-danger py-2">
+      {% for erro in form.non_field_errors %}<div>{{ erro }}</div>{% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="card iscas-card mb-3">
+    <div class="card-header">Equipamento</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12 col-md-6">
+          <label class="form-label small" for="{{ form.modelo.id_for_label }}">
+            {{ form.modelo.label }} <span class="text-danger">*</span>
+          </label>
+          {{ form.modelo }}
+          {% for erro in form.modelo.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+        </div>
+
+        <div class="col-12">
+          <label class="form-label small" for="{{ form.identificadores.id_for_label }}">
+            {{ form.identificadores.label }} <span class="text-danger">*</span>
+          </label>
+          {{ form.identificadores }}
+          <div class="d-flex justify-content-between flex-wrap gap-2 mt-1">
+            <div class="form-text small mb-0">{{ form.identificadores.help_text }}</div>
+            <div class="small text-muted">
+              <span x-text="quantidade"></span> identificador(es)
+            </div>
+          </div>
+          {% for erro in form.identificadores.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card iscas-card mb-3">
+    <div class="card-header">Destino</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12 col-md-4">
+          <label class="form-label small" for="{{ form.tipo_destino.id_for_label }}">
+            {{ form.tipo_destino.label }} <span class="text-danger">*</span>
+          </label>
+          {{ form.tipo_destino }}
+        </div>
+
+        <div class="col-12 col-md-8" x-show="tipo === 'DEPOSITO'">
+          <label class="form-label small" for="{{ form.destino_deposito.id_for_label }}">
+            {{ form.destino_deposito.label }} <span class="text-danger">*</span>
+          </label>
+          {{ form.destino_deposito }}
+          {% for erro in form.destino_deposito.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+        </div>
+
+        <div class="col-12 col-md-8" x-show="tipo === 'AGENTE'" x-cloak>
+          <label class="form-label small" for="{{ form.destino_agente.id_for_label }}">
+            {{ form.destino_agente.label }} <span class="text-danger">*</span>
+          </label>
+          {{ form.destino_agente }}
+          {% for erro in form.destino_agente.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card iscas-card mb-3">
+    <div class="card-header">Documento de origem <span class="text-muted small fw-normal">— opcional</span></div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12 col-md-4">
+          <label class="form-label small" for="{{ form.nota_fiscal.id_for_label }}">{{ form.nota_fiscal.label }}</label>
+          {{ form.nota_fiscal }}
+        </div>
+        <div class="col-12 col-md-4">
+          <label class="form-label small" for="{{ form.lote.id_for_label }}">{{ form.lote.label }}</label>
+          {{ form.lote }}
+        </div>
+        <div class="col-12 col-md-4">
+          <label class="form-label small" for="{{ form.ocorrido_em.id_for_label }}">{{ form.ocorrido_em.label }}</label>
+          {{ form.ocorrido_em }}
+          <div class="form-text small">{{ form.ocorrido_em.help_text }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary">Registrar entrada</button>
+    <a href="{% url 'iscas:unidade_lista' %}" class="btn btn-outline-light">Cancelar</a>
+  </div>
+  <div class="form-text small mt-3">
+    Cada identificador vira uma unidade rastreável. Identificador repetido ou já
+    cadastrado é recusado — nenhuma isca entra duas vezes no sistema.
+  </div>
+</form>
+
+<style>[x-cloak] { display: none !important; }</style>
+
+<script>
+function entradaEstoque() {
+  return {
+    tipo: '{{ form.tipo_destino.value|default:"DEPOSITO"|escapejs }}',
+    quantidade: 0,
+
+    init() {
+      const seletor = document.querySelector('#id_tipo_destino');
+      this.tipo = seletor.value;
+      seletor.addEventListener('change', () => {
+        this.tipo = seletor.value;
+        // Limpa o destino que deixou de estar visível: sem isso, um valor
+        // escolhido antes da troca continuaria submetido junto.
+        const outro = this.tipo === 'AGENTE' ? '#id_destino_deposito' : '#id_destino_agente';
+        document.querySelector(outro).value = '';
+      });
+
+      const campo = document.querySelector('#id_identificadores');
+      const contar = () => {
+        this.quantidade = campo.value.split(/[\s;,]+/).filter(Boolean).length;
+      };
+      campo.addEventListener('input', contar);
+      contar();
+    },
+  };
+}
+</script>
+{% endblock %}

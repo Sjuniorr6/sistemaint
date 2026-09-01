@@ -1,0 +1,95 @@
+{% extends "iscas/base_iscas.html" %}
+{% comment %}Onde a unidade está e por onde passou (ISC-RF-10).{% endcomment %}
+{% block titulo_iscas %}{{ unidade.identificador }}{% endblock %}
+{% block iscas_conteudo %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ unidade.identificador }}
+      {% if unidade.identificador_gerado %}<span class="badge bg-dark">gerado</span>{% endif %}
+    </h1>
+    <div class="text-muted small">{{ unidade.modelo.nome }} — {{ unidade.modelo.get_tipo_display }}</div>
+  </div>
+  <span class="badge fs-6
+    {% if unidade.situacao == 'BAIXADA' or unidade.situacao == 'CONSUMIDA' %}bg-secondary
+    {% elif unidade.situacao == 'COM_CLIENTE' %}bg-warning text-dark
+    {% elif unidade.situacao == 'RESERVADA' or unidade.situacao == 'EM_ROTA' %}bg-info
+    {% elif unidade.situacao == 'EM_MANUTENCAO' %}bg-danger
+    {% else %}bg-success{% endif %}">
+    {{ unidade.situacao }}
+  </span>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-lg-4">
+    <div class="card iscas-card mb-3">
+      <div class="card-header">Situação atual</div>
+      <div class="card-body">
+        <dl class="row mb-0 small">
+          <dt class="col-5">Custódia</dt><dd class="col-7">{{ unidade.custodia_atual }}</dd>
+          <dt class="col-5">Desde</dt><dd class="col-7">{{ unidade.custodia_desde|date:"d/m/Y H:i" }}</dd>
+          <dt class="col-5">Modelo</dt><dd class="col-7">{{ unidade.modelo.codigo }}</dd>
+          {% if unidade.observacao %}
+            <dt class="col-5">Observação</dt><dd class="col-7">{{ unidade.observacao }}</dd>
+          {% endif %}
+        </dl>
+      </div>
+    </div>
+
+    {% if reservas %}
+      <div class="card iscas-card">
+        <div class="card-header">Reservas</div>
+        <div class="card-body p-0 tabela-rolavel">
+          <table class="table table-dark table-sm iscas-tabela mb-0">
+            <tbody>
+            {% for reserva in reservas %}
+              <tr>
+                <td class="small">
+                  <a href="{% url 'iscas:solicitacao_detalhe' reserva.atribuicao.solicitacao_id %}">
+                    #{{ reserva.atribuicao.solicitacao_id }}
+                  </a>
+                  — {{ reserva.atribuicao.agente.nome }}
+                </td>
+                <td class="text-end small">
+                  {% if reserva.esta_ativa %}
+                    <span class="badge bg-info">ativa</span>
+                  {% else %}
+                    <span class="text-muted">liberada {{ reserva.liberada_em|date:"d/m/y" }}</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="col-12 col-lg-8">
+    <div class="card iscas-card">
+      <div class="card-header">Histórico completo</div>
+      <div class="card-body p-0 tabela-rolavel">
+        <table class="table table-dark table-sm iscas-tabela mb-0">
+          <thead><tr><th>Ocorrido</th><th>Tipo</th><th>Origem → Destino</th><th>Autor</th></tr></thead>
+          <tbody>
+          {% for mov in historico %}
+            <tr {% if mov.estorno_de_id %}class="table-warning text-dark"{% endif %}>
+              <td class="small">{{ mov.ocorrido_em|date:"d/m/y H:i" }}</td>
+              <td class="small">
+                {{ mov.get_tipo_display }}
+                {% if mov.estorno_de_id %}<span class="small">(de #{{ mov.estorno_de_id }})</span>{% endif %}
+              </td>
+              <td class="small">{{ mov.origem }} → {{ mov.destino }}</td>
+              <td class="small">{{ mov.autor.get_username }}</td>
+            </tr>
+            {% if mov.justificativa %}
+              <tr><td colspan="4" class="small text-muted ps-4">{{ mov.justificativa }}</td></tr>
+            {% endif %}
+          {% empty %}<tr><td colspan="4" class="text-muted">Sem histórico.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

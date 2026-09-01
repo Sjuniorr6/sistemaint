@@ -1,0 +1,69 @@
+{% extends "iscas/base_iscas.html" %}
+{% block titulo_iscas %}{{ titulo }}{% endblock %}
+{% block iscas_conteudo %}
+<h1 class="h3 mb-3">{{ titulo }}</h1>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <div class="alert alert-danger py-2">
+      {% for erro in form.non_field_errors %}<div>{{ erro }}</div>{% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="card iscas-card mb-3">
+    <div class="card-header">Identificação</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12 col-md-6">
+          <label class="form-label small" for="{{ form.nome.id_for_label }}">
+            Nome <span class="text-danger">*</span>
+          </label>
+          {{ form.nome }}
+          {% for erro in form.nome.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+        </div>
+        <div class="col-12 col-md-6">
+          <label class="form-label small" for="{{ form.cpf.id_for_label }}">
+            CPF <span class="text-danger">*</span>
+          </label>
+          {{ form.cpf }}
+          {% for erro in form.cpf.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+        </div>
+        <div class="col-12 col-md-6">
+          <label class="form-label small" for="{{ form.telefone.id_for_label }}">
+            Telefone <span class="text-danger">*</span>
+          </label>
+          {{ form.telefone }}
+          <div class="form-text small">Usado no link de WhatsApp da atribuição.</div>
+          {% for erro in form.telefone.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+        </div>
+        <div class="col-12 col-md-6">
+          <label class="form-label small" for="{{ form.email.id_for_label }}">E-mail</label>
+          {{ form.email }}
+          {% for erro in form.email.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card iscas-card mb-3">
+    <div class="card-header">Endereço</div>
+    <div class="card-body">
+      {% include "iscas/_endereco_mapa.html" %}
+    </div>
+  </div>
+
+  <div class="card iscas-card mb-3">
+    <div class="card-body">
+      <label class="form-label small" for="{{ form.observacao.id_for_label }}">Observação</label>
+      {{ form.observacao }}
+    </div>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary">Salvar</button>
+    <a href="{% url 'iscas:agente_lista' %}" class="btn btn-outline-light">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

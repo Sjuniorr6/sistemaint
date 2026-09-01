@@ -1,0 +1,54 @@
+{% extends "iscas/base_iscas.html" %}
+{% comment %}Consolidado por agente (ISC-RF-35).{% endcomment %}
+{% block titulo_iscas %}Histórico de {{ agente.nome }}{% endblock %}
+{% block iscas_conteudo %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h1 class="h3 mb-0">Histórico — {{ agente.nome }}</h1>
+  <a href="{% url 'iscas:agente_detalhe' agente.pk %}" class="btn btn-outline-light btn-sm">Voltar à ficha</a>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3">
+    <div class="card iscas-card"><div class="card-body">
+      <div class="iscas-rotulo">Recebimentos</div>
+      <div class="iscas-metrica">{{ recebidas }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card iscas-card"><div class="card-body">
+      <div class="iscas-rotulo">Saídas</div>
+      <div class="iscas-metrica">{{ enviadas }}</div>
+    </div></div>
+  </div>
+  <div class="col-12 col-lg-6">
+    <div class="card iscas-card h-100"><div class="card-body">
+      <div class="iscas-rotulo mb-2">Saldo atual</div>
+      {% for saldo in saldos %}
+        <span class="badge bg-dark me-1">{{ saldo.disponivel }}/{{ saldo.total }} {{ saldo.modelo__nome }}</span>
+      {% empty %}<span class="text-muted small">Sem equipamento em custódia.</span>{% endfor %}
+    </div></div>
+  </div>
+</div>
+
+<div class="card iscas-card">
+  <div class="card-header">Movimentações</div>
+  <div class="card-body p-0 tabela-rolavel">
+    <table class="table table-dark table-sm iscas-tabela mb-0">
+      <thead><tr><th>Ocorrido</th><th>Tipo</th><th>Origem → Destino</th><th class="text-end">Qtd</th><th>Autor</th></tr></thead>
+      <tbody>
+      {% for mov in pagina %}
+        <tr>
+          <td class="small">{{ mov.ocorrido_em|date:"d/m/y H:i" }}</td>
+          <td class="small">{{ mov.get_tipo_display }}</td>
+          <td class="small">{{ mov.origem }} → {{ mov.destino }}</td>
+          <td class="text-end">{{ mov.quantidade_linhas }}</td>
+          <td class="small">{{ mov.autor.get_username }}</td>
+        </tr>
+      {% empty %}<tr><td colspan="5" class="text-muted">Nenhuma movimentação.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include "iscas/_paginacao.html" %}
+{% endblock %}

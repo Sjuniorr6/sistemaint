@@ -1,0 +1,209 @@
+{% extends "iscas/base_iscas.html" %}
+{% comment %}
+Retorno da manutenção ao estoque (ISC-RF-13, ISC-RN-14).
+
+O seletor aqui governa o DESTINO — para onde a peça consertada volta. As
+unidades vêm de um TomSelect com o que está em manutenção; antes o operador
+digitava os identificadores à mão, o que só funcionava se ele os tivesse
+anotado no envio.
+{% endcomment %}
+{% block titulo_iscas %}Retorno da manutenção{% endblock %}
+
+{% block iscas_conteudo %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css">
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+
+<style>
+  .ts-wrapper .ts-control {
+    background: #1e2227; border-color: var(--iscas-borda); color: var(--iscas-texto);
+  }
+  .ts-wrapper.focus .ts-control { border-color: var(--iscas-azul); }
+  .ts-dropdown {
+    background: #21252a; color: var(--iscas-texto); border-color: var(--iscas-borda);
+  }
+  .ts-dropdown .option:hover, .ts-dropdown .active { background: #363d45; color: #fff; }
+  .ts-control .item {
+    background: #2f3740 !important; color: var(--iscas-texto) !important;
+    border: 1px solid var(--iscas-borda);
+  }
+  .ts-control input { color: var(--iscas-texto) !important; }
+  [x-cloak] { display: none !important; }
+</style>
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h1 class="h3 mb-0">Retorno da manutenção</h1>
+  <a href="{% url 'iscas:manutencao' %}" class="btn btn-outline-light btn-sm">
+    <i class="bi bi-tools"></i> Enviar para manutenção
+  </a>
+</div>
+
+{% if not em_manutencao %}
+  <div class="alert alert-secondary py-3">
+    <h6 class="mb-2"><i class="bi bi-info-circle"></i> Nada em manutenção</h6>
+    <p class="mb-0 small">
+      Não há equipamento em conserto no momento. Esta tela devolve ao estoque as
+      unidades que foram enviadas pela tela de
+      <a href="{% url 'iscas:manutencao' %}" class="alert-link">manutenção</a>.
+    </p>
+  </div>
+{% else %}
+
+<div class="row g-3">
+  <div class="col-12 col-lg-7">
+    <form method="post" novalidate x-data="retornoManutencao()">
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger py-2">
+          {% for erro in form.non_field_errors %}<div>{{ erro }}</div>{% endfor %}
+        </div>
+      {% endif %}
+
+      <div class="card iscas-card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>Unidades que voltaram</span>
+          <span class="badge bg-secondary" x-text="selecionadas + ' selecionada(s)'"></span>
+        </div>
+        <div class="card-body">
+          <label class="form-label small" for="id_unidades">
+            {{ form.unidades.label }} <span class="text-danger">*</span>
+          </label>
+          <select name="unidades" id="id_unidades" multiple
+                  placeholder="Busque pelo identificador ou modelo…"></select>
+          <div class="form-text small">{{ form.unidades.help_text }}</div>
+          {% for erro in form.unidades.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+
+          <button type="button" class="btn btn-outline-light btn-sm mt-2"
+                  @click="selecionarTodas()">
+            <i class="bi bi-check-all"></i> Selecionar todas
+          </button>
+        </div>
+      </div>
+
+      <div class="card iscas-card mb-3">
+        <div class="card-header">Devolver para</div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-12 col-md-4">
+              <label class="form-label small" for="{{ form.tipo_origem.id_for_label }}">
+                {{ form.tipo_origem.label }} <span class="text-danger">*</span>
+              </label>
+              {{ form.tipo_origem }}
+            </div>
+
+            <div class="col-12 col-md-8" x-show="tipo === 'DEPOSITO'">
+              <label class="form-label small" for="{{ form.origem_deposito.id_for_label }}">
+                {{ form.origem_deposito.label }} <span class="text-danger">*</span>
+              </label>
+              {{ form.origem_deposito }}
+              {% for erro in form.origem_deposito.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+            </div>
+
+            <div class="col-12 col-md-8" x-show="tipo === 'AGENTE'" x-cloak>
+              <label class="form-label small" for="{{ form.origem_agente.id_for_label }}">
+                {{ form.origem_agente.label }} <span class="text-danger">*</span>
+              </label>
+              {{ form.origem_agente }}
+              {% for erro in form.origem_agente.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+            </div>
+          </div>
+          <div class="form-text small mt-2">
+            A peça pode voltar ao depósito ou direto para um agente — o que fizer
+            sentido para a operação.
+          </div>
+        </div>
+      </div>
+
+      <div class="card iscas-card mb-3">
+        <div class="card-header">Observação <span class="text-muted small fw-normal">— opcional</span></div>
+        <div class="card-body">
+          {{ form.justificativa }}
+          {% for erro in form.justificativa.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+        </div>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button class="btn btn-primary" :disabled="!selecionadas">Registrar retorno</button>
+        <a href="{% url 'iscas:unidade_lista' %}" class="btn btn-outline-light">Cancelar</a>
+      </div>
+    </form>
+  </div>
+
+  <div class="col-12 col-lg-5">
+    <div class="card iscas-card">
+      <div class="card-header">Em manutenção ({{ em_manutencao|length }})</div>
+      <div class="card-body p-0 tabela-rolavel" style="max-height:420px; overflow-y:auto">
+        <table class="table table-dark table-sm iscas-tabela mb-0">
+          <thead><tr><th>Identificador</th><th>Modelo</th><th>Desde</th></tr></thead>
+          <tbody>
+          {% for unidade in em_manutencao %}
+            <tr>
+              <td><a href="{% url 'iscas:unidade_detalhe' unidade.identificador %}">{{ unidade.identificador }}</a></td>
+              <td class="small">{{ unidade.modelo.nome }}</td>
+              <td class="small text-muted">{{ unidade.custodia_desde|date:"d/m/Y" }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function retornoManutencao() {
+  return {
+    tipo: 'DEPOSITO',
+    selecionadas: 0,
+    seletor: null,
+
+    init() {
+      this.seletor = new TomSelect('#id_unidades', {
+        plugins: ['remove_button'],
+        valueField: 'id',
+        labelField: 'rotulo',
+        searchField: ['identificador', 'modelo', 'codigo'],
+        maxOptions: null,
+        onChange: () => { this.selecionadas = this.seletor.getValue().length; },
+        render: {
+          option: (dado, escape) =>
+            `<div><strong>${escape(dado.identificador)}</strong>
+             <span style="opacity:.7"> — ${escape(dado.modelo)}</span></div>`,
+          no_results: () => '<div class="no-results">Nenhuma unidade encontrada.</div>',
+        },
+      });
+
+      const seletorTipo = document.querySelector('#id_tipo_origem');
+      this.tipo = seletorTipo.value;
+      seletorTipo.addEventListener('change', () => {
+        this.tipo = seletorTipo.value;
+        // Limpa o destino que saiu de vista.
+        const outro = this.tipo === 'AGENTE' ? '#id_origem_deposito' : '#id_origem_agente';
+        document.querySelector(outro).value = '';
+      });
+
+      this.carregar();
+    },
+
+    async carregar() {
+      // MANUTENCAO é conta singleton: o endpoint não pede id.
+      try {
+        const resposta = await fetch('{% url "iscas:api_unidades_custodia" %}?tipo=MANUTENCAO');
+        const dados = await resposta.json();
+        this.seletor.addOptions(dados.unidades || []);
+      } catch (e) {
+        this.seletor.settings.placeholder = 'Falha ao carregar as unidades';
+        this.seletor.inputState();
+      }
+    },
+
+    selecionarTodas() {
+      // Comum: um lote inteiro volta do conserto de uma vez.
+      Object.keys(this.seletor.options).forEach((id) => this.seletor.addItem(id, true));
+      this.selecionadas = this.seletor.getValue().length;
+    },
+  };
+}
+</script>
+{% endif %}
+{% endblock %}

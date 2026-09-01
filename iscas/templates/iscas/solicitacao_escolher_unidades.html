@@ -1,0 +1,131 @@
+{% extends "iscas/base_iscas.html" %}
+{% comment %}
+Segundo passo da atribuição: quais unidades DESTE agente vão para o cliente.
+
+Escolher a unidade, e não digitar uma quantidade, é o que mantém o rastreio por
+unidade (ISC-RN-03): a reserva grava qual isca saiu do estoque do agente. Um
+bloco por modelo — o mesmo agente atende vários modelos numa atribuição só
+(ISC-RN-10), sem precisar ser vinculado duas vezes.
+{% endcomment %}
+{% block titulo_iscas %}Equipamentos de {{ agente.nome }}{% endblock %}
+
+{% block iscas_conteudo %}
+<style>
+  /* Unidade fora do teto: apagada, mas ainda legível. O rótulo acompanha a
+     caixa via `:has`, sem precisar de estado no Alpine para cada linha. */
+  .form-check:has(input:disabled) { opacity: .45; }
+  .form-check:has(input:disabled) .form-check-label { cursor: not-allowed; }
+</style>
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-1">Escolher equipamentos</h1>
+    <div class="text-muted">
+      <a href="{% url 'iscas:agente_detalhe' agente.pk %}">{{ agente.nome }}</a>
+      para a
+      <a href="{% url 'iscas:solicitacao_detalhe' solicitacao.pk %}">solicitação #{{ solicitacao.pk }}</a>
+      — {{ solicitacao.cliente }}
+    </div>
+  </div>
+  <a href="{% url 'iscas:solicitacao_detalhe' solicitacao.pk %}" class="btn btn-outline-light btn-sm">
+    <i class="bi bi-arrow-left"></i> Voltar sem reservar
+  </a>
+</div>
+
+{% if form_unidades.limites %}
+  <form method="post" action="{% url 'iscas:solicitacao_atribuir' solicitacao.pk %}">
+    {% csrf_token %}
+    <input type="hidden" name="agente" value="{{ agente.pk }}">
+
+    {% if form_unidades.non_field_errors %}
+      <div class="alert alert-danger py-2">
+        {% for erro in form_unidades.non_field_errors %}{{ erro }}{% endfor %}
+      </div>
+    {% endif %}
+
+    <div class="row g-3">
+      {% for campo, limite in form_unidades.campos_por_modelo %}
+        <div class="col-12 col-lg-6">
+          <div class="card iscas-card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <span>{{ limite.modelo.nome }}</span>
+              <span class="badge bg-dark">faltam {{ limite.falta }} no pedido</span>
+            </div>
+            <div class="card-body"
+                 x-data="limitador({{ limite.falta }})"
+                 x-init="sincronizar()"
+                 @change="sincronizar()">
+              {% if campo.errors %}
+                <div class="alert alert-danger py-2 small">
+                  {% for erro in campo.errors %}{{ erro }}{% endfor %}
+                </div>
+              {% endif %}
+
+              <div class="d-flex justify-content-between align-items-center mb-2 small">
+                <span class="text-muted">
+                  {{ limite.modelo.codigo }} — escolha até {{ limite.falta }}
+                </span>
+                <span class="badge"
+                      :class="atingiu ? 'bg-warning text-dark' : 'bg-secondary'"
+                      x-text="marcadas + ' de {{ limite.falta }}'">0 de {{ limite.falta }}</span>
+              </div>
+
+              <div class="tabela-rolavel" style="max-height:16rem;overflow-y:auto">
+                {% for opcao in campo %}
+                  <div class="form-check">
+                    {{ opcao.tag }}
+                    <label class="form-check-label small" for="{{ opcao.id_for_label }}">
+                      {{ opcao.choice_label }}
+                    </label>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="card iscas-card mt-3">
+      <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div class="small text-muted">
+          A reserva não move estoque: as unidades ficam com o agente,
+          indisponíveis para outras solicitações até a entrega.
+        </div>
+        <button type="submit" name="confirmar" value="1" class="btn btn-primary">
+          <i class="bi bi-check2-circle"></i> Reservar as unidades marcadas
+        </button>
+      </div>
+    </div>
+  </form>
+  <script>
+    /* Trava a escolha no que ainda cabe no pedido.
+
+       O servidor recusa o excesso de qualquer jeito (`EscolhaUnidadesForm.clean`)
+       — esta trava não substitui a validação, evita o atrito de descobrir o
+       limite só depois de submeter. Desabilitar as caixas NÃO marcadas ao
+       atingir o teto mantém as marcadas clicáveis, então dá para desmarcar uma
+       e trocar por outra; desabilitar todas prenderia o operador na escolha.
+
+       Caixa desabilitada não é enviada pelo navegador, mas isso não perde
+       seleção: só as não marcadas são desabilitadas, e essas não seriam
+       enviadas mesmo. */
+    function limitador(teto) {
+      return {
+        marcadas: 0,
+        get atingiu() { return this.marcadas >= teto },
+        sincronizar() {
+          const caixas = this.$el.querySelectorAll('input[type=checkbox]')
+          this.marcadas = [...caixas].filter(c => c.checked).length
+          caixas.forEach(c => { c.disabled = !c.checked && this.marcadas >= teto })
+        },
+      }
+    }
+  </script>
+{% else %}
+  <div class="alert alert-warning">
+    {{ agente.nome }} não tem nenhuma unidade disponível dos modelos que faltam
+    nesta solicitação.
+    <a href="{% url 'iscas:solicitacao_detalhe' solicitacao.pk %}">Escolher outro agente</a>.
+  </div>
+{% endif %}
+{% endblock %}

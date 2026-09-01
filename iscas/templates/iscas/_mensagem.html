@@ -1,0 +1,35 @@
+{% extends "iscas/base_iscas.html" %}
+{% comment %}
+Texto pronto para o WhatsApp (ISC-RF-29).
+
+O sistema não envia nada — monta o texto e o link para o operador copiar.
+{% endcomment %}
+{% block titulo_iscas %}Mensagem para {{ atribuicao.agente.nome }}{% endblock %}
+{% block iscas_conteudo %}
+<h1 class="h3 mb-3">Mensagem para {{ atribuicao.agente.nome }}</h1>
+
+<div class="card iscas-card" x-data="{copiado: false}">
+  <div class="card-body">
+    <textarea id="textoMensagem" class="form-control mb-3" rows="14" readonly>{{ texto }}</textarea>
+
+    <div class="d-flex gap-2 flex-wrap">
+      <button class="btn btn-outline-light"
+              @click="navigator.clipboard.writeText(document.getElementById('textoMensagem').value); copiado = true; setTimeout(() => copiado = false, 2000)">
+        <i class="bi bi-clipboard"></i>
+        <span x-text="copiado ? 'Copiado!' : 'Copiar texto'"></span>
+      </button>
+      <a href="{{ link }}" target="_blank" rel="noopener" class="btn btn-success">
+        <i class="bi bi-whatsapp"></i> Abrir no WhatsApp
+      </a>
+      <a href="{% url 'iscas:solicitacao_detalhe' atribuicao.solicitacao_id %}" class="btn btn-outline-light">
+        Voltar à solicitação
+      </a>
+    </div>
+
+    <div class="form-text small mt-3">
+      O envio é manual: o sistema apenas monta a mensagem. Depois que o agente confirmar a entrega,
+      registre-a na solicitação para o saldo refletir a realidade.
+    </div>
+  </div>
+</div>
+{% endblock %}

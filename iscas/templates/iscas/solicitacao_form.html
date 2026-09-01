@@ -1,0 +1,318 @@
+{% extends "iscas/base_iscas.html" %}
+{% comment %}
+Abertura de solicitação (ISC-RF-22).
+
+Escolher o cliente preenche contato e endereço a partir do cadastro. Os campos
+ficam editáveis e o que o operador ajustar vale só para ESTA solicitação — o
+cadastro do cliente não é tocado. É o que permite entregar numa obra ou filial
+sem perder o endereço principal, e mantém o histórico honesto: cada solicitação
+registra para onde a entrega foi de fato.
+{% endcomment %}
+{% block titulo_iscas %}Nova solicitação{% endblock %}
+
+{% block iscas_conteudo %}
+<style>[x-cloak] { display: none !important; }</style>
+
+<h1 class="h3 mb-3">Nova solicitação</h1>
+
+<form method="post" novalidate x-data="novaSolicitacao()">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <div class="alert alert-danger py-2">
+      {% for erro in form.non_field_errors %}<div>{{ erro }}</div>{% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="card iscas-card mb-3">
+    <div class="card-header">Cliente</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12 col-md-6">
+          <label class="form-label small" for="{{ form.cliente.id_for_label }}">
+            Cliente <span class="text-danger">*</span>
+          </label>
+          {{ form.cliente }}
+          <div class="form-text small">
+            Os dados abaixo vêm do cadastro e podem ser ajustados para esta entrega.
+          </div>
+          {% for erro in form.cliente.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label small" for="{{ form.documento.id_for_label }}">CNPJ / CPF</label>
+          {{ form.documento }}
+          {% for erro in form.documento.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label small" for="{{ form.comercial_responsavel.id_for_label }}">Comercial responsável</label>
+          {{ form.comercial_responsavel }}
+        </div>
+
+        <div class="col-12 col-md-4">
+          <label class="form-label small" for="{{ form.contato_nome.id_for_label }}">Contato</label>
+          {{ form.contato_nome }}
+        </div>
+        <div class="col-12 col-md-4">
+          <label class="form-label small" for="{{ form.telefone.id_for_label }}">Telefone para contato</label>
+          {{ form.telefone }}
+          <div class="form-text small">Vai no texto de WhatsApp enviado ao agente.</div>
+        </div>
+        <div class="col-12 col-md-4">
+          <label class="form-label small" for="{{ form.email.id_for_label }}">E-mail</label>
+          {{ form.email }}
+          {% for erro in form.email.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card iscas-card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <span>Endereço de entrega</span>
+      <div class="d-flex align-items-center gap-2">
+        <template x-if="enderecoAlterado">
+          <span class="badge bg-warning text-dark">
+            <i class="bi bi-exclamation-triangle"></i> diferente do cadastro
+          </span>
+        </template>
+        <button type="button" class="btn btn-outline-light btn-sm"
+                x-show="enderecoAlterado" x-cloak @click="restaurarEndereco()">
+          <i class="bi bi-arrow-counterclockwise"></i> Usar o do cadastro
+        </button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12 col-md-3">
+          <label class="form-label small" for="{{ form.entrega_cep.id_for_label }}">CEP</label>
+          <div class="input-group">
+            {{ form.entrega_cep }}
+            <button type="button" class="btn btn-outline-light" @click="buscarCep()" :disabled="buscandoCep">
+              <span x-show="!buscandoCep"><i class="bi bi-search"></i></span>
+              <span x-show="buscandoCep" class="spinner-border spinner-border-sm"></span>
+            </button>
+          </div>
+          <template x-if="erroCep">
+            <div class="text-warning small mt-1" x-text="erroCep"></div>
+          </template>
+        </div>
+        <div class="col-12 col-md-7">
+          <label class="form-label small" for="{{ form.entrega_logradouro.id_for_label }}">
+            Logradouro <span class="text-danger">*</span>
+          </label>
+          {{ form.entrega_logradouro }}
+          {% for erro in form.entrega_logradouro.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label small" for="{{ form.entrega_numero.id_for_label }}">Número</label>
+          {{ form.entrega_numero }}
+        </div>
+
+        <div class="col-12 col-md-4">
+          <label class="form-label small" for="{{ form.entrega_complemento.id_for_label }}">Complemento</label>
+          {{ form.entrega_complemento }}
+        </div>
+        <div class="col-12 col-md-4">
+          <label class="form-label small" for="{{ form.entrega_bairro.id_for_label }}">Bairro</label>
+          {{ form.entrega_bairro }}
+        </div>
+        <div class="col-8 col-md-3">
+          <label class="form-label small" for="{{ form.entrega_cidade.id_for_label }}">
+            Cidade <span class="text-danger">*</span>
+          </label>
+          {{ form.entrega_cidade }}
+          {% for erro in form.entrega_cidade.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+        </div>
+        <div class="col-4 col-md-1">
+          <label class="form-label small" for="{{ form.entrega_uf.id_for_label }}">
+            UF <span class="text-danger">*</span>
+          </label>
+          {{ form.entrega_uf }}
+          {% for erro in form.entrega_uf.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+        </div>
+      </div>
+
+      <div class="form-text small mt-2">
+        Alterar aqui não muda o cadastro do cliente — vale só para esta solicitação.
+      </div>
+    </div>
+  </div>
+
+  <div class="card iscas-card mb-3">
+    <div class="card-header">Itens do pedido</div>
+    <div class="card-body p-0 tabela-rolavel">
+      <table class="table table-dark table-sm iscas-tabela mb-0">
+        <thead><tr><th>Modelo</th><th>Tipo</th><th style="width:9rem">Quantidade</th></tr></thead>
+        <tbody>
+        {% for modelo in modelos %}
+          <tr>
+            <td>{{ modelo.nome }} <span class="text-muted small">{{ modelo.codigo }}</span></td>
+            <td>
+              <span class="badge {% if modelo.eh_retornavel %}bg-info{% else %}bg-secondary{% endif %}">
+                {{ modelo.get_tipo_display }}
+              </span>
+            </td>
+            <td>
+              <input type="number" min="0" name="quantidade_{{ modelo.pk }}"
+                     class="form-control form-control-sm" placeholder="0">
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="3" class="text-muted">
+            Nenhum modelo cadastrado. <a href="{% url 'iscas:modelo_criar' %}">Cadastre um modelo</a> primeiro.
+          </td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-body pt-2">
+      <div class="form-text small mb-0">
+        Descartável sai do estoque na entrega; retornável continua rastreado até voltar.
+      </div>
+    </div>
+  </div>
+
+  <div class="card iscas-card mb-3">
+    <div class="card-header">Prazo e observação <span class="text-muted small fw-normal">— opcional</span></div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12 col-md-3">
+          <label class="form-label small" for="{{ form.prazo_desejado.id_for_label }}">Prazo desejado</label>
+          {{ form.prazo_desejado }}
+        </div>
+        <div class="col-12 col-md-9">
+          <label class="form-label small" for="{{ form.observacao.id_for_label }}">Observação</label>
+          {{ form.observacao }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary">Abrir solicitação</button>
+    <a href="{% url 'iscas:solicitacao_lista' %}" class="btn btn-outline-light">Cancelar</a>
+  </div>
+</form>
+
+<script>
+function novaSolicitacao() {
+  return {
+    buscandoCep: false,
+    erroCep: '',
+    // Guarda o endereço vindo do cadastro para detectar alteração e permitir
+    // restaurar — entrega fora do endereço principal é exceção e merece aviso.
+    enderecoDoCadastro: null,
+    enderecoAlterado: false,
+
+    campo(nome) { return document.querySelector('#id_' + nome); },
+
+    camposDeEndereco: [
+      'entrega_logradouro', 'entrega_numero', 'entrega_complemento',
+      'entrega_bairro', 'entrega_cidade', 'entrega_uf', 'entrega_cep',
+    ],
+
+    init() {
+      const cliente = this.campo('cliente');
+      cliente.addEventListener('change', () => this.carregarCliente());
+
+      this.camposDeEndereco.forEach((nome) => {
+        const alvo = this.campo(nome);
+        alvo.addEventListener('input', () => this.conferirEndereco());
+        alvo.addEventListener('change', () => this.conferirEndereco());
+      });
+
+      const cep = this.campo('entrega_cep');
+      cep.addEventListener('blur', () => {
+        if (cep.value.replace(/\D/g, '').length === 8) { this.buscarCep(); }
+      });
+
+      if (cliente.value) { this.carregarCliente(); }
+    },
+
+    preencherEndereco(endereco) {
+      this.campo('entrega_logradouro').value = endereco.logradouro || '';
+      this.campo('entrega_numero').value = endereco.numero || '';
+      this.campo('entrega_complemento').value = endereco.complemento || '';
+      this.campo('entrega_bairro').value = endereco.bairro || '';
+      this.campo('entrega_cidade').value = endereco.cidade || '';
+      this.campo('entrega_uf').value = endereco.uf || '';
+      this.campo('entrega_cep').value = endereco.cep || '';
+    },
+
+    async carregarCliente() {
+      const id = this.campo('cliente').value;
+      this.erroCep = '';
+      if (!id) {
+        this.enderecoDoCadastro = null;
+        this.enderecoAlterado = false;
+        return;
+      }
+
+      try {
+        const resposta = await fetch('/iscas/api/cliente/' + id + '/');
+        const dados = await resposta.json();
+
+        this.campo('documento').value = dados.documento || '';
+        this.campo('email').value = dados.email || '';
+        this.campo('contato_nome').value = dados.contato_nome || '';
+        this.campo('telefone').value = dados.telefone || '';
+        this.campo('comercial_responsavel').value = dados.comercial_responsavel || '';
+
+        this.preencherEndereco(dados.endereco);
+        this.enderecoDoCadastro = Object.assign({}, dados.endereco);
+        this.enderecoAlterado = false;
+      } catch (erro) {
+        this.erroCep = 'Não foi possível carregar os dados do cliente.';
+      }
+    },
+
+    conferirEndereco() {
+      if (!this.enderecoDoCadastro) { return; }
+      const atual = {
+        logradouro: this.campo('entrega_logradouro').value,
+        numero: this.campo('entrega_numero').value,
+        complemento: this.campo('entrega_complemento').value,
+        bairro: this.campo('entrega_bairro').value,
+        cidade: this.campo('entrega_cidade').value,
+        uf: this.campo('entrega_uf').value,
+        cep: this.campo('entrega_cep').value,
+      };
+      this.enderecoAlterado = Object.keys(atual).some(
+        (chave) => (atual[chave] || '') !== (this.enderecoDoCadastro[chave] || '')
+      );
+    },
+
+    restaurarEndereco() {
+      if (!this.enderecoDoCadastro) { return; }
+      this.preencherEndereco(this.enderecoDoCadastro);
+      this.enderecoAlterado = false;
+    },
+
+    async buscarCep() {
+      const cep = this.campo('entrega_cep').value.replace(/\D/g, '');
+      this.erroCep = '';
+      if (cep.length !== 8) { this.erroCep = 'O CEP precisa ter 8 dígitos.'; return; }
+
+      this.buscandoCep = true;
+      try {
+        const resposta = await fetch('{% url "iscas:api_cep" %}?cep=' + cep);
+        const dados = await resposta.json();
+        if (!dados.ok) { this.erroCep = dados.erro; return; }
+
+        const endereco = dados.endereco;
+        this.campo('entrega_cep').value = endereco.cep;
+        if (endereco.logradouro) this.campo('entrega_logradouro').value = endereco.logradouro;
+        if (endereco.bairro) this.campo('entrega_bairro').value = endereco.bairro;
+        if (endereco.cidade) this.campo('entrega_cidade').value = endereco.cidade;
+        if (endereco.uf) this.campo('entrega_uf').value = endereco.uf;
+        this.conferirEndereco();
+      } catch (erro) {
+        this.erroCep = 'Não foi possível consultar o CEP.';
+      } finally {
+        this.buscandoCep = false;
+      }
+    },
+  };
+}
+</script>
+{% endblock %}
