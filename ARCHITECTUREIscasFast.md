@@ -350,6 +350,16 @@ Tiles OSM com atribuição obrigatória, URL vinda de `ConfiguracaoIscas` — tr
     - Racional: o Iscas Fast precisa de campos que um cadastro genérico provavelmente não tem (endereço geocodificado com pin manual, `geo_origem`), e a fronteira limpa do ISC-ADR-01 depende de não criar FK para outros apps.
     - Consequências: duplicação de cadastro de cliente dentro do GSInt. **Esta é a decisão mais frágil do documento**: se já existir um cadastro de cliente compartilhado e confiável no GSInt, reaproveitá-lo com uma tabela de extensão (`iscas.ClienteGeo` com OneToOne) é provavelmente melhor — vale conferir antes de implementar.
 
+- **ISC-ADR-18** — **A origem da busca por proximidade é o ponto de ENTREGA, não a sede do cliente**
+    - Decisão: `Solicitacao` carrega `entrega_latitude`/`entrega_longitude`/`entrega_geo_origem` próprios, e é daí que `agentes_para_solicitacao` mede a distância. O endereço de `iscas.Cliente` passa a ser **opcional**; quando existe, serve como sugestão preenchida na abertura da solicitação. O cadastro do cliente entra apenas como fallback, para os pedidos abertos antes destes campos existirem (`Solicitacao.coordenada_de_busca`).
+    - Racional: o cliente pode querer a isca em outro lugar — obra, filial, endereço do veículo — e a entrega em obra pode estar a dezenas de quilômetros da sede. Medir da sede escolheria o agente errado. Como consequência direta, exigir endereço no cadastro do cliente passou a produzir dado inventado: quem define para onde a entrega vai é a solicitação. Agente e depósito continuam exigindo endereço, porque sem coordenada eles saem da busca — que é a razão de existirem no cadastro.
+    - Consequências: a geocodificação da entrega é I/O de rede e roda **fora** da transação de `abrir_solicitacao` (`resolver_coordenada_de_entrega`); falha nunca desfaz o pedido, que fica `PENDENTE` com aviso na ficha e um formulário de pin. O mapa de solicitações e o `geocodificar_pendentes` passam a operar sobre a coordenada da entrega. O alerta de "sem coordenada" na listagem de clientes só vale para endereço **preenchido** que não geocodificou — cliente sem endereço é caso legítimo e não leva aviso.
+
+- **ISC-ADR-19** — **Geocodificação reversa (coordenada → endereço) via Nominatim `/reverse`**
+    - Decisão: `services.geo.geocodificar_reverso()` e o endpoint `api/geocodificar-reverso/`, oferecidos nos formulários de cliente, de agente e no endereço de entrega da solicitação.
+    - Racional: o caminho inverso do ViaCEP. A coordenada chega pronta pelo WhatsApp, por rastreador ou pelo Google Maps, e sem isto o operador teria que abrir outro mapa para descobrir a rua e digitar à mão.
+    - Consequências: mesma postura de degradação do CEP e da geocodificação direta — erro do provedor volta como `200 {ok: false}`, nunca 500, e o operador segue digitando. Quando o provedor não conhece o endereço mas a coordenada é válida, o **pin é posicionado assim mesmo**: a coordenada é o dado que importa para a busca, e recusar as duas coisas juntas perderia o que o operador já tinha. A UF é extraída de `ISO3166-2-lvl4` com fallback por nome do estado, porque `state` vem por extenso e o campo do cadastro guarda a sigla.
+
 ## Estratégia de Testes
 
 TDD obrigatório para regra de negócio: o teste do service vem antes da implementação.
@@ -372,7 +382,7 @@ TDD obrigatório para regra de negócio: o teste do service vem antes da impleme
 - **Estorno (ISC-ADR-16):** o lançamento original permanece byte a byte inalterado; o saldo volta ao estado anterior; a unidade volta à custódia anterior.
 - **Bounding box não produz falso negativo:** agente posicionado a 0,99 × raio em oito direções cardeais e diagonais aparece no resultado. É o erro grave da geolocalização — estoque real que some da busca.
 - **Haversine contra distâncias conhecidas:** pares de coordenadas com distância documentada, tolerância de 1%; e pontos idênticos retornando 0 sem estourar `acos`.
-- **Agente sem coordenada (ISC-RN-12):** ausente da busca por proximidade, presente na listagem geral com alerta.
+- **Agente sem coordenada (ISC-RN-12):** ausente da busca por proximidade, presente na listagem geral com alerta. Vale igual para a **solicitação sem coordenada de entrega** (ISC-ADR-18): fora da busca e do mapa, visível na ficha com aviso e formulário de pin.
 - **Desativação bloqueada (ISC-RN-18):** desativar agente com saldo em custódia é rejeitado; com saldo zerado, permitido.
 - **Ponto de escrita único:** teste de arquitetura verificando que nenhum módulo fora de `services/custodia.py` importa `Movimentacao` ou `MovimentacaoUnidade` para escrita.
 - **Imutabilidade do tipo de modelo (ISC-RN-04):** alterar `tipo` de modelo com unidades movimentadas é rejeitado.

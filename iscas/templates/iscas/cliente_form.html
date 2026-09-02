@@ -55,11 +55,19 @@
   </div>
 
   <div class="card iscas-card mb-3">
-    <div class="card-header">
-      Endereço
-      <span class="text-muted small fw-normal">— é o ponto de referência da busca por agentes próximos</span>
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <span>
+        Endereço
+        <span class="text-muted small fw-normal">— opcional</span>
+      </span>
+      <span class="badge bg-secondary fw-normal">sugerido na abertura da solicitação</span>
     </div>
     <div class="card-body">
+      <div class="alert alert-secondary py-2 small">
+        O endereço do cliente não é obrigatório. Quando preenchido, ele vem sugerido
+        na abertura da solicitação — mas cada solicitação define o próprio endereço de
+        entrega, que é de onde a busca por agentes próximos mede a distância.
+      </div>
       {% include "iscas/_endereco_mapa.html" %}
     </div>
   </div>

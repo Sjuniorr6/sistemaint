@@ -6,7 +6,13 @@
     <h1 class="h3 mb-1">{{ cliente.nome_razao_social }}
       {% if not cliente.is_active %}<span class="badge bg-secondary">inativo</span>{% endif %}
     </h1>
-    <div class="text-muted small">{{ cliente.endereco_completo }}</div>
+    {% if cliente.tem_endereco %}
+      <div class="text-muted small">{{ cliente.endereco_completo }}</div>
+    {% else %}
+      <div class="text-muted small fst-italic">
+        Sem endereço cadastrado — cada solicitação define o próprio endereço de entrega.
+      </div>
+    {% endif %}
     {% if cliente.contato_nome or cliente.telefone %}
       <div class="text-muted small">{{ cliente.contato_nome }} {{ cliente.telefone }}</div>
     {% endif %}

@@ -1,5 +1,6 @@
 """Forms de solicitação, atribuição e busca por proximidade."""
 from django import forms
+from django.db.models import Q
 
 from iscas.enums import StatusSolicitacao, TipoMovimentacao, UF_CHOICES
 from iscas.models.cadastro import Agente, Cliente, ModeloEquipamento
@@ -11,12 +12,27 @@ from iscas.selectors import agentes_que_atendem, unidades_uteis_por_modelo
 class SolicitacaoForm(forms.ModelForm):
     """Abertura da solicitação (ISC-RF-22).
 
-    Ao escolher o cliente, a tela preenche contato e endereço a partir do
-    cadastro. Os valores são editáveis e ficam gravados NA SOLICITAÇÃO: entrega
-    em obra ou filial não sobrescreve o endereço principal do cliente, e o
-    histórico registra para onde a entrega foi de fato. O nome do cliente é a
-    exceção — vem sempre da FK, para não haver duas versões da identidade.
+    Ao escolher o cliente, a tela SUGERE contato e endereço a partir do
+    cadastro — quando ele tem endereço, o que deixou de ser obrigatório. Os
+    valores são editáveis e ficam gravados NA SOLICITAÇÃO: entrega em obra ou
+    filial não sobrescreve o endereço principal do cliente, e o histórico
+    registra para onde a entrega foi de fato. O nome do cliente é a exceção —
+    vem sempre da FK, para não haver duas versões da identidade.
+
+    O endereço de entrega é onde a busca por proximidade mede a distância, por
+    isso ele carrega a própria coordenada (`entrega_latitude`/`longitude`),
+    resolvida pelo pin do mapa ou pela geocodificação do que foi digitado.
     """
+
+    #: Preenchidos pelo mapa do formulário — mesma mecânica do cadastro.
+    entrega_latitude_ajustada = forms.DecimalField(
+        required=False, max_digits=9, decimal_places=6, widget=forms.HiddenInput()
+    )
+    entrega_longitude_ajustada = forms.DecimalField(
+        required=False, max_digits=9, decimal_places=6, widget=forms.HiddenInput()
+    )
+    #: "1" quando a posição veio do arrasto/clique, não da prévia automática.
+    entrega_pin_movido = forms.CharField(required=False, widget=forms.HiddenInput())
 
     class Meta:
         model = Solicitacao
@@ -64,10 +80,28 @@ class SolicitacaoForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["cliente"].queryset = Cliente.objects.order_by("nome_razao_social")
-        # Endereço de entrega é obrigatório: sem ele o agente não sabe onde
-        # entregar. Vem preenchido do cadastro, então não é atrito.
+        # Endereço de entrega é obrigatório AQUI, e só aqui: sem ele o agente
+        # não sabe onde entregar. É justamente por a solicitação exigir que o
+        # cadastro do cliente pode deixar de exigir.
         for campo in ("entrega_logradouro", "entrega_cidade", "entrega_uf"):
             self.fields[campo].required = True
+
+    def pin_de_entrega(self):
+        """Coordenada posicionada à mão no mapa da entrega, ou None.
+
+        Só conta como manual quando o operador de fato moveu o pin: a prévia
+        automática também preenche os campos ocultos, e tratá-la como manual
+        congelaria a coordenada.
+        """
+        if not self.is_valid():
+            return None
+        if self.cleaned_data.get("entrega_pin_movido") != "1":
+            return None
+        latitude = self.cleaned_data.get("entrega_latitude_ajustada")
+        longitude = self.cleaned_data.get("entrega_longitude_ajustada")
+        if latitude is None or longitude is None:
+            return None
+        return latitude, longitude
 
 
 class AtribuicaoForm(forms.Form):
@@ -277,14 +311,18 @@ class BuscaProximidadeForm(forms.Form):
         super().__init__(*args, **kwargs)
         # Só o que ainda precisa de agente e tem de onde medir distância.
         # Solicitação coberta não entra: não há o que buscar para ela.
+        # Tem de onde medir a distância: coordenada da entrega, ou — para os
+        # pedidos abertos antes de a entrega ter coordenada própria — a do
+        # cadastro do cliente. O `Q` espelha `Solicitacao.coordenada_de_busca`.
         self.fields["solicitacao"].queryset = (
             Solicitacao.objects.filter(
+                Q(entrega_latitude__isnull=False)
+                | Q(cliente__latitude__isnull=False),
                 status__in=(
                     StatusSolicitacao.ABERTA,
                     StatusSolicitacao.ATRIBUIDA,
                     StatusSolicitacao.EM_ROTA,
                 ),
-                cliente__latitude__isnull=False,
             )
             .select_related("cliente")
             .order_by("-aberta_em")

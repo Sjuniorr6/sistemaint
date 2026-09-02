@@ -36,6 +36,13 @@ registra para onde a entrega foi de fato.
           <div class="form-text small">
             Os dados abaixo vêm do cadastro e podem ser ajustados para esta entrega.
           </div>
+          <template x-if="clienteSemEndereco">
+            <div class="text-warning small mt-1">
+              <i class="bi bi-info-circle"></i>
+              Este cliente não tem endereço cadastrado. Informe abaixo para onde a
+              entrega deve ir.
+            </div>
+          </template>
           {% for erro in form.cliente.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
         </div>
         <div class="col-12 col-md-3">
@@ -135,6 +142,84 @@ registra para onde a entrega foi de fato.
       <div class="form-text small mt-2">
         Alterar aqui não muda o cadastro do cliente — vale só para esta solicitação.
       </div>
+
+      {% comment %}
+      O pin da entrega é de onde a busca por agentes próximos mede a distância
+      — não da sede do cliente. Uma entrega em obra pode estar a dezenas de
+      quilômetros do endereço cadastrado, e medir do lugar errado escolhe o
+      agente errado.
+      {% endcomment %}
+      <div class="border-top border-secondary mt-3 pt-3">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+          <span class="small">
+            <i class="bi bi-geo-alt"></i> Posição da entrega
+            <span class="text-muted">— é daqui que a busca por agentes mede a distância</span>
+          </span>
+          <div class="d-flex align-items-center gap-2">
+            <template x-if="pinMovido">
+              <span class="badge bg-info">posição ajustada à mão</span>
+            </template>
+            <button type="button" class="btn btn-outline-light btn-sm"
+                    @click="localizar()" :disabled="buscandoPin">
+              <span x-show="!buscandoPin"><i class="bi bi-crosshair"></i> Localizar no mapa</span>
+              <span x-show="buscandoPin">Localizando…</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="mapaEntrega" class="mapa-caixa" style="height:280px"></div>
+
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-2">
+          <div class="form-text small mb-0">
+            Arraste o pin se ele não estiver no lugar certo.
+          </div>
+          <div class="small text-muted" x-show="temPin">
+            <span x-text="latitude"></span>, <span x-text="longitude"></span>
+          </div>
+        </div>
+
+        <template x-if="erroPin">
+          <div class="alert alert-warning py-2 small mt-2 mb-0" x-text="erroPin"></div>
+        </template>
+
+        <div class="row g-2 align-items-start mt-2">
+          <div class="col-12">
+            <label class="form-label small mb-1">Buscar endereço por coordenada</label>
+          </div>
+          <div class="col-6 col-md-4">
+            <input type="text" class="form-control form-control-sm" x-model="latBusca"
+                   placeholder="Latitude — ex.: -23.550520"
+                   @keydown.enter.prevent="buscarPorCoordenada()">
+          </div>
+          <div class="col-6 col-md-4">
+            <input type="text" class="form-control form-control-sm" x-model="lngBusca"
+                   placeholder="Longitude — ex.: -46.633308"
+                   @keydown.enter.prevent="buscarPorCoordenada()">
+          </div>
+          <div class="col-12 col-md-4">
+            <button type="button" class="btn btn-outline-light btn-sm w-100"
+                    @click="buscarPorCoordenada()" :disabled="buscandoReverso">
+              <span x-show="!buscandoReverso"><i class="bi bi-pin-map"></i> Buscar endereço</span>
+              <span x-show="buscandoReverso">Buscando…</span>
+            </button>
+          </div>
+        </div>
+        <div class="form-text small">
+          Aceita o par colado junto, no formato <code>-23.550520, -46.633308</code>.
+        </div>
+        <template x-if="erroReverso">
+          <div class="text-warning small mt-1" x-text="erroReverso"></div>
+        </template>
+        <template x-if="descricaoReverso">
+          <div class="text-success small mt-1">
+            <i class="bi bi-check2"></i> <span x-text="descricaoReverso"></span>
+          </div>
+        </template>
+
+        {{ form.entrega_latitude_ajustada }}
+        {{ form.entrega_longitude_ajustada }}
+        {{ form.entrega_pin_movido }}
+      </div>
     </div>
   </div>
 
@@ -203,6 +288,23 @@ function novaSolicitacao() {
     // restaurar — entrega fora do endereço principal é exceção e merece aviso.
     enderecoDoCadastro: null,
     enderecoAlterado: false,
+    clienteSemEndereco: false,
+
+    // Pin da entrega. É a origem da busca por agentes próximos, então mora
+    // aqui e não no cadastro do cliente.
+    mapa: null,
+    pin: null,
+    temPin: false,
+    pinMovido: false,
+    latitude: null,
+    longitude: null,
+    buscandoPin: false,
+    buscandoReverso: false,
+    erroPin: '',
+    erroReverso: '',
+    descricaoReverso: '',
+    latBusca: '',
+    lngBusca: '',
 
     campo(nome) { return document.querySelector('#id_' + nome); },
 
@@ -226,7 +328,149 @@ function novaSolicitacao() {
         if (cep.value.replace(/\D/g, '').length === 8) { this.buscarCep(); }
       });
 
+      this.montarMapa();
+
+      // Com o número preenchido o endereço está completo: vale localizar.
+      const numero = this.campo('entrega_numero');
+      numero.addEventListener('blur', () => {
+        if (numero.value.trim() && !this.pinMovido) { this.localizar(); }
+      });
+
       if (cliente.value) { this.carregarCliente(); }
+    },
+
+    montarMapa() {
+      this.mapa = L.map('mapaEntrega').setView([-23.55052, -46.633308], 11);
+      L.tileLayer('{{ config.tiles_url|default:"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"|escapejs }}', {
+        attribution: '{{ config.tiles_atribuicao|default:"&copy; OpenStreetMap"|escapejs }}',
+        maxZoom: 19,
+      }).addTo(this.mapa);
+
+      this.mapa.on('click', (evento) => {
+        this.colocarPin(evento.latlng.lat, evento.latlng.lng, true);
+      });
+
+      // O Leaflet calcula o tamanho no init; dentro de um card recém-montado
+      // isso sai errado e o mapa renderiza cinza pela metade.
+      setTimeout(() => this.mapa.invalidateSize(), 200);
+    },
+
+    colocarPin(lat, lng, manual) {
+      this.latitude = Number(lat).toFixed(6);
+      this.longitude = Number(lng).toFixed(6);
+      this.temPin = true;
+      if (manual) { this.pinMovido = true; }
+      this.latBusca = this.latitude;
+      this.lngBusca = this.longitude;
+
+      this.campo('entrega_latitude_ajustada').value = this.latitude;
+      this.campo('entrega_longitude_ajustada').value = this.longitude;
+      this.campo('entrega_pin_movido').value = this.pinMovido ? '1' : '';
+
+      if (this.pin) {
+        this.pin.setLatLng([lat, lng]);
+      } else {
+        this.pin = L.marker([lat, lng], {draggable: true}).addTo(this.mapa);
+        this.pin.on('dragend', (evento) => {
+          const posicao = evento.target.getLatLng();
+          this.colocarPin(posicao.lat, posicao.lng, true);
+        });
+      }
+    },
+
+    enderecoParaGeocodificar() {
+      // Espelha `entrega_para_geocodificacao` do model: sem CEP e sem
+      // complemento — incluí-los faz o Nominatim voltar vazio.
+      const valor = (nome) => (this.campo(nome)?.value || '').trim();
+      const partes = [
+        valor('entrega_logradouro'), valor('entrega_numero'), valor('entrega_bairro'),
+      ].filter(Boolean);
+      const cidade = valor('entrega_cidade'), uf = valor('entrega_uf');
+      if (cidade) partes.push(uf ? `${cidade} - ${uf}` : cidade);
+      return partes.join(', ');
+    },
+
+    async localizar() {
+      const endereco = this.enderecoParaGeocodificar();
+      this.erroPin = '';
+      if (!endereco) { this.erroPin = 'Preencha o endereço antes de localizar.'; return; }
+
+      this.buscandoPin = true;
+      try {
+        const resposta = await fetch(
+          `{% url 'iscas:api_geocodificar' %}?endereco=${encodeURIComponent(endereco)}`
+        );
+        const dados = await resposta.json();
+        if (!dados.ok) {
+          this.erroPin = dados.erro + ' Posicione o pin clicando no mapa.';
+          return;
+        }
+        // Prévia: não conta como ajuste manual.
+        this.colocarPin(dados.latitude, dados.longitude, false);
+        this.mapa.setView([dados.latitude, dados.longitude], 17);
+      } catch (erro) {
+        this.erroPin = 'Não foi possível localizar o endereço. Clique no mapa para posicionar.';
+      } finally {
+        this.buscandoPin = false;
+      }
+    },
+
+    coordenadasDigitadas() {
+      const bruto = `${this.latBusca || ''} ${this.lngBusca || ''}`.trim();
+      const numeros = bruto.match(/-?\d+[.,]?\d*/g) || [];
+      if (numeros.length < 2) { return null; }
+      const normalizar = (valor) => parseFloat(valor.replace(',', '.'));
+      return [normalizar(numeros[0]), normalizar(numeros[1])];
+    },
+
+    async buscarPorCoordenada() {
+      this.erroReverso = '';
+      this.descricaoReverso = '';
+
+      const par = this.coordenadasDigitadas();
+      if (!par) {
+        this.erroReverso = 'Informe latitude e longitude em graus decimais.';
+        return;
+      }
+      const [lat, lng] = par;
+      if (Number.isNaN(lat) || Number.isNaN(lng) ||
+          lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        this.erroReverso = 'Coordenada fora do intervalo válido.';
+        return;
+      }
+
+      this.buscandoReverso = true;
+      try {
+        const resposta = await fetch(
+          `{% url 'iscas:api_geocodificar_reverso' %}?latitude=${lat}&longitude=${lng}`
+        );
+        const dados = await resposta.json();
+
+        // A coordenada é boa mesmo sem endereço conhecido: posiciona o pin e
+        // deixa o operador digitar a rua.
+        this.colocarPin(lat, lng, true);
+        this.mapa.setView([lat, lng], 17);
+
+        if (!dados.ok) {
+          this.erroReverso = dados.erro + ' O pin foi posicionado; digite o endereço à mão.';
+          return;
+        }
+
+        const e = dados.endereco;
+        if (e.logradouro) this.campo('entrega_logradouro').value = e.logradouro;
+        if (e.numero) this.campo('entrega_numero').value = e.numero;
+        if (e.bairro) this.campo('entrega_bairro').value = e.bairro;
+        if (e.cidade) this.campo('entrega_cidade').value = e.cidade;
+        if (e.uf) this.campo('entrega_uf').value = e.uf;
+        if (e.cep) this.campo('entrega_cep').value = e.cep;
+
+        this.conferirEndereco();
+        this.descricaoReverso = dados.descricao || 'Endereço preenchido pela coordenada.';
+      } catch (erro) {
+        this.erroReverso = 'Não foi possível buscar o endereço desta coordenada.';
+      } finally {
+        this.buscandoReverso = false;
+      }
     },
 
     preencherEndereco(endereco) {
@@ -245,6 +489,7 @@ function novaSolicitacao() {
       if (!id) {
         this.enderecoDoCadastro = null;
         this.enderecoAlterado = false;
+        this.clienteSemEndereco = false;
         return;
       }
 
@@ -258,9 +503,25 @@ function novaSolicitacao() {
         this.campo('telefone').value = dados.telefone || '';
         this.campo('comercial_responsavel').value = dados.comercial_responsavel || '';
 
-        this.preencherEndereco(dados.endereco);
-        this.enderecoDoCadastro = Object.assign({}, dados.endereco);
-        this.enderecoAlterado = false;
+        this.clienteSemEndereco = !dados.tem_endereco;
+
+        // Cliente sem endereço: não apaga o que o operador já digitou para
+        // esta entrega. Preencher com sete campos vazios seria destrutivo.
+        if (dados.tem_endereco) {
+          this.preencherEndereco(dados.endereco);
+          this.enderecoDoCadastro = Object.assign({}, dados.endereco);
+          this.enderecoAlterado = false;
+
+          if (dados.tem_coordenada && !this.pinMovido) {
+            this.colocarPin(dados.latitude, dados.longitude, false);
+            this.mapa.setView([dados.latitude, dados.longitude], 16);
+          } else if (!this.pinMovido) {
+            this.localizar();
+          }
+        } else {
+          this.enderecoDoCadastro = null;
+          this.enderecoAlterado = false;
+        }
       } catch (erro) {
         this.erroCep = 'Não foi possível carregar os dados do cliente.';
       }
@@ -306,6 +567,10 @@ function novaSolicitacao() {
         if (endereco.cidade) this.campo('entrega_cidade').value = endereco.cidade;
         if (endereco.uf) this.campo('entrega_uf').value = endereco.uf;
         this.conferirEndereco();
+
+        const numero = this.campo('entrega_numero');
+        if (numero && !numero.value.trim()) { numero.focus(); }
+        if (numero && numero.value.trim() && !this.pinMovido) { this.localizar(); }
       } catch (erro) {
         this.erroCep = 'Não foi possível consultar o CEP.';
       } finally {

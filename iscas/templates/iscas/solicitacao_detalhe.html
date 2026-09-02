@@ -78,6 +78,11 @@ campos de texto destrutivos sempre a um clique de distância.
           <i class="bi bi-exclamation-triangle"></i> endereço diferente do cadastro
         </span>
       {% endif %}
+      {% if not solicitacao.tem_coordenada_de_busca %}
+        <span class="badge bg-danger">
+          <i class="bi bi-geo-alt-fill"></i> sem posição no mapa
+        </span>
+      {% endif %}
       {% if cobertura_total %}
         <span class="badge bg-success">cobertura total</span>
       {% else %}
@@ -93,6 +98,39 @@ campos de texto destrutivos sempre a um clique de distância.
           <div class="col-12">
             <div class="text-muted">Endereço de entrega</div>
             <div>{{ solicitacao.endereco_entrega }}</div>
+            {% if not solicitacao.tem_coordenada_de_busca %}
+              {% comment %}
+              Sem coordenada a solicitação fica fora da busca por agentes
+              próximos e fora do mapa. O aviso diz isso e oferece a saída, em
+              vez de deixar o operador achar que não há agente por perto.
+              {% endcomment %}
+              <div class="alert alert-warning py-2 small mt-2 mb-0"
+                   x-data="ajustePinEntrega()">
+                <div class="mb-2">
+                  <i class="bi bi-exclamation-triangle"></i>
+                  O endereço de entrega não foi localizado no mapa. Enquanto isso,
+                  esta solicitação fica fora da busca por agentes próximos.
+                  Informe a coordenada para resolver.
+                </div>
+                <form method="post" action="{% url 'iscas:solicitacao_ajustar_pin' solicitacao.pk %}"
+                      class="row g-2 align-items-center">
+                  {% csrf_token %}
+                  <div class="col-6 col-md-4">
+                    <input type="text" name="latitude" class="form-control form-control-sm"
+                           placeholder="Latitude" x-model="lat" required>
+                  </div>
+                  <div class="col-6 col-md-4">
+                    <input type="text" name="longitude" class="form-control form-control-sm"
+                           placeholder="Longitude" x-model="lng" required>
+                  </div>
+                  <div class="col-12 col-md-4">
+                    <button class="btn btn-outline-light btn-sm w-100">
+                      <i class="bi bi-pin-map"></i> Gravar posição
+                    </button>
+                  </div>
+                </form>
+              </div>
+            {% endif %}
           </div>
           <div class="col-6 col-md-4">
             <div class="text-muted">CNPJ / CPF</div>
@@ -428,4 +466,24 @@ campos de texto destrutivos sempre a um clique de distância.
     </div>
   {% endif %}
 {% endfor %}
+
+<script>
+// Aceita o par colado junto num campo so ("-23.550520, -46.633308"), que e
+// como a coordenada chega pelo WhatsApp e pelo Google Maps.
+function ajustePinEntrega() {
+  return {
+    lat: '',
+    lng: '',
+    init() {
+      this.$watch('lat', (valor) => {
+        const numeros = String(valor).match(/-?\d+[.,]?\d*/g) || [];
+        if (numeros.length >= 2 && !this.lng) {
+          this.lat = numeros[0].replace(',', '.');
+          this.lng = numeros[1].replace(',', '.');
+        }
+      });
+    },
+  };
+}
+</script>
 {% endblock %}

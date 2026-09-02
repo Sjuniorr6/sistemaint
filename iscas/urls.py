@@ -60,6 +60,11 @@ urlpatterns = [
     path("solicitacoes/<int:pk>/cancelar/", solicitacao.cancelar, name="solicitacao_cancelar"),
     path("solicitacoes/<int:pk>/excluir/", solicitacao.excluir, name="solicitacao_excluir"),
     path("solicitacoes/<int:pk>/restaurar/", solicitacao.restaurar, name="solicitacao_restaurar"),
+    path(
+        "solicitacoes/<int:pk>/pin/",
+        solicitacao.ajustar_pin_entrega,
+        name="solicitacao_ajustar_pin",
+    ),
     path("atribuicoes/<int:pk>/rota/", solicitacao.marcar_em_rota, name="atribuicao_rota"),
     path("atribuicoes/<int:pk>/entregar/", solicitacao.confirmar_entrega, name="atribuicao_entregar"),
     path("atribuicoes/<int:pk>/cancelar/", solicitacao.cancelar_atribuicao, name="atribuicao_cancelar"),
@@ -92,4 +97,9 @@ urlpatterns = [
     ),
     path("api/cep/", api.consultar_cep, name="api_cep"),
     path("api/geocodificar/", api.geocodificar_endereco, name="api_geocodificar"),
+    path(
+        "api/geocodificar-reverso/",
+        api.geocodificar_reverso,
+        name="api_geocodificar_reverso",
+    ),
 ]

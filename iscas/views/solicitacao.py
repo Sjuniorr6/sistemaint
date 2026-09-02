@@ -1,6 +1,7 @@
 """Views de solicitação e atendimento — o fluxo central do app."""
 from django.contrib import messages
 from django.core.paginator import Paginator
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -123,7 +124,20 @@ def criar(request):
             except IscasError as exc:
                 messages.error(request, str(exc))
             else:
-                messages.success(request, f"Solicitação #{solicitacao.pk} aberta.")
+                # Fora da transação de abertura, de propósito: é chamada de
+                # rede ao Nominatim, e falha aqui não desfaz a solicitação.
+                solicitacao_service.resolver_coordenada_de_entrega(
+                    solicitacao, pin=form.pin_de_entrega()
+                )
+                if solicitacao.tem_coordenada_de_busca:
+                    messages.success(request, f"Solicitação #{solicitacao.pk} aberta.")
+                else:
+                    messages.warning(
+                        request,
+                        f"Solicitação #{solicitacao.pk} aberta, mas o endereço de "
+                        "entrega não foi localizado no mapa. Posicione o pin para "
+                        "que ela entre na busca por agentes próximos.",
+                    )
                 return redirect("iscas:solicitacao_detalhe", pk=solicitacao.pk)
         elif not itens:
             messages.error(request, "Informe ao menos um modelo com quantidade.")
@@ -131,8 +145,50 @@ def criar(request):
         form = SolicitacaoForm()
 
     return render(
-        request, "iscas/solicitacao_form.html", {"form": form, "modelos": modelos}
+        request,
+        "iscas/solicitacao_form.html",
+        # `config` traz a URL dos tiles do mapa de entrega — mesma fonte que os
+        # formulários de cadastro usam.
+        {"form": form, "modelos": modelos, "config": ConfiguracaoIscas.carregar()},
     )
+
+
+@exige_operador
+@require_POST
+def ajustar_pin_entrega(request, pk):
+    """Grava a coordenada do ponto de entrega arrastada no mapa.
+
+    O par do `agente_ajustar_pin`, para a solicitação: endereço de entrega que
+    o Nominatim não achou — condomínio novo, estrada rural, obra sem número —
+    ganha posição pela mão do operador, e a solicitação volta para a busca por
+    proximidade.
+    """
+    solicitacao = get_object_or_404(Solicitacao.todos, pk=pk)
+    eh_ajax = request.headers.get("HX-Request") or request.headers.get(
+        "X-Requested-With"
+    ) == "XMLHttpRequest"
+
+    gravou = solicitacao_service.resolver_coordenada_de_entrega(
+        solicitacao,
+        pin=(request.POST.get("latitude"), request.POST.get("longitude")),
+    )
+    if not gravou:
+        erro = "Coordenada inválida. Posicione o pin no mapa antes de salvar."
+        if eh_ajax:
+            return JsonResponse({"erro": erro}, status=400)
+        messages.error(request, erro)
+        return redirect("iscas:solicitacao_detalhe", pk=pk)
+
+    if eh_ajax:
+        return JsonResponse(
+            {
+                "ok": True,
+                "latitude": float(solicitacao.entrega_latitude),
+                "longitude": float(solicitacao.entrega_longitude),
+            }
+        )
+    messages.success(request, "Posição da entrega ajustada.")
+    return redirect("iscas:solicitacao_detalhe", pk=pk)
 
 
 def _itens_do_post(post, modelos):

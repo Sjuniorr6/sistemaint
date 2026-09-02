@@ -11,7 +11,7 @@ Compartilhado por agente_form.html e cliente_form.html.
 
   <div class="col-12 col-md-4">
     <label class="form-label small" for="{{ form.cep.id_for_label }}">
-      CEP <span class="text-danger">*</span>
+      CEP{% if form.cep.field.required %} <span class="text-danger">*</span>{% endif %}
     </label>
     <div class="input-group">
       {{ form.cep }}
@@ -29,7 +29,7 @@ Compartilhado por agente_form.html e cliente_form.html.
 
   <div class="col-12 col-md-6">
     <label class="form-label small" for="{{ form.logradouro.id_for_label }}">
-      Logradouro <span class="text-danger">*</span>
+      Logradouro{% if form.logradouro.field.required %} <span class="text-danger">*</span>{% endif %}
     </label>
     {{ form.logradouro }}
     {% for erro in form.logradouro.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
@@ -53,7 +53,7 @@ Compartilhado por agente_form.html e cliente_form.html.
 
   <div class="col-8 col-md-3">
     <label class="form-label small" for="{{ form.cidade.id_for_label }}">
-      Cidade <span class="text-danger">*</span>
+      Cidade{% if form.cidade.field.required %} <span class="text-danger">*</span>{% endif %}
     </label>
     {{ form.cidade }}
     {% for erro in form.cidade.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
@@ -61,7 +61,7 @@ Compartilhado por agente_form.html e cliente_form.html.
 
   <div class="col-4 col-md-1">
     <label class="form-label small" for="{{ form.uf.id_for_label }}">
-      UF <span class="text-danger">*</span>
+      UF{% if form.uf.field.required %} <span class="text-danger">*</span>{% endif %}
     </label>
     {{ form.uf }}
     {% for erro in form.uf.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
@@ -93,6 +93,46 @@ Compartilhado por agente_form.html e cliente_form.html.
           </div>
         </div>
 
+        {% comment %}
+        Caminho inverso: quem já tem a coordenada (colada de um WhatsApp, de um
+        rastreador, do Google Maps) preenche o endereço a partir dela, em vez de
+        abrir outro mapa para descobrir a rua.
+        {% endcomment %}
+        <div class="border-top border-secondary mt-3 pt-3">
+          <label class="form-label small d-block">Buscar endereço por coordenada</label>
+          <div class="row g-2 align-items-start">
+            <div class="col-6 col-md-4">
+              <input type="text" class="form-control form-control-sm" x-model="latBusca"
+                     placeholder="Latitude — ex.: -23.550520"
+                     @keydown.enter.prevent="buscarPorCoordenada()">
+            </div>
+            <div class="col-6 col-md-4">
+              <input type="text" class="form-control form-control-sm" x-model="lngBusca"
+                     placeholder="Longitude — ex.: -46.633308"
+                     @keydown.enter.prevent="buscarPorCoordenada()">
+            </div>
+            <div class="col-12 col-md-4">
+              <button type="button" class="btn btn-outline-light btn-sm w-100"
+                      @click="buscarPorCoordenada()" :disabled="buscandoReverso">
+                <span x-show="!buscandoReverso"><i class="bi bi-pin-map"></i> Buscar endereço</span>
+                <span x-show="buscandoReverso">Buscando…</span>
+              </button>
+            </div>
+          </div>
+          <div class="form-text small">
+            Cole a latitude e a longitude em graus decimais. Também aceita o par colado junto,
+            no formato <code>-23.550520, -46.633308</code>.
+          </div>
+          <template x-if="erroReverso">
+            <div class="text-warning small mt-1" x-text="erroReverso"></div>
+          </template>
+          <template x-if="descricaoReverso">
+            <div class="text-success small mt-1">
+              <i class="bi bi-check2"></i> <span x-text="descricaoReverso"></span>
+            </div>
+          </template>
+        </div>
+
         <template x-if="erroPin">
           <div class="alert alert-warning py-2 small mt-2 mb-0" x-text="erroPin"></div>
         </template>
@@ -122,8 +162,13 @@ function enderecoComMapa() {
     longitude: null,
     buscandoCep: false,
     buscandoPin: false,
+    buscandoReverso: false,
     erroCep: '',
     erroPin: '',
+    erroReverso: '',
+    descricaoReverso: '',
+    latBusca: '',
+    lngBusca: '',
 
     campo(nome) { return document.querySelector('#id_' + nome); },
 
@@ -241,10 +286,76 @@ function enderecoComMapa() {
       }
     },
 
+    // Aceita o par colado junto num campo so: e como a coordenada chega pelo
+    // WhatsApp e pelo Google Maps ("-23.550520, -46.633308"), e exigir que o
+    // operador a parta em dois campos e atrito sem motivo.
+    coordenadasDigitadas() {
+      const bruto = `${this.latBusca || ''} ${this.lngBusca || ''}`.trim();
+      const numeros = bruto.match(/-?\d+[.,]?\d*/g) || [];
+      if (numeros.length < 2) { return null; }
+      const normalizar = (valor) => parseFloat(valor.replace(',', '.'));
+      return [normalizar(numeros[0]), normalizar(numeros[1])];
+    },
+
+    async buscarPorCoordenada() {
+      this.erroReverso = '';
+      this.descricaoReverso = '';
+
+      const par = this.coordenadasDigitadas();
+      if (!par) {
+        this.erroReverso = 'Informe latitude e longitude em graus decimais.';
+        return;
+      }
+      const [lat, lng] = par;
+      if (Number.isNaN(lat) || Number.isNaN(lng) ||
+          lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        this.erroReverso = 'Coordenada fora do intervalo valido.';
+        return;
+      }
+
+      this.buscandoReverso = true;
+      try {
+        const resposta = await fetch(
+          `{% url 'iscas:api_geocodificar_reverso' %}?latitude=${lat}&longitude=${lng}`
+        );
+        const dados = await resposta.json();
+
+        // Mesmo sem endereco conhecido, a coordenada e boa: posiciona o pin e
+        // deixa o operador digitar a rua. Recusar as duas coisas junto seria
+        // perder o dado que ele ja tinha.
+        this.colocarPin(lat, lng, true);
+        this.mapa.setView([lat, lng], 17);
+
+        if (!dados.ok) {
+          this.erroReverso = dados.erro + ' O pin foi posicionado; digite o endereco a mao.';
+          return;
+        }
+
+        const e = dados.endereco;
+        // Sobrescreve: aqui o operador PEDIU o endereco da coordenada, entao o
+        // resultado e o que ele quer -- diferente do CEP, que so complementa.
+        if (e.logradouro) this.campo('logradouro').value = e.logradouro;
+        if (e.numero) this.campo('numero').value = e.numero;
+        if (e.bairro) this.campo('bairro').value = e.bairro;
+        if (e.cidade) this.campo('cidade').value = e.cidade;
+        if (e.uf) this.campo('uf').value = e.uf;
+        if (e.cep) this.campo('cep').value = e.cep;
+
+        this.descricaoReverso = dados.descricao || 'Endereco preenchido pela coordenada.';
+      } catch (erro) {
+        this.erroReverso = 'Nao foi possivel buscar o endereco desta coordenada.';
+      } finally {
+        this.buscandoReverso = false;
+      }
+    },
+
     colocarPin(lat, lng, manual) {
       this.latitude = Number(lat).toFixed(6);
       this.longitude = Number(lng).toFixed(6);
       this.temPin = true;
+      // Reflete nos campos de busca: o operador ve o par atual e pode copia-lo.
+      this.latBusca = this.latitude;
+      this.lngBusca = this.longitude;
       if (manual) { this.pinMovido = true; }
 
       this.campo('latitude_ajustada').value = this.latitude;

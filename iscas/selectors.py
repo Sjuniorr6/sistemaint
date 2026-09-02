@@ -113,7 +113,11 @@ def solicitacoes_geojson():
 
     for solicitacao in solicitacoes:
         cliente = solicitacao.cliente
-        if not cliente.tem_coordenada:
+        # O pin fica no PONTO DE ENTREGA, não na sede do cliente: o mapa
+        # mostra para onde a isca vai. Cliente sem endereço cadastrado — caso
+        # legítimo — continua no mapa pela coordenada da entrega.
+        origem = solicitacao.coordenada_de_busca
+        if origem is None:
             sem_coordenada += 1
             continue
 
@@ -125,7 +129,7 @@ def solicitacoes_geojson():
                 "type": "Feature",
                 "geometry": {
                     "type": "Point",
-                    "coordinates": [float(cliente.longitude), float(cliente.latitude)],
+                    "coordinates": [float(origem[1]), float(origem[0])],
                 },
                 "properties": {
                     "id": solicitacao.pk,
@@ -133,8 +137,8 @@ def solicitacoes_geojson():
                     "status_display": solicitacao.get_status_display(),
                     "cliente": cliente.nome_razao_social,
                     "cliente_id": cliente.pk,
-                    "endereco": cliente.endereco_completo,
-                    "telefone": cliente.telefone,
+                    "endereco": solicitacao.endereco_entrega,
+                    "telefone": solicitacao.telefone or cliente.telefone,
                     "aberta_em": solicitacao.aberta_em.strftime("%d/%m/%Y %H:%M"),
                     "prazo": (
                         solicitacao.prazo_desejado.strftime("%d/%m/%Y")

@@ -156,21 +156,30 @@ def agentes_para_solicitacao(*, solicitacao, raio_km):
     atribuição (`selectors.agentes_que_atendem`), para a busca não oferecer
     quem a tela seguinte vai recusar.
 
-    Precondição: o cliente da solicitação tem coordenada. Sem ela não há de
-    onde medir distância — quem chama checa antes e explica ao operador, em vez
-    de devolver "nenhum agente próximo", que mentiria sobre a causa.
+    A distância é medida do PONTO DE ENTREGA (`coordenada_de_busca`), não da
+    sede do cliente: a isca vai para onde a solicitação manda, e uma entrega em
+    obra pode estar a dezenas de quilômetros do endereço cadastrado. O cadastro
+    do cliente entra só como fallback, para pedidos antigos.
+
+    Precondição: a solicitação tem coordenada de busca. Sem ela não há de onde
+    medir distância — quem chama checa antes e explica ao operador, em vez de
+    devolver "nenhum agente próximo", que mentiria sobre a causa.
     """
     from iscas.selectors import modelos_em_falta
     from iscas.services.saldo import saldo_disponivel
 
-    cliente = solicitacao.cliente
+    origem = solicitacao.coordenada_de_busca
+    if origem is None:
+        return []
+
     faltas = modelos_em_falta(solicitacao)
     if not faltas:
         return []
 
+    latitude, longitude = origem
     candidatos = agentes_proximos(
-        latitude=cliente.latitude,
-        longitude=cliente.longitude,
+        latitude=latitude,
+        longitude=longitude,
         raio_km=raio_km,
     )
 
@@ -300,6 +309,128 @@ def geocodificar(endereco: str, *, usar_cache=True):
         },
     )
     return latitude, longitude
+
+
+#: O Nominatim devolve o estado por extenso em `state`; o campo UF do cadastro
+#: guarda a sigla. `ISO3166-2-lvl4` ("BR-SP") é a fonte preferida por ser
+#: estável, mas nem toda resposta a traz — daí o mapa de nomes como fallback.
+_UF_POR_NOME = {
+    "acre": "AC", "alagoas": "AL", "amapá": "AP", "amazonas": "AM",
+    "bahia": "BA", "ceará": "CE", "distrito federal": "DF",
+    "espírito santo": "ES", "goiás": "GO", "maranhão": "MA",
+    "mato grosso": "MT", "mato grosso do sul": "MS", "minas gerais": "MG",
+    "pará": "PA", "paraíba": "PB", "paraná": "PR", "pernambuco": "PE",
+    "piauí": "PI", "rio de janeiro": "RJ", "rio grande do norte": "RN",
+    "rio grande do sul": "RS", "rondônia": "RO", "roraima": "RR",
+    "santa catarina": "SC", "são paulo": "SP", "sergipe": "SE",
+    "tocantins": "TO",
+}
+
+
+def _extrair_uf(endereco: dict) -> str:
+    """Sigla da UF a partir do bloco `address` do Nominatim.
+
+    Devolve string vazia quando não dá para determinar com segurança — o campo
+    fica em branco e o operador escolhe, o que é melhor que preencher errado.
+    """
+    iso = str(endereco.get("ISO3166-2-lvl4") or "")
+    if "-" in iso:
+        sigla = iso.split("-")[-1].strip().upper()
+        if len(sigla) == 2:
+            return sigla
+
+    nome = str(endereco.get("state") or "").strip().lower()
+    return _UF_POR_NOME.get(nome, "")
+
+
+def geocodificar_reverso(latitude, longitude):
+    """Coordenada → endereço estruturado, via Nominatim `/reverse`.
+
+    O caminho inverso do `geocodificar()`: o operador tem a coordenada — colada
+    de um WhatsApp, de um rastreador, do Google Maps — e não o endereço. Sem
+    isto, ele teria que abrir outro mapa para descobrir a rua e digitar à mão.
+
+    Returns:
+        dict com `logradouro`, `numero`, `bairro`, `cidade`, `uf`, `cep` e
+        `endereco_completo` — as mesmas chaves que o `buscar_cep` devolve, para
+        a tela preencher os campos do mesmo jeito nos dois casos. Campo que o
+        provedor não conhece vem string vazia; o operador completa.
+
+    Raises:
+        GeocodificacaoFalhou: coordenada inválida, rede, timeout, ou ponto sem
+            endereço conhecido (meio do oceano, área rural sem mapeamento).
+    """
+    coordenada = coordenada_valida(latitude, longitude)
+    if coordenada is None:
+        raise GeocodificacaoFalhou(
+            "Coordenada inválida. Informe latitude e longitude em graus decimais."
+        )
+    lat, lng = coordenada
+
+    url = getattr(
+        settings, "ISCAS_NOMINATIM_REVERSE_URL",
+        "https://nominatim.openstreetmap.org/reverse",
+    )
+    params = urllib.parse.urlencode(
+        {
+            "lat": str(lat),
+            "lon": str(lng),
+            "format": "json",
+            # 18 = nível de endereço. Menos que isso devolve bairro ou cidade,
+            # que não serve para preencher logradouro e número.
+            "zoom": 18,
+            "addressdetails": 1,
+            "accept-language": "pt-BR",
+        }
+    )
+    requisicao = urllib.request.Request(
+        f"{url}?{params}",
+        headers={
+            "User-Agent": getattr(
+                settings, "ISCAS_NOMINATIM_USER_AGENT", "GSInt-IscasFast/1.0"
+            )
+        },
+    )
+    timeout = getattr(settings, "ISCAS_GEOCODE_TIMEOUT", 3)
+
+    try:
+        with urllib.request.urlopen(requisicao, timeout=timeout) as resposta:
+            dados = json.loads(resposta.read().decode())
+    except Exception as exc:  # rede, timeout, JSON inválido — degradam igual
+        raise GeocodificacaoFalhou(
+            f"Não foi possível buscar o endereço da coordenada: {exc}"
+        ) from exc
+
+    if not dados or dados.get("error"):
+        raise GeocodificacaoFalhou(
+            "Nenhum endereço conhecido nesta coordenada."
+        )
+
+    endereco = dados.get("address") or {}
+
+    # O Nominatim varia a chave do logradouro conforme o tipo de via, e a da
+    # cidade conforme o porte do município — em cidade pequena vem só `town`
+    # ou `village`, e ler apenas `city` devolveria vazio.
+    def _primeiro(*chaves):
+        for chave in chaves:
+            valor = endereco.get(chave)
+            if valor:
+                return str(valor)
+        return ""
+
+    uf = _extrair_uf(endereco)
+
+    return {
+        "logradouro": _primeiro("road", "pedestrian", "footway", "residential"),
+        "numero": _primeiro("house_number"),
+        "bairro": _primeiro("suburb", "neighbourhood", "city_district", "quarter"),
+        "cidade": _primeiro("city", "town", "village", "municipality"),
+        "uf": uf,
+        "cep": _primeiro("postcode"),
+        "endereco_completo": dados.get("display_name") or "",
+        "latitude": lat,
+        "longitude": lng,
+    }
 
 
 def geocodificar_entidade(entidade, *, forcar=False, salvar=True):

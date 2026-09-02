@@ -12,6 +12,7 @@ from django.db.models import Count, Q
 from django.utils import timezone
 
 from iscas.enums import (
+    GeoOrigem,
     StatusAtribuicao,
     StatusSolicitacao,
     TipoMovimentacao,
@@ -25,6 +26,7 @@ from iscas.models.operacao import (
 from iscas.services import reserva as reserva_service
 from iscas.services.custodia import registrar_movimentacao
 from iscas.services.exceptions import (
+    GeocodificacaoFalhou,
     MovimentacaoInvalida,
     SaldoInsuficiente,
     TransicaoInvalida,
@@ -147,6 +149,61 @@ def dados_de_entrega(cliente, informados=None):
     return resolvidos
 
 
+def resolver_coordenada_de_entrega(solicitacao, *, pin=None, salvar=True):
+    """Resolve a coordenada do ponto de entrega (ISC-RF-02 aplicado à entrega).
+
+    Args:
+        pin: `(latitude, longitude)` quando o operador posicionou o pin à mão.
+            Vence a geocodificação — ele está olhando o mapa, o provedor não.
+
+    Chamada FORA da transação de abertura: é I/O de rede com timeout, e
+    segurar a transação por três segundos à espera do Nominatim trava linhas
+    sem necessidade. Falha aqui nunca desfaz a solicitação — ela fica
+    `PENDENTE` e o operador ajusta o pin depois.
+
+    Returns:
+        True se gravou coordenada.
+    """
+    from iscas.services.geo import coordenada_valida, geocodificar
+
+    if pin is not None:
+        coordenada = coordenada_valida(*pin)
+        if coordenada is not None:
+            solicitacao.entrega_latitude, solicitacao.entrega_longitude = coordenada
+            solicitacao.entrega_geo_origem = GeoOrigem.MANUAL
+            if salvar:
+                solicitacao.save(
+                    update_fields=[
+                        "entrega_latitude", "entrega_longitude",
+                        "entrega_geo_origem", "updated_at",
+                    ]
+                )
+            return True
+
+    endereco = solicitacao.entrega_para_geocodificacao
+    if not endereco:
+        return False
+
+    try:
+        latitude, longitude = geocodificar(endereco)
+    except GeocodificacaoFalhou:
+        # Degradação graciosa: a solicitação existe, só não entra na busca por
+        # proximidade até alguém posicionar o pin.
+        return False
+
+    solicitacao.entrega_latitude = latitude
+    solicitacao.entrega_longitude = longitude
+    solicitacao.entrega_geo_origem = GeoOrigem.GEOCODIFICADO
+    if salvar:
+        solicitacao.save(
+            update_fields=[
+                "entrega_latitude", "entrega_longitude",
+                "entrega_geo_origem", "updated_at",
+            ]
+        )
+    return True
+
+
 @transaction.atomic
 def abrir_solicitacao(
     *,
@@ -165,6 +222,10 @@ def abrir_solicitacao(
         **dados_entrega: contato e endereço específicos desta entrega
             (`documento`, `email`, `telefone`, `entrega_logradouro`…). O que
             não vier é copiado do cadastro do cliente.
+
+    A coordenada da entrega NÃO é resolvida aqui: quem chama faz isso com
+    `resolver_coordenada_de_entrega`, fora desta transação, porque é I/O de
+    rede. Ver a docstring de lá.
     """
     if not itens:
         raise MovimentacaoInvalida("A solicitação precisa de ao menos um item.")

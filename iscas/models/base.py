@@ -105,12 +105,16 @@ class EnderecoGeoMixin(models.Model):
     (ISC-RN-12).
     """
 
-    logradouro = models.CharField(max_length=200, verbose_name="Logradouro")
+    # Todos em branco por padrão: quem exige endereço é o formulário, não o
+    # armazenamento. Cliente pode ser cadastrado sem endereço (a entrega vai
+    # para onde a solicitação disser); agente e depósito seguem obrigatórios
+    # pelos forms deles, porque sem endereço saem da busca por proximidade.
+    logradouro = models.CharField(max_length=200, blank=True, verbose_name="Logradouro")
     numero = models.CharField(max_length=20, blank=True, verbose_name="Número")
     complemento = models.CharField(max_length=100, blank=True, verbose_name="Complemento")
     bairro = models.CharField(max_length=100, blank=True, verbose_name="Bairro")
-    cidade = models.CharField(max_length=100, verbose_name="Cidade")
-    uf = models.CharField(max_length=2, verbose_name="UF")
+    cidade = models.CharField(max_length=100, blank=True, verbose_name="Cidade")
+    uf = models.CharField(max_length=2, blank=True, verbose_name="UF")
     cep = models.CharField(max_length=9, blank=True, verbose_name="CEP")
 
     # Decimal, não Float: coordenada é dado de identificação, e erro de
@@ -139,6 +143,11 @@ class EnderecoGeoMixin(models.Model):
         return self.latitude is not None and self.longitude is not None
 
     @property
+    def tem_endereco(self) -> bool:
+        """Há endereço preenchido? Cliente sem endereço é caso legítimo."""
+        return bool(self.logradouro or self.cidade or self.cep)
+
+    @property
     def endereco_completo(self) -> str:
         """Uma linha, para exibição e para o texto de WhatsApp.
 
@@ -152,7 +161,10 @@ class EnderecoGeoMixin(models.Model):
             partes.append(self.complemento)
         if self.bairro:
             partes.append(self.bairro)
-        partes.append(f"{self.cidade} - {self.uf}")
+        if self.cidade:
+            partes.append(f"{self.cidade} - {self.uf}" if self.uf else self.cidade)
+        elif self.uf:
+            partes.append(self.uf)
         if self.cep:
             partes.append(f"CEP {self.cep}")
         return ", ".join(p for p in partes if p)

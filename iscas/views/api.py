@@ -113,12 +113,14 @@ def _proximidade_por_solicitacao(request, raio_km):
 
     # Sem coordenada não há de onde medir. Dizer isso é diferente de devolver
     # lista vazia, que o operador leria como "não há agente por perto".
-    if not cliente.tem_coordenada:
+    origem = solicitacao.coordenada_de_busca
+    if origem is None:
         return JsonResponse(
             {
                 "erro": (
-                    f"{cliente} está sem coordenada no cadastro: não há de onde "
-                    "medir a distância. Ajuste o endereço na ficha do cliente."
+                    f"A solicitação #{solicitacao.pk} está sem coordenada de "
+                    "entrega: não há de onde medir a distância. Posicione o pin "
+                    "do endereço de entrega."
                 )
             },
             status=400,
@@ -129,8 +131,8 @@ def _proximidade_por_solicitacao(request, raio_km):
     return JsonResponse(
         {
             "origem": {
-                "latitude": float(cliente.latitude),
-                "longitude": float(cliente.longitude),
+                "latitude": float(origem[0]),
+                "longitude": float(origem[1]),
             },
             "cliente": selectors.cliente_geojson(cliente),
             "raio_km": raio_km,
@@ -201,6 +203,42 @@ def geocodificar_endereco(request):
 
     return JsonResponse(
         {"ok": True, "latitude": float(latitude), "longitude": float(longitude)}
+    )
+
+
+@exige_operador
+def geocodificar_reverso(request):
+    """Coordenada → endereço, para o formulário preencher os campos.
+
+    O caminho inverso do `geocodificar_endereco`: o operador tem a coordenada
+    (colada de um WhatsApp, de um rastreador, do Google Maps) e não o endereço.
+
+    Mesma postura do CEP: erro do provedor não é erro de servidor. Devolve 200
+    com `ok: false` e mensagem, e o operador segue digitando à mão.
+    """
+    from iscas.services.exceptions import GeocodificacaoFalhou
+    from iscas.services.geo import geocodificar_reverso as reverso
+
+    try:
+        endereco = reverso(request.GET.get("latitude"), request.GET.get("longitude"))
+    except GeocodificacaoFalhou as exc:
+        return JsonResponse({"ok": False, "erro": str(exc)})
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "endereco": {
+                "logradouro": endereco["logradouro"],
+                "numero": endereco["numero"],
+                "bairro": endereco["bairro"],
+                "cidade": endereco["cidade"],
+                "uf": endereco["uf"],
+                "cep": endereco["cep"],
+            },
+            "latitude": float(endereco["latitude"]),
+            "longitude": float(endereco["longitude"]),
+            "descricao": endereco["endereco_completo"],
+        }
     )
 
 
@@ -294,6 +332,11 @@ def dados_do_cliente(request, cliente_id):
                 "cep": cliente.cep,
             },
             "tem_coordenada": cliente.tem_coordenada,
+            # A tela usa isto para não apagar o que o operador já digitou e
+            # para avisar que este cliente não tem endereço de referência.
+            "tem_endereco": cliente.tem_endereco,
+            "latitude": float(cliente.latitude) if cliente.tem_coordenada else None,
+            "longitude": float(cliente.longitude) if cliente.tem_coordenada else None,
         }
     )
 

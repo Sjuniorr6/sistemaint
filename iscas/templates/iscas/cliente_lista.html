@@ -22,11 +22,21 @@
         <tr>
           <td>
             <a href="{% url 'iscas:cliente_detalhe' cliente.pk %}">{{ cliente.nome_razao_social }}</a>
-            {% if not cliente.tem_coordenada %}<i class="bi bi-exclamation-triangle text-warning" title="Sem coordenada"></i>{% endif %}
+            {% comment %}
+            O alerta é só para endereço PREENCHIDO que não virou coordenada —
+            isso é pendência a resolver. Cliente sem endereço é caso legítimo
+            (a entrega vai para onde a solicitação disser) e não leva aviso.
+            {% endcomment %}
+            {% if cliente.tem_endereco and not cliente.tem_coordenada %}
+              <i class="bi bi-exclamation-triangle text-warning" title="Endereço sem coordenada"></i>
+            {% endif %}
           </td>
           <td class="small text-muted">{{ cliente.documento_mascarado }}</td>
           <td class="small">{{ cliente.contato_nome }} {{ cliente.telefone }}</td>
-          <td class="small">{{ cliente.cidade }}/{{ cliente.uf }}</td>
+          <td class="small">
+            {% if cliente.cidade %}{{ cliente.cidade }}/{{ cliente.uf }}
+            {% else %}<span class="text-muted">sem endereço</span>{% endif %}
+          </td>
           <td class="text-end"><a href="{% url 'iscas:cliente_editar' cliente.pk %}" class="btn btn-outline-light btn-sm"><i class="bi bi-pencil"></i></a></td>
         </tr>
       {% empty %}<tr><td colspan="5" class="text-muted">Nenhum cliente cadastrado.</td></tr>{% endfor %}

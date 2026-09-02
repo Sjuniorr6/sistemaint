@@ -64,6 +64,21 @@ class Solicitacao(BaseModel):
     entrega_uf = models.CharField(max_length=2, blank=True, verbose_name="UF")
     entrega_cep = models.CharField(max_length=9, blank=True, verbose_name="CEP")
 
+    # Coordenada DO PONTO DE ENTREGA, não do cadastro do cliente. É daqui que
+    # a busca por proximidade mede a distância: a isca vai para onde a entrega
+    # diz, não para onde o cliente tem sede. Sem isto, cliente sem endereço
+    # cadastrado — caso agora legítimo — ficaria fora da busca e do mapa mesmo
+    # com endereço de entrega preenchido.
+    entrega_latitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Latitude da entrega"
+    )
+    entrega_longitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Longitude da entrega"
+    )
+    entrega_geo_origem = models.CharField(
+        max_length=20, default="PENDENTE", verbose_name="Origem da coordenada de entrega"
+    )
+
     class Meta:
         verbose_name = "Solicitação"
         verbose_name_plural = "Solicitações"
@@ -71,6 +86,12 @@ class Solicitacao(BaseModel):
         indexes = [
             models.Index(fields=["status", "-aberta_em"], name="iscas_sol_status_data"),
             models.Index(fields=["cliente", "-aberta_em"], name="iscas_sol_cliente"),
+            # Sustenta o pré-filtro por bounding box quando a origem da busca é
+            # o ponto de entrega, do mesmo jeito que o índice do agente.
+            models.Index(
+                fields=["entrega_latitude", "entrega_longitude"],
+                name="iscas_sol_entrega_latlng",
+            ),
         ]
 
     def __str__(self):
@@ -91,10 +112,12 @@ class Solicitacao(BaseModel):
         """Endereço de entrega numa linha, para exibição e WhatsApp.
 
         Cai para o endereço do cadastro quando a solicitação não tem cópia —
-        é o caso das abertas antes destes campos existirem.
+        é o caso das abertas antes destes campos existirem. Com o endereço do
+        cliente opcional, esse fallback pode ser vazio: a tela mostra o aviso
+        em vez de uma linha em branco.
         """
         if not self.entrega_logradouro:
-            return self.cliente.endereco_completo
+            return self.cliente.endereco_completo or "Endereço de entrega não informado"
 
         partes = [self.entrega_logradouro]
         if self.entrega_numero:
@@ -114,6 +137,45 @@ class Solicitacao(BaseModel):
         return ", ".join(p for p in partes if p)
 
     @property
+    def entrega_para_geocodificacao(self) -> str:
+        """Endereço de entrega enxuto, do jeito que o Nominatim entende.
+
+        Mesmas omissões do `EnderecoGeoMixin.endereco_para_geocodificacao`:
+        sem CEP (faz a busca voltar vazia) e sem complemento (é ruído).
+        """
+        partes = [self.entrega_logradouro]
+        if self.entrega_numero:
+            partes.append(self.entrega_numero)
+        if self.entrega_bairro:
+            partes.append(self.entrega_bairro)
+        if self.entrega_cidade:
+            partes.append(
+                f"{self.entrega_cidade} - {self.entrega_uf}"
+                if self.entrega_uf
+                else self.entrega_cidade
+            )
+        return ", ".join(p for p in partes if p)
+
+    @property
+    def coordenada_de_busca(self):
+        """`(latitude, longitude)` de onde medir a distância até os agentes.
+
+        A da entrega vence; a do cadastro do cliente é fallback para as
+        solicitações abertas antes destes campos existirem. `None` quando não
+        há nenhuma das duas — quem chama avisa o operador em vez de devolver
+        "nenhum agente próximo", que mentiria sobre a causa.
+        """
+        if self.entrega_latitude is not None and self.entrega_longitude is not None:
+            return self.entrega_latitude, self.entrega_longitude
+        if self.cliente.tem_coordenada:
+            return self.cliente.latitude, self.cliente.longitude
+        return None
+
+    @property
+    def tem_coordenada_de_busca(self) -> bool:
+        return self.coordenada_de_busca is not None
+
+    @property
     def entrega_em_outro_endereco(self) -> bool:
         """A entrega vai para lugar diferente do cadastro do cliente?
 
@@ -122,8 +184,13 @@ class Solicitacao(BaseModel):
         """
         if not self.entrega_logradouro:
             return False
+        # Cliente sem endereço cadastrado: não há com o que comparar, então
+        # não há divergência a sinalizar — a entrega é simplesmente o endereço
+        # daquela solicitação.
+        if not self.cliente.tem_endereco:
+            return False
         cadastro = (
-            self.cliente.logradouro.strip().lower(),
+            (self.cliente.logradouro or "").strip().lower(),
             (self.cliente.numero or "").strip().lower(),
         )
         atual = (

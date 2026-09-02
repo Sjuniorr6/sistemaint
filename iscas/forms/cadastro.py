@@ -47,6 +47,19 @@ class _EnderecoFormMixin(forms.Form):
     #: "1" quando a posição veio do arrasto, e não da geocodificação da prévia.
     pin_movido = forms.CharField(required=False, widget=forms.HiddenInput())
 
+    #: Campos de endereço exigidos por este formulário. Agente e depósito
+    #: exigem os três — sem endereço eles saem da busca por proximidade, que é
+    #: a razão de existir do cadastro deles. Cliente sobrescreve com lista
+    #: vazia: a entrega vai para onde a solicitação disser, e exigir um
+    #: endereço que ninguém usa só produz dado inventado.
+    ENDERECO_OBRIGATORIO = ("logradouro", "cidade", "uf")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for campo in CAMPOS_ENDERECO:
+            if campo in self.fields:
+                self.fields[campo].required = campo in self.ENDERECO_OBRIGATORIO
+
     def endereco_mudou(self) -> bool:
         if not self.instance.pk:
             return True
@@ -130,7 +143,18 @@ class AgenteForm(_EnderecoFormMixin, forms.ModelForm):
 
 
 class ClienteForm(_EnderecoFormMixin, forms.ModelForm):
-    """Cadastro de cliente (ISC-RF-04)."""
+    """Cadastro de cliente (ISC-RF-04).
+
+    Endereço é OPCIONAL aqui, diferente de agente e depósito. O cliente pode
+    querer a isca entregue em outro lugar — obra, filial, endereço do veículo —
+    e nesses casos o endereço de cadastro não existe ou não serve. Quem define
+    para onde a entrega vai é a solicitação, que tem o próprio endereço e a
+    própria coordenada.
+    """
+
+    #: Nenhum: ver a docstring. O endereço, quando preenchido, continua sendo
+    #: geocodificado e usado como sugestão na abertura da solicitação.
+    ENDERECO_OBRIGATORIO = ()
 
     class Meta:
         model = Cliente

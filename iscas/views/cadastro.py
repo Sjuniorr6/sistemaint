@@ -217,13 +217,17 @@ def cliente_criar(request):
             cadastro_service.salvar_com_geocodificacao(
                 cliente, endereco_mudou=True, pin=form.pin_ajustado()
             )
-            if cliente.tem_coordenada:
+            if cliente.tem_coordenada or not cliente.tem_endereco:
+                # Sem endereço não há coordenada a cobrar: o endereço do
+                # cliente é opcional, e cada solicitação traz o próprio ponto
+                # de entrega. Avisar aqui seria alarme sobre algo correto.
                 messages.success(request, f"Cliente {cliente} cadastrado.")
             else:
                 messages.warning(
                     request,
-                    f"Cliente {cliente} cadastrado, mas sem coordenada. "
-                    "Ajuste o pin para usar a busca por proximidade a partir dele.",
+                    f"Cliente {cliente} cadastrado, mas o endereço não foi "
+                    "localizado no mapa. Ajuste o pin para usar este endereço "
+                    "como sugestão de entrega.",
                 )
             return redirect("iscas:cliente_detalhe", pk=cliente.pk)
     else:
