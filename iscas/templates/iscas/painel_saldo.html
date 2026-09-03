@@ -120,7 +120,7 @@ vira link. Duplicar a tabela era o que fazia as duas divergirem com o tempo.
                   <tr>
                     <td class="ps-4 small">
                       {{ saldo.modelo__nome }}
-                      <span class="badge bg-dark ms-1">{{ saldo.modelo__codigo }}</span>
+                      <span class="badge bg-dark ms-1">{{ saldo.modelo__codigo|default_if_none:saldo.modelo__nome }}</span>
                     </td>
                     <td class="text-end small">{{ saldo.total }}</td>
                     <td class="text-end small fw-bold text-info">{{ saldo.disponivel }}</td>

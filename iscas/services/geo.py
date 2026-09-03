@@ -201,7 +201,7 @@ def agentes_para_solicitacao(*, solicitacao, raio_km):
             por_modelo.append(
                 {
                     "modelo": modelo.nome,
-                    "codigo": modelo.codigo,
+                    "codigo": modelo.codigo or "",
                     "falta": falta,
                     "disponivel": disponivel,
                     "cobre": cobre,

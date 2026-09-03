@@ -222,8 +222,24 @@ class ModeloForm(forms.ModelForm):
             },
         )
 
+    def clean_codigo(self):
+        """Vazio vira None, nunca "".
+
+        O campo é único e opcional ao mesmo tempo. Em SQL dois NULL não
+        colidem, mas dois "" colidem: gravar string vazia deixaria cadastrar
+        UM modelo sem código e faria o segundo estourar IntegrityError.
+        """
+        return (self.cleaned_data.get("codigo") or "").strip() or None
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Opcional: nem toda isca tem código de catálogo, e inventar um para
+        # satisfazer o formulário produz dado que ninguém reconhece depois.
+        self.fields["codigo"].required = False
+        self.fields["codigo"].help_text = (
+            "Opcional. Quando informado, precisa ser único e vira o prefixo "
+            "dos identificadores gerados automaticamente."
+        )
         if self.instance.pk and self.instance.tem_movimentacao():
             self.fields["tipo"].disabled = True
             self.fields["tipo"].help_text = (

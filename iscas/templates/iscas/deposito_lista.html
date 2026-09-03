@@ -48,7 +48,7 @@
             <td class="small">{{ linha.deposito.cidade }}/{{ linha.deposito.uf }}</td>
             <td class="small">
               {% for saldo in linha.saldos %}
-                <span class="badge bg-dark">{{ saldo.disponivel }}/{{ saldo.total }} {{ saldo.modelo__codigo }}</span>
+                <span class="badge bg-dark">{{ saldo.disponivel }}/{{ saldo.total }} {{ saldo.modelo__codigo|default_if_none:saldo.modelo__nome }}</span>
               {% empty %}<span class="text-muted">vazio</span>{% endfor %}
             </td>
             <td class="text-end">

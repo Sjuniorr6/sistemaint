@@ -14,7 +14,7 @@
       {% for linha in linhas %}
         <tr>
           <td>{{ linha.modelo.nome }}</td>
-          <td class="small text-muted">{{ linha.modelo.codigo }}</td>
+          <td class="small text-muted">{{ linha.modelo.codigo|default_if_none:"—" }}</td>
           <td class="small">{{ linha.modelo.fabricante }}</td>
           <td>
             <span class="badge {% if linha.modelo.eh_retornavel %}bg-info{% else %}bg-secondary{% endif %}">

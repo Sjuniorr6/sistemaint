@@ -43,7 +43,7 @@ def agentes_geojson(*, modelo=None):
         saldos = [
             {
                 "modelo": linha["modelo__nome"],
-                "codigo": linha["modelo__codigo"],
+                "codigo": linha["modelo__codigo"] or "",
                 "tipo": linha["modelo__tipo"],
                 "total": linha["total"],
                 "disponivel": linha["disponivel"],
@@ -153,7 +153,7 @@ def solicitacoes_geojson():
                     "itens": [
                         {
                             "modelo": linha["modelo"].nome,
-                            "codigo": linha["modelo"].codigo,
+                            "codigo": linha["modelo"].codigo or "",
                             "solicitado": linha["solicitado"],
                             "atribuido": linha["atribuido"],
                             "falta": linha["falta"],

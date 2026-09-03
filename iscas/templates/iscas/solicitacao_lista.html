@@ -92,13 +92,13 @@ achar uma — daí o total no cabeçalho e a busca por #id ou cliente.
             {# No celular as colunas de itens e data somem; o essencial delas #}
             {# volta aqui embaixo, para a linha não virar só um número. #}
             <div class="small text-muted d-md-none">
-              {% for item in solicitacao.itens.all %}{{ item.quantidade }}× {{ item.modelo.codigo }}{% if not forloop.last %} · {% endif %}{% endfor %}
+              {% for item in solicitacao.itens.all %}{{ item.quantidade }}× {{ item.modelo.codigo_ou_nome }}{% if not forloop.last %} · {% endif %}{% endfor %}
               — {{ solicitacao.aberta_em|date:"d/m/y" }}
             </div>
           </td>
           <td class="small d-none d-md-table-cell">
             {% for item in solicitacao.itens.all %}
-              <span class="badge bg-dark">{{ item.quantidade }}× {{ item.modelo.codigo }}</span>
+              <span class="badge bg-dark">{{ item.quantidade }}× {{ item.modelo.codigo_ou_nome }}</span>
             {% endfor %}
           </td>
           <td class="small text-muted d-none d-lg-table-cell">

@@ -141,7 +141,7 @@ def _proximidade_por_solicitacao(request, raio_km):
                 "cliente": cliente.nome_razao_social,
                 "status_display": solicitacao.get_status_display(),
                 "falta": [
-                    {"modelo": modelo.nome, "codigo": modelo.codigo, "falta": falta}
+                    {"modelo": modelo.nome, "codigo": modelo.codigo or "", "falta": falta}
                     for modelo, falta in selectors.modelos_em_falta(solicitacao)
                 ],
             },
@@ -249,7 +249,7 @@ def _serializar_unidades(unidades):
             "id": unidade.pk,
             "identificador": unidade.identificador,
             "modelo": unidade.modelo.nome,
-            "codigo": unidade.modelo.codigo,
+            "codigo": unidade.modelo.codigo or "",
             # O rótulo junta as duas informações: o operador busca tanto pelo
             # ID da isca quanto pelo modelo.
             "rotulo": f"{unidade.identificador} — {unidade.modelo.nome}",
@@ -351,7 +351,7 @@ def saldo_agente(request, agente_id):
             "saldos": [
                 {
                     "modelo": linha["modelo__nome"],
-                    "codigo": linha["modelo__codigo"],
+                    "codigo": linha["modelo__codigo"] or "",
                     "total": linha["total"],
                     "disponivel": linha["disponivel"],
                     "reservado": linha["reservado"],

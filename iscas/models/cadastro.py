@@ -154,7 +154,14 @@ class ModeloEquipamento(BaseModel):
     """
 
     nome = models.CharField(max_length=150, verbose_name="Nome")
-    codigo = models.CharField(max_length=50, unique=True, verbose_name="Código")
+    # Opcional, mas ainda único quando informado. `null=True` (e NUNCA string
+    # vazia) é o que torna as duas coisas compatíveis: no SQL, dois NULL não
+    # colidem, mas dois "" colidem — com `blank=True` sozinho, o SEGUNDO
+    # modelo sem código quebraria com IntegrityError. O form normaliza vazio
+    # para None; ver `ModeloForm.clean_codigo`.
+    codigo = models.CharField(
+        max_length=50, unique=True, null=True, blank=True, verbose_name="Código"
+    )
     fabricante = models.CharField(max_length=120, blank=True, verbose_name="Fabricante")
     descricao = models.TextField(blank=True, verbose_name="Descrição")
     tipo = models.CharField(
@@ -167,7 +174,16 @@ class ModeloEquipamento(BaseModel):
         ordering = ["nome"]
 
     def __str__(self):
-        return f"{self.nome} ({self.codigo})"
+        return f"{self.nome} ({self.codigo})" if self.codigo else self.nome
+
+    @property
+    def codigo_ou_nome(self) -> str:
+        """O que as telas compactas mostram — badge de saldo, item do pedido.
+
+        Cai para o nome quando não há código: um badge vazio não diz de qual
+        modelo é o saldo.
+        """
+        return self.codigo or self.nome
 
     @property
     def eh_retornavel(self) -> bool:

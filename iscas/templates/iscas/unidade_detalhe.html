@@ -27,7 +27,7 @@
         <dl class="row mb-0 small">
           <dt class="col-5">Custódia</dt><dd class="col-7">{{ unidade.custodia_atual }}</dd>
           <dt class="col-5">Desde</dt><dd class="col-7">{{ unidade.custodia_desde|date:"d/m/Y H:i" }}</dd>
-          <dt class="col-5">Modelo</dt><dd class="col-7">{{ unidade.modelo.codigo }}</dd>
+          <dt class="col-5">Modelo</dt><dd class="col-7">{{ unidade.modelo.codigo_ou_nome }}</dd>
           {% if unidade.observacao %}
             <dt class="col-5">Observação</dt><dd class="col-7">{{ unidade.observacao }}</dd>
           {% endif %}

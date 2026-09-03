@@ -59,8 +59,13 @@ def gerar_identificadores_internos(*, modelo, quantidade: int) -> list[str]:
     para aquele modelo, e a unicidade real é imposta pelo UNIQUE de
     `Unidade.identificador` — sob concorrência, a colisão vira `IntegrityError`
     tratado por quem chama.
+
+    Modelo sem código — o campo é opcional — cai para a PK: `GS-M12-000001`.
+    Interpolar o código vazio produziria `GS--000001`, que é igual para TODOS
+    os modelos sem código e faria as faixas de modelos diferentes colidirem
+    entre si no UNIQUE de `identificador`.
     """
-    prefixo = f"GS-{modelo.codigo}-"
+    prefixo = f"GS-{modelo.codigo}-" if modelo.codigo else f"GS-M{modelo.pk}-"
     ultimo = (
         Unidade.objects.filter(identificador__startswith=prefixo)
         .order_by("-identificador")
