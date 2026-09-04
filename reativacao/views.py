@@ -15,6 +15,10 @@ from django.urls import reverse_lazy
 import logging
 from django.contrib import messages
 import json
+import io
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 
 
 class ReativacaoIdIccidCreateView(PermissionRequiredMixin, LoginRequiredMixin, View):
@@ -141,29 +145,49 @@ from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMix
 
 from django.core.paginator import Paginator
 
+def _filtrar_reativacoes(request):
+    """Aplica os filtros da querystring (cliente, status, motivo e período)
+    e devolve a queryset já com os relacionamentos resolvidos.
+
+    Compartilhado pela listagem e pela exportação Excel para que ambas
+    respeitem exatamente os mesmos filtros.
+    """
+    reativacoes = (
+        Reativacao.objects
+        .select_related('nome', 'usuario')
+        .prefetch_related('id_iccids')
+        .order_by('-id')
+    )
+
+    cliente_filtro = request.GET.get('cliente_filtro')
+    status_reativacao_filtro = request.GET.get('status_reativacao_filtro')
+    motivo_reativacao_filtro = request.GET.get('motivo_filtro')
+    data_inicio = request.GET.get('data_inicio')
+    data_fim = request.GET.get('data_fim')
+
+    if cliente_filtro:
+        reativacoes = reativacoes.filter(nome__id=cliente_filtro)
+
+    if status_reativacao_filtro:
+        reativacoes = reativacoes.filter(status_reativacao=status_reativacao_filtro)
+
+    if motivo_reativacao_filtro:
+        reativacoes = reativacoes.filter(motivo_reativacao=motivo_reativacao_filtro)
+
+    if data_inicio:
+        reativacoes = reativacoes.filter(data_hora_criacao__date__gte=data_inicio)
+
+    if data_fim:
+        reativacoes = reativacoes.filter(data_hora_criacao__date__lte=data_fim)
+
+    return reativacoes
+
+
 class ReativacaoListView(PermissionRequiredMixin, LoginRequiredMixin, View):
     permission_required = 'reativacao.view_reativacao'
-    
+
     def get(self, request):
-        cliente_filtro = request.GET.get('cliente_filtro')
-        status_reativacao_filtro = request.GET.get('status_reativacao_filtro')
-        motivo_reativacao_filtro = request.GET.get('motivo_filtro')
-        
-        # Queryset completa (SEM paginação)
-        reativacoes = Reativacao.objects.all().order_by('-id')
-
-        if cliente_filtro:
-            reativacoes = reativacoes.filter(nome__id=cliente_filtro)
-
-        if status_reativacao_filtro:
-            reativacoes = reativacoes.filter(
-                status_reativacao=status_reativacao_filtro
-            )
-
-        if motivo_reativacao_filtro:
-            reativacoes = reativacoes.filter(
-                motivo_reativacao=motivo_reativacao_filtro
-            )
+        reativacoes = _filtrar_reativacoes(request)
 
         # Dropdown de clientes: quando há filtro de status, mostra só os clientes
         # que possuem reativação naquele status. 'reativacao_nome' é o related_name
@@ -181,6 +205,93 @@ class ReativacaoListView(PermissionRequiredMixin, LoginRequiredMixin, View):
             'status_reativacao_choices': Reativacao.STATUS_CHOICES,
             'motivos_choices': Reativacao.MOTIVO_CHOICES,
         })
+
+
+class ReativacaoExportExcelView(PermissionRequiredMixin, LoginRequiredMixin, View):
+    permission_required = 'reativacao.view_reativacao'
+
+    COLUNAS = [
+        ('ID', 12),
+        ('Usuário', 18),
+        ('Data de Criação', 20),
+        ('Nome', 30),
+        ('CNPJ', 20),
+        ('Motivo', 16),
+        ('Canal de Solicitação', 22),
+        ('Observações', 30),
+        ('ID Equipamento', 30),
+        ('ICCID', 30),
+        ('Status da Reativação', 20),
+        ('Quantidade', 14),
+    ]
+
+    def _linha(self, registro):
+        id_iccids = list(registro.id_iccids.all())
+        ids_equip = "\n".join(e.id_equipamentos for e in id_iccids)
+        iccids = "\n".join(e.ccid_equipamentos for e in id_iccids)
+        quantidade = sum(e.quantidade or 0 for e in id_iccids)
+        data_criacao = (
+            registro.data_hora_criacao.strftime('%d/%m/%Y %H:%M')
+            if registro.data_hora_criacao else ''
+        )
+        return [
+            registro.id,
+            registro.usuario.username if registro.usuario else '',
+            data_criacao,
+            str(registro.nome) if registro.nome else '',
+            registro.cnpj or '',
+            registro.motivo_reativacao or '',
+            registro.canal_solicitacao or '',
+            registro.observacoes or '',
+            ids_equip,
+            iccids,
+            registro.status_reativacao or '',
+            quantidade,
+        ]
+
+    def get(self, request):
+        reativacoes = _filtrar_reativacoes(request)
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Reativações"
+
+        header_fill = PatternFill(start_color="343A40", end_color="343A40", fill_type="solid")
+        header_font = Font(bold=True, color="FFFFFF", size=10)
+        thin = Side(style='thin')
+        border = Border(left=thin, right=thin, top=thin, bottom=thin)
+        center = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+        ws.append([label for label, _ in self.COLUNAS])
+        for col_idx in range(1, len(self.COLUNAS) + 1):
+            cell = ws.cell(row=1, column=col_idx)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = center
+            cell.border = border
+
+        for registro in reativacoes:
+            ws.append(self._linha(registro))
+            for col_idx in range(1, len(self.COLUNAS) + 1):
+                cell = ws.cell(row=ws.max_row, column=col_idx)
+                cell.alignment = Alignment(vertical='center', wrap_text=True)
+                cell.border = border
+
+        for i, (_, width) in enumerate(self.COLUNAS, start=1):
+            ws.column_dimensions[get_column_letter(i)].width = width
+
+        ws.freeze_panes = "A2"
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename="reativacoes.xlsx"'
+        return response
 
 
 def update_status(request):

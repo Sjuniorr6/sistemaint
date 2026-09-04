@@ -165,9 +165,19 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-12 d-flex gap-2 align-items-end justify-content-end mt-2">
+                    <div class="col-md-3 col-12">
+                        <label for="data_inicio" class="form-label small mb-1" style="color:#111;">Período — de</label>
+                        <input type="date" name="data_inicio" id="data_inicio" class="form-control rounded" value="{{ request.GET.data_inicio }}">
+                    </div>
+                    <div class="col-md-3 col-12">
+                        <label for="data_fim" class="form-label small mb-1" style="color:#111;">Período — até</label>
+                        <input type="date" name="data_fim" id="data_fim" class="form-control rounded" value="{{ request.GET.data_fim }}">
+                    </div>
+                    <div class="col-12 d-flex gap-2 align-items-end justify-content-end mt-2 flex-wrap">
                         <button class="btn btn-success px-4 rounded-pill" type="submit"><i class="bi bi-search"></i> Filtrar</button>
                         <a href="{% url 'reativacao_list' %}" class="btn btn-outline-secondary px-4 rounded-pill"><i class="bi bi-x-circle"></i> Limpar</a>
+                        <button class="btn btn-primary px-4 rounded-pill" type="submit" formaction="{% url 'reativacao_export_excel' %}"><i class="bi bi-file-earmark-excel"></i> Exportar Excel</button>
+                        <button class="btn btn-outline-primary px-4 rounded-pill" type="submit" formaction="{% url 'reativacao_export_excel' %}"><i class="bi bi-download"></i> Extrair Excel do período</button>
                     </div>
                 </div>
             </div>
