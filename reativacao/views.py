@@ -188,6 +188,7 @@ class ReativacaoListView(PermissionRequiredMixin, LoginRequiredMixin, View):
 
     def get(self, request):
         reativacoes = _filtrar_reativacoes(request)
+        status_reativacao_filtro = request.GET.get('status_reativacao_filtro')
 
         # Dropdown de clientes: quando há filtro de status, mostra só os clientes
         # que possuem reativação naquele status. 'reativacao_nome' é o related_name
