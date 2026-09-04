@@ -15,61 +15,15 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # NOTE: a criação de AuditLog/CampoAlterado e seus índices vive em
+        # 0066_auditlog_campoalterado_and_more (ramo irmão, unido por 0074_merge).
+        # As operações de CreateModel/AddIndex idênticas que existiam aqui foram
+        # removidas porque, num banco construído do zero, os dois 0066 rodam e a
+        # tabela/índices colidiam ("table requisicao_auditlog already exists").
+        # Resta apenas o AlterField, que é exclusivo desta migration.
         migrations.AlterField(
             model_name='requisicoes',
             name='responsavel_manutencao',
             field=models.CharField(blank=True, choices=[('GuilhermeAmarante', 'Guilherme Amarante'), ('Talita.Espinosa', 'Talita Espinosa'), ('Vinicius.Rodrigues', 'Vinicius Rodrigues'), ('Patricia.Costa', 'Patricia Costa'), ('Anália', 'Anália Venancio'), ('Evellyn.Taila', 'Evellyn Taila'), ('Tiago.Faria', 'Tiago Faria'), ('Inteligencia', 'Inteligencia')], help_text='Responsável pela manutenção/configuração do equipamento', max_length=50, null=True),
-        ),
-        migrations.CreateModel(
-            name='AuditLog',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('object_id', models.PositiveIntegerField()),
-                ('acao', models.CharField(choices=[('criacao', 'Criação'), ('aprovacao', 'Aprovação'), ('reprovacao', 'Reprovação'), ('atribuicao', 'Atribuição de Responsável'), ('status_change', 'Mudança de Status'), ('expedicao', 'Expedição'), ('envio_cliente', 'Envio ao Cliente'), ('edicao', 'Edição'), ('exclusao', 'Exclusão'), ('kanban_movido', 'Card Movido no Kanban'), ('ids_incluidos', 'IDs Incluídos'), ('expedicao_parcial', 'Expedição Parcial'), ('manutencao_criacao', 'Criação de Manutenção'), ('manutencao_aprovacao', 'Aprovação de Manutenção'), ('manutencao_reprovacao', 'Reprovação de Manutenção'), ('manutencao_atribuicao', 'Atribuição de Responsável (Manutenção)'), ('manutencao_status', 'Mudança de Status (Manutenção)'), ('manutencao_expedicao', 'Expedição (Manutenção)'), ('manutencao_edicao', 'Edição (Manutenção)'), ('manutencao_exclusao', 'Exclusão (Manutenção)')], max_length=50)),
-                ('usuario_nome', models.CharField(help_text='Nome do usuário no momento da ação', max_length=150)),
-                ('data_hora', models.DateTimeField(default=django.utils.timezone.now)),
-                ('status_anterior', models.CharField(blank=True, max_length=100, null=True)),
-                ('status_novo', models.CharField(blank=True, max_length=100, null=True)),
-                ('detalhes', models.JSONField(blank=True, help_text='Detalhes adicionais da ação', null=True)),
-                ('observacao', models.TextField(blank=True, null=True)),
-                ('ip_address', models.GenericIPAddressField(blank=True, null=True)),
-                ('content_type', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='contenttypes.contenttype')),
-                ('usuario', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL)),
-            ],
-            options={
-                'verbose_name': 'Log de Auditoria',
-                'verbose_name_plural': 'Logs de Auditoria',
-                'ordering': ['-data_hora'],
-            },
-        ),
-        migrations.CreateModel(
-            name='CampoAlterado',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('nome_campo', models.CharField(max_length=100)),
-                ('valor_anterior', models.TextField(blank=True, null=True)),
-                ('valor_novo', models.TextField(blank=True, null=True)),
-                ('audit_log', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='campos_alterados', to='requisicao.auditlog')),
-            ],
-            options={
-                'verbose_name': 'Campo Alterado',
-                'verbose_name_plural': 'Campos Alterados',
-            },
-        ),
-        migrations.AddIndex(
-            model_name='auditlog',
-            index=models.Index(fields=['content_type', 'object_id'], name='requisicao__content_907cfa_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='auditlog',
-            index=models.Index(fields=['acao'], name='requisicao__acao_bbdb25_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='auditlog',
-            index=models.Index(fields=['data_hora'], name='requisicao__data_ho_7d9699_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='auditlog',
-            index=models.Index(fields=['usuario'], name='requisicao__usuario_d01c42_idx'),
         ),
     ]
