@@ -127,6 +127,8 @@ class Requisicoes(models.Model):
         ('Termo cinza + imã' , 'Termo cinza + imã'),
         ('Termo preto' , 'Termo preto'),
         ('Termo preto + imã' , 'Termo preto + imã'),
+        ('Termo vermelho' , 'Termo vermelho'),
+        ('Termo vermelho + imã' , 'Termo vermelho + imã'),
         ('Termo branco - slim' , 'Termo branco - slim'),
         ('Termo marrom slim +D.F + EQT' , 'Termo marrom slim +D.F + EQT'),
         ('Termo marrom' , 'Termo marrom'),
