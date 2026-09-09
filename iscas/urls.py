@@ -18,6 +18,7 @@ urlpatterns = [
     path("agentes/<int:pk>/", cadastro.agente_detalhe, name="agente_detalhe"),
     path("agentes/<int:pk>/editar/", cadastro.agente_editar, name="agente_editar"),
     path("agentes/<int:pk>/desativar/", cadastro.agente_desativar, name="agente_desativar"),
+    path("agentes/<int:pk>/reativar/", cadastro.agente_reativar, name="agente_reativar"),
     path("agentes/<int:pk>/pin/", cadastro.agente_ajustar_pin, name="agente_ajustar_pin"),
 
     path("clientes/", cadastro.cliente_lista, name="cliente_lista"),
@@ -36,6 +37,7 @@ urlpatterns = [
     path("modelos/novo/", cadastro.modelo_criar, name="modelo_criar"),
     path("modelos/<int:pk>/editar/", cadastro.modelo_editar, name="modelo_editar"),
     path("modelos/<int:pk>/desativar/", cadastro.modelo_desativar, name="modelo_desativar"),
+    path("modelos/<int:pk>/reativar/", cadastro.modelo_reativar, name="modelo_reativar"),
 
     # — Estoque e custódia —
     path("unidades/", custodia.unidade_lista, name="unidade_lista"),

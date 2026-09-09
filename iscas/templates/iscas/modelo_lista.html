@@ -1,9 +1,36 @@
 {% extends "iscas/base_iscas.html" %}
+{% comment %}
+Catálogo de modelos, com desativação (ISC-RN-20).
+
+Desativar é soft-delete: o modelo sai do catálogo — some do select de entrada
+de estoque e do formulário de solicitação — mas as unidades já cadastradas
+seguem no estoque, no histórico e no saldo. Por isso a confirmação diz quantas
+unidades continuam, em vez de um "tem certeza?" genérico.
+{% endcomment %}
 {% block titulo_iscas %}Modelos{% endblock %}
+
 {% block iscas_conteudo %}
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-  <h1 class="h3 mb-0">Modelos de equipamento</h1>
-  <a href="{% url 'iscas:modelo_criar' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Novo modelo</a>
+  <h1 class="h3 mb-0">
+    Modelos de equipamento
+    {% if desativados %}<span class="badge bg-secondary align-middle">desativados</span>{% endif %}
+  </h1>
+  <div class="d-flex gap-2 flex-wrap">
+    {% if desativados %}
+      <a href="{% url 'iscas:modelo_lista' %}" class="btn btn-outline-light btn-sm">
+        <i class="bi bi-arrow-left"></i> Voltar ao catálogo
+      </a>
+    {% else %}
+      {% if total_desativados %}
+        <a href="?desativados=1" class="btn btn-outline-light btn-sm">
+          <i class="bi bi-archive"></i> Desativados ({{ total_desativados }})
+        </a>
+      {% endif %}
+      <a href="{% url 'iscas:modelo_criar' %}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg"></i> Novo modelo
+      </a>
+    {% endif %}
+  </div>
 </div>
 
 <div class="card iscas-card">
@@ -13,7 +40,12 @@
       <tbody>
       {% for linha in linhas %}
         <tr>
-          <td>{{ linha.modelo.nome }}</td>
+          <td>
+            {{ linha.modelo.nome }}
+            {% if not linha.modelo.is_active %}
+              <span class="badge bg-secondary">desativado</span>
+            {% endif %}
+          </td>
           <td class="small text-muted">{{ linha.modelo.codigo|default_if_none:"—" }}</td>
           <td class="small">{{ linha.modelo.fabricante }}</td>
           <td>
@@ -24,15 +56,51 @@
               <i class="bi bi-lock-fill text-muted" title="Tipo imutável: já há unidades movimentadas"></i>
             {% endif %}
           </td>
-          <td class="text-end"><a href="{% url 'iscas:modelo_editar' linha.modelo.pk %}" class="btn btn-outline-light btn-sm"><i class="bi bi-pencil"></i></a></td>
+          <td class="text-end">
+            <div class="d-inline-flex gap-1">
+              <a href="{% url 'iscas:modelo_editar' linha.modelo.pk %}"
+                 class="btn btn-outline-light btn-sm" title="Editar">
+                <i class="bi bi-pencil"></i>
+              </a>
+              {% if linha.modelo.is_active %}
+                <form method="post" action="{% url 'iscas:modelo_desativar' linha.modelo.pk %}"
+                      onsubmit="return confirm('Desativar este modelo? Ele sai do catálogo e não aceita unidades novas. As unidades já cadastradas continuam no estoque e no histórico.');">
+                  {% csrf_token %}
+                  <button class="btn btn-outline-danger btn-sm" title="Desativar">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              {% else %}
+                <form method="post" action="{% url 'iscas:modelo_reativar' linha.modelo.pk %}">
+                  {% csrf_token %}
+                  <button class="btn btn-outline-success btn-sm" title="Reativar">
+                    <i class="bi bi-arrow-counterclockwise"></i> Reativar
+                  </button>
+                </form>
+              {% endif %}
+            </div>
+          </td>
         </tr>
-      {% empty %}<tr><td colspan="5" class="text-muted">Nenhum modelo cadastrado.</td></tr>{% endfor %}
+      {% empty %}
+        <tr><td colspan="5" class="text-muted">
+          {% if desativados %}Nenhum modelo desativado.
+          {% else %}Nenhum modelo cadastrado.{% endif %}
+        </td></tr>
+      {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
+
 <div class="form-text small mt-2">
-  <i class="bi bi-lock-fill"></i> O tipo não pode mudar depois que existem unidades movimentadas — alterá-lo
-  reescreveria o significado do histórico já gravado.
+  <div>
+    <i class="bi bi-trash"></i> Desativar tira o modelo do catálogo: ele deixa de aparecer na entrada de
+    estoque e na abertura de solicitação. As unidades que já existem continuam rastreadas, no saldo e no
+    histórico — desativar um modelo não move equipamento de lugar.
+  </div>
+  <div class="mt-1">
+    <i class="bi bi-lock-fill"></i> O tipo não pode mudar depois que existem unidades movimentadas — alterá-lo
+    reescreveria o significado do histórico já gravado.
+  </div>
 </div>
 {% endblock %}

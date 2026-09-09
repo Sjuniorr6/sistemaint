@@ -15,9 +15,23 @@
     <a href="{% url 'iscas:agente_editar' agente.pk %}" class="btn btn-outline-light btn-sm"><i class="bi bi-pencil"></i> Editar</a>
     <a href="{% url 'iscas:historico_agente' agente.pk %}" class="btn btn-outline-light btn-sm"><i class="bi bi-journal-text"></i> Histórico</a>
     {% if agente.is_active %}
-      <form method="post" action="{% url 'iscas:agente_desativar' agente.pk %}">
+      <form method="post" action="{% url 'iscas:agente_desativar' agente.pk %}"
+            onsubmit="return confirm('Desativar este agente? Ele sai das listas, do mapa e das atribuições. O histórico e as movimentações dele permanecem.');">
         {% csrf_token %}
-        <button class="btn btn-outline-danger btn-sm" onclick="return confirm('Desativar este agente?')">Desativar</button>
+        <button class="btn btn-outline-danger btn-sm">
+          <i class="bi bi-trash"></i> Desativar
+        </button>
+      </form>
+    {% else %}
+      {% comment %}
+      Sem isto o agente desativado ficaria sem volta pela interface: ele some
+      do `ActiveManager` e não haveria como reativá-lo fora do /admin.
+      {% endcomment %}
+      <form method="post" action="{% url 'iscas:agente_reativar' agente.pk %}">
+        {% csrf_token %}
+        <button class="btn btn-outline-success btn-sm">
+          <i class="bi bi-arrow-counterclockwise"></i> Reativar
+        </button>
       </form>
     {% endif %}
   </div>

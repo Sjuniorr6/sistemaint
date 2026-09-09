@@ -20,7 +20,7 @@ from iscas.models.cadastro import Agente, Cliente, Deposito, ModeloEquipamento
 from iscas.models.config import ConfiguracaoIscas
 from iscas.models.custodia import Movimentacao, Unidade
 from iscas.models.operacao import Atribuicao, Solicitacao
-from iscas.services.saldo import saldo_disponivel, saldo_por_modelo
+from iscas.services.saldo import saldo_por_modelo, saldo_por_modelo_em_lote
 
 
 # ---------------------------------------------------------------------------
@@ -34,12 +34,22 @@ def agentes_geojson(*, modelo=None):
     O popup precisa de nome, telefone e saldo disponível por modelo — por isso
     o saldo entra nas properties, e não numa segunda chamada por marcador.
     """
-    agentes = Agente.objects.filter(
-        latitude__isnull=False, longitude__isnull=False
-    ).order_by("nome")
+    agentes = list(
+        Agente.objects.filter(latitude__isnull=False, longitude__isnull=False)
+        .select_related("custodia")
+        .order_by("nome")
+    )
+
+    # UMA consulta para o saldo de todos os marcadores do mapa. Antes eram
+    # duas por agente (`saldo_por_modelo` + `saldo_disponivel`), num endpoint
+    # que carrega a base inteira de agentes de uma vez.
+    contas = [a.custodia for a in agentes if getattr(a, "custodia", None)]
+    saldos_por_custodia = saldo_por_modelo_em_lote(contas)
 
     features = []
     for agente in agentes:
+        conta = getattr(agente, "custodia", None)
+        linhas = saldos_por_custodia.get(conta.pk, []) if conta else []
         saldos = [
             {
                 "modelo": linha["modelo__nome"],
@@ -49,7 +59,7 @@ def agentes_geojson(*, modelo=None):
                 "disponivel": linha["disponivel"],
                 "reservado": linha["reservado"],
             }
-            for linha in saldo_por_modelo(agente)
+            for linha in linhas
         ]
         features.append(
             {
@@ -67,8 +77,16 @@ def agentes_geojson(*, modelo=None):
                     "uf": agente.uf,
                     "geo_origem": agente.geo_origem,
                     "saldos": saldos,
+                    # Derivado do mesmo lote: filtrar o modelo aqui evita a
+                    # segunda consulta por marcador.
                     "disponivel_modelo": (
-                        saldo_disponivel(agente, modelo=modelo) if modelo else None
+                        sum(
+                            linha["disponivel"]
+                            for linha in linhas
+                            if linha["modelo"] == modelo.pk
+                        )
+                        if modelo
+                        else None
                     ),
                 },
             }
@@ -411,11 +429,21 @@ def metricas_painel():
         status=StatusAtribuicao.EM_ROTA, em_rota_em__lt=limite_rota
     ).select_related("agente", "solicitacao__cliente")
 
-    agentes_com_saldo_baixo = [
-        {"agente": agente, "disponivel": disponivel}
-        for agente in Agente.objects.all()
-        if (disponivel := saldo_disponivel(agente)) < config.saldo_minimo_alerta
-    ]
+    # Saldo disponível de TODOS os agentes numa consulta. Antes era uma por
+    # agente, no painel que abre a cada acesso ao módulo.
+    agentes_ativos = list(Agente.objects.select_related("custodia").order_by("nome"))
+    saldos_agentes = saldo_por_modelo_em_lote(
+        [a.custodia for a in agentes_ativos if getattr(a, "custodia", None)]
+    )
+    agentes_com_saldo_baixo = []
+    for agente in agentes_ativos:
+        conta = getattr(agente, "custodia", None)
+        linhas = saldos_agentes.get(conta.pk, []) if conta else []
+        disponivel = sum(linha["disponivel"] for linha in linhas)
+        if disponivel < config.saldo_minimo_alerta:
+            agentes_com_saldo_baixo.append(
+                {"agente": agente, "disponivel": disponivel}
+            )
 
     return {
         "config": config,

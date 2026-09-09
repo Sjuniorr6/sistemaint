@@ -49,6 +49,15 @@ class TipoModeloImutavel(IscasError):
     """O tipo do modelo já tem histórico e não pode mudar (ISC-RN-04)."""
 
 
+class ModeloDesativado(IscasError):
+    """O modelo foi desativado e não aceita unidades novas.
+
+    Desativação é decisão de catálogo, não de estoque: as unidades que já
+    existem seguem rastreadas, movimentáveis e no saldo (ISC-RN-18 aplicado ao
+    modelo). O que para é a ENTRADA de unidade nova.
+    """
+
+
 class GeocodificacaoFalhou(IscasError):
     """O serviço de geocodificação não respondeu ou não achou o endereço.
 

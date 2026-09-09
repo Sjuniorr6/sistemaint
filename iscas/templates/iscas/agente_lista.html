@@ -1,12 +1,40 @@
 {% extends "iscas/base_iscas.html" %}
+{% comment %}
+Lista de agentes, com desativação (ISC-RN-18).
+
+Desativar é soft-delete: o agente sai das listas, do mapa e das atribuições,
+mas o saldo e o histórico dele permanecem. O service recusa a desativação de
+quem ainda segura equipamento — o botão existe, e a mensagem explica o que
+transferir antes.
+{% endcomment %}
 {% block titulo_iscas %}Agentes{% endblock %}
+
 {% block iscas_conteudo %}
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-  <h1 class="h3 mb-0">Agentes</h1>
-  <a href="{% url 'iscas:agente_criar' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Novo agente</a>
+  <h1 class="h3 mb-0">
+    Agentes
+    {% if desativados %}<span class="badge bg-secondary align-middle">desativados</span>{% endif %}
+  </h1>
+  <div class="d-flex gap-2 flex-wrap">
+    {% if desativados %}
+      <a href="{% url 'iscas:agente_lista' %}" class="btn btn-outline-light btn-sm">
+        <i class="bi bi-arrow-left"></i> Voltar aos ativos
+      </a>
+    {% else %}
+      {% if total_desativados %}
+        <a href="?desativados=1" class="btn btn-outline-light btn-sm">
+          <i class="bi bi-archive"></i> Desativados ({{ total_desativados }})
+        </a>
+      {% endif %}
+      <a href="{% url 'iscas:agente_criar' %}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg"></i> Novo agente
+      </a>
+    {% endif %}
+  </div>
 </div>
 
 <form method="get" class="mb-3">
+  {% if desativados %}<input type="hidden" name="desativados" value="1">{% endif %}
   <div class="input-group input-group-sm" style="max-width:26rem">
     <input type="search" name="q" value="{{ busca }}" class="form-control" placeholder="Buscar por nome">
     <button class="btn btn-outline-light"><i class="bi bi-search"></i></button>
@@ -22,7 +50,9 @@
         <tr>
           <td>
             <a href="{% url 'iscas:agente_detalhe' linha.agente.pk %}">{{ linha.agente.nome }}</a>
-            {% if not linha.agente.tem_coordenada %}
+            {% if not linha.agente.is_active %}
+              <span class="badge bg-secondary">desativado</span>
+            {% elif not linha.agente.tem_coordenada %}
               <i class="bi bi-exclamation-triangle text-warning" title="Sem coordenada: fora da busca por proximidade"></i>
             {% endif %}
           </td>
@@ -35,15 +65,47 @@
             {% empty %}<span class="text-muted">sem saldo</span>{% endfor %}
           </td>
           <td class="text-end">
-            <a href="{% url 'iscas:agente_editar' linha.agente.pk %}" class="btn btn-outline-light btn-sm"><i class="bi bi-pencil"></i></a>
+            <div class="d-inline-flex gap-1">
+              <a href="{% url 'iscas:agente_editar' linha.agente.pk %}"
+                 class="btn btn-outline-light btn-sm" title="Editar">
+                <i class="bi bi-pencil"></i>
+              </a>
+              {% if linha.agente.is_active %}
+                <form method="post" action="{% url 'iscas:agente_desativar' linha.agente.pk %}"
+                      onsubmit="return confirm('Desativar este agente? Ele sai das listas, do mapa e das atribuições. O histórico e as movimentações dele permanecem.');">
+                  {% csrf_token %}
+                  <button class="btn btn-outline-danger btn-sm" title="Desativar">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              {% else %}
+                <form method="post" action="{% url 'iscas:agente_reativar' linha.agente.pk %}">
+                  {% csrf_token %}
+                  <button class="btn btn-outline-success btn-sm" title="Reativar">
+                    <i class="bi bi-arrow-counterclockwise"></i> Reativar
+                  </button>
+                </form>
+              {% endif %}
+            </div>
           </td>
         </tr>
       {% empty %}
-        <tr><td colspan="6" class="text-muted">Nenhum agente cadastrado.</td></tr>
+        <tr><td colspan="6" class="text-muted">
+          {% if desativados %}Nenhum agente desativado.
+          {% else %}Nenhum agente cadastrado.{% endif %}
+        </td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
-<div class="form-text small mt-2">CPF exibido mascarado; o número completo fica na ficha do agente.</div>
+
+<div class="form-text small mt-2">
+  <div>CPF exibido mascarado; o número completo fica na ficha do agente.</div>
+  <div class="mt-1">
+    <i class="bi bi-trash"></i> Desativar não apaga: o agente sai da operação e o histórico dele continua.
+    Quem ainda segura equipamento não pode ser desativado — transfira as unidades antes, senão o estoque
+    sumiria da operação sem sair do livro.
+  </div>
+</div>
 {% endblock %}

@@ -59,6 +59,17 @@ def desativar_agente(agente):
     return agente
 
 
+def reativar_agente(agente):
+    """Devolve o agente à operação: volta às listas, ao mapa e às atribuições.
+
+    Não há regra a validar na volta — o que a desativação exigiu (saldo zero)
+    não cria pendência ao reativar. O agente simplesmente torna a existir para
+    o `ActiveManager`.
+    """
+    agente.reativar()
+    return agente
+
+
 def desativar_deposito(deposito):
     """Soft-delete do depósito, bloqueado se ainda houver estoque nele.
 
@@ -81,6 +92,33 @@ def desativar_cliente(cliente):
     que continua rastreado justamente para ser cobrado."""
     cliente.desativar()
     return cliente
+
+
+def desativar_modelo(modelo):
+    """Soft-delete do modelo: tira do catálogo, preserva o estoque (ISC-RN-20).
+
+    Diferente de agente e depósito, saldo NÃO bloqueia — e a diferença é
+    deliberada. Desativar um agente com unidades em posse esconderia estoque
+    que está fisicamente com alguém; desativar um modelo não move nada de
+    lugar. As unidades seguem onde estão, rastreadas, movimentáveis e contadas
+    no saldo. O que para é a entrada de unidade NOVA daquele modelo.
+
+    É exatamente o caso de uso: parar de comprar um modelo descontinuado sem
+    perder de vista as unidades dele que ainda rodam na operação.
+    """
+    modelo.desativar()
+    return modelo
+
+
+def reativar_modelo(modelo):
+    """Devolve o modelo ao catálogo.
+
+    Contraparte obrigatória do soft-delete: desativação sem volta é deleção
+    com passos extras, e o operador que errou o clique ficaria sem saída
+    dentro do app.
+    """
+    modelo.reativar()
+    return modelo
 
 
 def alterar_modelo(modelo, *, tipo=None, **campos):

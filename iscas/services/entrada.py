@@ -17,7 +17,7 @@ from iscas.services.custodia import (
     custodia_singleton,
     registrar_movimentacao,
 )
-from iscas.services.exceptions import MovimentacaoInvalida
+from iscas.services.exceptions import ModeloDesativado, MovimentacaoInvalida
 
 _ESPACOS = re.compile(r"[\s;,]+")
 
@@ -115,6 +115,15 @@ def registrar_entrada(
     Returns:
         `(movimentacao, unidades)`.
     """
+    # Modelo desativado não recebe unidade nova (ISC-RN-20). A guarda é aqui,
+    # no service, e não só no queryset do formulário: o `ActiveManager` esconde
+    # o modelo do select, mas um POST com o id ainda chegaria até aqui.
+    if not modelo.is_active:
+        raise ModeloDesativado(
+            f"O modelo {modelo} está desativado e não aceita unidades novas. "
+            "Reative-o na lista de modelos para voltar a dar entrada."
+        )
+
     if gerar_internos:
         if not quantidade or quantidade < 1:
             raise MovimentacaoInvalida(

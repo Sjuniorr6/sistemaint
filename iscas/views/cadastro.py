@@ -7,12 +7,13 @@ from django.views.decorators.http import require_POST
 from iscas.forms import AgenteForm, ClienteForm, DepositoForm, ModeloForm
 from iscas.models.cadastro import Agente, Cliente, Deposito, ModeloEquipamento
 from iscas.models.config import ConfiguracaoIscas
+from iscas.models.custodia import Unidade
 from iscas.permissions import exige_operador
 from iscas.selectors import historico_agente as historico_agente_selector
 from iscas.services import cadastro as cadastro_service
 from iscas.services.exceptions import AgenteComSaldo, DepositoComSaldo, IscasError
 from iscas.services.geo import ajustar_pin
-from iscas.services.saldo import saldo_por_modelo, tem_saldo
+from iscas.services.saldo import saldo_por_modelo_em_lote
 
 
 def _contexto_endereco(form, *, titulo, entidade=None, **extra):
@@ -45,24 +46,53 @@ def _contexto_endereco(form, *, titulo, entidade=None, **extra):
 
 @exige_operador
 def agente_lista(request):
-    """Listagem com CPF mascarado (ISC-RN-16) e alerta de pin pendente."""
+    """Listagem com CPF mascarado (ISC-RN-16) e alerta de pin pendente.
+
+    Desativados ficam fora por padrão; a lixeira é um modo explícito da tela,
+    como na lista de modelos. Sem ela o agente desativado seria inalcançável —
+    some do `ActiveManager` e não haveria como reativá-lo pela interface.
+    """
     busca = request.GET.get("q", "").strip()
-    agentes = Agente.objects.order_by("nome")
+    desativados = request.GET.get("desativados") == "1"
+
+    # `select_related("custodia")`: a conta de cada agente é lida no loop
+    # abaixo para montar o lote de saldos. Sem isto, cada acesso a
+    # `agente.custodia` seria uma consulta — o N+1 voltaria pela porta dos
+    # fundos, agora buscando custódia em vez de saldo.
+    agentes = (
+        Agente.todos.filter(is_active=False) if desativados else Agente.objects.all()
+    ).select_related("custodia").order_by("nome")
     if busca:
         agentes = agentes.filter(nome__icontains=busca)
+
+    agentes = list(agentes)
+
+    # UMA consulta agrega o saldo de todos os agentes da página. Antes, o
+    # `saldo_por_modelo()` era chamado dentro do laço: três consultas por
+    # agente, degradando exatamente conforme a operação cresce — que é quando
+    # a tela mais importa.
+    contas = [a.custodia for a in agentes if getattr(a, "custodia", None)]
+    saldos_por_custodia = saldo_por_modelo_em_lote(contas)
 
     linhas = [
         {
             "agente": agente,
             "cpf": agente.cpf_mascarado,
-            "saldos": list(saldo_por_modelo(agente)),
+            "saldos": saldos_por_custodia.get(
+                getattr(agente.custodia, "pk", None), []
+            ) if getattr(agente, "custodia", None) else [],
         }
         for agente in agentes
     ]
     return render(
         request,
         "iscas/agente_lista.html",
-        {"linhas": linhas, "busca": busca},
+        {
+            "linhas": linhas,
+            "busca": busca,
+            "desativados": desativados,
+            "total_desativados": Agente.todos.filter(is_active=False).count(),
+        },
     )
 
 
@@ -143,8 +173,26 @@ def agente_desativar(request, pk):
     except AgenteComSaldo as exc:
         messages.error(request, str(exc))
         return redirect("iscas:agente_detalhe", pk=agente.pk)
-    messages.success(request, f"Agente {agente.nome} desativado.")
+    messages.success(
+        request,
+        f"Agente {agente.nome} desativado. Ele sai das listas e da busca por "
+        "proximidade; o histórico e as movimentações dele permanecem.",
+    )
     return redirect("iscas:agente_lista")
+
+
+@exige_operador
+@require_POST
+def agente_reativar(request, pk):
+    """Devolve o agente à operação.
+
+    Contraparte obrigatória do soft-delete: desativação sem volta é deleção com
+    passos extras, e o operador que errou o clique ficaria sem saída no app.
+    """
+    agente = get_object_or_404(Agente.todos, pk=pk)
+    cadastro_service.reativar_agente(agente)
+    messages.success(request, f"Agente {agente.nome} reativado.")
+    return redirect("iscas:agente_detalhe", pk=agente.pk)
 
 
 @exige_operador
@@ -312,15 +360,31 @@ def cliente_ajustar_pin(request, pk):
 
 @exige_operador
 def deposito_lista(request):
-    """Pontos de estoque da empresa — de onde o equipamento sai para os agentes."""
-    depositos = [
-        {
-            "deposito": deposito,
-            "saldos": list(saldo_por_modelo(deposito)),
-            "tem_saldo": tem_saldo(deposito),
-        }
-        for deposito in Deposito.objects.order_by("nome")
-    ]
+    """Pontos de estoque da empresa — de onde o equipamento sai para os agentes.
+
+    Saldo de todos os depósitos numa consulta só. Antes eram DUAS por depósito
+    (`saldo_por_modelo` + `tem_saldo`), e `tem_saldo` nem precisa ir ao banco:
+    é derivável do próprio lote.
+    """
+    depositos_lista = list(
+        Deposito.objects.select_related("custodia").order_by("nome")
+    )
+    contas = [d.custodia for d in depositos_lista if getattr(d, "custodia", None)]
+    saldos_por_custodia = saldo_por_modelo_em_lote(contas)
+
+    depositos = []
+    for deposito in depositos_lista:
+        conta = getattr(deposito, "custodia", None)
+        saldos = saldos_por_custodia.get(conta.pk, []) if conta else []
+        depositos.append(
+            {
+                "deposito": deposito,
+                "saldos": saldos,
+                # Derivado do lote: depósito com qualquer linha de saldo tem
+                # unidade em custódia. Uma consulta a menos por linha.
+                "tem_saldo": any(linha["total"] for linha in saldos),
+            }
+        )
     return render(request, "iscas/deposito_lista.html", {"linhas": depositos})
 
 
@@ -395,12 +459,34 @@ def deposito_desativar(request, pk):
 
 @exige_operador
 def modelo_lista(request):
-    modelos = ModeloEquipamento.objects.order_by("nome")
+    """Catálogo de modelos. Desativados ficam fora por padrão (ISC-RN-20).
+
+    A lixeira é um modo explícito da tela, como na lista de solicitações: o
+    operador precisa enxergar o que desativou para poder reativar, mas não no
+    caminho de quem só quer o catálogo em uso.
+    """
+    desativados = request.GET.get("desativados") == "1"
+    modelos = (
+        ModeloEquipamento.todos.filter(is_active=False)
+        if desativados
+        else ModeloEquipamento.objects.all()
+    ).order_by("nome")
+
     linhas = [
         {"modelo": modelo, "bloqueado": modelo.tem_movimentacao()}
         for modelo in modelos
     ]
-    return render(request, "iscas/modelo_lista.html", {"linhas": linhas})
+    return render(
+        request,
+        "iscas/modelo_lista.html",
+        {
+            "linhas": linhas,
+            "desativados": desativados,
+            "total_desativados": ModeloEquipamento.todos.filter(
+                is_active=False
+            ).count(),
+        },
+    )
 
 
 @exige_operador
@@ -450,7 +536,30 @@ def modelo_editar(request, pk):
 @exige_operador
 @require_POST
 def modelo_desativar(request, pk):
+    """Soft-delete: sai do catálogo, o estoque existente continua (ISC-RN-20)."""
     modelo = get_object_or_404(ModeloEquipamento.todos, pk=pk)
-    modelo.desativar()
-    messages.success(request, f"Modelo {modelo} desativado.")
+    cadastro_service.desativar_modelo(modelo)
+
+    # O aviso muda conforme haja estoque: dizer só "desativado" deixaria o
+    # operador em dúvida sobre o que aconteceu com as unidades que existem.
+    em_estoque = Unidade.objects.filter(modelo=modelo).count()
+    if em_estoque:
+        messages.success(
+            request,
+            f"Modelo {modelo} desativado. Ele não aceita mais unidades novas; "
+            f"as {em_estoque} unidade(s) já cadastradas seguem no estoque e no "
+            "histórico.",
+        )
+    else:
+        messages.success(request, f"Modelo {modelo} desativado.")
+    return redirect("iscas:modelo_lista")
+
+
+@exige_operador
+@require_POST
+def modelo_reativar(request, pk):
+    """Devolve o modelo ao catálogo."""
+    modelo = get_object_or_404(ModeloEquipamento.todos, pk=pk)
+    cadastro_service.reativar_modelo(modelo)
+    messages.success(request, f"Modelo {modelo} reativado.")
     return redirect("iscas:modelo_lista")
