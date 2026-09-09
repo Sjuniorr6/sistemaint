@@ -44,8 +44,15 @@ class Qualit(models.Model):
    
     OPERADORA = models.CharField(choices=OPERADORA_CHOICES, max_length=100)
     CLIENTE = models.CharField(max_length=50 ,null=True) # Atualize para um usuário válido
-   
 
+    class Meta:
+        # Tabela importada externamente (sem PK 'id' do Django) e com uma coluna
+        # de dados 'ID'. Como o SQLite trata 'id'/'ID' como o mesmo nome, deixar o
+        # Django criar a tabela colide ('duplicate column name: ID'). A tabela é
+        # gerenciada fora do Django, então marcamos como não gerenciada — o Django
+        # ainda registra o model e suas permissões (usadas no menu), mas não emite
+        # CREATE TABLE, o que desbloqueia a construção do banco do zero.
+        managed = False
 
     def __str__(self):
         return self.ICCID_NOVO

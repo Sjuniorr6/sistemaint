@@ -23,5 +23,8 @@ class Migration(migrations.Migration):
                 ('OPERADORA', models.CharField(choices=[('ESEYE', 'ESEYE'), ('1NCE', '1NCE')], max_length=100)),
                 ('CLIENTE', models.CharField(max_length=50, null=True)),
             ],
+            options={
+                'managed': False,
+            },
         ),
     ]

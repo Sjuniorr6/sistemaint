@@ -1,11 +1,12 @@
 from django.urls import path
-from .views import RequisicoesListView, ReativacaoView, ReativacaoIdIccidCreateView, ReativacaoListView,update_status, ReativacaoUpdateView, ReativacaoCompleteUpdateView
+from .views import RequisicoesListView, ReativacaoView, ReativacaoIdIccidCreateView, ReativacaoListView,update_status, ReativacaoUpdateView, ReativacaoCompleteUpdateView, ReativacaoExportExcelView
 from django.urls import path
 from .views import DownloadPdfView
 from .views import delete_reativacao
 
 urlpatterns = [
     path('reativacoes/', ReativacaoListView.as_view(), name='reativacao_list'),
+    path('reativacoes/exportar-excel/', ReativacaoExportExcelView.as_view(), name='reativacao_export_excel'),
     path('reativacoes/adicionar/', ReativacaoIdIccidCreateView.as_view(), name='reativacao_id_iccid_adicionar'),
     path('reativacoes/update/<int:pk>/', ReativacaoUpdateView.as_view(), name='reativacao_update'),
     path('reativacoes/complete-update/<int:pk>/', ReativacaoCompleteUpdateView.as_view(), name='reativacao_complete_update'),
