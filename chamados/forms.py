@@ -11,7 +11,13 @@ from django.core.validators import FileExtensionValidator
 
 from acompanhamento.models import Clientes
 from produto.models import Produto
-from chamados.enums import GRUPO_INTELIGENCIA, Categoria, CustoEquipamento, MeioContato
+from chamados.enums import (
+    GRUPO_INTELIGENCIA,
+    Categoria,
+    CustoEquipamento,
+    MeioContato,
+    Setor,
+)
 
 User = get_user_model()
 
@@ -397,4 +403,37 @@ class MotivoForm(forms.Form):
 
     motivo = forms.CharField(
         widget=forms.Textarea(attrs={"class": "form-control", "rows": 3})
+    )
+
+
+class FiltroFilaForm(forms.Form):
+    """Alfândega do querystring da fila (filtro por setor + período).
+
+    TOLERANTE, no mesmo espírito do FiltroAcionamentosForm: campo ausente ou
+    valor inválido significa "sem filtro", nunca erro — por isso tudo é
+    `required=False` e a view trata form inválido como nenhum filtro.
+
+    `setor` diz por qual marco da linha do tempo o período recorta: escolhido,
+    o corte é a entrada naquele setor; vazio, é a abertura do chamado.
+    """
+
+    setor = forms.ChoiceField(
+        required=False,
+        choices=[("", "Abertura do chamado")] + list(Setor.choices),
+        widget=forms.Select(attrs={"class": "form-select form-select-sm"}),
+    )
+    # ISO = o que o <input type="date"> envia; dd/mm/aaaa = URL digitada à mão.
+    data_de = forms.DateField(
+        required=False,
+        input_formats=["%Y-%m-%d", "%d/%m/%Y"],
+        widget=forms.DateInput(
+            attrs={"class": "form-control form-control-sm", "type": "date"}
+        ),
+    )
+    data_ate = forms.DateField(
+        required=False,
+        input_formats=["%Y-%m-%d", "%d/%m/%Y"],
+        widget=forms.DateInput(
+            attrs={"class": "form-control form-control-sm", "type": "date"}
+        ),
     )

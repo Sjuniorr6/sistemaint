@@ -751,3 +751,147 @@ def tem_equipamento_com_custo(finalizacoes) -> bool:
     return any(
         item.get("custo") == CustoEquipamento.COM_CUSTO for item in finalizacoes or []
     )
+
+
+# ---------------------------------------------------------------------------
+# Exportação Excel da fila (mesmos filtros da tela)
+# ---------------------------------------------------------------------------
+
+# Colunas fixas do arquivo: identificação do chamado + a linha do tempo, uma
+# coluna de data por setor (a mesma ordem da tabela da fila).
+_COLUNAS_FIXAS_EXPORTACAO = [
+    "Protocolo",
+    "Cliente",
+    "Equipamento",
+    "Modelo",
+    "Categoria",
+    "Status atual",
+    "Responsável (Quality)",
+    "Responsável (Inteligência)",
+    "Aberto em",
+]
+
+_LARGURAS_EXPORTACAO_FILA = {
+    "Protocolo": 14,
+    "Cliente": 28,
+    "Equipamento": 22,
+    "Modelo": 22,
+    "Categoria": 16,
+    "Status atual": 15,
+    "Responsável (Quality)": 22,
+    "Responsável (Inteligência)": 24,
+    "Aberto em": 18,
+}
+_LARGURA_COLUNA_SETOR = 18
+_COR_CABECALHO_FILA = "1F2430"  # mesmo tom escuro do cabeçalho das telas
+
+
+def colunas_exportacao_fila(setores):
+    """Cabeçalho completo: colunas fixas + uma "Entrou em <setor>" por setor."""
+    from chamados.enums import Setor as _Setor
+
+    return _COLUNAS_FIXAS_EXPORTACAO + [
+        f"Entrou em {_Setor(s).label}" for s in setores
+    ]
+
+
+def _sem_tzinfo(valor):
+    """openpyxl não aceita datetime aware: normaliza ao fuso local e tira o
+    tzinfo — a célula fica com o horário que a operação enxerga."""
+    if valor is None:
+        return None
+    return timezone.localtime(valor).replace(tzinfo=None)
+
+
+def montar_workbook_fila(chamados, setores, campo_entrada):
+    """Monta o xlsx da fila filtrada e devolve os BYTES do arquivo.
+
+    PURA: `chamados` já vem filtrado, ordenado e ANOTADO pela view/selector —
+    aqui não há query (as anotações de entrada por setor são lidas com getattr,
+    e os nomes vêm de `campo_entrada`, injetado pela view no mesmo estilo do
+    `compor` da exportação de acionamentos).
+
+    Datas saem como datetime de verdade (não string), com formato de célula
+    dd/mm/aaaa hh:mm — o arquivo é conferido e reordenado fora do sistema, e
+    data como texto não ordena.
+
+    Import local do openpyxl: dependência exclusiva da exportação, não precisa
+    carregar junto com o módulo inteiro de services.
+    """
+    import io
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    colunas = colunas_exportacao_fila(setores)
+    negrito = Font(bold=True, color="FFFFFF")
+    preenchimento = PatternFill(
+        start_color=_COR_CABECALHO_FILA,
+        end_color=_COR_CABECALHO_FILA,
+        fill_type="solid",
+    )
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Chamados"
+    ws.append(colunas)
+    for indice, titulo in enumerate(colunas, start=1):
+        celula = ws.cell(row=1, column=indice)
+        celula.font = negrito
+        celula.fill = preenchimento
+        celula.alignment = Alignment(horizontal="center", vertical="center")
+        ws.column_dimensions[get_column_letter(indice)].width = (
+            _LARGURAS_EXPORTACAO_FILA.get(titulo, _LARGURA_COLUNA_SETOR)
+        )
+
+    for chamado in chamados:
+        linha = [
+            chamado.protocolo,
+            str(chamado.cliente),
+            chamado.numero_equipamento,
+            str(chamado.modelo_equipamento),
+            chamado.get_categoria_display(),
+            chamado.get_status_display(),
+            chamado.responsavel.get_username() if chamado.responsavel else None,
+            (
+                chamado.responsavel_inteligencia.get_username()
+                if chamado.responsavel_inteligencia
+                else None
+            ),
+            _sem_tzinfo(chamado.aberto_em),
+        ]
+        linha += [
+            _sem_tzinfo(getattr(chamado, campo_entrada(s), None)) for s in setores
+        ]
+        ws.append(linha)
+        for indice, valor in enumerate(linha, start=1):
+            if hasattr(valor, "year"):  # datetime → formato brasileiro
+                ws.cell(row=ws.max_row, column=indice).number_format = (
+                    "dd/mm/yyyy hh:mm"
+                )
+
+    ws.freeze_panes = "A2"  # cabeçalho fixo ao rolar
+    ws.auto_filter.ref = ws.dimensions  # filtro nativo do Excel sobre os dados
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()
+
+
+def montar_nome_arquivo_fila(filtros):
+    """Nome do arquivo da exportação, SEM extensão: base `chamados` + um
+    segmento por filtro ativo (setor, de, ate), unidos por "_". Datas em
+    dd-mm-aaaa. PURA: lê o dict de filtros validados da view."""
+    from django.utils.text import slugify
+
+    from chamados.enums import Setor as _Setor
+
+    segmentos = ["chamados"]
+    if filtros.get("setor"):
+        segmentos.append(f"setor-{slugify(_Setor(filtros['setor']).label)}")
+    if filtros.get("data_de") is not None:
+        segmentos.append(f"de-{filtros['data_de'].strftime('%d-%m-%Y')}")
+    if filtros.get("data_ate") is not None:
+        segmentos.append(f"ate-{filtros['data_ate'].strftime('%d-%m-%Y')}")
+    return "_".join(segmentos)

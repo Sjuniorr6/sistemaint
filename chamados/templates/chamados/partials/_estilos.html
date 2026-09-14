@@ -233,4 +233,15 @@
     .select2-container .select2-selection--single {
     height: 38px !important;
   }
+
+  /* Colunas da linha do tempo: data em cima, hora discreta embaixo. Compactas,
+     porque são seis e disputam largura com o resto da tabela. */
+  .ch-col-data { white-space: nowrap; font-size: .8rem; }
+  .ch-col-data .ch-data { display: block; font-weight: 600; color: #1f2430; }
+  .ch-col-data .ch-hora { display: block; font-size: .72rem; color: #6b7280; line-height: 1.1; }
+  .ch-col-data .ch-vazio { color: #cbd5e1; }
+  .ch-col-data .ch-col-sup {
+    display: block; font-size: .62rem; font-weight: 500; letter-spacing: .04em;
+    text-transform: uppercase; color: #9ca3af; line-height: 1;
+  }
 </style>

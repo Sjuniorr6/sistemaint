@@ -6,7 +6,7 @@ log de eventos do dia, sem contadores mantidos à mão (RN-05).
 """
 from django.utils import timezone
 
-from chamados.enums import Acao, Status
+from chamados.enums import Acao, Setor, Status
 from chamados.models import Chamado
 
 
@@ -157,3 +157,87 @@ def acoes_disponiveis(user, chamado):
     if chamado.status == Status.EXPEDICAO:
         disponiveis.append(Acao.REGISTRAR_CONTATO)
     return disponiveis
+
+
+# ---------------------------------------------------------------------------
+# Linha do tempo por setor + filtro por período (fila e exportação)
+# ---------------------------------------------------------------------------
+
+# Cada setor vira uma coluna "entrou em" na fila. O nome da anotação é
+# `entrada_<setor em minúsculo>` — a ordem aqui é a do fluxo e a das colunas.
+SETORES_TIMELINE = [
+    Setor.QUALITY,
+    Setor.INTELIGENCIA,
+    Setor.EXPEDICAO,
+    Setor.LABORATORIO,
+    Setor.COMERCIAL,
+    Setor.FINANCEIRO,
+]
+
+
+def campo_entrada(setor) -> str:
+    """Nome da anotação que guarda a entrada do chamado naquele setor."""
+    return f"entrada_{str(setor).lower()}"
+
+
+def anotar_entradas_por_setor(qs):
+    """Anota, por chamado, QUANDO ele entrou em cada setor (linha do tempo).
+
+    Uma `Subquery` correlata por setor, pegando o `chegou_em` da PRIMEIRA
+    passagem naquele setor (mandamento 2: nunca `prefetch_related` da relação
+    inteira + `.first()` por item — isso carregaria todas as passagens e ainda
+    geraria N+1). A contagem de queries fica CONSTANTE, independente do número
+    de linhas.
+
+    Primeira passagem, e não a última: o que a operação pergunta é "quando este
+    chamado deu entrada na expedição", e o marco é a entrada original — um
+    chamado que volta ao setor depois não deve reescrever a data de entrada.
+    """
+    from django.db.models import OuterRef, Subquery
+
+    from chamados.models import PassagemSetor
+
+    anotacoes = {}
+    for setor in SETORES_TIMELINE:
+        passagens = (
+            PassagemSetor.objects.filter(chamado=OuterRef("pk"), setor=setor)
+            .order_by("chegou_em", "id")
+            .values("chegou_em")[:1]
+        )
+        anotacoes[campo_entrada(setor)] = Subquery(passagens)
+    return qs.annotate(**anotacoes)
+
+
+def filtrar_fila(qs, setor=None, data_de=None, data_ate=None):
+    """Aplica o filtro de período sobre a linha do tempo (RF-07 + exportação).
+
+    Com `setor`, o recorte é pela ENTRADA NAQUELE SETOR: "quantos chamados
+    entraram na expedição entre tal e tal data" — inclui os que já saíram de lá
+    (passaram) e os que continuam no setor, porque a pergunta é sobre a entrada,
+    não sobre o status atual.
+
+    Sem `setor`, o período recorta a ABERTURA do chamado, que é a leitura
+    natural de "chamados abertos de tal data até tal data".
+
+    As duas pontas são inclusivas e comparadas por `__date`, para não misturar
+    date naive com DateTimeField aware (USE_TZ ligado).
+    """
+    campo = f"{campo_entrada(setor)}__date" if setor else "aberto_em__date"
+    if data_de is not None:
+        qs = qs.filter(**{f"{campo}__gte": data_de})
+    if data_ate is not None:
+        qs = qs.filter(**{f"{campo}__lte": data_ate})
+    # Sem período, filtrar por setor ainda significa "passou por este setor".
+    if setor and data_de is None and data_ate is None:
+        qs = qs.filter(**{f"{campo_entrada(setor)}__isnull": False})
+    return qs
+
+
+def listar_fila(user, setor=None, data_de=None, data_ate=None):
+    """Fila visível ao usuário, com a linha do tempo anotada e o período aplicado.
+
+    Fonte única da tela e da exportação — as duas chamam exatamente isto, então
+    o Excel sai com as MESMAS linhas que a tela mostra.
+    """
+    qs = anotar_entradas_por_setor(chamados_visiveis_para(user))
+    return filtrar_fila(qs, setor=setor, data_de=data_de, data_ate=data_ate)

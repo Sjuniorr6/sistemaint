@@ -8,6 +8,7 @@ no service. Acesso barrado na URL por @exige_operador (fila/detalhe/ações) e
 """
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -21,12 +22,16 @@ from chamados.forms import (
     FaturarForm,
     FinalizarComercialForm,
     FinalizarForm,
+    FiltroFilaForm,
     MotivoForm,
 )
 from chamados.permissions import exige_operador, exige_quality, is_quality
 from chamados.selectors import (
+    SETORES_TIMELINE,
     acoes_disponiveis,
+    campo_entrada,
     chamados_visiveis_para,
+    listar_fila,
     metricas_painel,
 )
 from chamados import services
@@ -47,10 +52,43 @@ _FORM_POR_ACAO = {
 
 
 def _linhas_com_acoes(user, chamados):
-    """Emparelha cada chamado com as ações que a UI deve oferecer (RF-07)."""
+    """Emparelha cada chamado com as ações que a UI deve oferecer (RF-07) e com
+    a linha do tempo já RESOLVIDA em lista, na ordem de SETORES_TIMELINE.
+
+    Resolver aqui (e não no template) evita precisar de um filtro de lookup em
+    dict só para ler as anotações: o template itera a lista e imprime, sem
+    conhecer o nome das anotações.
+    """
     return [
-        {"chamado": c, "acoes": acoes_disponiveis(user, c)} for c in chamados
+        {
+            "chamado": c,
+            "acoes": acoes_disponiveis(user, c),
+            "entradas": [getattr(c, campo_entrada(s), None) for s in SETORES_TIMELINE],
+        }
+        for c in chamados
     ]
+
+
+def _filtros_da_fila(request):
+    """Parse TOLERANTE do querystring da fila via FiltroFilaForm (valor inválido
+    ou ausente = sem filtro, nunca erro) — compartilhado entre a tela e a
+    exportação, que usa exatamente os mesmos filtros.
+
+    Devolve (form, filtros); a tela precisa do form para re-renderizar os campos
+    já preenchidos.
+    """
+    form = FiltroFilaForm(request.GET)
+    valido = form.is_valid()
+
+    def _campo(nome):
+        return form.cleaned_data.get(nome) if valido else None
+
+    filtros = {
+        "setor": _campo("setor") or None,
+        "data_de": _campo("data_de"),
+        "data_ate": _campo("data_ate"),
+    }
+    return form, filtros
 
 
 @exige_operador
@@ -64,15 +102,54 @@ def fila(request):
       - Expedição/Laboratório/Comercial: só os que estão no SEU status atual
         (EXPEDICAO/LABORATORIO/COMERCIAL) — ao agir, o chamado muda de status e
         sai da visão do grupo.
+
+    Sobre essa visibilidade incide o filtro de período da linha do tempo: com um
+    setor escolhido, o recorte é a ENTRADA naquele setor (inclui quem já saiu de
+    lá); sem setor, é a abertura do chamado. O mesmo par (visibilidade, filtro)
+    alimenta a exportação, então o Excel sai idêntico à tela.
     """
-    chamados = chamados_visiveis_para(request.user)
+    form, filtros = _filtros_da_fila(request)
+    chamados = listar_fila(request.user, **filtros)
+    # Base da querystring do botão "Exportar": leva os filtros ativos adiante.
     contexto = {
         "linhas": _linhas_com_acoes(request.user, chamados),
         "metricas": metricas_painel(),
         "pode_abrir": is_quality(request.user),
         "Acao": Acao,
+        "filtro_form": form,
+        "filtros_querystring": request.GET.urlencode(),
+        "setores_timeline": [
+            {"valor": s, "label": Setor(s).label, "campo": campo_entrada(s)}
+            for s in SETORES_TIMELINE
+        ],
     }
     return render(request, "chamados/fila.html", contexto)
+
+
+@exige_operador
+def exportar(request):
+    """Exportação Excel da fila — view FINA, mesmo gate e mesmos filtros da tela.
+
+    Reaproveita `_filtros_da_fila` e `listar_fila`: o arquivo é o retrato exato
+    do que o usuário está vendo, inclusive a fronteira de visibilidade por papel
+    (Inteligência não exporta chamado que não enxerga). A montagem do arquivo
+    fica no service, que segue puro.
+    """
+    _, filtros = _filtros_da_fila(request)
+    chamados = listar_fila(request.user, **filtros)
+
+    conteudo = services.montar_workbook_fila(
+        chamados, SETORES_TIMELINE, campo_entrada
+    )
+    response = HttpResponse(
+        conteudo,
+        content_type=(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ),
+    )
+    nome_arquivo = services.montar_nome_arquivo_fila(filtros)
+    response["Content-Disposition"] = f'attachment; filename="{nome_arquivo}.xlsx"'
+    return response
 
 
 @exige_operador

@@ -14,7 +14,7 @@ from django.urls import reverse
 from acompanhamento.models import Clientes
 from produto.models import Produto
 from chamados import services
-from chamados.enums import Acao, Status
+from chamados.enums import Acao, Setor, Status
 from chamados.models import Chamado, ChamadoEvento
 from chamados.selectors import metricas_painel
 
@@ -2249,3 +2249,208 @@ def test_financeiro_acessa_laudo_e_termo(
     assert "Baixar laudo" in html
     assert "Termo de substituição" in html
     assert "Faturado" in html  # botão do modal
+
+
+# --------------------------------------------------------------------------- #
+# Filtro por período da linha do tempo + exportação Excel                      #
+# --------------------------------------------------------------------------- #
+
+
+def _entrou_em(chamado, setor, quando):
+    """Reposiciona no tempo a entrada do chamado num setor (a passagem é criada
+    pelo service com NOW(); os testes de período precisam de datas controladas)."""
+    from chamados.models import PassagemSetor
+
+    PassagemSetor.objects.filter(chamado=chamado, setor=setor).update(chegou_em=quando)
+
+
+def _dia(dia, mes=6, ano=2026):
+    import datetime
+
+    from django.utils import timezone
+
+    return timezone.make_aware(datetime.datetime(ano, mes, dia, 10, 0))
+
+
+def _encaminhar_para_inteligencia(chamado, quality, inteligencia):
+    # A passagem de abertura já nasce aceita (aceito_em = aberto_em): quem abriu
+    # não precisa clicar "aceitar", então aqui só encaminha.
+    services.executar(
+        chamado,
+        Acao.ENCAMINHAR,
+        {
+            "procedimento_realizado": "p",
+            "tratativa": "t",
+            "responsavel_inteligencia": inteligencia,
+        },
+        quality,
+    )
+
+
+@pytest.mark.django_db
+def test_filtro_por_setor_pega_quem_ja_saiu_do_setor(
+    user_quality, user_inteligencia, user_expedicao
+):
+    """O recorte é a ENTRADA no setor, não o status atual: um chamado que passou
+    pela Expedição e já seguiu para o Laboratório continua no resultado."""
+    from chamados.selectors import listar_fila
+
+    passou = _abrir(user_quality, user_quality)
+    _encaminhar_para_inteligencia(passou, user_quality, user_inteligencia)
+    services.aceitar_tratativa(passou, user_inteligencia)
+    services.executar(
+        passou,
+        Acao.ENCAMINHAR_EXPEDICAO,
+        {"procedimento_realizado": "p", "tratativa": "t"},
+        user_inteligencia,
+    )
+    _entrou_em(passou, Setor.EXPEDICAO, _dia(10))
+    # Sai da Expedição: o status muda, mas a passagem (e a entrada) permanece.
+    services.aceitar_tratativa(passou, user_expedicao)
+    services.executar(passou, Acao.MARCAR_CHEGADA, {}, user_expedicao)
+    passou.refresh_from_db()
+    assert passou.status == Status.LABORATORIO  # já NÃO está na expedição
+
+    nunca = _abrir(user_quality, user_quality)  # nunca passou pela Expedição
+
+    resultado = listar_fila(
+        user_quality,
+        setor=Setor.EXPEDICAO,
+        data_de=_dia(1).date(),
+        data_ate=_dia(30).date(),
+    )
+    protocolos = {c.protocolo for c in resultado}
+    assert passou.protocolo in protocolos
+    assert nunca.protocolo not in protocolos
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "de, ate, esperado",
+    [
+        (10, 20, True),   # dentro da janela
+        (15, 15, True),   # janela de um dia só, no dia da entrada — inclusiva
+        (16, 30, False),  # janela começa depois da entrada
+        (1, 14, False),   # janela termina antes da entrada
+    ],
+)
+def test_periodo_recorta_pela_entrada_no_setor(user_quality, de, ate, esperado):
+    """As duas pontas do período são INCLUSIVAS e comparadas por data."""
+    from chamados.selectors import listar_fila
+
+    chamado = _abrir(user_quality, user_quality)
+    _entrou_em(chamado, Setor.QUALITY, _dia(15))
+
+    resultado = listar_fila(
+        user_quality,
+        setor=Setor.QUALITY,
+        data_de=_dia(de).date(),
+        data_ate=_dia(ate).date(),
+    )
+    assert (chamado.protocolo in {c.protocolo for c in resultado}) is esperado
+
+
+@pytest.mark.django_db
+def test_sem_setor_o_periodo_recorta_a_abertura(user_quality):
+    """Sem setor escolhido, "de tal data até tal data" é sobre a ABERTURA."""
+    from chamados.models import Chamado
+    from chamados.selectors import listar_fila
+
+    antigo = _abrir(user_quality, user_quality)
+    recente = _abrir(user_quality, user_quality)
+    Chamado.objects.filter(pk=antigo.pk).update(aberto_em=_dia(5))
+    Chamado.objects.filter(pk=recente.pk).update(aberto_em=_dia(25))
+
+    resultado = listar_fila(
+        user_quality, setor=None, data_de=_dia(20).date(), data_ate=_dia(30).date()
+    )
+    protocolos = {c.protocolo for c in resultado}
+    assert recente.protocolo in protocolos
+    assert antigo.protocolo not in protocolos
+
+
+@pytest.mark.django_db
+def test_fila_nao_faz_query_por_linha(user_quality, django_assert_num_queries):
+    """A linha do tempo é anotada por Subquery: a contagem de queries é CONSTANTE,
+    não cresce com o número de chamados (mandamentos 1, 2 e 10)."""
+    from chamados.selectors import SETORES_TIMELINE, campo_entrada, listar_fila
+
+    def _consumir():
+        return [
+            [getattr(c, campo_entrada(s), None) for s in SETORES_TIMELINE]
+            for c in listar_fila(user_quality)
+        ]
+
+    # 2 queries: a checagem de grupo da visibilidade + a listagem com as seis
+    # subqueries de entrada embutidas. Nenhuma delas depende do nº de linhas.
+    for _ in range(3):
+        _abrir(user_quality, user_quality)
+    with django_assert_num_queries(2):
+        assert len(_consumir()) == 3
+
+    for _ in range(4):
+        _abrir(user_quality, user_quality)
+    with django_assert_num_queries(2):  # mesma contagem, mais que o dobro de linhas
+        assert len(_consumir()) == 7
+
+
+@pytest.mark.django_db
+def test_exportar_devolve_xlsx_com_as_linhas_filtradas(client, user_quality):
+    """O arquivo sai com o cabeçalho da linha do tempo, só as linhas do filtro, e
+    a data de entrada no setor como DATETIME (não texto — texto não ordena)."""
+    import io
+
+    from openpyxl import load_workbook
+
+    dentro = _abrir(user_quality, user_quality)
+    fora = _abrir(user_quality, user_quality)
+    _entrou_em(dentro, Setor.QUALITY, _dia(15))
+    _entrou_em(fora, Setor.QUALITY, _dia(25))
+
+    client.force_login(user_quality)
+    resposta = client.get(
+        reverse("chamados:exportar"),
+        {"setor": Setor.QUALITY, "data_de": "2026-06-10", "data_ate": "2026-06-20"},
+    )
+
+    assert resposta.status_code == 200
+    assert resposta["Content-Type"].endswith("spreadsheetml.sheet")
+    assert "chamados_setor-quality_de-10-06-2026_ate-20-06-2026.xlsx" in (
+        resposta["Content-Disposition"]
+    )
+
+    ws = load_workbook(io.BytesIO(resposta.content)).active
+    cabecalho = [c.value for c in ws[1]]
+    assert cabecalho[0] == "Protocolo"
+    assert "Entrou em Expedição" in cabecalho
+
+    linhas = list(ws.iter_rows(min_row=2, values_only=True))
+    assert [linha[0] for linha in linhas] == [dentro.protocolo]  # `fora` ficou fora
+
+    valor = linhas[0][cabecalho.index("Entrou em Quality")]
+    assert hasattr(valor, "year"), "data deve ser datetime, nao string"
+    assert (valor.year, valor.month, valor.day) == (2026, 6, 15)
+
+
+@pytest.mark.django_db
+def test_exportacao_respeita_a_fronteira_de_visibilidade(
+    client, user_quality, user_inteligencia, outro_inteligencia
+):
+    """Inteligência não exporta chamado que não enxerga na tela — o gate é o
+    mesmo queryset da fila, não um filtro só de UI."""
+    import io
+
+    from openpyxl import load_workbook
+
+    meu = _abrir(user_quality, user_quality)
+    _encaminhar_para_inteligencia(meu, user_quality, user_inteligencia)
+    alheio = _abrir(user_quality, user_quality)
+    _encaminhar_para_inteligencia(alheio, user_quality, outro_inteligencia)
+
+    client.force_login(user_inteligencia)
+    resposta = client.get(reverse("chamados:exportar"))
+
+    ws = load_workbook(io.BytesIO(resposta.content)).active
+    protocolos = {linha[0] for linha in ws.iter_rows(min_row=2, values_only=True)}
+    assert meu.protocolo in protocolos
+    assert alheio.protocolo not in protocolos

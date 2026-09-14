@@ -60,6 +60,50 @@
     </div>
   </div>
 
+  {% comment %} Filtro por período da LINHA DO TEMPO (server-side, via GET).
+    Diferente da barra abaixo (client-side, DataTables): este recorta o conjunto
+    no banco, porque é ele que a exportação precisa enxergar. O campo "Marco"
+    escolhe por qual data o período filtra — escolhido um setor, o corte é a
+    ENTRADA naquele setor (mostra quem passou por lá e quem ainda está). {% endcomment %}
+  <form method="get" class="ch-card card mb-3">
+    <div class="card-body">
+      <div class="row g-2 align-items-end">
+        <div class="col-12 col-md-3">
+          <label for="{{ filtro_form.setor.id_for_label }}" class="form-label small fw-semibold mb-1">
+            Marco da linha do tempo
+          </label>
+          {{ filtro_form.setor }}
+        </div>
+        <div class="col-6 col-md-2">
+          <label for="{{ filtro_form.data_de.id_for_label }}" class="form-label small fw-semibold mb-1">De</label>
+          {{ filtro_form.data_de }}
+        </div>
+        <div class="col-6 col-md-2">
+          <label for="{{ filtro_form.data_ate.id_for_label }}" class="form-label small fw-semibold mb-1">Até</label>
+          {{ filtro_form.data_ate }}
+        </div>
+        <div class="col-6 col-md-2 d-grid">
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-funnel me-1"></i>Filtrar
+          </button>
+        </div>
+        <div class="col-6 col-md-3 d-flex gap-2">
+          <a href="{% url 'chamados:fila' %}" class="btn btn-outline-secondary btn-sm flex-fill">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>Limpar
+          </a>
+          <a href="{% url 'chamados:exportar' %}{% if filtros_querystring %}?{{ filtros_querystring }}{% endif %}"
+             class="btn btn-success btn-sm flex-fill">
+            <i class="bi bi-file-earmark-excel me-1"></i>Excel
+          </a>
+        </div>
+      </div>
+      <p class="small text-muted mb-0 mt-2">
+        Exibindo <strong>{{ linhas|length }}</strong> chamado{{ linhas|length|pluralize }}.
+        O Excel sai com exatamente estas linhas e todas as datas da linha do tempo.
+      </p>
+    </div>
+  </form>
+
   {% comment %} Barra de filtros por coluna (client-side, via DataTables). Cliente,
     Equipamento e Protocolo são inputs de texto; Status é um dropdown de valores
     fixos. O botão limpa todos os filtros de uma vez. {% endcomment %}
@@ -112,6 +156,15 @@
               <th>Equipamento</th>
               <th>Status</th>
               <th>Responsável</th>
+              {% comment %} Linha do tempo: quando o chamado ENTROU em cada setor.
+                O rótulo repete "Entrou em" para não se confundir com a coluna de
+                Status (que é o setor ATUAL). {% endcomment %}
+              {% for setor in setores_timeline %}
+                <th class="ch-col-data">
+                  <span class="ch-col-sup">Entrou em</span>
+                  {{ setor.label }}
+                </th>
+              {% endfor %}
               <th class="text-end">Ações</th>
             </tr>
           </thead>
@@ -131,6 +184,16 @@
                     </span>
                   {% endif %}
                 </td>
+                {% for entrada in linha.entradas %}
+                  <td class="ch-col-data" data-order="{{ entrada|date:'Y-m-d H:i'|default:'' }}">
+                    {% if entrada %}
+                      <span class="ch-data">{{ entrada|date:'d/m/Y' }}</span>
+                      <span class="ch-hora">{{ entrada|date:'H:i' }}</span>
+                    {% else %}
+                      <span class="ch-vazio">&mdash;</span>
+                    {% endif %}
+                  </td>
+                {% endfor %}
                 <td class="text-end">
                   <a href="{% url 'chamados:detalhe' c.pk %}"
                      class="btn btn-sm {% if linha.acoes %}btn-primary{% else %}btn-outline-secondary{% endif %} px-3">
@@ -159,6 +222,13 @@
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 <script>
+  // Lê o atributo data-order da célula (ISO) para ordenar as colunas de data.
+  $.fn.dataTable.ext.order['dom-data-order'] = function (settings, col) {
+    return this.api().column(col, { order: 'index' }).nodes().map(function (td) {
+      return td.getAttribute('data-order') || '';
+    });
+  };
+
   $(document).ready(function () {
     var tabela = $('#tabela-chamados').DataTable({
       scrollX: true,
@@ -170,7 +240,10 @@
       lengthMenu: [10, 25, 50, 100],
       order: [[0, 'desc']],
       columnDefs: [
-        { targets: -1, orderable: false, searchable: false }
+        { targets: -1, orderable: false, searchable: false },
+        // Colunas de data (entre Responsável e Ações): ordenam pelo data-order
+        // em ISO, senão dd/mm/aaaa ordenaria como texto (02/01 antes de 10/12).
+        { targets: '.ch-col-data', orderDataType: 'dom-data-order', type: 'string' }
       ]
     });
 
