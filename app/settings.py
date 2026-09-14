@@ -11,7 +11,7 @@ load_dotenv(BASE_DIR / ".env")
 
 # Quick-start development settings - unsuitable for production
 SECRET_KEY = 'django-insecure-88)5ylc$&!#l7%0$oq&bdfn$*gzc#!-sk+*yj(216bb7-aq%y2'
-DEBUG = True
+DEBUG = False
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '0.0.0.0', '10.0.0.88', 'intgoldensat.com.br', 'www.intgoldensat.com.br', 'testserver']
 AGENTTRACKER_WEB_BASE_URL = "https://intgoldensat.com.br"
 
