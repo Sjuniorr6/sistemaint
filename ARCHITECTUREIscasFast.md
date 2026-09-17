@@ -72,7 +72,9 @@ Cadastros herdam de `core.BaseModel` do GSInt: `id` UUID (PK), `created_at`, `up
 
 Soft-delete via `is_active=False` para `Agente`, `Cliente`, `ModeloEquipamento`, `Deposito`. `ActiveManager` filtra por padrão. Log nunca é apagado nem desativado; correção é por estorno (`ISC-ADR-16`).
 
-Desativar `Agente` com saldo em custódia é bloqueado na service layer (`ISC-RN-18`) — a verificação é uma consulta de saldo, não um flag.
+Desativar `Agente` com saldo em custódia é bloqueado na service layer (`ISC-RN-18`) — a verificação é uma consulta de saldo, não um flag. A desativação tem contraparte na interface: botão na lista e na ficha, modo "Desativados" para enxergar quem saiu, e `reativar_agente` para a volta. Sem a lixeira o agente desativado seria inalcançável — some do `ActiveManager` e não haveria como reativá-lo fora do /admin.
+
+Desativar `ModeloEquipamento` **não** é bloqueado por saldo (`ISC-RN-20`), e a diferença é deliberada: desativar um agente esconderia estoque que está fisicamente com alguém, enquanto desativar um modelo não move nada de lugar. O modelo sai do catálogo — some do select de entrada de estoque e da abertura de solicitação, via `ActiveManager` — e `registrar_entrada` recusa unidade nova com `ModeloDesativado`. As unidades que já existem seguem rastreadas, movimentáveis (transferência, baixa, manutenção, entrega) e contadas no saldo. É o caso de descontinuar um modelo cujas unidades ainda rodam na operação. A reativação é a contraparte obrigatória: soft-delete sem volta é deleção com passos extras.
 
 ### Service Layer
 
@@ -182,6 +184,14 @@ Uma varredura sobre um índice composto. Não toca no livro-razão.
 Guardas de service impedem que unidade em situação terminal (`CONSUMIDA`, `BAIXADA`) seja origem de qualquer lançamento — inclusive que descartável entregue apareça como candidata a `RETORNO` (`ISC-RN-05`).
 
 **Tempo em posse de retornável** (`ISC-RF-31`) sai de `custodia_desde`, sem join.
+
+### Saldo em listagem: sempre em lote
+
+Saldo é derivado do livro-razão (`ISC-RN-01`), então **toda** exibição dele é uma agregação — e chamar `saldo_por_modelo()` dentro de um laço custa consultas proporcionais ao cadastro. `saldo_por_modelo_em_lote()` agrega várias custódias de uma vez e é o que as listagens usam, com `select_related("custodia")` no queryset para a conta de cada entidade não virar outra consulta.
+
+Vale para: lista de agentes, lista de depósitos, `agentes_geojson` (o mapa carrega a base inteira de uma vez) e o alerta de saldo baixo do painel. `tem_saldo` numa listagem é derivado do próprio lote, não uma consulta a mais.
+
+A garantia é medida, não presumida: `tests/test_agente_desativar.py::TestSemNMaisUm` mede a contagem de consultas com um registro e com quatro, e exige que ela **não mude**. Cada listagem tem a sua medição — a de uma não prova a da outra.
 
 ## Concorrência: a Reserva
 
@@ -384,6 +394,7 @@ TDD obrigatório para regra de negócio: o teste do service vem antes da impleme
 - **Haversine contra distâncias conhecidas:** pares de coordenadas com distância documentada, tolerância de 1%; e pontos idênticos retornando 0 sem estourar `acos`.
 - **Agente sem coordenada (ISC-RN-12):** ausente da busca por proximidade, presente na listagem geral com alerta. Vale igual para a **solicitação sem coordenada de entrega** (ISC-ADR-18): fora da busca e do mapa, visível na ficha com aviso e formulário de pin.
 - **Desativação bloqueada (ISC-RN-18):** desativar agente com saldo em custódia é rejeitado; com saldo zerado, permitido.
+- **Desativação de modelo (ISC-RN-20):** com estoque existente é permitida (ao contrário do agente); a entrada de unidade nova é recusada pelo service — não só escondida no select, porque um POST com o id chegaria até lá. Provado por sabotagem da guarda.
 - **Ponto de escrita único:** teste de arquitetura verificando que nenhum módulo fora de `services/custodia.py` importa `Movimentacao` ou `MovimentacaoUnidade` para escrita.
 - **Imutabilidade do tipo de modelo (ISC-RN-04):** alterar `tipo` de modelo com unidades movimentadas é rejeitado.
 - **Mascaramento de CPF (ISC-RN-16):** listagens nunca expõem CPF completo, nem por manipulação de parâmetro.

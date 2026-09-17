@@ -74,10 +74,27 @@ def _fernet() -> Fernet:
 
 
 def _pepper() -> bytes:
+    """Pepper do hash. Aceita `hex:<digest>` além de texto puro.
+
+    O fallback de DEBUG devolve bytes crus (sha256), que não sobrevivem a um
+    round-trip por `.env` — UTF-8 não representa byte arbitrário. O prefixo
+    `hex:` permite fixar em settings exatamente o mesmo pepper que o fallback
+    derivava, sem invalidar os `cpf_hash` já gravados.
+    """
     pepper = getattr(settings, "ISCAS_CPF_PEPPER", "") or ""
     if not pepper:
         return _material_de_fallback("PEPPER")
-    return pepper.encode() if isinstance(pepper, str) else pepper
+    if isinstance(pepper, str):
+        if pepper.startswith("hex:"):
+            try:
+                return bytes.fromhex(pepper[4:])
+            except ValueError as exc:
+                raise ImproperlyConfigured(
+                    "ISCAS_CPF_PEPPER com prefixo 'hex:' precisa ser "
+                    "hexadecimal válido."
+                ) from exc
+        return pepper.encode()
+    return pepper
 
 
 def cifrar_cpf(cpf: str) -> str:
