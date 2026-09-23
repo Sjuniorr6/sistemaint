@@ -204,7 +204,7 @@ estorno sem disputar espaço com as colunas.
         {% if filtros_ativos %}
           <a href="{% url 'iscas:extrato' %}" class="btn btn-outline-light btn-sm">Limpar filtros</a>
         {% else %}
-          <a href="{% url 'iscas:entrada' %}" class="btn btn-primary btn-sm">Registrar entrada de estoque</a>
+          {% if cap.MOVIMENTAR_ESTOQUE %}<a href="{% url 'iscas:entrada' %}" class="btn btn-primary btn-sm">Registrar entrada de estoque</a>{% endif %}
         {% endif %}
       </div>
     {% endfor %}

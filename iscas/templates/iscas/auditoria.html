@@ -1,0 +1,138 @@
+{% extends "iscas/base_iscas.html" %}
+{% comment %}
+Histórico de auditoria (ISC-RN-19).
+
+Tabela, e não cartão como o extrato: aqui cada registro é curto e homogêneo — a
+leitura é de varredura ("quem mexeu nisso ontem?"), não de detalhe. Os campos
+tocados aparecem como chips porque é uma lista de NOMES de campo; o valor nunca
+é gravado, então não há o que esconder na tela.
+{% endcomment %}
+{% block titulo_iscas %}Auditoria{% endblock %}
+
+{% block iscas_conteudo %}
+<style>
+  .aud-tabela td, .aud-tabela th { vertical-align: middle; }
+  .aud-data { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .aud-caminho {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .8rem; color: var(--iscas-texto-fraco); word-break: break-all;
+  }
+  .chip-campo {
+    display: inline-block; font-size: .72rem; padding: .1rem .4rem; margin: .1rem .15rem 0 0;
+    background: #171a1e; border: 1px solid var(--iscas-borda); border-radius: .25rem;
+    color: var(--iscas-texto-suave);
+  }
+</style>
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-1">Auditoria</h1>
+    <div class="small text-muted">
+      Ações registradas automaticamente. Guardamos quais campos foram tocados,
+      nunca o conteúdo deles. Registros são imutáveis.
+    </div>
+  </div>
+  <div class="small text-muted align-self-end">
+    {{ total }} registro{{ total|pluralize:"s" }}
+  </div>
+</div>
+
+<form method="get" class="card card-body mb-3">
+  <div class="row g-2">
+    <div class="col-md-3">
+      <label class="form-label small mb-1" for="f-autor">Usuário</label>
+      <select class="form-select form-select-sm" id="f-autor" name="autor">
+        <option value="">Todos</option>
+        {% for pessoa in autores %}
+          <option value="{{ pessoa.pk }}" {% if autor_atual == pessoa.pk|stringformat:"s" %}selected{% endif %}>
+            {{ pessoa.get_full_name|default:pessoa.username }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small mb-1" for="f-capacidade">Tipo de ação</label>
+      <select class="form-select form-select-sm" id="f-capacidade" name="capacidade">
+        <option value="">Todas</option>
+        {% for valor, rotulo in capacidades %}
+          <option value="{{ valor }}" {% if capacidade_atual == valor %}selected{% endif %}>{{ rotulo }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small mb-1" for="f-acao">Ação</label>
+      <select class="form-select form-select-sm" id="f-acao" name="acao">
+        <option value="">Todas</option>
+        {% for nome in acoes %}
+          <option value="{{ nome }}" {% if acao_atual == nome %}selected{% endif %}>{{ nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small mb-1" for="f-inicio">De</label>
+      <input type="date" class="form-control form-control-sm" id="f-inicio" name="inicio" value="{{ inicio }}">
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small mb-1" for="f-fim">Até</label>
+      <input type="date" class="form-control form-control-sm" id="f-fim" name="fim" value="{{ fim }}">
+    </div>
+    <div class="col-md-8">
+      <label class="form-label small mb-1" for="f-q">Buscar no caminho</label>
+      <input type="search" class="form-control form-control-sm" id="f-q" name="q"
+             value="{{ busca }}" placeholder="/iscas/solicitacoes/">
+    </div>
+    <div class="col-md-4 d-flex align-items-end gap-2">
+      <button type="submit" class="btn btn-sm btn-primary">Filtrar</button>
+      {% if filtros_ativos %}
+        <a href="{% url 'iscas:auditoria' %}" class="btn btn-sm btn-outline-secondary">Limpar</a>
+      {% endif %}
+    </div>
+  </div>
+</form>
+
+<div class="table-responsive">
+  <table class="table table-sm aud-tabela align-middle">
+    <thead>
+      <tr>
+        <th scope="col">Quando</th>
+        <th scope="col">Quem</th>
+        <th scope="col">Ação</th>
+        <th scope="col">Alvo</th>
+        <th scope="col">Campos tocados</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for registro in pagina %}
+        <tr>
+          <td class="aud-data small">{{ registro.created_at|date:"d/m/Y H:i" }}</td>
+          <td>{{ registro.autor.get_full_name|default:registro.autor.username }}</td>
+          <td>
+            {{ registro.get_capacidade_display|default:registro.acao }}
+            <div class="aud-caminho">{{ registro.acao }}</div>
+          </td>
+          <td class="aud-caminho">{{ registro.caminho }}</td>
+          <td>
+            {% for campo in registro.campos %}
+              <span class="chip-campo">{{ campo }}</span>
+            {% empty %}
+              <span class="text-muted small">—</span>
+            {% endfor %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="5" class="text-center text-muted py-4">
+            {% if filtros_ativos %}
+              Nenhum registro para esses filtros.
+            {% else %}
+              Nenhuma ação registrada ainda.
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% include "iscas/_paginacao.html" %}
+{% endblock %}

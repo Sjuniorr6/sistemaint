@@ -17,6 +17,7 @@ from iscas.models.operacao import (
     Atribuicao,
     AtribuicaoUnidade,
     ItemSolicitacao,
+    RegistroAuditoria,
     Solicitacao,
     SolicitacaoEvento,
 )
@@ -38,6 +39,7 @@ __all__ = [
     "ModeloEquipamento",
     "Movimentacao",
     "MovimentacaoUnidade",
+    "RegistroAuditoria",
     "Solicitacao",
     "SolicitacaoEvento",
     "Unidade",

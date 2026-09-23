@@ -4,10 +4,10 @@
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
   <h1 class="h3 mb-0">Unidades</h1>
   <div class="d-flex gap-2 flex-wrap">
-    <a href="{% url 'iscas:entrada' %}" class="btn btn-primary btn-sm"><i class="bi bi-box-arrow-in-down"></i> Entrada</a>
-    <a href="{% url 'iscas:transferencia' %}" class="btn btn-outline-light btn-sm"><i class="bi bi-arrow-left-right"></i> Transferir</a>
-    <a href="{% url 'iscas:manutencao' %}" class="btn btn-outline-light btn-sm"><i class="bi bi-tools"></i> Manutenção</a>
-    <a href="{% url 'iscas:baixa' %}" class="btn btn-outline-danger btn-sm"><i class="bi bi-x-octagon"></i> Baixa</a>
+    {% if cap.MOVIMENTAR_ESTOQUE %}<a href="{% url 'iscas:entrada' %}" class="btn btn-primary btn-sm"><i class="bi bi-box-arrow-in-down"></i> Entrada</a>{% endif %}
+    {% if cap.MOVIMENTAR_ESTOQUE %}<a href="{% url 'iscas:transferencia' %}" class="btn btn-outline-light btn-sm"><i class="bi bi-arrow-left-right"></i> Transferir</a>{% endif %}
+    {% if cap.BAIXAR_MANUTENCAO %}<a href="{% url 'iscas:manutencao' %}" class="btn btn-outline-light btn-sm"><i class="bi bi-tools"></i> Manutenção</a>{% endif %}
+    {% if cap.BAIXAR_MANUTENCAO %}<a href="{% url 'iscas:baixa' %}" class="btn btn-outline-danger btn-sm"><i class="bi bi-x-octagon"></i> Baixa</a>{% endif %}
   </div>
 </div>
 

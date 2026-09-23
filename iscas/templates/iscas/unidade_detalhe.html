@@ -47,7 +47,7 @@
                   <a href="{% url 'iscas:solicitacao_detalhe' reserva.atribuicao.solicitacao_id %}">
                     #{{ reserva.atribuicao.solicitacao_id }}
                   </a>
-                  — {{ reserva.atribuicao.agente.nome }}
+                  — {{ reserva.atribuicao.origem_nome }}
                 </td>
                 <td class="text-end small">
                   {% if reserva.esta_ativa %}

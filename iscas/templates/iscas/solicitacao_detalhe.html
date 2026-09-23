@@ -34,23 +34,27 @@ campos de texto destrutivos sempre a um clique de distância.
 
   <div class="d-flex gap-2 flex-wrap">
     {% if solicitacao.is_active %}
-      {% if not solicitacao.eh_terminal %}
+      {% if not solicitacao.eh_terminal and cap.ATENDER_SOLICITACAO %}
         <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal"
                 data-bs-target="#modalCancelar">
           <i class="bi bi-x-circle"></i> Cancelar
         </button>
       {% endif %}
+      {% if cap.EXCLUIR_SOLICITACAO %}
       <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal"
               data-bs-target="#modalExcluir">
         <i class="bi bi-trash"></i> Excluir
       </button>
+      {% endif %}
     {% else %}
+      {% if cap.EXCLUIR_SOLICITACAO %}
       <form method="post" action="{% url 'iscas:solicitacao_restaurar' solicitacao.pk %}">
         {% csrf_token %}
         <button class="btn btn-outline-light btn-sm">
           <i class="bi bi-arrow-counterclockwise"></i> Restaurar
         </button>
       </form>
+      {% endif %}
     {% endif %}
   </div>
 </div>
@@ -184,9 +188,51 @@ campos de texto destrutivos sempre a um clique de distância.
   </div>
 </div>
 
+{% if totais.ve_valor_cliente or totais.ve_custo_agente %}
+<div class="card iscas-card mb-3">
+  <div class="card-header">Valores</div>
+  <div class="card-body">
+    <div class="row g-3 text-center">
+      {% if totais.ve_valor_cliente %}
+        <div class="col-12 col-md-4">
+          <div class="small text-muted">O cliente paga</div>
+          <div class="h5 mb-0">
+            {% if totais.valor_cliente is not None %}
+              R$ {{ totais.valor_cliente|floatformat:2 }}
+            {% else %}
+              <span class="text-muted">não informado</span>
+            {% endif %}
+          </div>
+        </div>
+      {% endif %}
+      {% if totais.ve_custo_agente %}
+        <div class="col-12 col-md-4">
+          <div class="small text-muted">Custo dos agentes</div>
+          <div class="h5 mb-0">R$ {{ totais.custo_agentes|floatformat:2 }}</div>
+          {% if totais.tem_custo_incompleto %}
+            <div class="small text-warning">
+              <i class="bi bi-exclamation-triangle"></i> há agente sem valor informado
+            </div>
+          {% endif %}
+        </div>
+      {% endif %}
+      {% if totais.margem is not None %}
+        <div class="col-12 col-md-4">
+          <div class="small text-muted">Margem</div>
+          <div class="h5 mb-0 {% if totais.margem < 0 %}text-danger{% else %}text-success{% endif %}">
+            R$ {{ totais.margem|floatformat:2 }}
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <div class="row g-3">
   <div class="col-12 col-lg-5">
     {% if not solicitacao.eh_terminal %}
+      {% if cap.ATENDER_SOLICITACAO %}
       <div class="card iscas-card">
         <div class="card-header">Atribuir a um agente</div>
         <div class="card-body">
@@ -196,15 +242,49 @@ campos de texto destrutivos sempre a um clique de distância.
           </a>
           <form method="post" action="{% url 'iscas:solicitacao_atribuir' solicitacao.pk %}">
             {% csrf_token %}
-            <div class="mb-3">
-              <label class="form-label small">{{ form_atribuicao.agente.label }}</label>
-              {{ form_atribuicao.agente }}
-              <div class="form-text small">
-                {% if form_atribuicao.fields.agente.queryset %}
-                  Só aparecem agentes com equipamento disponível dos modelos que faltam.
-                {% else %}
-                  Nenhum agente tem, no momento, equipamento disponível dos modelos que faltam.
-                {% endif %}
+            {% comment %}
+            Os dois modos num card só: o rádio troca o bloco visível via
+            Alpine. Um "Retirada na base" dentro do select de agente exigiria
+            subverter o ModelChoiceField, que quebra em silêncio.
+            {% endcomment %}
+            <div class="mb-3" x-data="{ modo: 'AGENTE' }">
+              <div class="btn-group w-100 mb-3" role="group">
+                <input type="radio" class="btn-check" name="origem_tipo" id="origemAgente"
+                       value="AGENTE" x-model="modo" checked>
+                <label class="btn btn-outline-light btn-sm" for="origemAgente">
+                  <i class="bi bi-person-badge"></i> Agente entrega
+                </label>
+                <input type="radio" class="btn-check" name="origem_tipo" id="origemBase"
+                       value="RETIRADA_BASE" x-model="modo">
+                <label class="btn btn-outline-light btn-sm" for="origemBase">
+                  <i class="bi bi-shop"></i> Retirada na base
+                </label>
+              </div>
+
+              <div x-show="modo === 'AGENTE'">
+                <label class="form-label small">{{ form_atribuicao.agente.label }}</label>
+                {{ form_atribuicao.agente }}
+                <div class="form-text small">
+                  {% if form_atribuicao.fields.agente.queryset %}
+                    Só aparecem agentes com equipamento disponível dos modelos que faltam.
+                  {% else %}
+                    Nenhum agente tem, no momento, equipamento disponível dos modelos que faltam.
+                  {% endif %}
+                </div>
+
+                <label class="form-label small mt-3" for="{{ form_atribuicao.valor_agente.id_for_label }}">
+                  {{ form_atribuicao.valor_agente.label }}
+                </label>
+                {{ form_atribuicao.valor_agente }}
+                <div class="form-text small">Quanto o agente cobrou por esta entrega.</div>
+              </div>
+
+              <div x-show="modo === 'RETIRADA_BASE'" x-cloak>
+                <label class="form-label small">{{ form_atribuicao.deposito.label }}</label>
+                {{ form_atribuicao.deposito }}
+                <div class="form-text small">
+                  O cliente busca no depósito. Não há valor de agente a pagar.
+                </div>
               </div>
             </div>
 
@@ -232,6 +312,7 @@ campos de texto destrutivos sempre a um clique de distância.
           </form>
         </div>
       </div>
+      {% endif %}
     {% endif %}
   </div>
 
@@ -243,18 +324,38 @@ campos de texto destrutivos sempre a um clique de distância.
           <div class="p-3 {% if not forloop.last %}border-bottom border-secondary{% endif %}">
             <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
               <div>
-                <strong><a href="{% url 'iscas:agente_detalhe' item.atribuicao.agente.pk %}">{{ item.atribuicao.agente.nome }}</a></strong>
-                <div class="small text-muted">
-                  {{ item.atribuicao.agente.telefone }} — {{ item.atribuicao.agente.cidade }}/{{ item.atribuicao.agente.uf }}
-                </div>
+                {% if item.atribuicao.eh_retirada_base %}
+                  {# Depósito não tem ficha própria — só o nome e o selo. #}
+                  <strong>{{ item.atribuicao.deposito.nome }}</strong>
+                  <span class="badge bg-dark border border-secondary ms-1">Retirada na base</span>
+                  <div class="small text-muted">
+                    O cliente retira em {{ item.atribuicao.deposito.cidade }}/{{ item.atribuicao.deposito.uf }}
+                  </div>
+                {% else %}
+                  <strong><a href="{% url 'iscas:agente_detalhe' item.atribuicao.agente.pk %}">{{ item.atribuicao.origem_nome }}</a></strong>
+                  <div class="small text-muted">
+                    {{ item.atribuicao.agente.telefone }} — {{ item.atribuicao.agente.cidade }}/{{ item.atribuicao.agente.uf }}
+                  </div>
+                {% endif %}
               </div>
-              <span class="badge
-                {% if item.atribuicao.status == 'ENTREGUE' %}bg-success
-                {% elif item.atribuicao.status == 'CANCELADA' %}bg-secondary
-                {% elif item.atribuicao.status == 'EM_ROTA' %}bg-info
-                {% else %}bg-primary{% endif %}">
-                {{ item.atribuicao.get_status_display }}
-              </span>
+              <div class="text-end">
+                <span class="badge
+                  {% if item.atribuicao.status == 'ENTREGUE' %}bg-success
+                  {% elif item.atribuicao.status == 'CANCELADA' %}bg-secondary
+                  {% elif item.atribuicao.status == 'EM_ROTA' %}bg-info
+                  {% else %}bg-primary{% endif %}">
+                  {{ item.atribuicao.get_status_display }}
+                </span>
+                {% if cap.VER_CUSTO_AGENTE and not item.atribuicao.eh_retirada_base %}
+                  <div class="small mt-1">
+                    {% if item.atribuicao.valor_agente is not None %}
+                      Cobrou R$ {{ item.atribuicao.valor_agente|floatformat:2 }}
+                    {% else %}
+                      <span class="text-warning">valor não informado</span>
+                    {% endif %}
+                  </div>
+                {% endif %}
+              </div>
             </div>
 
             {% if item.unidades %}
@@ -279,26 +380,30 @@ campos de texto destrutivos sempre a um clique de distância.
 
             {% if not item.atribuicao.eh_terminal %}
               <div class="d-flex gap-2 flex-wrap mt-3">
+                {% if item.link_whatsapp %}
                 <a href="{{ item.link_whatsapp }}" target="_blank" rel="noopener"
                    class="btn btn-success btn-sm">
                   <i class="bi bi-whatsapp"></i> WhatsApp
                 </a>
+                {% endif %}
                 <a href="{% url 'iscas:atribuicao_mensagem' item.atribuicao.pk %}"
                    class="btn btn-outline-light btn-sm">Ver texto</a>
 
-                {% if item.atribuicao.status == 'RESERVADA' %}
+                {% if item.atribuicao.status == 'RESERVADA' and cap.ATENDER_SOLICITACAO %}
                   <form method="post" action="{% url 'iscas:atribuicao_rota' item.atribuicao.pk %}" class="d-inline">
                     {% csrf_token %}
                     <button class="btn btn-outline-info btn-sm"><i class="bi bi-truck"></i> Em rota</button>
                   </form>
                 {% endif %}
 
+                {% if cap.ATENDER_SOLICITACAO %}
                 <button class="btn btn-primary btn-sm" data-bs-toggle="modal"
                         data-bs-target="#modalEntrega{{ item.atribuicao.pk }}">
                   <i class="bi bi-check2-circle"></i> Confirmar entrega
                 </button>
                 <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal"
                         data-bs-target="#modalCancelarAtrib{{ item.atribuicao.pk }}">Cancelar</button>
+                {% endif %}
               </div>
             {% endif %}
           </div>
@@ -333,7 +438,7 @@ campos de texto destrutivos sempre a um clique de distância.
 {# ══════════════════ MODAIS ══════════════════ #}
 
 {% if solicitacao.is_active %}
-  {% if not solicitacao.eh_terminal %}
+  {% if not solicitacao.eh_terminal and cap.ATENDER_SOLICITACAO %}
     <div class="modal fade" id="modalCancelar" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
         <form method="post" action="{% url 'iscas:solicitacao_cancelar' solicitacao.pk %}"
@@ -365,6 +470,7 @@ campos de texto destrutivos sempre a um clique de distância.
     </div>
   {% endif %}
 
+  {% if cap.EXCLUIR_SOLICITACAO %}
   <div class="modal fade" id="modalExcluir" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <form method="post" action="{% url 'iscas:solicitacao_excluir' solicitacao.pk %}"
@@ -396,17 +502,18 @@ campos de texto destrutivos sempre a um clique de distância.
       </form>
     </div>
   </div>
+  {% endif %}
 {% endif %}
 
 {% for item in atribuicoes %}
-  {% if not item.atribuicao.eh_terminal %}
+  {% if not item.atribuicao.eh_terminal and cap.ATENDER_SOLICITACAO %}
     <div class="modal fade" id="modalEntrega{{ item.atribuicao.pk }}" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
         <form method="post" action="{% url 'iscas:atribuicao_entregar' item.atribuicao.pk %}"
               class="modal-content bg-dark text-light border border-secondary">
           {% csrf_token %}
           <div class="modal-header border-secondary">
-            <h5 class="modal-title">Confirmar entrega — {{ item.atribuicao.agente.nome }}</h5>
+            <h5 class="modal-title">Confirmar entrega — {{ item.atribuicao.origem_nome }}</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
                     aria-label="Fechar"></button>
           </div>
@@ -442,7 +549,7 @@ campos de texto destrutivos sempre a um clique de distância.
               class="modal-content bg-dark text-light border border-secondary">
           {% csrf_token %}
           <div class="modal-header border-secondary">
-            <h5 class="modal-title text-danger">Cancelar atribuição — {{ item.atribuicao.agente.nome }}</h5>
+            <h5 class="modal-title text-danger">Cancelar atribuição — {{ item.atribuicao.origem_nome }}</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
                     aria-label="Fechar"></button>
           </div>

@@ -8,11 +8,19 @@ e transições inválidas. Fica armazenado, mutável apenas por
 `AtribuicaoUnidade` é a reserva. Não existe campo "reservado" em lugar nenhum:
 a reserva É a existência da linha com `liberada_em IS NULL` (ISC-ADR-06).
 """
+from decimal import Decimal
+
 from django.conf import settings
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import Q
 
-from iscas.enums import StatusAtribuicao, StatusSolicitacao
+from iscas.enums import (
+    Capacidade,
+    OrigemAtribuicao,
+    StatusAtribuicao,
+    StatusSolicitacao,
+)
 from iscas.models.base import BaseModel, LogModel
 
 
@@ -41,6 +49,24 @@ class Solicitacao(BaseModel):
     prazo_desejado = models.DateField(null=True, blank=True, verbose_name="Prazo desejado")
     observacao = models.TextField(blank=True, verbose_name="Observação")
     motivo_cancelamento = models.TextField(blank=True, verbose_name="Motivo do cancelamento")
+
+    # Quem, DENTRO do cliente, pediu as iscas desta vez. Distinto de
+    # `contato_nome` (quem recebe na entrega, dado estável do cadastro): com
+    # frequência são pessoas diferentes — o comprador pede, a recepção recebe.
+    # Por ser dado do EVENTO, não entra em `_CAMPOS_DO_CLIENTE` e não é
+    # preenchido pelo cadastro.
+    solicitante_nome = models.CharField(
+        max_length=120, blank=True, verbose_name="Solicitado por (no cliente)"
+    )
+    # Receita desta solicitação. Decimal, nunca Float: dinheiro em binário
+    # flutuante soma errado. Nulável porque as solicitações abertas antes deste
+    # campo existir têm valor desconhecido — e `0,00` seria uma afirmação falsa
+    # sobre elas. A obrigatoriedade vive no form e no service, não no schema.
+    valor_cliente = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(Decimal("0.00"))],
+        verbose_name="Valor cobrado do cliente",
+    )
 
     # — Dados de contato e entrega, copiados do cliente na abertura —
     #
@@ -91,6 +117,14 @@ class Solicitacao(BaseModel):
             models.Index(
                 fields=["entrega_latitude", "entrega_longitude"],
                 name="iscas_sol_entrega_latlng",
+            ),
+        ]
+        constraints = [
+            # `isnull=True` no OR é obrigatório: sem ele a constraint recusa as
+            # linhas históricas (valor NULL) e a migration falha em produção.
+            models.CheckConstraint(
+                condition=Q(valor_cliente__gte=0) | Q(valor_cliente__isnull=True),
+                name="iscas_sol_valor_cliente_nao_negativo",
             ),
         ]
 
@@ -247,11 +281,38 @@ class Atribuicao(BaseModel):
         related_name="atribuicoes",
         verbose_name="Solicitação",
     )
+    # A origem é polimórfica: agente OU depósito (retirada na base), nunca os
+    # dois. A retirada continua sendo uma Atribuicao porque `cobertura()` conta
+    # exclusivamente via AtribuicaoUnidade — fora daqui, a solicitação nunca
+    # fecharia. As constraints da Meta garantem o XOR no banco.
+    origem_tipo = models.CharField(
+        max_length=20,
+        choices=OrigemAtribuicao.choices,
+        default=OrigemAtribuicao.AGENTE,
+        verbose_name="Origem",
+    )
     agente = models.ForeignKey(
         "iscas.Agente",
         on_delete=models.PROTECT,
+        null=True,
+        blank=True,
         related_name="atribuicoes",
         verbose_name="Agente",
+    )
+    deposito = models.ForeignKey(
+        "iscas.Deposito",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="atribuicoes",
+        verbose_name="Depósito da retirada",
+    )
+    # Quanto o agente cobrou por esta entrega. NULL em retirada na base — não
+    # há agente para pagar —, e a constraint impede que seja preenchido lá.
+    valor_agente = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(Decimal("0.00"))],
+        verbose_name="Valor cobrado pelo agente",
     )
     status = models.CharField(
         max_length=20,
@@ -278,11 +339,62 @@ class Atribuicao(BaseModel):
         ordering = ["id"]
         indexes = [
             models.Index(fields=["agente", "status"], name="iscas_atrib_agente_status"),
+            models.Index(fields=["deposito", "status"], name="iscas_atrib_dep_status"),
             models.Index(fields=["solicitacao", "status"], name="iscas_atrib_sol_status"),
+        ]
+        constraints = [
+            # As duas metades escritas por extenso amarram `origem_tipo` ao
+            # campo preenchido. Uma constraint só de "exatamente um dos dois"
+            # deixaria passar origem_tipo=AGENTE com depósito preenchido — o
+            # rótulo mentindo sobre o dado.
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        origem_tipo=OrigemAtribuicao.AGENTE,
+                        agente__isnull=False,
+                        deposito__isnull=True,
+                    )
+                    | Q(
+                        origem_tipo=OrigemAtribuicao.RETIRADA_BASE,
+                        agente__isnull=True,
+                        deposito__isnull=False,
+                    )
+                ),
+                name="iscas_atrib_origem_xor",
+            ),
+            models.CheckConstraint(
+                condition=Q(valor_agente__gte=0) | Q(valor_agente__isnull=True),
+                name="iscas_atrib_valor_nao_negativo",
+            ),
+            # Retirada na base não tem agente a pagar (requisito do usuário).
+            # No banco, e não só na tela: senão o custo total pode ser inflado
+            # por um valor gravado numa linha que não tem agente nenhum.
+            models.CheckConstraint(
+                condition=(
+                    ~Q(origem_tipo=OrigemAtribuicao.RETIRADA_BASE)
+                    | Q(valor_agente__isnull=True)
+                ),
+                name="iscas_atrib_retirada_sem_valor",
+            ),
         ]
 
     def __str__(self):
-        return f"Atribuição #{self.pk} — {self.agente}"
+        return f"Atribuição #{self.pk} — {self.origem}"
+
+    @property
+    def origem(self):
+        """O agente ou o depósito — ponto único de leitura polimórfica."""
+        return self.agente or self.deposito
+
+    @property
+    def origem_nome(self) -> str:
+        """Nome de quem entrega. Agente e Depósito têm `.nome`."""
+        origem = self.origem
+        return origem.nome if origem else ""
+
+    @property
+    def eh_retirada_base(self) -> bool:
+        return self.origem_tipo == OrigemAtribuicao.RETIRADA_BASE
 
     @property
     def eh_terminal(self) -> bool:
@@ -392,3 +504,55 @@ class SolicitacaoEvento(LogModel):
     def __str__(self):
         alvo = f"atribuição #{self.atribuicao_id}" if self.atribuicao_id else f"solicitação #{self.solicitacao_id}"
         return f"{alvo}: {self.status_anterior or '—'} → {self.status_novo}"
+
+
+class RegistroAuditoria(LogModel):
+    """Quem fez o quê no app, alimentado pelo middleware (ISC-RN-19).
+
+    Herda `LogModel` porque auditoria que se edita não é auditoria: `save()` em
+    registro persistido e `delete()` são recusados pela base.
+
+    **Não guarda valor de campo de formulário.** `campos` traz apenas as CHAVES
+    do POST — o formulário de agente carrega CPF em texto puro, e uma denylist
+    de campos a ocultar deixaria vazar o campo sensível que alguém adicionasse
+    depois. Saber QUE o CPF foi alterado é auditoria; guardar QUAL é vazamento.
+
+    Deliberadamente fora do livro-razão: não é lançamento de estoque, e por isso
+    não passa pelo ponto de escrita único do ISC-ADR-02.
+    """
+
+    autor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="auditoria_iscas",
+        verbose_name="Autor",
+    )
+    #: O `url_name` da rota — identificador estável, já contratado em urls.py.
+    acao = models.CharField(max_length=100, db_index=True, verbose_name="Ação")
+    capacidade = models.CharField(
+        max_length=40,
+        blank=True,
+        choices=Capacidade.choices,
+        verbose_name="Capacidade exigida",
+    )
+    caminho = models.CharField(max_length=255, verbose_name="Caminho")
+    #: Os kwargs da URL resolvida (ex.: `{"pk": 42}`).
+    alvo = models.JSONField(default=dict, blank=True, verbose_name="Alvo")
+    #: SÓ as chaves do POST. Nunca os valores — ver docstring da classe.
+    campos = models.JSONField(
+        default=list, blank=True, verbose_name="Campos alterados"
+    )
+    status_http = models.PositiveSmallIntegerField(verbose_name="Status HTTP")
+
+    class Meta:
+        verbose_name = "Registro de auditoria"
+        verbose_name_plural = "Registros de auditoria"
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["-created_at"], name="iscas_aud_data"),
+            models.Index(fields=["autor", "-created_at"], name="iscas_aud_autor"),
+            models.Index(fields=["acao", "-created_at"], name="iscas_aud_acao"),
+        ]
+
+    def __str__(self):
+        return f"{self.autor} · {self.acao} · {self.created_at:%d/%m/%Y %H:%M}"

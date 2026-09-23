@@ -4,9 +4,9 @@ Texto pronto para o WhatsApp (ISC-RF-29).
 
 O sistema não envia nada — monta o texto e o link para o operador copiar.
 {% endcomment %}
-{% block titulo_iscas %}Mensagem para {{ atribuicao.agente.nome }}{% endblock %}
+{% block titulo_iscas %}Mensagem para {{ atribuicao.origem_nome }}{% endblock %}
 {% block iscas_conteudo %}
-<h1 class="h3 mb-3">Mensagem para {{ atribuicao.agente.nome }}</h1>
+<h1 class="h3 mb-3">Mensagem para {{ atribuicao.origem_nome }}</h1>
 
 <div class="card iscas-card" x-data="{copiado: false}">
   <div class="card-body">

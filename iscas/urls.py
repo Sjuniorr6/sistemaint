@@ -5,7 +5,16 @@ URL (mesmo padrão do app Chamados).
 """
 from django.urls import path
 
-from iscas.views import api, cadastro, custodia, dashboard, mapa, relatorio, solicitacao
+from iscas.views import (
+    api,
+    auditoria,
+    cadastro,
+    custodia,
+    dashboard,
+    mapa,
+    relatorio,
+    solicitacao,
+)
 
 app_name = "iscas"
 
@@ -81,6 +90,9 @@ urlpatterns = [
     path("extrato/csv/", relatorio.extrato_csv, name="extrato_csv"),
     path("historico/agente/<int:pk>/", relatorio.historico_agente, name="historico_agente"),
     path("historico/cliente/<int:pk>/", relatorio.historico_cliente, name="historico_cliente"),
+
+    # — Auditoria (só o grupo total) —
+    path("auditoria/", auditoria.lista, name="auditoria"),
 
     # — JSON para o mapa (sem DRF, ISC-ADR-12) —
     path("api/agentes.geojson", api.agentes_geojson, name="api_agentes"),

@@ -17,7 +17,8 @@ from iscas.forms import (
 from iscas.models.cadastro import Agente, Deposito, ModeloEquipamento
 from iscas.models.config import ConfiguracaoIscas
 from iscas.models.custodia import Movimentacao, Unidade
-from iscas.permissions import exige_operador
+from iscas.enums import Capacidade
+from iscas.permissions import exige
 from iscas.selectors import historico_unidade, unidades_filtradas
 from iscas.services import baixa as baixa_service
 from iscas.services import entrada as entrada_service
@@ -28,7 +29,7 @@ from iscas.services.exceptions import IscasError
 from iscas.services.saldo import saldo_por_modelo_em_lote
 
 
-@exige_operador
+@exige(Capacidade.VER_ESTOQUE)
 def unidade_lista(request):
     """Listagem de unidades com a situação anotada (ISC-ADR-07)."""
     modelo_id = request.GET.get("modelo") or None
@@ -57,7 +58,7 @@ def unidade_lista(request):
     )
 
 
-@exige_operador
+@exige(Capacidade.VER_ESTOQUE)
 def unidade_detalhe(request, identificador):
     """Onde a unidade está e por onde passou (ISC-RF-10)."""
     unidade = get_object_or_404(
@@ -77,7 +78,7 @@ def unidade_detalhe(request, identificador):
     )
 
 
-@exige_operador
+@exige(Capacidade.MOVIMENTAR_ESTOQUE)
 def entrada(request):
     """Entrada de unidades novas, em lote (ISC-RF-07, ISC-RF-08)."""
     if request.method == "POST":
@@ -116,7 +117,7 @@ def entrada(request):
     )
 
 
-@exige_operador
+@exige(Capacidade.MOVIMENTAR_ESTOQUE)
 def transferencia(request):
     """Transferência entre custódias internas (ISC-RF-11)."""
     if request.method == "POST":
@@ -153,7 +154,7 @@ def transferencia(request):
     return render(request, "iscas/transferencia_form.html", {"form": form})
 
 
-@exige_operador
+@exige(Capacidade.BAIXAR_MANUTENCAO)
 def baixa(request):
     """Baixa por perda, avaria ou obsolescência (ISC-RF-12)."""
     if request.method == "POST":
@@ -191,7 +192,7 @@ def baixa(request):
     return render(request, "iscas/baixa_form.html", {"form": form})
 
 
-@exige_operador
+@exige(Capacidade.BAIXAR_MANUTENCAO)
 def manutencao(request):
     """Envio para manutenção (ISC-RF-13). Não é baixa (ISC-RN-14)."""
     if request.method == "POST":
@@ -229,7 +230,7 @@ def manutencao(request):
     return render(request, "iscas/manutencao_form.html", {"form": form})
 
 
-@exige_operador
+@exige(Capacidade.BAIXAR_MANUTENCAO)
 def manutencao_retorno(request):
     """Retorno da manutenção ao estoque (ISC-RF-13)."""
     if request.method == "POST":
@@ -271,7 +272,7 @@ def manutencao_retorno(request):
     )
 
 
-@exige_operador
+@exige(Capacidade.MOVIMENTAR_ESTOQUE)
 @require_POST
 def estornar(request, pk):
     """Estorno de lançamento (ISC-RF-14, ISC-ADR-16)."""
@@ -323,7 +324,7 @@ def _blocos_de_saldo(entidades, saldos_por_custodia):
     return blocos
 
 
-@exige_operador
+@exige(Capacidade.VER_ESTOQUE)
 def painel_saldo(request):
     """Saldo por custódia e por modelo (ISC-RF-15).
 
@@ -405,7 +406,7 @@ def painel_saldo(request):
     )
 
 
-@exige_operador
+@exige(Capacidade.VER_ESTOQUE)
 def retornaveis(request):
     """Retornáveis em posse de cliente, com tempo em posse (ISC-RF-31)."""
     config = ConfiguracaoIscas.carregar()
@@ -435,7 +436,7 @@ def retornaveis(request):
     )
 
 
-@exige_operador
+@exige(Capacidade.BAIXAR_MANUTENCAO)
 @require_POST
 def registrar_retorno(request):
     """Retorno de retornáveis (ISC-RF-32)."""

@@ -11,7 +11,11 @@ load_dotenv(BASE_DIR / ".env")
 
 # Quick-start development settings - unsuitable for production
 SECRET_KEY = 'django-insecure-88)5ylc$&!#l7%0$oq&bdfn$*gzc#!-sk+*yj(216bb7-aq%y2'
-DEBUG = False
+# Vem do .env, e o default é False: produção não tem a variável e continua
+# segura. Em dev, DEBUG=True no .env — sem ele o runserver não serve os
+# estáticos (não há whitenoise neste projeto; em produção quem serve é o
+# nginx), e o /admin abre sem CSS nenhum.
+DEBUG = os.getenv('DEBUG', 'False').strip().lower() == 'true'
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '0.0.0.0', '10.0.0.88', 'intgoldensat.com.br', 'www.intgoldensat.com.br', 'testserver']
 AGENTTRACKER_WEB_BASE_URL = "https://intgoldensat.com.br"
 
@@ -126,7 +130,10 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    # Adicione este middleware
+    # Por último: precisa de request.user (AuthenticationMiddleware, acima) e
+    # do resolver_match já preenchido. Filtra por app_name == "iscas", então
+    # não pesa nas rotas dos outros apps.
+    'iscas.middleware.AuditoriaIscasMiddleware',
 ]
 
 # OpenStreetMap tile servers require Referer for usage-policy compliance.
@@ -160,6 +167,7 @@ TEMPLATES = [
 
                 'registrodemanutencao.context_processors.manutencoes_pendentes',
                 'iscas.context_processors.secao_ativa',
+                'iscas.context_processors.capacidades_iscas',
             ],
         },
     },

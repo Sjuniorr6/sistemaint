@@ -58,6 +58,24 @@ registra para onde a entrega foi de fato.
         <div class="col-12 col-md-4">
           <label class="form-label small" for="{{ form.contato_nome.id_for_label }}">Contato</label>
           {{ form.contato_nome }}
+          <div class="form-text small">Quem recebe a entrega — vem do cadastro.</div>
+        </div>
+        <div class="col-12 col-md-4">
+          <label class="form-label small" for="{{ form.solicitante_nome.id_for_label }}">Solicitado por</label>
+          {{ form.solicitante_nome }}
+          <div class="form-text small">
+            Quem, dentro do cliente, pediu as iscas desta vez. Pode ser
+            diferente de quem recebe.
+          </div>
+          {% for erro in form.solicitante_nome.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+        </div>
+        <div class="col-12 col-md-4">
+          <label class="form-label small" for="{{ form.valor_cliente.id_for_label }}">
+            Valor cobrado do cliente <span class="text-danger">*</span>
+          </label>
+          {{ form.valor_cliente }}
+          <div class="form-text small">O que será cobrado por esta solicitação.</div>
+          {% for erro in form.valor_cliente.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
         </div>
         <div class="col-12 col-md-4">
           <label class="form-label small" for="{{ form.telefone.id_for_label }}">Telefone para contato</label>

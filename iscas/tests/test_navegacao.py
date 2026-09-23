@@ -48,6 +48,7 @@ def test_a_barra_alcanca_todas_as_secoes(client, operador_logado):
         "clientes": reverse("iscas:cliente_lista"),
         "depositos": reverse("iscas:deposito_lista"),
         "modelos": reverse("iscas:modelo_lista"),
+        "auditoria": reverse("iscas:auditoria"),
     }
 
     # Nenhuma secao do context processor pode ficar de fora do mapeamento.

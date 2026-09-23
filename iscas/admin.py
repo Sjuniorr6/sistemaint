@@ -17,6 +17,7 @@ from iscas.models.operacao import (
     AtribuicaoUnidade,
     ItemSolicitacao,
     Solicitacao,
+    RegistroAuditoria,
     SolicitacaoEvento,
 )
 
@@ -169,6 +170,17 @@ class ItemSolicitacaoAdmin(_SomenteLeitura):
 @admin.register(SolicitacaoEvento)
 class SolicitacaoEventoAdmin(_SomenteLeitura):
     list_display = ("solicitacao", "atribuicao", "status_anterior", "status_novo", "autor", "created_at")
+
+
+@admin.register(RegistroAuditoria)
+class RegistroAuditoriaAdmin(_SomenteLeitura):
+    """Auditoria também é log: o /admin lê, nunca adultera."""
+
+    list_display = ("created_at", "autor", "acao", "capacidade", "caminho", "status_http")
+    list_filter = ("capacidade", "status_http")
+    search_fields = ("acao", "caminho", "autor__username")
+    date_hierarchy = "created_at"
+    list_select_related = ("autor",)
 
 
 @admin.register(GeocodeCache)

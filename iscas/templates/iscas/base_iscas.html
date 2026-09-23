@@ -222,18 +222,31 @@ de manutenção. Trocar para arquivos locais é substituir estas tags.
   onze itens em fila: com tudo no mesmo nível, "Modelos" pesava igual a
   "Solicitações", e a fila quebrava em duas linhas sem hierarquia nenhuma.
   {% endcomment %}
+  {% comment %}
+  Cada link aparece sob a capacidade da view que ele abre (ISC-RN-19). Isto não
+  é a autorização — quem barra é o decorator `exige`; aqui só se evita oferecer
+  um caminho que terminaria em 403. Os separadores acompanham o grupo que os
+  segue, senão o papel restrito vê um traço solto entre nada e nada.
+  {% endcomment %}
   <div class="iscas-nav-grupo">
+    {% if cap.VER_PAINEL %}
     <a class="iscas-nav-link {% if secao == 'painel' %}ativo{% endif %}" href="{% url 'iscas:painel' %}">
       <i class="bi bi-speedometer2"></i> Painel
     </a>
+    {% endif %}
+    {% if cap.VER_MAPA %}
     <a class="iscas-nav-link {% if secao == 'mapa' %}ativo{% endif %}" href="{% url 'iscas:mapa' %}">
       <i class="bi bi-geo-alt"></i> Mapa
     </a>
+    {% endif %}
+    {% if cap.VER_SOLICITACAO %}
     <a class="iscas-nav-link {% if secao == 'solicitacoes' %}ativo{% endif %}" href="{% url 'iscas:solicitacao_lista' %}">
       <i class="bi bi-clipboard-check"></i> Solicitações
     </a>
+    {% endif %}
   </div>
 
+  {% if cap.VER_ESTOQUE %}
   <span class="iscas-nav-sep" aria-hidden="true"></span>
 
   <div class="iscas-nav-grupo">
@@ -250,29 +263,45 @@ de manutenção. Trocar para arquivos locais é substituir estas tags.
       <i class="bi bi-journal-text"></i> Extrato
     </a>
   </div>
-
-  <span class="iscas-nav-sep" aria-hidden="true"></span>
+  {% endif %}
 
   {% comment %}
   Cadastros ficam num menu só: são as telas menos visitadas do app — mexe-se
   nelas para incluir um agente ou um modelo, não no dia a dia da operação.
+  O menu inteiro some quando o papel não alcança nenhum dos quatro.
   {% endcomment %}
+  {% if cap.CADASTRAR_AGENTE or cap.CADASTRAR_CLIENTE or cap.CADASTRAR_DEPOSITO or cap.CADASTRAR_MODELO %}
+  <span class="iscas-nav-sep" aria-hidden="true"></span>
+
   <div class="dropdown iscas-nav-grupo">
     <button class="iscas-nav-link dropdown-toggle {% if secao == 'agentes' or secao == 'clientes' or secao == 'depositos' or secao == 'modelos' %}ativo{% endif %}"
             type="button" data-bs-toggle="dropdown" aria-expanded="false">
       <i class="bi bi-folder2-open"></i> Cadastros
     </button>
     <ul class="dropdown-menu dropdown-menu-dark">
-      <li><a class="dropdown-item {% if secao == 'agentes' %}active{% endif %}" href="{% url 'iscas:agente_lista' %}"><i class="bi bi-person-badge"></i> Agentes</a></li>
-      <li><a class="dropdown-item {% if secao == 'clientes' %}active{% endif %}" href="{% url 'iscas:cliente_lista' %}"><i class="bi bi-building"></i> Clientes</a></li>
-      <li><a class="dropdown-item {% if secao == 'depositos' %}active{% endif %}" href="{% url 'iscas:deposito_lista' %}"><i class="bi bi-house-gear"></i> Depósitos</a></li>
-      <li><a class="dropdown-item {% if secao == 'modelos' %}active{% endif %}" href="{% url 'iscas:modelo_lista' %}"><i class="bi bi-tags"></i> Modelos</a></li>
+      {% if cap.CADASTRAR_AGENTE %}<li><a class="dropdown-item {% if secao == 'agentes' %}active{% endif %}" href="{% url 'iscas:agente_lista' %}"><i class="bi bi-person-badge"></i> Agentes</a></li>{% endif %}
+      {% if cap.CADASTRAR_CLIENTE %}<li><a class="dropdown-item {% if secao == 'clientes' %}active{% endif %}" href="{% url 'iscas:cliente_lista' %}"><i class="bi bi-building"></i> Clientes</a></li>{% endif %}
+      {% if cap.CADASTRAR_DEPOSITO %}<li><a class="dropdown-item {% if secao == 'depositos' %}active{% endif %}" href="{% url 'iscas:deposito_lista' %}"><i class="bi bi-house-gear"></i> Depósitos</a></li>{% endif %}
+      {% if cap.CADASTRAR_MODELO %}<li><a class="dropdown-item {% if secao == 'modelos' %}active{% endif %}" href="{% url 'iscas:modelo_lista' %}"><i class="bi bi-tags"></i> Modelos</a></li>{% endif %}
     </ul>
   </div>
+  {% endif %}
 
+  {% if cap.VER_AUDITORIA %}
+  <span class="iscas-nav-sep" aria-hidden="true"></span>
+
+  <div class="iscas-nav-grupo">
+    <a class="iscas-nav-link {% if secao == 'auditoria' %}ativo{% endif %}" href="{% url 'iscas:auditoria' %}">
+      <i class="bi bi-shield-check"></i> Auditoria
+    </a>
+  </div>
+  {% endif %}
+
+  {% if cap.CRIAR_SOLICITACAO %}
   <a class="iscas-nav-acao" href="{% url 'iscas:solicitacao_criar' %}">
     <i class="bi bi-plus-lg"></i> Nova solicitação
   </a>
+  {% endif %}
 </nav>
 
 {% if messages %}

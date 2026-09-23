@@ -34,7 +34,15 @@ bloco por modelo — o mesmo agente atende vários modelos numa atribuição só
 {% if form_unidades.limites %}
   <form method="post" action="{% url 'iscas:solicitacao_atribuir' solicitacao.pk %}">
     {% csrf_token %}
-    <input type="hidden" name="agente" value="{{ agente.pk }}">
+    {% comment %}
+    A view revalida o form do passo 1 a partir deste POST, então tudo o que foi
+    escolhido lá precisa voltar. Vem de `cleaned_data` (ver `_campos_da_origem`)
+    e não escrito à mão: campo novo no form entra aqui sozinho, em vez de sumir
+    em silêncio.
+    {% endcomment %}
+    {% for nome, valor in campos_reenviados.items %}
+      <input type="hidden" name="{{ nome }}" value="{{ valor }}">
+    {% endfor %}
 
     {% if form_unidades.non_field_errors %}
       <div class="alert alert-danger py-2">

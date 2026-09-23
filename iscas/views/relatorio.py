@@ -10,7 +10,8 @@ from django.utils import timezone
 from iscas import selectors
 from iscas.forms import EstornoForm, ExtratoFiltroForm
 from iscas.models.cadastro import Agente, Cliente
-from iscas.permissions import exige_operador
+from iscas.enums import Capacidade
+from iscas.permissions import exige
 
 
 def _filtros_validos(request):
@@ -27,7 +28,7 @@ def _filtros_validos(request):
     }
 
 
-@exige_operador
+@exige(Capacidade.VER_ESTOQUE)
 def extrato(request):
     """Extrato de movimentações com filtros combináveis (ISC-RF-34)."""
     form, filtros = _filtros_validos(request)
@@ -66,7 +67,7 @@ class _Echo:
         return valor
 
 
-@exige_operador
+@exige(Capacidade.VER_ESTOQUE)
 def extrato_csv(request):
     """Exporta o extrato respeitando os filtros (ISC-RF-37).
 
@@ -119,7 +120,7 @@ def extrato_csv(request):
     return resposta
 
 
-@exige_operador
+@exige(Capacidade.VER_ESTOQUE)
 def historico_agente(request, pk):
     """Consolidado do agente (ISC-RF-35)."""
     agente = get_object_or_404(Agente.todos, pk=pk)
@@ -129,7 +130,7 @@ def historico_agente(request, pk):
     return render(request, "iscas/historico_agente.html", contexto)
 
 
-@exige_operador
+@exige(Capacidade.VER_ESTOQUE)
 def historico_cliente(request, pk):
     """Consolidado do cliente (ISC-RF-36)."""
     cliente = get_object_or_404(Cliente.todos, pk=pk)

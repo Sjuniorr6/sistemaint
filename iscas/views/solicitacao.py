@@ -16,7 +16,8 @@ from iscas.forms import (
 from iscas.models.cadastro import ModeloEquipamento
 from iscas.models.config import ConfiguracaoIscas
 from iscas.models.operacao import Atribuicao, Solicitacao
-from iscas.permissions import exige_operador
+from iscas.enums import Capacidade
+from iscas.permissions import exige
 from iscas.selectors import solicitacoes_filtradas
 from iscas.services import mensagem as mensagem_service
 from iscas.services import solicitacao as solicitacao_service
@@ -24,7 +25,7 @@ from iscas.services.exceptions import IscasError
 from iscas.services.saldo import saldo_disponivel
 
 
-@exige_operador
+@exige(Capacidade.VER_SOLICITACAO)
 def lista(request):
     status = request.GET.get("status") or None
     busca = (request.GET.get("q") or "").strip()
@@ -57,7 +58,7 @@ def lista(request):
     )
 
 
-@exige_operador
+@exige(Capacidade.EXCLUIR_SOLICITACAO)
 @require_POST
 def excluir(request, pk):
     """Soft delete da solicitação (ISC-ADR-15).
@@ -85,7 +86,7 @@ def excluir(request, pk):
     return redirect("iscas:solicitacao_lista")
 
 
-@exige_operador
+@exige(Capacidade.EXCLUIR_SOLICITACAO)
 @require_POST
 def restaurar(request, pk):
     """Desfaz a exclusão (ISC-ADR-15)."""
@@ -97,7 +98,7 @@ def restaurar(request, pk):
     return redirect("iscas:solicitacao_detalhe", pk=pk)
 
 
-@exige_operador
+@exige(Capacidade.CRIAR_SOLICITACAO)
 def criar(request):
     """Abertura da solicitação com um ou mais itens (ISC-RF-22)."""
     modelos = ModeloEquipamento.objects.order_by("nome")
@@ -114,6 +115,12 @@ def criar(request):
                     autor=request.user,
                     observacao=dados.get("observacao", ""),
                     prazo_desejado=dados.get("prazo_desejado"),
+                    # Explícitos, FORA do laço de `_CAMPOS_DO_CLIENTE`: por
+                    # ali seriam descartados em silêncio (ver a docstring do
+                    # service).
+                    valor_cliente=dados.get("valor_cliente"),
+                    solicitante_nome=dados.get("solicitante_nome", ""),
+                    exigir_valor=True,
                     # Contato e endereço desta entrega: o form já trouxe do
                     # cadastro e o operador pôde ajustar.
                     **{
@@ -153,7 +160,7 @@ def criar(request):
     )
 
 
-@exige_operador
+@exige(Capacidade.CRIAR_SOLICITACAO)
 @require_POST
 def ajustar_pin_entrega(request, pk):
     """Grava a coordenada do ponto de entrega arrastada no mapa.
@@ -191,6 +198,34 @@ def ajustar_pin_entrega(request, pk):
     return redirect("iscas:solicitacao_detalhe", pk=pk)
 
 
+def _totais_visiveis(usuario, solicitacao) -> dict:
+    """Totais já FILTRADOS pelo que o papel pode ver.
+
+    A filtragem é aqui, e não no template: o que o usuário não pode ver não
+    chega ao HTML — esconder com `{% if %}` deixaria o número no código-fonte
+    da página. O template condiciona só para não renderizar rótulo vazio.
+    """
+    from iscas.permissions import pode
+    from iscas.services import financeiro
+
+    totais = financeiro.totais_da_solicitacao(solicitacao)
+    ve_cliente = pode(usuario, Capacidade.VER_VALOR_CLIENTE)
+    ve_custo = pode(usuario, Capacidade.VER_CUSTO_AGENTE)
+
+    if not ve_cliente:
+        totais["valor_cliente"] = None
+    if not ve_custo:
+        totais["custo_agentes"] = None
+        totais["tem_custo_incompleto"] = False
+    # A margem só existe para quem enxerga as duas pontas.
+    if not (ve_cliente and ve_custo):
+        totais["margem"] = None
+
+    totais["ve_valor_cliente"] = ve_cliente
+    totais["ve_custo_agente"] = ve_custo
+    return totais
+
+
 def _itens_do_post(post, modelos):
     """Extrai os pares (modelo, quantidade) dos campos dinâmicos do template."""
     itens = []
@@ -207,7 +242,7 @@ def _itens_do_post(post, modelos):
     return itens
 
 
-@exige_operador
+@exige(Capacidade.VER_SOLICITACAO)
 def detalhe(request, pk):
     """Solicitação com cobertura, atribuições e busca por proximidade."""
     solicitacao = get_object_or_404(
@@ -222,6 +257,7 @@ def detalhe(request, pk):
             "solicitacao": solicitacao,
             "cobertura": solicitacao_service.cobertura(solicitacao),
             "cobertura_total": solicitacao_service.cobertura_total(solicitacao),
+            "totais": _totais_visiveis(request.user, solicitacao),
             "atribuicoes": [
                 {
                     "atribuicao": atribuicao,
@@ -241,7 +277,7 @@ def detalhe(request, pk):
     )
 
 
-@exige_operador
+@exige(Capacidade.ATENDER_SOLICITACAO)
 @require_POST
 def atribuir(request, pk):
     """Cria a atribuição e reserva as unidades escolhidas (ISC-RF-23 a 25).
@@ -264,12 +300,16 @@ def atribuir(request, pk):
                 messages.error(request, erro)
         return redirect("iscas:solicitacao_detalhe", pk=pk)
 
-    agente = form_agente.cleaned_data["agente"]
+    agente = form_agente.cleaned_data.get("agente")
+    deposito = form_agente.cleaned_data.get("deposito")
+    valor_agente = form_agente.cleaned_data.get("valor_agente")
+    origem = agente or deposito
     confirmando = "confirmar" in request.POST
 
     form_unidades = EscolhaUnidadesForm(
         request.POST if confirmando else None,
-        agente=agente,
+        # O selector aceita qualquer custódia; o nome do parâmetro é histórico.
+        agente=origem,
         solicitacao=solicitacao,
     )
 
@@ -278,12 +318,17 @@ def atribuir(request, pk):
             for erros in form_unidades.errors.values():
                 for erro in erros:
                     messages.error(request, erro)
-        return _render_escolha_unidades(request, solicitacao, agente, form_unidades)
+        return _render_escolha_unidades(
+            request, solicitacao, origem, form_unidades,
+            campos_reenviados=_campos_da_origem(form_agente),
+        )
 
     try:
         atribuicao = solicitacao_service.criar_atribuicao(
             solicitacao=solicitacao,
             agente=agente,
+            deposito=deposito,
+            valor_agente=valor_agente,
             itens=form_unidades.itens(),
             unidades_por_modelo=form_unidades.unidades_por_modelo(),
             autor=request.user,
@@ -293,29 +338,67 @@ def atribuir(request, pk):
         return redirect("iscas:solicitacao_detalhe", pk=pk)
 
     total = atribuicao.reservas_ativas().count()
-    messages.success(
-        request,
-        f"{total} unidade(s) reservada(s) com {agente.nome}. "
-        "Envie a mensagem pelo WhatsApp.",
-    )
+    if atribuicao.eh_retirada_base:
+        messages.success(
+            request,
+            f"{total} unidade(s) separada(s) em {origem.nome} para retirada "
+            "do cliente.",
+        )
+    else:
+        messages.success(
+            request,
+            f"{total} unidade(s) reservada(s) com {origem.nome}. "
+            "Envie a mensagem pelo WhatsApp.",
+        )
     return redirect("iscas:solicitacao_detalhe", pk=pk)
 
 
-def _render_escolha_unidades(request, solicitacao, agente, form_unidades):
-    """Tela do segundo passo: quais unidades do agente vão para o cliente."""
+def _campos_da_origem(form_agente) -> dict:
+    """O que o passo 2 precisa reenviar para a revalidação do passo 1.
+
+    Montado a partir de `cleaned_data`, num lugar só: escrever os hidden à mão
+    no template faz o campo novo sumir silenciosamente quando alguém acrescenta
+    outro ao form — e aí o valor do agente se perde entre os dois passos.
+    """
+    dados = form_agente.cleaned_data
+    campos = {"origem_tipo": dados.get("origem_tipo") or ""}
+    if dados.get("agente"):
+        campos["agente"] = dados["agente"].pk
+    if dados.get("deposito"):
+        campos["deposito"] = dados["deposito"].pk
+    if dados.get("valor_agente") is not None:
+        # `str()` e não o Decimal cru: o template renderiza com a vírgula do
+        # locale pt-BR ("75,50"), e o DecimalField do passo 2 espera ponto —
+        # o valor voltaria inválido e se perderia sem erro visível.
+        campos["valor_agente"] = str(dados["valor_agente"])
+    return campos
+
+
+def _render_escolha_unidades(
+    request, solicitacao, origem, form_unidades, campos_reenviados=None
+):
+    """Tela do segundo passo: quais unidades da origem vão para o cliente.
+
+    `campos_reenviados` vira os hidden que o passo 2 devolve — a view revalida
+    o form do passo 1 inteiro, então o que não for reenviado se perde.
+    """
     return render(
         request,
         "iscas/solicitacao_escolher_unidades.html",
         {
             "solicitacao": solicitacao,
-            "agente": agente,
+            # `agente` mantido no contexto: a chave é histórica e os templates
+            # e testes existentes a usam.
+            "agente": origem,
+            "origem": origem,
+            "campos_reenviados": campos_reenviados or {},
             "form_unidades": form_unidades,
             "cobertura": solicitacao_service.cobertura(solicitacao),
         },
     )
 
 
-@exige_operador
+@exige(Capacidade.ATENDER_SOLICITACAO)
 @require_POST
 def marcar_em_rota(request, pk):
     """ISC-RF-26."""
@@ -325,11 +408,11 @@ def marcar_em_rota(request, pk):
     except IscasError as exc:
         messages.error(request, str(exc))
     else:
-        messages.success(request, f"{atribuicao.agente.nome} está em rota.")
+        messages.success(request, f"{atribuicao.origem_nome} está em rota.")
     return redirect("iscas:solicitacao_detalhe", pk=atribuicao.solicitacao_id)
 
 
-@exige_operador
+@exige(Capacidade.ATENDER_SOLICITACAO)
 @require_POST
 def confirmar_entrega(request, pk):
     """ISC-RF-27: é aqui que a custódia passa ao cliente."""
@@ -350,12 +433,12 @@ def confirmar_entrega(request, pk):
         messages.error(request, str(exc))
     else:
         messages.success(
-            request, f"Entrega de {atribuicao.agente.nome} confirmada."
+            request, f"Entrega de {atribuicao.origem_nome} confirmada."
         )
     return redirect("iscas:solicitacao_detalhe", pk=atribuicao.solicitacao_id)
 
 
-@exige_operador
+@exige(Capacidade.ATENDER_SOLICITACAO)
 @require_POST
 def cancelar_atribuicao(request, pk):
     """ISC-RF-28: libera as reservas, com motivo obrigatório."""
@@ -377,12 +460,12 @@ def cancelar_atribuicao(request, pk):
         messages.success(
             request,
             f"Atribuição cancelada; as unidades voltaram ao saldo de "
-            f"{atribuicao.agente.nome}.",
+            f"{atribuicao.origem_nome}.",
         )
     return redirect("iscas:solicitacao_detalhe", pk=atribuicao.solicitacao_id)
 
 
-@exige_operador
+@exige(Capacidade.ATENDER_SOLICITACAO)
 @require_POST
 def cancelar(request, pk):
     """Cancela a solicitação inteira (ISC-RF-28)."""
@@ -407,7 +490,7 @@ def cancelar(request, pk):
     return redirect("iscas:solicitacao_detalhe", pk=pk)
 
 
-@exige_operador
+@exige(Capacidade.VER_SOLICITACAO)
 def mensagem(request, pk):
     """Texto pronto para o WhatsApp (ISC-RF-29). O sistema não envia nada."""
     atribuicao = get_object_or_404(

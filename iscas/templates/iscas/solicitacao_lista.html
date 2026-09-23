@@ -115,6 +115,7 @@ achar uma — daí o total no cabeçalho e a busca por #id ou cliente.
             </span>
           </td>
           <td class="text-end">
+            {% if cap.EXCLUIR_SOLICITACAO %}
             {% if excluidas %}
               <form method="post" action="{% url 'iscas:solicitacao_restaurar' solicitacao.pk %}">
                 {% csrf_token %}
@@ -130,6 +131,7 @@ achar uma — daí o total no cabeçalho e a busca por #id ou cliente.
                   <i class="bi bi-trash"></i>
                 </button>
               </form>
+            {% endif %}
             {% endif %}
           </td>
         </tr>

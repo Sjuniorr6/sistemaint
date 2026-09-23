@@ -6,8 +6,56 @@ consultam daqui — nenhuma string solta espalhada pelo código.
 """
 from django.db import models
 
-# Grupo Django que autoriza operar o app (ISC-RN-19, ARCHITECTURE "Permissões").
+# Grupos Django que autorizam operar o app (ISC-RN-19, ARCHITECTURE "Permissões").
+#
+# ATENÇÃO: "Operadores Iscas" é PREFIXO de "Operadores Iscas Fast". Todo lookup
+# de grupo é por igualdade exata (`filter(name=...)`) — `startswith` ou
+# `icontains` daria ao operador restrito o acesso total, em silêncio.
 GRUPO_OPERADORES = "Operadores Iscas"
+GRUPO_OPERADORES_FAST = "Operadores Iscas Fast"
+GRUPO_COMERCIAL_FAST = "Comercial Iscas Fast"
+
+#: Os três papéis, para a migração de dados e os testes iterarem sem repetir.
+GRUPOS_ISCAS = (GRUPO_OPERADORES, GRUPO_OPERADORES_FAST, GRUPO_COMERCIAL_FAST)
+
+
+class Capacidade(models.TextChoices):
+    """O que se pode FAZER no app — a unidade de autorização.
+
+    As views declaram capacidade, não papel: o requisito não é hierárquico (o
+    Operador Fast dá baixa e manutenção, mas não dá entrada nem transfere), e
+    decorator por papel exigiria uma combinação nova a cada view. O mapa
+    papel → capacidades vive num dicionário só, em `iscas/permissions.py`.
+
+    O rótulo é exibido na tela de auditoria, então é frase de operador.
+    """
+
+    VER_PAINEL = "VER_PAINEL", "Ver painel"
+    VER_MAPA = "VER_MAPA", "Ver mapa"
+    VER_SOLICITACAO = "VER_SOLICITACAO", "Ver solicitações"
+    CRIAR_SOLICITACAO = "CRIAR_SOLICITACAO", "Criar solicitação"
+    ATENDER_SOLICITACAO = "ATENDER_SOLICITACAO", "Atender solicitação"
+    EXCLUIR_SOLICITACAO = "EXCLUIR_SOLICITACAO", "Excluir solicitação"
+    VER_ESTOQUE = "VER_ESTOQUE", "Ver estoque"
+    # Separada de BAIXAR_MANUTENCAO porque é exatamente aí que passa a linha do
+    # Operador Fast: ele dá baixa e manda para manutenção, mas não dá entrada,
+    # não transfere e não estorna.
+    MOVIMENTAR_ESTOQUE = "MOVIMENTAR_ESTOQUE", "Movimentar estoque"
+    BAIXAR_MANUTENCAO = "BAIXAR_MANUTENCAO", "Dar baixa e manutenção"
+    CADASTRAR_CLIENTE = "CADASTRAR_CLIENTE", "Cadastrar cliente"
+    CADASTRAR_MODELO = "CADASTRAR_MODELO", "Cadastrar modelo"
+    CADASTRAR_AGENTE = "CADASTRAR_AGENTE", "Cadastrar agente"
+    CADASTRAR_DEPOSITO = "CADASTRAR_DEPOSITO", "Cadastrar depósito"
+    DESATIVAR_CADASTRO = "DESATIVAR_CADASTRO", "Desativar cadastro"
+    VER_AUDITORIA = "VER_AUDITORIA", "Ver auditoria"
+    # Dinheiro. Separadas porque o Comercial vê o que o cliente paga e o
+    # Operador Fast não — ele digita na abertura, mas não consulta depois.
+    # A margem não tem capacidade própria: quem tem as duas calcula de cabeça.
+    VER_VALOR_CLIENTE = "VER_VALOR_CLIENTE", "Ver valor cobrado do cliente"
+    VER_CUSTO_AGENTE = "VER_CUSTO_AGENTE", "Ver custo do agente"
+    # CEP e geocodificação: sem isto, as duas telas do Comercial (cadastrar
+    # cliente e abrir solicitação) quebram no meio do preenchimento.
+    CONSULTAR_APOIO = "CONSULTAR_APOIO", "Consultar CEP e endereço"
 
 
 class TipoModelo(models.TextChoices):
@@ -102,6 +150,18 @@ class StatusSolicitacao(models.TextChoices):
     EM_ROTA = "EM_ROTA", "Em rota"
     ENTREGUE = "ENTREGUE", "Entregue"
     CANCELADA = "CANCELADA", "Cancelada"
+
+
+class OrigemAtribuicao(models.TextChoices):
+    """De onde saem as iscas de uma atribuição (ISC-RF-25).
+
+    Uma solicitação pode misturar as duas: parte entregue por agente, parte
+    retirada pelo próprio cliente na base. A retirada continua sendo uma
+    `Atribuicao` — é o que faz a cobertura contá-la e a solicitação fechar.
+    """
+
+    AGENTE = "AGENTE", "Entrega por agente"
+    RETIRADA_BASE = "RETIRADA_BASE", "Retirada na base"
 
 
 class StatusAtribuicao(models.TextChoices):

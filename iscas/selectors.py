@@ -179,7 +179,7 @@ def solicitacoes_geojson():
                         for linha in linhas
                     ],
                     "agentes": [
-                        atribuicao.agente.nome
+                        atribuicao.origem_nome
                         for atribuicao in solicitacao.atribuicoes.all()
                         if atribuicao.status
                         in (StatusAtribuicao.RESERVADA, StatusAtribuicao.EM_ROTA)

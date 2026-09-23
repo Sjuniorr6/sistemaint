@@ -10,13 +10,14 @@ from django.shortcuts import get_object_or_404
 from iscas import selectors
 from iscas.models.cadastro import Agente, Cliente, ModeloEquipamento
 from iscas.models.operacao import Solicitacao
-from iscas.permissions import exige_operador
+from iscas.enums import Capacidade
+from iscas.permissions import exige
 from iscas.services.cep import CepIndisponivel, CepInvalido, buscar_cep
 from iscas.services.geo import agentes_para_solicitacao, agentes_proximos
 from iscas.services.saldo import saldo_por_modelo
 
 
-@exige_operador
+@exige(Capacidade.VER_MAPA)
 def agentes_geojson(request):
     """GeoJSON dos agentes para os marcadores do Leaflet (ISC-RF-16)."""
     modelo = None
@@ -25,13 +26,13 @@ def agentes_geojson(request):
     return JsonResponse(selectors.agentes_geojson(modelo=modelo))
 
 
-@exige_operador
+@exige(Capacidade.VER_MAPA)
 def solicitacoes_geojson(request):
     """GeoJSON das solicitações em aberto — a demanda no mapa."""
     return JsonResponse(selectors.solicitacoes_geojson())
 
 
-@exige_operador
+@exige(Capacidade.VER_MAPA)
 def proximidade(request):
     """Busca por proximidade em JSON, para o mapa desenhar as linhas."""
     try:
@@ -164,7 +165,7 @@ def _proximidade_por_solicitacao(request, raio_km):
     )
 
 
-@exige_operador
+@exige(Capacidade.CONSULTAR_APOIO)
 def consultar_cep(request):
     """CEP → endereço, para o formulário preencher os campos.
 
@@ -181,7 +182,7 @@ def consultar_cep(request):
     return JsonResponse({"ok": True, "endereco": endereco})
 
 
-@exige_operador
+@exige(Capacidade.CONSULTAR_APOIO)
 def geocodificar_endereco(request):
     """Endereço digitado → coordenada, para o pin do formulário.
 
@@ -206,7 +207,7 @@ def geocodificar_endereco(request):
     )
 
 
-@exige_operador
+@exige(Capacidade.CONSULTAR_APOIO)
 def geocodificar_reverso(request):
     """Coordenada → endereço, para o formulário preencher os campos.
 
@@ -258,7 +259,7 @@ def _serializar_unidades(unidades):
     ]
 
 
-@exige_operador
+@exige(Capacidade.VER_ESTOQUE)
 def unidades_da_custodia(request):
     """Unidades disponíveis numa custódia, para o seletor de baixa/manutenção.
 
@@ -304,7 +305,7 @@ def unidades_da_custodia(request):
     return JsonResponse({"unidades": _serializar_unidades(unidades)})
 
 
-@exige_operador
+@exige(Capacidade.CONSULTAR_APOIO)
 def dados_do_cliente(request, cliente_id):
     """Dados cadastrais do cliente, para a abertura de solicitação preencher.
 
@@ -341,7 +342,7 @@ def dados_do_cliente(request, cliente_id):
     )
 
 
-@exige_operador
+@exige(Capacidade.VER_MAPA)
 def saldo_agente(request, agente_id):
     """Saldo discriminado de um agente, para o popup do marcador."""
     agente = get_object_or_404(Agente.todos, pk=agente_id)

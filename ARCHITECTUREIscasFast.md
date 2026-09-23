@@ -90,7 +90,46 @@ A função sempre roda em `transaction.atomic()`, e a atualização dos ponteiro
 
 ### Permissões
 
-Um único grupo Django: `Operadores Iscas`. Rotas protegidas por `PermissionRequiredMixin` / decorator. Parâmetros globais ficam no `/admin` para o Superusuário GSInt. Não há verificação de posse nem de tenant — todo operador vê tudo (`ISC-RN-19`).
+Três grupos Django, e a autorização é por **capacidade**, não por papel: a view declara o que faz (`@exige(Capacidade.VER_ESTOQUE)`) e o mapa papel → capacidades vive num dicionário único em `iscas/permissions.py`. O requisito não é hierárquico — o Operador Fast dá baixa e manutenção mas não dá entrada nem transfere — então decorator por papel exigiria uma combinação nova a cada view, e são ~45 delas.
+
+| | Operadores Iscas | Operadores Iscas Fast | Comercial Iscas Fast |
+|---|---|---|---|
+| painel, mapa | ✓ | ✓ | ✓ |
+| criar solicitação | ✓ | ✓ | ✓ |
+| cadastrar cliente | ✓ | ✓ | ✓ |
+| ver lista/detalhe de solicitação | ✓ | ✓ | ✓ |
+| atender solicitação | ✓ | ✓ | — |
+| cadastrar modelo | ✓ | ✓ | — |
+| saldos, unidades, retornáveis, extrato | ✓ | ✓ | — |
+| baixa, manutenção | ✓ | ✓ | — |
+| entrada, transferência, estorno | ✓ | — | — |
+| cadastrar agente, depósito | ✓ | — | — |
+| desativar cadastro | ✓ | — | — |
+| excluir solicitação | ✓ | — | — |
+| ver auditoria | ✓ | — | — |
+
+`Operadores Iscas` recebe o conjunto completo por construção (`frozenset(Capacidade)`), não por lista literal: assim uma capacidade nova nunca fica de fora do grupo total por esquecimento. Usuário em dois grupos recebe a **união**. Os três grupos são criados pela migração `0006_grupos_papeis_iscas`, que **não** pendura objetos `Permission` do Django — a autorização é por nome de grupo, e uma segunda fonte de verdade que ninguém lê divergiria em silêncio.
+
+**Atenção ao nome:** `"Operadores Iscas"` é prefixo de `"Operadores Iscas Fast"`. Todo lookup é por igualdade exata; `startswith` promoveria o papel restrito a acesso total sem erro nenhum aparecer.
+
+**Risco aceito:** a checagem fica na fronteira da URL, não nos services — eles são chamados por management commands e migrations que não têm `request.user`. Quem tem shell ou `/admin` contorna, o que já valia antes. O template esconde o que o papel não alcança, mas isso é cortesia, não segurança: quem barra é o decorator.
+
+Não há verificação de posse nem de tenant — dentro da capacidade, vê-se tudo (`ISC-RN-19`). O Comercial enxerga a lista inteira de solicitações, não só as que abriu.
+
+### Auditoria
+
+`AuditoriaIscasMiddleware` registra toda requisição **POST bem-sucedida** do app em `RegistroAuditoria`, sem que nenhuma view precise chamar nada: ação nova nasce auditada. A alternativa (cada service registrando o próprio evento) tem como modo de falha a lacuna silenciosa, que é o que auditoria não pode ter. A tela fica em `/iscas/auditoria/`, restrita a `VER_AUDITORIA` — ou seja, só ao grupo total.
+
+O middleware deriva tudo do que o Django já resolveu: `url_name` para a ação, `capacidade_iscas` (gravada pelo decorator) para a categoria, e os kwargs da URL para o alvo.
+
+**Grava as chaves do POST, nunca os valores.** O formulário de agente traz CPF em texto puro; uma denylist de campos a ocultar deixaria vazar o campo sensível que alguém acrescentasse depois. Saber QUE o CPF foi alterado é auditoria; guardar QUAL é vazamento (`ISC-RN-16`).
+
+Duas consequências assumidas, ambas documentadas no módulo:
+
+- **POSTs que falham validação mas respondem 200/302 também são registrados.** Várias views redirecionam tanto no sucesso quanto no erro, então o status HTTP não distingue. Este é um log de requisições bem-sucedidas em transporte, não de transações confirmadas — para isso existem `Movimentacao` e `SolicitacaoEvento`.
+- **Falha ao gravar o log não derruba a requisição.** O SQLite serializa escritas; um lock não pode transformar uma entrega bem-sucedida em erro 500. Sob pressão, o log pode ter buracos.
+
+Fora do escopo atual: auditoria de GET (ler a ficha do agente com CPF completo não é registrada) e política de retenção — a tabela cresce sem limite.
 
 ### Dados Pessoais
 

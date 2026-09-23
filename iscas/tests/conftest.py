@@ -32,7 +32,15 @@ def pytest_configure(config):
         campo.db_column = "id_qualit_texto"
         campo.column = "id_qualit_texto"
 
-from iscas.enums import TipoCustodia, TipoModelo
+from django.contrib.auth.models import Group
+
+from iscas.enums import (
+    GRUPO_COMERCIAL_FAST,
+    GRUPO_OPERADORES,
+    GRUPO_OPERADORES_FAST,
+    TipoCustodia,
+    TipoModelo,
+)
 from iscas.models.cadastro import Agente, Cliente, Deposito, ModeloEquipamento
 from iscas.models.custodia import Custodia
 from iscas.services import entrada as entrada_service
@@ -43,6 +51,65 @@ def operador(db):
     return get_user_model().objects.create_user(
         username="operador", password="x", email="op@grupogoldensat.com.br"
     )
+
+
+# — Papéis (ISC-RN-19) —
+#
+# Centralizados aqui porque `operador_logado` estava duplicada em ~15 arquivos
+# de teste; com três papéis, a duplicação viraria 45 fixtures idênticas.
+# Fixture de conftest é sombreada pela do módulo, então as cópias que ainda
+# existem continuam valendo enquanto não forem removidas.
+
+
+def _logar_com_grupo(client, usuario, nome_do_grupo):
+    grupo, _ = Group.objects.get_or_create(name=nome_do_grupo)
+    usuario.groups.add(grupo)
+    client.force_login(usuario)
+    return usuario
+
+
+@pytest.fixture
+def operador_logado(client, operador):
+    """Grupo total: enxerga e faz tudo."""
+    return _logar_com_grupo(client, operador, GRUPO_OPERADORES)
+
+
+@pytest.fixture
+def operador_fast_logado(client, db):
+    """Operação restrita: atende, dá baixa e manutenção; não movimenta estoque."""
+    usuario = get_user_model().objects.create_user(
+        username="operador-fast", password="x", email="opfast@grupogoldensat.com.br"
+    )
+    return _logar_com_grupo(client, usuario, GRUPO_OPERADORES_FAST)
+
+
+@pytest.fixture
+def comercial_logado(client, db):
+    """Comercial: painel, mapa, abre solicitação e cadastra cliente."""
+    usuario = get_user_model().objects.create_user(
+        username="comercial", password="x", email="com@grupogoldensat.com.br"
+    )
+    return _logar_com_grupo(client, usuario, GRUPO_COMERCIAL_FAST)
+
+
+@pytest.fixture
+def solicitacao_simples(cliente, modelo_descartavel, operador):
+    """Uma solicitação aberta, para os testes de acesso terem um alvo com pk."""
+    from iscas.services import solicitacao as solicitacao_service
+
+    return solicitacao_service.abrir_solicitacao(
+        cliente=cliente, itens=[(modelo_descartavel, 1)], autor=operador
+    )
+
+
+@pytest.fixture
+def usuario_sem_papel(client, db):
+    """Autenticado e sem grupo nenhum — o caso que precisa levar 403."""
+    usuario = get_user_model().objects.create_user(
+        username="sem-papel", password="x", email="sp@grupogoldensat.com.br"
+    )
+    client.force_login(usuario)
+    return usuario
 
 
 @pytest.fixture

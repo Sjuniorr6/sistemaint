@@ -8,7 +8,8 @@ from iscas.forms import AgenteForm, ClienteForm, DepositoForm, ModeloForm
 from iscas.models.cadastro import Agente, Cliente, Deposito, ModeloEquipamento
 from iscas.models.config import ConfiguracaoIscas
 from iscas.models.custodia import Unidade
-from iscas.permissions import exige_operador
+from iscas.enums import Capacidade
+from iscas.permissions import exige
 from iscas.selectors import historico_agente as historico_agente_selector
 from iscas.services import cadastro as cadastro_service
 from iscas.services.exceptions import AgenteComSaldo, DepositoComSaldo, IscasError
@@ -44,7 +45,7 @@ def _contexto_endereco(form, *, titulo, entidade=None, **extra):
 # ---------------------------------------------------------------------------
 
 
-@exige_operador
+@exige(Capacidade.CADASTRAR_AGENTE)
 def agente_lista(request):
     """Listagem com CPF mascarado (ISC-RN-16) e alerta de pin pendente.
 
@@ -96,7 +97,7 @@ def agente_lista(request):
     )
 
 
-@exige_operador
+@exige(Capacidade.CADASTRAR_AGENTE)
 def agente_detalhe(request, pk):
     """Ficha do agente — único lugar que exibe o CPF completo (ISC-RN-16)."""
     agente = get_object_or_404(Agente.todos, pk=pk)
@@ -110,7 +111,7 @@ def agente_detalhe(request, pk):
     return render(request, "iscas/agente_detalhe.html", contexto)
 
 
-@exige_operador
+@exige(Capacidade.CADASTRAR_AGENTE)
 def agente_criar(request):
     if request.method == "POST":
         form = AgenteForm(request.POST)
@@ -138,7 +139,7 @@ def agente_criar(request):
     )
 
 
-@exige_operador
+@exige(Capacidade.CADASTRAR_AGENTE)
 def agente_editar(request, pk):
     agente = get_object_or_404(Agente.todos, pk=pk)
     if request.method == "POST":
@@ -163,7 +164,7 @@ def agente_editar(request, pk):
     )
 
 
-@exige_operador
+@exige(Capacidade.DESATIVAR_CADASTRO)
 @require_POST
 def agente_desativar(request, pk):
     """Desativação bloqueada se o agente ainda segura equipamento (ISC-RN-18)."""
@@ -181,7 +182,7 @@ def agente_desativar(request, pk):
     return redirect("iscas:agente_lista")
 
 
-@exige_operador
+@exige(Capacidade.DESATIVAR_CADASTRO)
 @require_POST
 def agente_reativar(request, pk):
     """Devolve o agente à operação.
@@ -195,7 +196,7 @@ def agente_reativar(request, pk):
     return redirect("iscas:agente_detalhe", pk=agente.pk)
 
 
-@exige_operador
+@exige(Capacidade.CADASTRAR_AGENTE)
 @require_POST
 def agente_ajustar_pin(request, pk):
     """Grava a posição arrastada no mapa (ISC-RF-03)."""
@@ -235,7 +236,7 @@ def agente_ajustar_pin(request, pk):
 # ---------------------------------------------------------------------------
 
 
-@exige_operador
+@exige(Capacidade.CADASTRAR_CLIENTE)
 def cliente_lista(request):
     busca = request.GET.get("q", "").strip()
     clientes = Cliente.objects.order_by("nome_razao_social")
@@ -246,7 +247,7 @@ def cliente_lista(request):
     )
 
 
-@exige_operador
+@exige(Capacidade.CADASTRAR_CLIENTE)
 def cliente_detalhe(request, pk):
     from iscas.selectors import historico_cliente
 
@@ -256,7 +257,7 @@ def cliente_detalhe(request, pk):
     return render(request, "iscas/cliente_detalhe.html", contexto)
 
 
-@exige_operador
+@exige(Capacidade.CADASTRAR_CLIENTE)
 def cliente_criar(request):
     if request.method == "POST":
         form = ClienteForm(request.POST)
@@ -287,7 +288,7 @@ def cliente_criar(request):
     )
 
 
-@exige_operador
+@exige(Capacidade.CADASTRAR_CLIENTE)
 def cliente_editar(request, pk):
     cliente = get_object_or_404(Cliente.todos, pk=pk)
     if request.method == "POST":
@@ -312,7 +313,7 @@ def cliente_editar(request, pk):
     )
 
 
-@exige_operador
+@exige(Capacidade.DESATIVAR_CADASTRO)
 @require_POST
 def cliente_desativar(request, pk):
     cliente = get_object_or_404(Cliente.todos, pk=pk)
@@ -321,7 +322,7 @@ def cliente_desativar(request, pk):
     return redirect("iscas:cliente_lista")
 
 
-@exige_operador
+@exige(Capacidade.CADASTRAR_CLIENTE)
 @require_POST
 def cliente_ajustar_pin(request, pk):
     cliente = get_object_or_404(Cliente.todos, pk=pk)
@@ -358,7 +359,7 @@ def cliente_ajustar_pin(request, pk):
 # ---------------------------------------------------------------------------
 
 
-@exige_operador
+@exige(Capacidade.CADASTRAR_DEPOSITO)
 def deposito_lista(request):
     """Pontos de estoque da empresa — de onde o equipamento sai para os agentes.
 
@@ -388,7 +389,7 @@ def deposito_lista(request):
     return render(request, "iscas/deposito_lista.html", {"linhas": depositos})
 
 
-@exige_operador
+@exige(Capacidade.CADASTRAR_DEPOSITO)
 def deposito_criar(request):
     if request.method == "POST":
         form = DepositoForm(request.POST)
@@ -408,7 +409,7 @@ def deposito_criar(request):
     )
 
 
-@exige_operador
+@exige(Capacidade.CADASTRAR_DEPOSITO)
 def deposito_editar(request, pk):
     deposito = get_object_or_404(Deposito.todos, pk=pk)
     if request.method == "POST":
@@ -434,7 +435,7 @@ def deposito_editar(request, pk):
     )
 
 
-@exige_operador
+@exige(Capacidade.DESATIVAR_CADASTRO)
 @require_POST
 def deposito_desativar(request, pk):
     """Desativar depósito com estoque é bloqueado, como no agente (ISC-RN-18).
@@ -457,7 +458,7 @@ def deposito_desativar(request, pk):
 # ---------------------------------------------------------------------------
 
 
-@exige_operador
+@exige(Capacidade.CADASTRAR_MODELO)
 def modelo_lista(request):
     """Catálogo de modelos. Desativados ficam fora por padrão (ISC-RN-20).
 
@@ -489,7 +490,7 @@ def modelo_lista(request):
     )
 
 
-@exige_operador
+@exige(Capacidade.CADASTRAR_MODELO)
 def modelo_criar(request):
     if request.method == "POST":
         form = ModeloForm(request.POST)
@@ -504,7 +505,7 @@ def modelo_criar(request):
     )
 
 
-@exige_operador
+@exige(Capacidade.CADASTRAR_MODELO)
 def modelo_editar(request, pk):
     modelo = get_object_or_404(ModeloEquipamento.todos, pk=pk)
     if request.method == "POST":
@@ -533,7 +534,7 @@ def modelo_editar(request, pk):
     )
 
 
-@exige_operador
+@exige(Capacidade.DESATIVAR_CADASTRO)
 @require_POST
 def modelo_desativar(request, pk):
     """Soft-delete: sai do catálogo, o estoque existente continua (ISC-RN-20)."""
@@ -555,7 +556,7 @@ def modelo_desativar(request, pk):
     return redirect("iscas:modelo_lista")
 
 
-@exige_operador
+@exige(Capacidade.DESATIVAR_CADASTRO)
 @require_POST
 def modelo_reativar(request, pk):
     """Devolve o modelo ao catálogo."""

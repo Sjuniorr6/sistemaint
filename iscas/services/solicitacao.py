@@ -13,6 +13,7 @@ from django.utils import timezone
 
 from iscas.enums import (
     GeoOrigem,
+    OrigemAtribuicao,
     StatusAtribuicao,
     StatusSolicitacao,
     TipoMovimentacao,
@@ -213,15 +214,28 @@ def abrir_solicitacao(
     observacao="",
     prazo_desejado=None,
     aberta_em=None,
+    valor_cliente=None,
+    solicitante_nome="",
+    exigir_valor=False,
     **dados_entrega,
 ):
     """Registra a solicitação de um cliente (ISC-RF-22).
 
     Args:
         itens: lista de `(modelo, quantidade)`.
+        valor_cliente: o que será cobrado do cliente. Parâmetro NOMEADO, não
+            parte de `**dados_entrega` — ver o aviso abaixo.
+        solicitante_nome: quem, dentro do cliente, pediu. Idem.
+        exigir_valor: quando True, recusa a abertura sem valor. A tela passa
+            True; chamadas programáticas (commands, testes) não precisam.
         **dados_entrega: contato e endereço específicos desta entrega
             (`documento`, `email`, `telefone`, `entrega_logradouro`…). O que
             não vier é copiado do cadastro do cliente.
+
+    ATENÇÃO ao acrescentar campo novo: `dados_de_entrega()` itera SOMENTE as
+    chaves de `_CAMPOS_DO_CLIENTE` e descarta o resto EM SILÊNCIO. Um campo
+    passado por `**dados_entrega` sem estar naquele dicionário nasce vazio sem
+    erro nenhum. Por isso `valor_cliente` e `solicitante_nome` são nomeados.
 
     A coordenada da entrega NÃO é resolvida aqui: quem chama faz isso com
     `resolver_coordenada_de_entrega`, fora desta transação, porque é I/O de
@@ -229,6 +243,10 @@ def abrir_solicitacao(
     """
     if not itens:
         raise MovimentacaoInvalida("A solicitação precisa de ao menos um item.")
+    if exigir_valor and valor_cliente is None:
+        raise MovimentacaoInvalida(
+            "A solicitação precisa do valor cobrado do cliente."
+        )
 
     solicitacao = Solicitacao.objects.create(
         cliente=cliente,
@@ -237,6 +255,8 @@ def abrir_solicitacao(
         observacao=observacao,
         prazo_desejado=prazo_desejado,
         status=StatusSolicitacao.ABERTA,
+        valor_cliente=valor_cliente,
+        solicitante_nome=solicitante_nome,
         **dados_de_entrega(cliente, dados_entrega),
     )
     for modelo, quantidade in itens:
@@ -415,7 +435,7 @@ def excluir_solicitacao(*, solicitacao, autor, motivo=""):
     """
     ativas = list(solicitacao.atribuicoes_ativas())
     if ativas:
-        nomes = ", ".join(sorted({a.agente.nome for a in ativas}))
+        nomes = ", ".join(sorted({a.origem_nome for a in ativas}))
         raise MovimentacaoInvalida(
             f"Esta solicitação tem {len(ativas)} atribuição(ões) ativa(s) "
             f"com {nomes}, segurando unidades reservadas. Cancele a "
@@ -510,24 +530,52 @@ def _validar_contra_o_pedido(solicitacao, itens):
 
 
 @transaction.atomic
-def criar_atribuicao(*, solicitacao, agente, itens, autor, unidades_por_modelo=None):
+def criar_atribuicao(
+    *,
+    solicitacao,
+    itens,
+    autor,
+    agente=None,
+    deposito=None,
+    valor_agente=None,
+    unidades_por_modelo=None,
+):
     """Cria a atribuição e reserva as unidades (ISC-RF-23, ISC-RF-24).
 
     Args:
-        itens: lista de `(modelo, quantidade)` que este agente vai levar.
+        itens: lista de `(modelo, quantidade)` que esta origem vai levar.
+        agente: quem entrega. Exclusivo com `deposito`.
+        deposito: de onde o cliente retira, na retirada na base. Exclusivo
+            com `agente`.
+        valor_agente: quanto o agente cobrou. Não se aplica a retirada.
         unidades_por_modelo: dict `{modelo_id: [Unidade]}` quando o operador
             escolhe unidades específicas (ISC-RF-25).
 
-    A reserva NÃO move custódia: as unidades continuam com o agente, apenas
+    `agente` tem default para não quebrar as chamadas existentes, mas um dos
+    dois é obrigatório — a validação abaixo cobre tanto "nenhum" quanto "os
+    dois", e a constraint do banco é a garantia final.
+
+    A reserva NÃO move custódia: as unidades continuam onde estão, apenas
     ficam indisponíveis para outra solicitação (ISC-RN-07, ISC-RN-08).
     """
     if solicitacao.eh_terminal:
         raise TransicaoInvalida(
             f"A solicitação está {solicitacao.status} e não aceita nova atribuição."
         )
-    if not agente.is_active:
+    if bool(agente) == bool(deposito):
         raise MovimentacaoInvalida(
-            f"{agente} está desativado e não recebe novas atribuições (ISC-RN-18)."
+            "A atribuição sai de um agente OU de um depósito (retirada na "
+            "base) — informe exatamente um dos dois."
+        )
+    if deposito and valor_agente is not None:
+        raise MovimentacaoInvalida(
+            "Retirada na base não tem valor de agente a pagar."
+        )
+
+    origem = agente or deposito
+    if not origem.is_active:
+        raise MovimentacaoInvalida(
+            f"{origem} está desativado e não recebe novas atribuições (ISC-RN-18)."
         )
     if not itens:
         raise MovimentacaoInvalida("A atribuição precisa de ao menos um item.")
@@ -536,7 +584,12 @@ def criar_atribuicao(*, solicitacao, agente, itens, autor, unidades_por_modelo=N
 
     atribuicao = Atribuicao.objects.create(
         solicitacao=solicitacao,
+        origem_tipo=(
+            OrigemAtribuicao.AGENTE if agente else OrigemAtribuicao.RETIRADA_BASE
+        ),
         agente=agente,
+        deposito=deposito,
+        valor_agente=valor_agente,
         criada_por=autor,
         status=StatusAtribuicao.RESERVADA,
     )
@@ -545,8 +598,11 @@ def criar_atribuicao(*, solicitacao, agente, itens, autor, unidades_por_modelo=N
     for modelo, quantidade in itens:
         escolhidas = (unidades_por_modelo or {}).get(modelo.pk)
         reservadas.extend(
+            # `agente=` é o nome do parâmetro em reserva.py, mas ele só serve
+            # para `custodia_de(...)`, que é genérico — passar o depósito
+            # funciona sem alteração lá.
             reserva_service.alocar_unidades(
-                agente=agente,
+                agente=origem,
                 modelo=modelo,
                 quantidade=quantidade,
                 atribuicao=atribuicao,
@@ -561,7 +617,8 @@ def criar_atribuicao(*, solicitacao, agente, itens, autor, unidades_por_modelo=N
         status_novo=StatusAtribuicao.RESERVADA,
         autor=autor,
         dados={
-            "agente": agente.pk,
+            "origem_tipo": atribuicao.origem_tipo,
+            "origem_id": origem.pk,
             "unidades": [u.identificador for u in reservadas],
         },
     )
@@ -623,7 +680,8 @@ def confirmar_entrega(
 
     movimentacao = registrar_movimentacao(
         tipo=TipoMovimentacao.ENTREGA,
-        origem=atribuicao.agente,
+        # Polimórfico: o agente entrega, ou o cliente retira no depósito.
+        origem=atribuicao.origem,
         destino=atribuicao.solicitacao.cliente,
         unidades=unidades,
         autor=autor,

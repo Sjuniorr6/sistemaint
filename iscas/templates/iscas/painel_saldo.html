@@ -20,9 +20,9 @@ depois "de qual modelo?".
       {{ total_geral.reservado }} reservada(s)
     </div>
   </div>
-  <a href="{% url 'iscas:transferencia' %}" class="btn btn-primary btn-sm">
+  {% if cap.MOVIMENTAR_ESTOQUE %}<a href="{% url 'iscas:transferencia' %}" class="btn btn-primary btn-sm">
     <i class="bi bi-arrow-left-right"></i> Transferir
-  </a>
+  </a>{% endif %}
 </div>
 
 <form method="get" class="mb-3">

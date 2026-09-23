@@ -30,9 +30,13 @@ def montar_texto_atribuicao(atribuicao) -> str:
     cliente = solicitacao.cliente
 
     linhas = [
-        f"Olá, {atribuicao.agente.nome}!",
+        f"Olá, {atribuicao.origem_nome}!",
         "",
-        "Entrega de iscas:",
+        (
+            "Retirada na base:"
+            if atribuicao.eh_retirada_base
+            else "Entrega de iscas:"
+        ),
         f"Cliente: {cliente.nome_razao_social}",
         # Endereço DA SOLICITAÇÃO, não do cadastro: a entrega pode ser numa
         # obra ou filial, e é para lá que o agente precisa ir.
@@ -83,7 +87,13 @@ def montar_texto_atribuicao(atribuicao) -> str:
 
 
 def link_whatsapp(atribuicao) -> str:
-    """Link `wa.me` com o texto pré-preenchido (ISC-RF-29)."""
+    """Link `wa.me` com o texto pré-preenchido (ISC-RF-29).
+
+    Vazio na retirada na base: não há a quem mandar — o cliente vem buscar, e
+    um depósito não tem telefone de WhatsApp.
+    """
+    if atribuicao.eh_retirada_base:
+        return ""
     numero = telefone_para_wa(atribuicao.agente.telefone)
     texto = urllib.parse.quote(montar_texto_atribuicao(atribuicao))
     if not numero:

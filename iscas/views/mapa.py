@@ -4,7 +4,8 @@ from django.shortcuts import get_object_or_404, render
 from iscas.forms import BuscaProximidadeForm
 from iscas.models.cadastro import Cliente
 from iscas.models.config import ConfiguracaoIscas
-from iscas.permissions import exige_operador
+from iscas.enums import Capacidade
+from iscas.permissions import exige
 from iscas.services.geo import (
     agentes_para_solicitacao,
     agentes_proximos,
@@ -12,7 +13,7 @@ from iscas.services.geo import (
 )
 
 
-@exige_operador
+@exige(Capacidade.VER_MAPA)
 def mapa(request):
     """Mapa com todos os agentes ativos e coordenada válida (ISC-RF-16)."""
     return render(
@@ -26,7 +27,7 @@ def mapa(request):
     )
 
 
-@exige_operador
+@exige(Capacidade.VER_MAPA)
 def busca_proximidade(request):
     """Resultado da busca — mapa e tabela lateral sincronizados (ISC-RF-20).
 

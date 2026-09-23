@@ -6,8 +6,8 @@
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
   <h1 class="h3 mb-0">Painel operacional</h1>
   <div class="d-flex gap-2 flex-wrap">
-    <a href="{% url 'iscas:solicitacao_criar' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Nova solicitação</a>
-    <a href="{% url 'iscas:entrada' %}" class="btn btn-outline-light btn-sm"><i class="bi bi-box-arrow-in-down"></i> Entrada de estoque</a>
+    {% if cap.CRIAR_SOLICITACAO %}<a href="{% url 'iscas:solicitacao_criar' %}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Nova solicitação</a>{% endif %}
+    {% if cap.MOVIMENTAR_ESTOQUE %}<a href="{% url 'iscas:entrada' %}" class="btn btn-outline-light btn-sm"><i class="bi bi-box-arrow-in-down"></i> Entrada de estoque</a>{% endif %}
   </div>
 </div>
 
@@ -19,9 +19,9 @@
       equipamento novo dá entrada antes de ir para os agentes, e para onde as iscas
       retornáveis voltam quando o cliente devolve.
     </p>
-    <a href="{% url 'iscas:deposito_criar' %}" class="btn btn-warning btn-sm">
+    {% if cap.CADASTRAR_DEPOSITO %}<a href="{% url 'iscas:deposito_criar' %}" class="btn btn-warning btn-sm">
       <i class="bi bi-plus-lg"></i> Cadastrar depósito
-    </a>
+    </a>{% endif %}
   </div>
 {% endif %}
 
@@ -93,7 +93,7 @@
                 <a href="{% url 'iscas:solicitacao_detalhe' atribuicao.solicitacao_id %}">
                   #{{ atribuicao.solicitacao_id }}
                 </a>
-                — {{ atribuicao.agente.nome }}
+                — {{ atribuicao.origem_nome }}
               </td>
               <td class="text-end small text-warning">desde {{ atribuicao.em_rota_em|date:"d/m H:i" }}</td>
             </tr>

@@ -1,9 +1,16 @@
 """Forms de solicitação, atribuição e busca por proximidade."""
+from decimal import Decimal
+
 from django import forms
 from django.db.models import Q
 
-from iscas.enums import StatusSolicitacao, TipoMovimentacao, UF_CHOICES
-from iscas.models.cadastro import Agente, Cliente, ModeloEquipamento
+from iscas.enums import (
+    OrigemAtribuicao,
+    StatusSolicitacao,
+    TipoMovimentacao,
+    UF_CHOICES,
+)
+from iscas.models.cadastro import Agente, Cliente, Deposito, ModeloEquipamento
 from iscas.models.config import ConfiguracaoIscas
 from iscas.models.operacao import Solicitacao
 from iscas.selectors import agentes_que_atendem, unidades_uteis_por_modelo
@@ -38,6 +45,8 @@ class SolicitacaoForm(forms.ModelForm):
         model = Solicitacao
         fields = [
             "cliente",
+            "solicitante_nome",
+            "valor_cliente",
             "documento",
             "email",
             "contato_nome",
@@ -55,6 +64,11 @@ class SolicitacaoForm(forms.ModelForm):
         ]
         widgets = {
             "cliente": forms.Select(attrs={"class": "form-select"}),
+            "solicitante_nome": forms.TextInput(attrs={"class": "form-control"}),
+            "valor_cliente": forms.NumberInput(
+                attrs={"class": "form-control", "step": "0.01", "min": "0",
+                       "placeholder": "0,00"}
+            ),
             "documento": forms.TextInput(attrs={"class": "form-control"}),
             "email": forms.EmailInput(attrs={"class": "form-control"}),
             "contato_nome": forms.TextInput(attrs={"class": "form-control"}),
@@ -114,10 +128,33 @@ class AtribuicaoForm(forms.Form):
     de existir do app (ISC-RN-03) — fica cego.
     """
 
+    #: `initial` e `required=False` são o que mantém compatível o POST que
+    #: manda só `agente` — a forma como o app sempre funcionou.
+    origem_tipo = forms.ChoiceField(
+        choices=OrigemAtribuicao.choices,
+        initial=OrigemAtribuicao.AGENTE,
+        required=False,
+        widget=forms.RadioSelect,
+        label="Como o cliente recebe",
+    )
     agente = forms.ModelChoiceField(
-        queryset=Agente.objects.none(), label="Agente",
+        queryset=Agente.objects.none(), label="Agente", required=False,
         widget=forms.Select(attrs={"class": "form-select"}),
         empty_label="Selecione um agente…",
+    )
+    deposito = forms.ModelChoiceField(
+        queryset=Deposito.objects.none(), label="Depósito da retirada",
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+        empty_label="Selecione o depósito…",
+    )
+    valor_agente = forms.DecimalField(
+        label="Valor cobrado pelo agente", required=False,
+        max_digits=10, decimal_places=2, min_value=Decimal("0.00"),
+        widget=forms.NumberInput(
+            attrs={"class": "form-control", "step": "0.01", "min": "0",
+                   "placeholder": "0,00"}
+        ),
     )
 
     def __init__(self, *args, solicitacao=None, **kwargs):
@@ -131,23 +168,53 @@ class AtribuicaoForm(forms.Form):
         # Só agentes que têm alguma unidade disponível de algum modelo ainda em
         # falta. Agente desativado não entra (ISC-RN-18) — o selector filtra.
         self.fields["agente"].queryset = agentes_que_atendem(solicitacao)
+        self.fields["deposito"].queryset = Deposito.objects.order_by("nome")
 
-    def clean_agente(self):
+    def clean(self):
+        """XOR da origem, e as regras de negócio de cada ramo.
+
+        `origem_tipo` ausente vale AGENTE: é o POST que o app sempre mandou, e
+        quebrá-lo invalidaria todo o fluxo existente sem ganho nenhum.
+        """
+        dados = super().clean()
+        tipo = dados.get("origem_tipo") or OrigemAtribuicao.AGENTE
+        dados["origem_tipo"] = tipo
+        agente = dados.get("agente")
+        deposito = dados.get("deposito")
+
+        if tipo == OrigemAtribuicao.RETIRADA_BASE:
+            dados["agente"] = None
+            if not deposito:
+                raise forms.ValidationError(
+                    "Escolha o depósito onde o cliente vai retirar."
+                )
+            if dados.get("valor_agente") is not None:
+                raise forms.ValidationError(
+                    "Retirada na base não tem valor de agente a pagar."
+                )
+            self._exigir_unidades_uteis(deposito)
+            return dados
+
+        dados["deposito"] = None
+        if not agente:
+            raise forms.ValidationError("Escolha o agente que vai entregar.")
+        self._exigir_unidades_uteis(agente)
+        return dados
+
+    def _exigir_unidades_uteis(self, origem):
         """Reafirma a regra do queryset com mensagem de negócio.
 
-        O `ModelChoiceField` já recusaria o agente fora do queryset, mas com o
-        genérico "Faça uma escolha válida". Quem opera precisa saber POR QUE o
-        agente não serve.
+        O `ModelChoiceField` já recusaria fora do queryset, mas com o genérico
+        "Faça uma escolha válida". Quem opera precisa saber POR QUE não serve.
+        O selector recebe qualquer custódia — o nome do parâmetro é histórico.
         """
-        agente = self.cleaned_data["agente"]
         if self.solicitacao is not None and not unidades_uteis_por_modelo(
-            agente=agente, solicitacao=self.solicitacao
+            agente=origem, solicitacao=self.solicitacao
         ):
             raise forms.ValidationError(
-                f"{agente} não tem nenhuma unidade disponível dos modelos que "
+                f"{origem} não tem nenhuma unidade disponível dos modelos que "
                 "faltam nesta solicitação."
             )
-        return agente
 
 
 class EscolhaUnidadesForm(forms.Form):
