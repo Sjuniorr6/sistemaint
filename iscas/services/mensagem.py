@@ -32,11 +32,7 @@ def montar_texto_atribuicao(atribuicao) -> str:
     linhas = [
         f"Olá, {atribuicao.origem_nome}!",
         "",
-        (
-            "Retirada na base:"
-            if atribuicao.eh_retirada_base
-            else "Entrega de iscas:"
-        ),
+        ("Retirada de iscas:" if atribuicao.eh_retirada else "Entrega de iscas:"),
         f"Cliente: {cliente.nome_razao_social}",
         # Endereço DA SOLICITAÇÃO, não do cadastro: a entrega pode ser numa
         # obra ou filial, e é para lá que o agente precisa ir.
@@ -89,8 +85,9 @@ def montar_texto_atribuicao(atribuicao) -> str:
 def link_whatsapp(atribuicao) -> str:
     """Link `wa.me` com o texto pré-preenchido (ISC-RF-29).
 
-    Vazio na retirada na base: não há a quem mandar — o cliente vem buscar, e
-    um depósito não tem telefone de WhatsApp.
+    Vazio quando a origem é um depósito: não há a quem mandar, porque depósito
+    não tem telefone. O motivo é esse, e NÃO "é retirada" — quando o cliente
+    busca na casa do agente, o agente precisa saber disso pelo WhatsApp.
     """
     if atribuicao.eh_retirada_base:
         return ""

@@ -56,10 +56,10 @@ def _post(cliente, modelo, **extra):
         "entrega_cep": cliente.cep,
         "prazo_desejado": "",
         "observacao": "",
-        # Obrigatório na abertura desde que a solicitação passou a registrar
-        # receita; sem ele o form recusa e a tela nem chega ao service.
-        "valor_cliente": "100.00",
         f"quantidade_{modelo.pk}": "5",
+        # Preço por item é obrigatório na abertura desde que o total passou a
+        # ser calculado dos itens; sem ele o service recusa.
+        f"preco_{modelo.pk}": "20.00",
     }
     dados.update(extra)
     return dados

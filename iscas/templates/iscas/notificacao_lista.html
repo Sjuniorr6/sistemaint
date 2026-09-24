@@ -1,0 +1,92 @@
+{% extends "iscas/base_iscas.html" %}
+{% comment %}
+Quem recebe o e-mail quando uma solicitação fecha a cobertura.
+
+Cadastro, e não lista hardcoded no código: mudar quem é avisado é decisão de
+operação, não de deploy.
+{% endcomment %}
+{% block titulo_iscas %}Notificações{% endblock %}
+
+{% block iscas_conteudo %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-0">
+      Destinatários de notificação
+      {% if desativados %}<span class="badge bg-secondary align-middle">desativados</span>{% endif %}
+    </h1>
+    <div class="small text-muted mt-1">
+      Recebem o e-mail quando todos os equipamentos de uma solicitação são
+      vinculados a agentes.
+    </div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    {% if desativados %}
+      <a href="{% url 'iscas:notificacao_lista' %}" class="btn btn-outline-light btn-sm">
+        <i class="bi bi-arrow-left"></i> Voltar à lista
+      </a>
+    {% else %}
+      {% if total_desativados %}
+        <a href="?desativados=1" class="btn btn-outline-light btn-sm">
+          <i class="bi bi-archive"></i> Desativados ({{ total_desativados }})
+        </a>
+      {% endif %}
+      <a href="{% url 'iscas:notificacao_criar' %}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg"></i> Novo destinatário
+      </a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card iscas-card">
+  <div class="card-body p-0 tabela-rolavel">
+    <table class="table table-dark table-hover iscas-tabela mb-0">
+      <thead><tr><th>E-mail</th><th>Nome</th><th></th></tr></thead>
+      <tbody>
+      {% for destinatario in destinatarios %}
+        <tr>
+          <td>{{ destinatario.email }}</td>
+          <td class="small text-muted">{{ destinatario.nome|default:"—" }}</td>
+          <td class="text-end">
+            <div class="d-inline-flex gap-1">
+              <a href="{% url 'iscas:notificacao_editar' destinatario.pk %}"
+                 class="btn btn-outline-light btn-sm" title="Editar">
+                <i class="bi bi-pencil"></i>
+              </a>
+              {% if destinatario.is_active %}
+                <form method="post" action="{% url 'iscas:notificacao_desativar' destinatario.pk %}"
+                      onsubmit="return confirm('{{ destinatario.email }} deixa de receber as notificações. Confirmar?');">
+                  {% csrf_token %}
+                  <button class="btn btn-outline-danger btn-sm" title="Desativar">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              {% else %}
+                <form method="post" action="{% url 'iscas:notificacao_reativar' destinatario.pk %}">
+                  {% csrf_token %}
+                  <button class="btn btn-outline-success btn-sm">
+                    <i class="bi bi-arrow-counterclockwise"></i> Reativar
+                  </button>
+                </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="3" class="text-muted py-4 text-center">
+          {% if desativados %}
+            Nenhum destinatário desativado.
+          {% else %}
+            Nenhum destinatário cadastrado — ninguém será avisado dos encerramentos.
+          {% endif %}
+        </td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="form-text small mt-2">
+  Desativar mantém o registro e apenas para de enviar. Falha no envio não
+  interrompe a operação — fica no log do servidor.
+</div>
+{% endblock %}

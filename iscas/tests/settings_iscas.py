@@ -61,3 +61,8 @@ ISCAS_NOMINATIM_URL = "http://localhost:1/geocode-desligado-em-teste"
 ISCAS_GEOCODE_TIMEOUT = 0.01
 
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+
+# A suíte herda `app.settings`, que aponta para o SMTP REAL da Golden Sat.
+# Sem esta linha, o primeiro teste que fechasse uma solicitação tentaria
+# entregar e-mail em produção.
+EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"

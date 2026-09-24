@@ -7,11 +7,14 @@ exceção de domínio em vez de falhar em silêncio. Mesmo padrão do app Chamad
 Mutação de status acontece SÓ por `_transitar()`, que grava o
 `SolicitacaoEvento` na mesma transação.
 """
+from decimal import ROUND_HALF_UP, Decimal
+
 from django.db import transaction
 from django.db.models import Count, Q
 from django.utils import timezone
 
 from iscas.enums import (
+    FormaEntrega,
     GeoOrigem,
     OrigemAtribuicao,
     StatusAtribuicao,
@@ -24,6 +27,7 @@ from iscas.models.operacao import (
     Solicitacao,
     SolicitacaoEvento,
 )
+from iscas.services import notificacao as notificacao_service
 from iscas.services import reserva as reserva_service
 from iscas.services.custodia import registrar_movimentacao
 from iscas.services.exceptions import (
@@ -205,6 +209,49 @@ def resolver_coordenada_de_entrega(solicitacao, *, pin=None, salvar=True):
     return True
 
 
+def _normalizar_itens(itens):
+    """Aceita `(modelo, quantidade)` e `(modelo, quantidade, valor_unitario)`.
+
+    A tupla de 2 é a forma histórica e continua válida — ela aparece em dezenas
+    de chamadas, inclusive nas de reconciliação do livro-razão.
+    """
+    normalizados = []
+    for item in itens:
+        if len(item) == 3:
+            modelo, quantidade, unitario = item
+        else:
+            modelo, quantidade = item
+            unitario = None
+        normalizados.append((modelo, quantidade, unitario))
+    return normalizados
+
+
+def _total_dos_itens(itens):
+    """Soma `unitário × quantidade`. `None` quando nenhum item tem preço.
+
+    Raises:
+        MovimentacaoInvalida: se alguns itens têm preço e outros não. Somar só
+            a parte precificada produziria um total que mente sobre o pedido
+            inteiro — pior que não ter total nenhum.
+    """
+    com_preco = [i for i in itens if i[2] is not None]
+    if not com_preco:
+        return None
+    if len(com_preco) != len(itens):
+        sem = ", ".join(str(i[0]) for i in itens if i[2] is None)
+        raise MovimentacaoInvalida(
+            f"Informe o valor unitário de todos os itens — falta em: {sem}."
+        )
+
+    total = sum(
+        (unitario * quantidade for _, quantidade, unitario in itens),
+        Decimal("0.00"),
+    )
+    # Quantize explícito: a multiplicação de Decimal produz 4 casas, e o campo
+    # de 2 truncaria no save sem avisar.
+    return total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
 @transaction.atomic
 def abrir_solicitacao(
     *,
@@ -223,8 +270,13 @@ def abrir_solicitacao(
 
     Args:
         itens: lista de `(modelo, quantidade)`.
-        valor_cliente: o que será cobrado do cliente. Parâmetro NOMEADO, não
-            parte de `**dados_entrega` — ver o aviso abaixo.
+        itens: lista de `(modelo, quantidade)` ou
+            `(modelo, quantidade, valor_unitario)`.
+        valor_cliente: total cobrado do cliente. Só vale no caminho legado, em
+            que nenhum item traz preço: quando os itens têm `valor_unitario`, o
+            total é CALCULADO a partir deles e este parâmetro é ignorado.
+            Parâmetro NOMEADO, não parte de `**dados_entrega` — ver o aviso
+            abaixo.
         solicitante_nome: quem, dentro do cliente, pediu. Idem.
         exigir_valor: quando True, recusa a abertura sem valor. A tela passa
             True; chamadas programáticas (commands, testes) não precisam.
@@ -243,9 +295,14 @@ def abrir_solicitacao(
     """
     if not itens:
         raise MovimentacaoInvalida("A solicitação precisa de ao menos um item.")
+
+    itens = _normalizar_itens(itens)
+    total_dos_itens = _total_dos_itens(itens)
+    if total_dos_itens is not None:
+        valor_cliente = total_dos_itens
     if exigir_valor and valor_cliente is None:
         raise MovimentacaoInvalida(
-            "A solicitação precisa do valor cobrado do cliente."
+            "Informe o valor unitário dos itens da solicitação."
         )
 
     solicitacao = Solicitacao.objects.create(
@@ -259,13 +316,14 @@ def abrir_solicitacao(
         solicitante_nome=solicitante_nome,
         **dados_de_entrega(cliente, dados_entrega),
     )
-    for modelo, quantidade in itens:
+    for modelo, quantidade, unitario in itens:
         if quantidade < 1:
             raise MovimentacaoInvalida(
                 f"A quantidade de {modelo} precisa ser positiva."
             )
         ItemSolicitacao.objects.create(
-            solicitacao=solicitacao, modelo=modelo, quantidade=quantidade
+            solicitacao=solicitacao, modelo=modelo, quantidade=quantidade,
+            valor_unitario=unitario,
         )
 
     SolicitacaoEvento.objects.create(
@@ -273,7 +331,7 @@ def abrir_solicitacao(
         status_anterior="",
         status_novo=StatusSolicitacao.ABERTA,
         autor=autor,
-        dados={"itens": [[m.pk, q] for m, q in itens]},
+        dados={"itens": [[m.pk, q] for m, q, _ in itens]},
     )
     return solicitacao
 
@@ -538,6 +596,8 @@ def criar_atribuicao(
     agente=None,
     deposito=None,
     valor_agente=None,
+    valor_entrega_cliente=None,
+    forma_entrega=None,
     unidades_por_modelo=None,
 ):
     """Cria a atribuição e reserva as unidades (ISC-RF-23, ISC-RF-24).
@@ -548,6 +608,10 @@ def criar_atribuicao(
         deposito: de onde o cliente retira, na retirada na base. Exclusivo
             com `agente`.
         valor_agente: quanto o agente cobrou. Não se aplica a retirada.
+        valor_entrega_cliente: quanto o cliente paga por esta entrega. Também
+            não se aplica a retirada na base — quem foi buscar não paga frete.
+        forma_entrega: `FormaEntrega`. Default ENTREGA, que é o que as
+            chamadas existentes significam.
         unidades_por_modelo: dict `{modelo_id: [Unidade]}` quando o operador
             escolhe unidades específicas (ISC-RF-25).
 
@@ -571,6 +635,10 @@ def criar_atribuicao(
         raise MovimentacaoInvalida(
             "Retirada na base não tem valor de agente a pagar."
         )
+    if deposito and valor_entrega_cliente is not None:
+        raise MovimentacaoInvalida(
+            "Retirada na base não cobra entrega do cliente."
+        )
 
     origem = agente or deposito
     if not origem.is_active:
@@ -590,6 +658,14 @@ def criar_atribuicao(
         agente=agente,
         deposito=deposito,
         valor_agente=valor_agente,
+        valor_entrega_cliente=valor_entrega_cliente,
+        # Default por origem, não global: quem escolheu "retirada na base" e
+        # não disse a forma quis retirada — era o sentido único daquela opção
+        # antes de `forma_entrega` existir. Agente sem forma é entrega, que é
+        # o que as chamadas anteriores significavam.
+        forma_entrega=forma_entrega or (
+            FormaEntrega.RETIRADA if deposito else FormaEntrega.ENTREGA
+        ),
         criada_por=autor,
         status=StatusAtribuicao.RESERVADA,
     )
@@ -629,6 +705,21 @@ def criar_atribuicao(
             novo_status=StatusSolicitacao.ATRIBUIDA,
             autor=autor,
         )
+
+    # Cobertura fechada: todo o pedido tem agente (ou depósito). É AQUI que o
+    # aviso sai — não na confirmação de entrega, que acontece depois e uma vez
+    # por atribuição.
+    #
+    # `on_commit` porque esta função é atômica e o banco é SQLite, que
+    # serializa escrita no banco inteiro: segurar o lock durante um handshake
+    # TLS trava a operação, e exceção no envio faria rollback da reserva que o
+    # operador acabou de fazer. Depois do commit, o estrago máximo é não sair
+    # o e-mail — e isso o `try/except` do service registra no log.
+    if cobertura_total(solicitacao):
+        transaction.on_commit(
+            lambda: notificacao_service.notificar_cobertura_fechada(solicitacao.pk)
+        )
+
     return atribuicao
 
 

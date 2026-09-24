@@ -200,3 +200,74 @@ class TestEquivalenciaEmLote:
             financeiro.totais_em_lote(muitas)
 
         assert len(com_oito) == len(com_duas)
+
+
+class TestReceitaComEntrega:
+    """O frete cobrado do cliente soma na receita (decisão do usuário)."""
+
+    # sabotagem: ignorar valor_entrega_cliente no _montar → vermelho
+    def test_entrega_soma_na_receita_e_na_margem(
+        self, pedido, operador, agente, modelo_descartavel, unidades_com_agente
+    ):
+        solicitacao = pedido(valor=Decimal("500.00"))
+        service.criar_atribuicao(
+            solicitacao=solicitacao, agente=agente,
+            itens=[(modelo_descartavel, 2)], autor=operador,
+            valor_agente=Decimal("80.00"),
+            valor_entrega_cliente=Decimal("120.00"),
+        )
+
+        totais = financeiro.totais_da_solicitacao(solicitacao)
+
+        assert totais["valor_cliente"] == Decimal("500.00")
+        assert totais["valor_entregas"] == Decimal("120.00")
+        assert totais["receita_total"] == Decimal("620.00")
+        assert totais["custo_agentes"] == Decimal("80.00")
+        assert totais["margem"] == Decimal("540.00")
+
+    def test_sem_valor_de_material_a_margem_continua_none(
+        self, pedido, operador, agente, modelo_descartavel, unidades_com_agente
+    ):
+        """Frete sozinho não basta: faltaria a maior parte da receita."""
+        solicitacao = pedido(valor=None)
+        service.criar_atribuicao(
+            solicitacao=solicitacao, agente=agente,
+            itens=[(modelo_descartavel, 2)], autor=operador,
+            valor_entrega_cliente=Decimal("120.00"),
+        )
+
+        totais = financeiro.totais_da_solicitacao(solicitacao)
+
+        assert totais["valor_entregas"] == Decimal("120.00")
+        assert totais["receita_total"] is None
+        assert totais["margem"] is None
+
+    def test_retirada_na_base_nao_soma_entrega(
+        self, pedido, operador, deposito, modelo_descartavel, unidades_no_deposito
+    ):
+        solicitacao = pedido(valor=Decimal("300.00"))
+        service.criar_atribuicao(
+            solicitacao=solicitacao, deposito=deposito,
+            itens=[(modelo_descartavel, 2)], autor=operador,
+        )
+
+        totais = financeiro.totais_da_solicitacao(solicitacao)
+
+        assert totais["valor_entregas"] == Decimal("0.00")
+        assert totais["receita_total"] == Decimal("300.00")
+
+    def test_lote_concorda_com_individual_incluindo_entrega(
+        self, pedido, operador, agente, modelo_descartavel, unidades_com_agente
+    ):
+        """As duas funções compartilham `_com_totais` — o teste trava isso."""
+        solicitacao = pedido(valor=Decimal("500.00"))
+        service.criar_atribuicao(
+            solicitacao=solicitacao, agente=agente,
+            itens=[(modelo_descartavel, 2)], autor=operador,
+            valor_agente=Decimal("80.00"),
+            valor_entrega_cliente=Decimal("120.00"),
+        )
+
+        em_lote = financeiro.totais_em_lote([solicitacao])
+
+        assert em_lote[solicitacao.pk] == financeiro.totais_da_solicitacao(solicitacao)

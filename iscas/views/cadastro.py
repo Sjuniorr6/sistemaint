@@ -4,7 +4,11 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
+from django.db import IntegrityError
+
 from iscas.forms import AgenteForm, ClienteForm, DepositoForm, ModeloForm
+from iscas.forms.cadastro import DestinatarioNotificacaoForm
+from iscas.models.config import DestinatarioNotificacao
 from iscas.models.cadastro import Agente, Cliente, Deposito, ModeloEquipamento
 from iscas.models.config import ConfiguracaoIscas
 from iscas.models.custodia import Unidade
@@ -564,3 +568,94 @@ def modelo_reativar(request, pk):
     cadastro_service.reativar_modelo(modelo)
     messages.success(request, f"Modelo {modelo} reativado.")
     return redirect("iscas:modelo_lista")
+
+
+# — Destinatários de notificação —
+
+
+@exige(Capacidade.CADASTRAR_NOTIFICACAO)
+def notificacao_lista(request):
+    """Quem recebe o e-mail de encerramento de solicitação."""
+    desativados = request.GET.get("desativados") == "1"
+    destinatarios = (
+        DestinatarioNotificacao.todos.filter(is_active=False)
+        if desativados
+        else DestinatarioNotificacao.objects.all()
+    )
+    return render(
+        request,
+        "iscas/notificacao_lista.html",
+        {
+            "destinatarios": destinatarios,
+            "desativados": desativados,
+            "total_desativados": DestinatarioNotificacao.todos.filter(
+                is_active=False
+            ).count(),
+        },
+    )
+
+
+@exige(Capacidade.CADASTRAR_NOTIFICACAO)
+def notificacao_criar(request):
+    if request.method == "POST":
+        form = DestinatarioNotificacaoForm(request.POST)
+        if form.is_valid():
+            try:
+                destinatario = form.save()
+            except IntegrityError:
+                # O `unique` do banco é alheio a `is_active`: o endereço pode
+                # existir desativado, e aí o caminho é reativar, não recriar.
+                messages.error(
+                    request,
+                    "Este e-mail já está cadastrado. Se não aparece na lista, "
+                    "procure entre os desativados e reative.",
+                )
+            else:
+                messages.success(request, f"{destinatario.email} vai receber as notificações.")
+                return redirect("iscas:notificacao_lista")
+    else:
+        form = DestinatarioNotificacaoForm()
+    return render(
+        request, "iscas/notificacao_form.html",
+        {"form": form, "titulo": "Novo destinatário"},
+    )
+
+
+@exige(Capacidade.CADASTRAR_NOTIFICACAO)
+def notificacao_editar(request, pk):
+    destinatario = get_object_or_404(DestinatarioNotificacao.todos, pk=pk)
+    if request.method == "POST":
+        form = DestinatarioNotificacaoForm(request.POST, instance=destinatario)
+        if form.is_valid():
+            try:
+                form.save()
+            except IntegrityError:
+                messages.error(request, "Este e-mail já está cadastrado.")
+            else:
+                messages.success(request, "Destinatário atualizado.")
+                return redirect("iscas:notificacao_lista")
+    else:
+        form = DestinatarioNotificacaoForm(instance=destinatario)
+    return render(
+        request, "iscas/notificacao_form.html",
+        {"form": form, "destinatario": destinatario,
+         "titulo": f"Editar {destinatario.email}"},
+    )
+
+
+@exige(Capacidade.CADASTRAR_NOTIFICACAO)
+@require_POST
+def notificacao_desativar(request, pk):
+    destinatario = get_object_or_404(DestinatarioNotificacao.todos, pk=pk)
+    destinatario.desativar()
+    messages.success(request, f"{destinatario.email} não recebe mais as notificações.")
+    return redirect("iscas:notificacao_lista")
+
+
+@exige(Capacidade.CADASTRAR_NOTIFICACAO)
+@require_POST
+def notificacao_reativar(request, pk):
+    destinatario = get_object_or_404(DestinatarioNotificacao.todos, pk=pk)
+    destinatario.reativar()
+    messages.success(request, f"{destinatario.email} voltou a receber as notificações.")
+    return redirect("iscas:notificacao_lista")

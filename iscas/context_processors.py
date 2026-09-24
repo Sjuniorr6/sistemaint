@@ -29,6 +29,7 @@ _SECAO_POR_PREFIXO = (
     ("modelo", "modelos"),
     ("extrato", "extrato"),
     ("auditoria", "auditoria"),
+    ("notificacao", "notificacoes"),
 )
 
 

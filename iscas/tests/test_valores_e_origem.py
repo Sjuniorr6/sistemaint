@@ -523,7 +523,9 @@ class TestAcoplamentosComAgenteNulo:
         texto = montar_texto_atribuicao(atribuicao)
 
         assert deposito.nome in texto
-        assert "Retirada na base" in texto
+        # O depósito sem forma informada é retirada — era o sentido único da
+        # opção "retirada na base" antes de `forma_entrega` existir.
+        assert "Retirada" in texto
 
     def test_geojson_de_solicitacoes_nao_levanta(self, retirada, operador):
         from iscas import selectors
@@ -566,3 +568,187 @@ class TestAcoplamentosComAgenteNulo:
         service.marcar_em_rota(atribuicao=atribuicao, autor=operador)
 
         assert client.get(reverse("iscas:painel")).status_code == 200
+
+
+class TestValorDaEntrega:
+    """O que o cliente paga PELA ENTREGA, por atribuição.
+
+    Distinto do `valor_cliente` da solicitação (o material) e do
+    `valor_agente` (o custo). Retirada na base não tem: o cliente foi buscar.
+    """
+
+    # sabotagem: remover iscas_atrib_entrega_nao_negativa → vermelho
+    def test_recusa_negativo(self, cliente, operador, agente):
+        solicitacao = _solicitacao(cliente, operador)
+        with pytest.raises(IntegrityError):
+            with transaction.atomic():
+                _atribuicao(
+                    solicitacao, operador,
+                    origem_tipo=OrigemAtribuicao.AGENTE, agente=agente,
+                    valor_entrega_cliente=Decimal("-0.01"),
+                )
+
+    # sabotagem: remover iscas_atrib_retirada_sem_entrega → vermelho
+    def test_recusa_valor_em_retirada(self, cliente, operador, deposito):
+        """Retirada na base não cobra entrega — o cliente veio buscar."""
+        solicitacao = _solicitacao(cliente, operador)
+        with pytest.raises(IntegrityError):
+            with transaction.atomic():
+                _atribuicao(
+                    solicitacao, operador,
+                    origem_tipo=OrigemAtribuicao.RETIRADA_BASE,
+                    deposito=deposito, valor_entrega_cliente=Decimal("30.00"),
+                )
+
+    def test_aceita_nulo_e_valor(self, cliente, operador, agente):
+        solicitacao = _solicitacao(cliente, operador)
+        com_valor = _atribuicao(
+            solicitacao, operador,
+            origem_tipo=OrigemAtribuicao.AGENTE, agente=agente,
+            valor_entrega_cliente=Decimal("45.00"),
+        )
+        com_valor.refresh_from_db()
+
+        assert com_valor.valor_entrega_cliente == Decimal("45.00")
+
+    def test_service_persiste(
+        self, cliente, operador, agente, modelo_descartavel, unidades_com_agente
+    ):
+        from iscas.services import solicitacao as service
+
+        solicitacao = service.abrir_solicitacao(
+            cliente=cliente, itens=[(modelo_descartavel, 2)], autor=operador,
+        )
+        atribuicao = service.criar_atribuicao(
+            solicitacao=solicitacao, agente=agente,
+            itens=[(modelo_descartavel, 2)], autor=operador,
+            valor_agente=Decimal("30.00"),
+            valor_entrega_cliente=Decimal("50.00"),
+        )
+        atribuicao.refresh_from_db()
+
+        assert atribuicao.valor_agente == Decimal("30.00")
+        assert atribuicao.valor_entrega_cliente == Decimal("50.00")
+
+    def test_service_recusa_entrega_em_retirada(
+        self, cliente, operador, deposito, modelo_descartavel, unidades_no_deposito
+    ):
+        from iscas.services import solicitacao as service
+        from iscas.services.exceptions import MovimentacaoInvalida
+
+        solicitacao = service.abrir_solicitacao(
+            cliente=cliente, itens=[(modelo_descartavel, 1)], autor=operador,
+        )
+
+        with pytest.raises(MovimentacaoInvalida):
+            service.criar_atribuicao(
+                solicitacao=solicitacao, deposito=deposito,
+                itens=[(modelo_descartavel, 1)], autor=operador,
+                valor_entrega_cliente=Decimal("50.00"),
+            )
+
+
+class TestFormaDeEntrega:
+    """Entrega ou retirada é dimensão PRÓPRIA, independente da origem.
+
+    O cliente pode buscar na casa do agente — é agente, mas não é entrega.
+    Antes disto o app confundia "de onde sai" com "como chega".
+    """
+
+    def _atr(self, cliente, operador, **extra):
+        return _atribuicao(_solicitacao(cliente, operador), operador, **extra)
+
+    def test_agente_entrega_e_o_padrao(self, cliente, operador, agente):
+        """O POST que o app sempre mandou continua significando entrega."""
+        from iscas.enums import FormaEntrega
+
+        atribuicao = self._atr(
+            cliente, operador,
+            origem_tipo=OrigemAtribuicao.AGENTE, agente=agente,
+        )
+
+        assert atribuicao.forma_entrega == FormaEntrega.ENTREGA
+        assert atribuicao.eh_retirada is False
+
+    def test_agente_com_retirada(self, cliente, operador, agente):
+        """O caso novo: o cliente busca na casa do agente."""
+        from iscas.enums import FormaEntrega
+
+        atribuicao = self._atr(
+            cliente, operador,
+            origem_tipo=OrigemAtribuicao.AGENTE, agente=agente,
+            forma_entrega=FormaEntrega.RETIRADA,
+        )
+
+        assert atribuicao.eh_retirada is True
+        assert atribuicao.eh_retirada_base is False
+
+    def test_deposito_pode_entregar(self, cliente, operador, deposito):
+        """Depósito+entrega passa a ser possível: alguém da base leva."""
+        from iscas.enums import FormaEntrega
+
+        atribuicao = self._atr(
+            cliente, operador,
+            origem_tipo=OrigemAtribuicao.RETIRADA_BASE, deposito=deposito,
+            forma_entrega=FormaEntrega.ENTREGA,
+        )
+
+        assert atribuicao.eh_retirada is False
+
+    def test_service_aceita_a_forma(
+        self, cliente, operador, agente, modelo_descartavel, unidades_com_agente
+    ):
+        from iscas.enums import FormaEntrega
+        from iscas.services import solicitacao as service
+
+        solicitacao = service.abrir_solicitacao(
+            cliente=cliente, itens=[(modelo_descartavel, 2)], autor=operador,
+        )
+        atribuicao = service.criar_atribuicao(
+            solicitacao=solicitacao, agente=agente,
+            itens=[(modelo_descartavel, 2)], autor=operador,
+            forma_entrega=FormaEntrega.RETIRADA,
+        )
+
+        assert atribuicao.eh_retirada is True
+
+    def test_whatsapp_continua_na_retirada_com_agente(
+        self, cliente, operador, agente, modelo_descartavel, unidades_com_agente
+    ):
+        """O agente precisa saber que alguém vai buscar.
+
+        O link só some quando não há a quem mandar (depósito), não porque é
+        retirada — eram dois motivos diferentes no mesmo `if`.
+        """
+        from iscas.enums import FormaEntrega
+        from iscas.services import solicitacao as service
+        from iscas.services.mensagem import link_whatsapp, montar_texto_atribuicao
+
+        solicitacao = service.abrir_solicitacao(
+            cliente=cliente, itens=[(modelo_descartavel, 1)], autor=operador,
+        )
+        atribuicao = service.criar_atribuicao(
+            solicitacao=solicitacao, agente=agente,
+            itens=[(modelo_descartavel, 1)], autor=operador,
+            forma_entrega=FormaEntrega.RETIRADA,
+        )
+
+        assert link_whatsapp(atribuicao) != ""
+        assert "Retirada" in montar_texto_atribuicao(atribuicao)
+
+    def test_whatsapp_some_no_deposito(
+        self, cliente, operador, deposito, modelo_descartavel, unidades_no_deposito
+    ):
+        """Depósito não tem telefone — esse é o motivo real do link vazio."""
+        from iscas.services import solicitacao as service
+        from iscas.services.mensagem import link_whatsapp
+
+        solicitacao = service.abrir_solicitacao(
+            cliente=cliente, itens=[(modelo_descartavel, 1)], autor=operador,
+        )
+        atribuicao = service.criar_atribuicao(
+            solicitacao=solicitacao, deposito=deposito,
+            itens=[(modelo_descartavel, 1)], autor=operador,
+        )
+
+        assert link_whatsapp(atribuicao) == ""

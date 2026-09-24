@@ -3,6 +3,7 @@ from django import forms
 
 from iscas.crypto import cpf_valido, normalizar_cpf
 from iscas.enums import UF_CHOICES
+from iscas.models.config import DestinatarioNotificacao
 from iscas.models.cadastro import Agente, Cliente, Deposito, ModeloEquipamento
 
 #: Campos de endereço, compartilhados pelos três cadastros geolocalizados.
@@ -246,3 +247,20 @@ class ModeloForm(forms.ModelForm):
                 "Este modelo já tem unidades movimentadas; o tipo não pode mudar "
                 "(ISC-RN-04)."
             )
+
+
+class DestinatarioNotificacaoForm(forms.ModelForm):
+    """Cadastro de quem recebe o e-mail de encerramento."""
+
+    class Meta:
+        model = DestinatarioNotificacao
+        fields = ["email", "nome"]
+        widgets = _widgets_bootstrap(["email", "nome"])
+
+    def clean_email(self):
+        """Normaliza para minúsculas.
+
+        Sem isto `a@x.com` e `A@x.com` coexistem — o `unique` do banco é
+        sensível a caixa e a mesma pessoa receberia dois e-mails.
+        """
+        return (self.cleaned_data["email"] or "").strip().lower()

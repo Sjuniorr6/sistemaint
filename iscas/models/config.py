@@ -7,6 +7,8 @@ provedor de mapa é mudança de configuração, não de código (ISC-ADR-10).
 from django.core.exceptions import ValidationError
 from django.db import models
 
+from iscas.models.base import BaseModel
+
 
 class ConfiguracaoIscas(models.Model):
     """Singleton de parâmetros do app. Sempre acessado por `carregar()`."""
@@ -93,3 +95,28 @@ class GeocodeCache(models.Model):
 
     def __str__(self):
         return self.endereco_normalizado
+
+
+class DestinatarioNotificacao(BaseModel):
+    """Quem recebe o e-mail quando uma solicitação fecha a cobertura.
+
+    Model próprio, e não um campo de texto no singleton de configuração: o
+    requisito é uma tela de cadastro com lista, edição e desativação, e uma
+    string de e-mails separados por vírgula não valida por linha nem permite
+    tirar uma pessoa sem apagar o registro de que ela esteve lá.
+
+    `unique` no e-mail é do BANCO e alheio a `is_active`: cadastrar um endereço
+    que já existe desativado levanta IntegrityError, e o caminho certo é
+    reativar — a view trata isso e diz ao operador.
+    """
+
+    email = models.EmailField(max_length=254, unique=True, verbose_name="E-mail")
+    nome = models.CharField(max_length=120, blank=True, verbose_name="Nome")
+
+    class Meta:
+        verbose_name = "Destinatário de notificação"
+        verbose_name_plural = "Destinatários de notificação"
+        ordering = ["email"]
+
+    def __str__(self):
+        return f"{self.nome} <{self.email}>" if self.nome else self.email

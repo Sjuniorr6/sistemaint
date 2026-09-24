@@ -147,6 +147,38 @@ ao servidor (ISC-RF-20). A busca chama o endpoint JSON e redesenha as camadas.
       </div>
     </div>
 
+    {% comment %}
+    Busca local primeiro (agente por nome/cidade, cliente e endereço de
+    entrega já estão em memória), e só cai no geocodificador quando nada bate —
+    assim o caso comum não paga uma chamada de rede.
+    {% endcomment %}
+    <div class="mb-2 position-relative">
+      <div class="input-group input-group-sm">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="search" class="form-control" placeholder="Buscar agente, cliente ou endereço…"
+               x-model="termoBusca" @input="sugerir()" @keydown.enter.prevent="buscarNoMapa()"
+               @keydown.escape="sugestoes = []">
+        <button class="btn btn-outline-light" type="button" @click="buscarNoMapa()"
+                :disabled="buscandoEndereco">
+          <span x-show="!buscandoEndereco">Buscar</span>
+          <span x-show="buscandoEndereco" x-cloak>Buscando…</span>
+        </button>
+      </div>
+      <div class="list-group position-absolute w-100 shadow" style="z-index:1000"
+           x-show="sugestoes.length" x-cloak @click.outside="sugestoes = []">
+        <template x-for="s in sugestoes" :key="s.chave">
+          <button type="button" class="list-group-item list-group-item-action py-1"
+                  @click="irPara(s)">
+            <span class="badge me-1" :class="s.tipo === 'agente' ? 'bg-primary' : 'bg-warning text-dark'"
+                  x-text="s.tipo === 'agente' ? 'Agente' : 'Solicitação'"></span>
+            <span x-text="s.rotulo"></span>
+            <small class="text-muted d-block" x-text="s.detalhe"></small>
+          </button>
+        </template>
+      </div>
+      <div class="small text-danger mt-1" x-show="erroBusca" x-cloak x-text="erroBusca"></div>
+    </div>
+
     <div id="mapa"></div>
     <div class="small text-muted mt-1">
       Distância em linha reta. Clique no mapa para buscar a partir de um ponto arbitrário.
@@ -211,6 +243,11 @@ function mapaIscas() {
     selecionado: null,
     carregando: false,
     erro: '',
+    agentes: [],
+    termoBusca: '',
+    sugestoes: [],
+    buscandoEndereco: false,
+    erroBusca: '',
 
     /* A lista é worklist: só o que ainda precisa de agente. Os marcadores
        continuam mostrando tudo — uma solicitação coberta ainda é uma entrega
@@ -394,6 +431,9 @@ function mapaIscas() {
         );
         this.marcadores[p.id] = marcador;
         this.cluster.addLayer(marcador);
+        // As properties precisam ficar: sem isto a busca por nome teria de
+        // voltar ao servidor para saber quem é quem.
+        this.agentes.push({ id: p.id, nome: p.nome, cidade: p.cidade, uf: p.uf });
       });
     },
 
@@ -460,9 +500,81 @@ function mapaIscas() {
     focar(id) {
       this.selecionado = id;
       const marcador = this.marcadores[id];
-      if (marcador) {
-        this.mapa.setView(marcador.getLatLng(), 13);
+      if (!marcador) return;
+      // `zoomToShowLayer` e não `setView`: o marcador está dentro de um
+      // cluster, e com setView simples o popup abre num ponto agrupado — ou
+      // não abre. Mesmo tratamento que `focarSolicitacao` já faz.
+      this.cluster.zoomToShowLayer(marcador, () => {
+        this.mapa.setView(marcador.getLatLng(), 15);
         marcador.openPopup();
+      });
+    },
+
+    /* ---- Busca no mapa ---- */
+
+    normalizar(texto) {
+      return (texto || '')
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .toLowerCase().trim();
+    },
+
+    sugerir() {
+      this.erroBusca = '';
+      const termo = this.normalizar(this.termoBusca);
+      if (termo.length < 2) { this.sugestoes = []; return; }
+
+      const doAgente = this.agentes
+        .filter(a => this.normalizar(`${a.nome} ${a.cidade} ${a.uf}`).includes(termo))
+        .map(a => ({
+          chave: `a-${a.id}`, tipo: 'agente', id: a.id,
+          rotulo: a.nome, detalhe: `${a.cidade || ''}${a.uf ? '/' + a.uf : ''}`,
+        }));
+
+      const daSolicitacao = this.solicitacoes
+        .filter(s => this.normalizar(`${s.cliente} ${s.endereco}`).includes(termo))
+        .map(s => ({
+          chave: `s-${s.id}`, tipo: 'solicitacao', id: s.id,
+          rotulo: `#${s.id} — ${s.cliente}`, detalhe: s.endereco,
+        }));
+
+      this.sugestoes = [...doAgente, ...daSolicitacao].slice(0, 8);
+    },
+
+    irPara(sugestao) {
+      this.sugestoes = [];
+      this.termoBusca = sugestao.rotulo;
+      if (sugestao.tipo === 'agente') this.focar(sugestao.id);
+      else this.focarSolicitacao(sugestao.id);
+    },
+
+    async buscarNoMapa() {
+      this.erroBusca = '';
+      const termo = this.termoBusca.trim();
+      if (!termo) return;
+
+      // O que já está no mapa vence: é resposta instantânea e é o que o
+      // operador quer na maioria das vezes.
+      this.sugerir();
+      if (this.sugestoes.length) { this.irPara(this.sugestoes[0]); return; }
+
+      // Nada bateu: trata como endereço livre e geocodifica.
+      this.buscandoEndereco = true;
+      try {
+        const url = '{% url "iscas:api_geocodificar" %}?endereco=' + encodeURIComponent(termo);
+        const dados = await (await fetch(url)).json();
+        if (dados.ok) {
+          this.mapa.setView([dados.latitude, dados.longitude], 15);
+          this.camadaBusca.clearLayers();
+          L.marker([dados.latitude, dados.longitude])
+            .bindPopup(`<strong>${termo}</strong>`)
+            .addTo(this.camadaBusca).openPopup();
+        } else {
+          this.erroBusca = dados.erro || 'Endereço não encontrado.';
+        }
+      } catch (e) {
+        this.erroBusca = 'Não foi possível consultar o endereço agora.';
+      } finally {
+        this.buscandoEndereco = false;
       }
     },
   };

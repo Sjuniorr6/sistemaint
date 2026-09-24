@@ -1,4 +1,6 @@
 """Views de solicitação e atendimento — o fluxo central do app."""
+from decimal import Decimal, InvalidOperation
+
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.http import JsonResponse
@@ -118,7 +120,8 @@ def criar(request):
                     # Explícitos, FORA do laço de `_CAMPOS_DO_CLIENTE`: por
                     # ali seriam descartados em silêncio (ver a docstring do
                     # service).
-                    valor_cliente=dados.get("valor_cliente"),
+                    # O total vem dos itens, nunca do POST: `valor_cliente`
+                    # saiu do form justamente para não ser injetável.
                     solicitante_nome=dados.get("solicitante_nome", ""),
                     exigir_valor=True,
                     # Contato e endereço desta entrega: o form já trouxe do
@@ -149,7 +152,7 @@ def criar(request):
         elif not itens:
             messages.error(request, "Informe ao menos um modelo com quantidade.")
     else:
-        form = SolicitacaoForm()
+        form = SolicitacaoForm(initial=_initial_do_comercial(request.user))
 
     return render(
         request,
@@ -198,6 +201,24 @@ def ajustar_pin_entrega(request, pk):
     return redirect("iscas:solicitacao_detalhe", pk=pk)
 
 
+def _initial_do_comercial(usuario) -> dict:
+    """Pré-preenche o comercial responsável quando quem abre É do comercial.
+
+    Preenche `comercial_responsavel` ("quem da Golden Sat atende a conta") e
+    não `solicitante_nome`, que é quem pediu DENTRO do cliente — sentidos
+    diferentes, e trocar os dois inverteria o significado do registro.
+
+    `get_full_name() or username` é o padrão do projeto para nomear usuário.
+    Só no GET: num POST o valor vem do que foi submetido, e o campo continua
+    editável — o comercial pode registrar a conta de um colega.
+    """
+    from iscas.permissions import is_comercial_fast
+
+    if not is_comercial_fast(usuario):
+        return {}
+    return {"comercial_responsavel": usuario.get_full_name() or usuario.username}
+
+
 def _totais_visiveis(usuario, solicitacao) -> dict:
     """Totais já FILTRADOS pelo que o papel pode ver.
 
@@ -213,7 +234,11 @@ def _totais_visiveis(usuario, solicitacao) -> dict:
     ve_custo = pode(usuario, Capacidade.VER_CUSTO_AGENTE)
 
     if not ve_cliente:
+        # O valor da ENTREGA continua visível a quem vincula agente (decisão do
+        # negócio), mas o do material e a receita total, não — senão a soma
+        # revelaria o valor da solicitação por subtração.
         totais["valor_cliente"] = None
+        totais["receita_total"] = None
     if not ve_custo:
         totais["custo_agentes"] = None
         totais["tem_custo_incompleto"] = False
@@ -227,7 +252,11 @@ def _totais_visiveis(usuario, solicitacao) -> dict:
 
 
 def _itens_do_post(post, modelos):
-    """Extrai os pares (modelo, quantidade) dos campos dinâmicos do template."""
+    """Extrai `(modelo, quantidade, valor_unitario)` dos campos dinâmicos.
+
+    Preço ausente ou malformado vira `None`, e o service recusa a mistura com
+    mensagem de negócio — melhor que um total silenciosamente parcial.
+    """
     itens = []
     for modelo in modelos:
         bruto = post.get(f"quantidade_{modelo.pk}", "").strip()
@@ -237,8 +266,15 @@ def _itens_do_post(post, modelos):
             quantidade = int(bruto)
         except ValueError:
             continue
-        if quantidade > 0:
-            itens.append((modelo, quantidade))
+        if quantidade <= 0:
+            continue
+
+        preco_bruto = (post.get(f"preco_{modelo.pk}", "") or "").strip()
+        try:
+            unitario = Decimal(preco_bruto.replace(",", ".")) if preco_bruto else None
+        except InvalidOperation:
+            unitario = None
+        itens.append((modelo, quantidade, unitario))
     return itens
 
 
@@ -303,6 +339,8 @@ def atribuir(request, pk):
     agente = form_agente.cleaned_data.get("agente")
     deposito = form_agente.cleaned_data.get("deposito")
     valor_agente = form_agente.cleaned_data.get("valor_agente")
+    valor_entrega = form_agente.cleaned_data.get("valor_entrega_cliente")
+    forma_entrega = form_agente.cleaned_data.get("forma_entrega")
     origem = agente or deposito
     confirmando = "confirmar" in request.POST
 
@@ -329,6 +367,8 @@ def atribuir(request, pk):
             agente=agente,
             deposito=deposito,
             valor_agente=valor_agente,
+            valor_entrega_cliente=valor_entrega,
+            forma_entrega=forma_entrega,
             itens=form_unidades.itens(),
             unidades_por_modelo=form_unidades.unidades_por_modelo(),
             autor=request.user,
@@ -338,18 +378,13 @@ def atribuir(request, pk):
         return redirect("iscas:solicitacao_detalhe", pk=pk)
 
     total = atribuicao.reservas_ativas().count()
-    if atribuicao.eh_retirada_base:
-        messages.success(
-            request,
-            f"{total} unidade(s) separada(s) em {origem.nome} para retirada "
-            "do cliente.",
-        )
+    if atribuicao.eh_retirada:
+        aviso = f"{total} unidade(s) separada(s) em {origem.nome} para o cliente retirar."
     else:
-        messages.success(
-            request,
-            f"{total} unidade(s) reservada(s) com {origem.nome}. "
-            "Envie a mensagem pelo WhatsApp.",
-        )
+        aviso = f"{total} unidade(s) reservada(s) com {origem.nome}."
+    if not atribuicao.eh_retirada_base:
+        aviso += " Envie a mensagem pelo WhatsApp."
+    messages.success(request, aviso)
     return redirect("iscas:solicitacao_detalhe", pk=pk)
 
 
@@ -361,16 +396,20 @@ def _campos_da_origem(form_agente) -> dict:
     outro ao form — e aí o valor do agente se perde entre os dois passos.
     """
     dados = form_agente.cleaned_data
-    campos = {"origem_tipo": dados.get("origem_tipo") or ""}
+    campos = {
+        "origem_tipo": dados.get("origem_tipo") or "",
+        "forma_entrega": dados.get("forma_entrega") or "",
+    }
     if dados.get("agente"):
         campos["agente"] = dados["agente"].pk
     if dados.get("deposito"):
         campos["deposito"] = dados["deposito"].pk
-    if dados.get("valor_agente") is not None:
-        # `str()` e não o Decimal cru: o template renderiza com a vírgula do
-        # locale pt-BR ("75,50"), e o DecimalField do passo 2 espera ponto —
-        # o valor voltaria inválido e se perderia sem erro visível.
-        campos["valor_agente"] = str(dados["valor_agente"])
+    # `str()` e não o Decimal cru: o template renderiza com a vírgula do
+    # locale pt-BR ("75,50"), e o DecimalField do passo 2 espera ponto — o
+    # valor voltaria inválido e se perderia sem erro visível.
+    for campo in ("valor_agente", "valor_entrega_cliente"):
+        if dados.get(campo) is not None:
+            campos[campo] = str(dados[campo])
     return campos
 
 

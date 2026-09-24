@@ -5,7 +5,11 @@ faz o Django enxergar todos os models do app.
 """
 from iscas.models.base import ActiveManager, BaseModel, EnderecoGeoMixin, LogModel
 from iscas.models.cadastro import Agente, Cliente, Deposito, ModeloEquipamento
-from iscas.models.config import ConfiguracaoIscas, GeocodeCache
+from iscas.models.config import (
+    ConfiguracaoIscas,
+    DestinatarioNotificacao,
+    GeocodeCache,
+)
 from iscas.models.custodia import (
     Custodia,
     Movimentacao,
@@ -32,6 +36,7 @@ __all__ = [
     "ConfiguracaoIscas",
     "Custodia",
     "Deposito",
+    "DestinatarioNotificacao",
     "EnderecoGeoMixin",
     "GeocodeCache",
     "ItemSolicitacao",

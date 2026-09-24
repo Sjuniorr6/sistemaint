@@ -48,6 +48,11 @@ class Capacidade(models.TextChoices):
     CADASTRAR_DEPOSITO = "CADASTRAR_DEPOSITO", "Cadastrar depósito"
     DESATIVAR_CADASTRO = "DESATIVAR_CADASTRO", "Desativar cadastro"
     VER_AUDITORIA = "VER_AUDITORIA", "Ver auditoria"
+    # Quem recebe o e-mail de encerramento vê dado comercial do cliente —
+    # por isso fica só no grupo total, que já enxerga a auditoria.
+    CADASTRAR_NOTIFICACAO = (
+        "CADASTRAR_NOTIFICACAO", "Cadastrar destinatários de notificação"
+    )
     # Dinheiro. Separadas porque o Comercial vê o que o cliente paga e o
     # Operador Fast não — ele digita na abertura, mas não consulta depois.
     # A margem não tem capacidade própria: quem tem as duas calcula de cabeça.
@@ -162,6 +167,18 @@ class OrigemAtribuicao(models.TextChoices):
 
     AGENTE = "AGENTE", "Entrega por agente"
     RETIRADA_BASE = "RETIRADA_BASE", "Retirada na base"
+
+
+class FormaEntrega(models.TextChoices):
+    """Como as iscas chegam ao cliente — dimensão INDEPENDENTE da origem.
+
+    O cliente pode buscar na casa do agente: é agente, mas não é entrega. E o
+    depósito pode mandar alguém levar. Por isso `forma_entrega` é um campo
+    próprio, e não algo derivado de `origem_tipo`.
+    """
+
+    ENTREGA = "ENTREGA", "Entrega ao cliente"
+    RETIRADA = "RETIRADA", "Cliente retira"
 
 
 class StatusAtribuicao(models.TextChoices):

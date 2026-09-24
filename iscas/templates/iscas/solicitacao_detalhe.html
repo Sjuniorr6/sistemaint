@@ -197,12 +197,18 @@ campos de texto destrutivos sempre a um clique de distância.
         <div class="col-12 col-md-4">
           <div class="small text-muted">O cliente paga</div>
           <div class="h5 mb-0">
-            {% if totais.valor_cliente is not None %}
-              R$ {{ totais.valor_cliente|floatformat:2 }}
+            {% if totais.receita_total is not None %}
+              R$ {{ totais.receita_total|floatformat:2 }}
             {% else %}
               <span class="text-muted">não informado</span>
             {% endif %}
           </div>
+          {% if totais.valor_entregas %}
+            <div class="small text-muted">
+              material R$ {{ totais.valor_cliente|floatformat:2 }}
+              + entrega R$ {{ totais.valor_entregas|floatformat:2 }}
+            </div>
+          {% endif %}
         </div>
       {% endif %}
       {% if totais.ve_custo_agente %}
@@ -277,13 +283,38 @@ campos de texto destrutivos sempre a um clique de distância.
                 </label>
                 {{ form_atribuicao.valor_agente }}
                 <div class="form-text small">Quanto o agente cobrou por esta entrega.</div>
+
+                <label class="form-label small mt-3" for="{{ form_atribuicao.valor_entrega_cliente.id_for_label }}">
+                  {{ form_atribuicao.valor_entrega_cliente.label }}
+                </label>
+                {{ form_atribuicao.valor_entrega_cliente }}
+                <div class="form-text small">O que você cobra do cliente por esta entrega.</div>
               </div>
 
               <div x-show="modo === 'RETIRADA_BASE'" x-cloak>
                 <label class="form-label small">{{ form_atribuicao.deposito.label }}</label>
                 {{ form_atribuicao.deposito }}
                 <div class="form-text small">
-                  O cliente busca no depósito. Não há valor de agente a pagar.
+                  Sai do depósito. Não há valor de agente a pagar.
+                </div>
+              </div>
+
+              {% comment %}
+              Vale para as duas origens: o cliente pode buscar na casa do
+              agente, e alguém da base pode levar até o cliente.
+              {% endcomment %}
+              <div class="mt-3 pt-3 border-top border-secondary">
+                <label class="form-label small d-block">Como o cliente recebe?</label>
+                {% for opcao in form_atribuicao.forma_entrega %}
+                  <div class="form-check form-check-inline">
+                    {{ opcao.tag }}
+                    <label class="form-check-label small" for="{{ opcao.id_for_label }}">
+                      {{ opcao.choice_label }}
+                    </label>
+                  </div>
+                {% endfor %}
+                <div class="form-text small">
+                  "Cliente retira" também vale quando ele busca na casa do agente.
                 </div>
               </div>
             </div>
@@ -327,12 +358,18 @@ campos de texto destrutivos sempre a um clique de distância.
                 {% if item.atribuicao.eh_retirada_base %}
                   {# Depósito não tem ficha própria — só o nome e o selo. #}
                   <strong>{{ item.atribuicao.deposito.nome }}</strong>
-                  <span class="badge bg-dark border border-secondary ms-1">Retirada na base</span>
+                  <span class="badge bg-dark border border-secondary ms-1">Depósito</span>
+                  {% if item.atribuicao.eh_retirada %}
+                    <span class="badge bg-dark border border-secondary ms-1">Cliente retira</span>
+                  {% endif %}
                   <div class="small text-muted">
                     O cliente retira em {{ item.atribuicao.deposito.cidade }}/{{ item.atribuicao.deposito.uf }}
                   </div>
                 {% else %}
                   <strong><a href="{% url 'iscas:agente_detalhe' item.atribuicao.agente.pk %}">{{ item.atribuicao.origem_nome }}</a></strong>
+                  {% if item.atribuicao.eh_retirada %}
+                    <span class="badge bg-dark border border-secondary ms-1">Cliente retira</span>
+                  {% endif %}
                   <div class="small text-muted">
                     {{ item.atribuicao.agente.telefone }} — {{ item.atribuicao.agente.cidade }}/{{ item.atribuicao.agente.uf }}
                   </div>
@@ -349,11 +386,16 @@ campos de texto destrutivos sempre a um clique de distância.
                 {% if cap.VER_CUSTO_AGENTE and not item.atribuicao.eh_retirada_base %}
                   <div class="small mt-1">
                     {% if item.atribuicao.valor_agente is not None %}
-                      Cobrou R$ {{ item.atribuicao.valor_agente|floatformat:2 }}
+                      Agente cobrou R$ {{ item.atribuicao.valor_agente|floatformat:2 }}
                     {% else %}
-                      <span class="text-warning">valor não informado</span>
+                      <span class="text-warning">valor do agente não informado</span>
                     {% endif %}
                   </div>
+                  {% if item.atribuicao.valor_entrega_cliente is not None %}
+                    <div class="small text-success">
+                      Entrega ao cliente R$ {{ item.atribuicao.valor_entrega_cliente|floatformat:2 }}
+                    </div>
+                  {% endif %}
                 {% endif %}
               </div>
             </div>

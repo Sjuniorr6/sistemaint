@@ -270,7 +270,7 @@ de manutenção. Trocar para arquivos locais é substituir estas tags.
   nelas para incluir um agente ou um modelo, não no dia a dia da operação.
   O menu inteiro some quando o papel não alcança nenhum dos quatro.
   {% endcomment %}
-  {% if cap.CADASTRAR_AGENTE or cap.CADASTRAR_CLIENTE or cap.CADASTRAR_DEPOSITO or cap.CADASTRAR_MODELO %}
+  {% if cap.CADASTRAR_AGENTE or cap.CADASTRAR_CLIENTE or cap.CADASTRAR_DEPOSITO or cap.CADASTRAR_MODELO or cap.CADASTRAR_NOTIFICACAO %}
   <span class="iscas-nav-sep" aria-hidden="true"></span>
 
   <div class="dropdown iscas-nav-grupo">
@@ -283,6 +283,7 @@ de manutenção. Trocar para arquivos locais é substituir estas tags.
       {% if cap.CADASTRAR_CLIENTE %}<li><a class="dropdown-item {% if secao == 'clientes' %}active{% endif %}" href="{% url 'iscas:cliente_lista' %}"><i class="bi bi-building"></i> Clientes</a></li>{% endif %}
       {% if cap.CADASTRAR_DEPOSITO %}<li><a class="dropdown-item {% if secao == 'depositos' %}active{% endif %}" href="{% url 'iscas:deposito_lista' %}"><i class="bi bi-house-gear"></i> Depósitos</a></li>{% endif %}
       {% if cap.CADASTRAR_MODELO %}<li><a class="dropdown-item {% if secao == 'modelos' %}active{% endif %}" href="{% url 'iscas:modelo_lista' %}"><i class="bi bi-tags"></i> Modelos</a></li>{% endif %}
+      {% if cap.CADASTRAR_NOTIFICACAO %}<li><a class="dropdown-item {% if secao == 'notificacoes' %}active{% endif %}" href="{% url 'iscas:notificacao_lista' %}"><i class="bi bi-envelope-at"></i> Notificações</a></li>{% endif %}
     </ul>
   </div>
   {% endif %}

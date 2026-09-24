@@ -5,6 +5,7 @@ from django import forms
 from django.db.models import Q
 
 from iscas.enums import (
+    FormaEntrega,
     OrigemAtribuicao,
     StatusSolicitacao,
     TipoMovimentacao,
@@ -46,7 +47,6 @@ class SolicitacaoForm(forms.ModelForm):
         fields = [
             "cliente",
             "solicitante_nome",
-            "valor_cliente",
             "documento",
             "email",
             "contato_nome",
@@ -65,10 +65,6 @@ class SolicitacaoForm(forms.ModelForm):
         widgets = {
             "cliente": forms.Select(attrs={"class": "form-select"}),
             "solicitante_nome": forms.TextInput(attrs={"class": "form-control"}),
-            "valor_cliente": forms.NumberInput(
-                attrs={"class": "form-control", "step": "0.01", "min": "0",
-                       "placeholder": "0,00"}
-            ),
             "documento": forms.TextInput(attrs={"class": "form-control"}),
             "email": forms.EmailInput(attrs={"class": "form-control"}),
             "contato_nome": forms.TextInput(attrs={"class": "form-control"}),
@@ -137,6 +133,15 @@ class AtribuicaoForm(forms.Form):
         widget=forms.RadioSelect,
         label="Como o cliente recebe",
     )
+    #: Independente da origem: o cliente pode buscar na casa do agente.
+    #: `required=False` + default no clean mantém válido o POST antigo.
+    forma_entrega = forms.ChoiceField(
+        choices=FormaEntrega.choices,
+        initial=FormaEntrega.ENTREGA,
+        required=False,
+        widget=forms.RadioSelect,
+        label="Entrega ou retirada",
+    )
     agente = forms.ModelChoiceField(
         queryset=Agente.objects.none(), label="Agente", required=False,
         widget=forms.Select(attrs={"class": "form-select"}),
@@ -150,6 +155,14 @@ class AtribuicaoForm(forms.Form):
     )
     valor_agente = forms.DecimalField(
         label="Valor cobrado pelo agente", required=False,
+        max_digits=10, decimal_places=2, min_value=Decimal("0.00"),
+        widget=forms.NumberInput(
+            attrs={"class": "form-control", "step": "0.01", "min": "0",
+                   "placeholder": "0,00"}
+        ),
+    )
+    valor_entrega_cliente = forms.DecimalField(
+        label="Valor cobrado do cliente pela entrega", required=False,
         max_digits=10, decimal_places=2, min_value=Decimal("0.00"),
         widget=forms.NumberInput(
             attrs={"class": "form-control", "step": "0.01", "min": "0",
@@ -179,6 +192,14 @@ class AtribuicaoForm(forms.Form):
         dados = super().clean()
         tipo = dados.get("origem_tipo") or OrigemAtribuicao.AGENTE
         dados["origem_tipo"] = tipo
+        # Sem forma informada, o default segue a origem: depósito é retirada
+        # (o sentido histórico daquela opção), agente é entrega.
+        if not dados.get("forma_entrega"):
+            dados["forma_entrega"] = (
+                FormaEntrega.RETIRADA
+                if tipo == OrigemAtribuicao.RETIRADA_BASE
+                else FormaEntrega.ENTREGA
+            )
         agente = dados.get("agente")
         deposito = dados.get("deposito")
 
@@ -191,6 +212,10 @@ class AtribuicaoForm(forms.Form):
             if dados.get("valor_agente") is not None:
                 raise forms.ValidationError(
                     "Retirada na base não tem valor de agente a pagar."
+                )
+            if dados.get("valor_entrega_cliente") is not None:
+                raise forms.ValidationError(
+                    "Retirada na base não cobra entrega do cliente."
                 )
             self._exigir_unidades_uteis(deposito)
             return dados

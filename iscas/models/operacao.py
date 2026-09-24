@@ -17,6 +17,7 @@ from django.db.models import Q
 
 from iscas.enums import (
     Capacidade,
+    FormaEntrega,
     OrigemAtribuicao,
     StatusAtribuicao,
     StatusSolicitacao,
@@ -250,6 +251,18 @@ class ItemSolicitacao(models.Model):
         verbose_name="Modelo",
     )
     quantidade = models.PositiveIntegerField(verbose_name="Quantidade")
+    # Preço por unidade deste modelo. O total da solicitação
+    # (`Solicitacao.valor_cliente`) é a soma de `valor_unitario × quantidade`
+    # de todos os itens, calculada na abertura.
+    #
+    # Nulável porque as solicitações abertas antes deste campo existir têm
+    # unitário desconhecido — `0,00` seria uma afirmação falsa sobre elas, e o
+    # total delas continua gravado e auditável.
+    valor_unitario = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(Decimal("0.00"))],
+        verbose_name="Valor unitário",
+    )
 
     class Meta:
         verbose_name = "Item da solicitação"
@@ -260,6 +273,12 @@ class ItemSolicitacao(models.Model):
             ),
             models.CheckConstraint(
                 condition=Q(quantidade__gt=0), name="iscas_item_qtd_positiva"
+            ),
+            # `isnull=True` no OR é obrigatório: sem ele a constraint recusa as
+            # linhas históricas e a migration falha em produção.
+            models.CheckConstraint(
+                condition=Q(valor_unitario__gte=0) | Q(valor_unitario__isnull=True),
+                name="iscas_item_valor_unitario_nao_negativo",
             ),
         ]
 
@@ -291,6 +310,15 @@ class Atribuicao(BaseModel):
         default=OrigemAtribuicao.AGENTE,
         verbose_name="Origem",
     )
+    # Independente de `origem_tipo`: o cliente pode buscar na casa do agente
+    # (agente + retirada) e a base pode mandar entregar (depósito + entrega).
+    # Default ENTREGA preserva o significado das atribuições já gravadas.
+    forma_entrega = models.CharField(
+        max_length=20,
+        choices=FormaEntrega.choices,
+        default=FormaEntrega.ENTREGA,
+        verbose_name="Forma de entrega",
+    )
     agente = models.ForeignKey(
         "iscas.Agente",
         on_delete=models.PROTECT,
@@ -313,6 +341,14 @@ class Atribuicao(BaseModel):
         max_digits=10, decimal_places=2, null=True, blank=True,
         validators=[MinValueValidator(Decimal("0.00"))],
         verbose_name="Valor cobrado pelo agente",
+    )
+    # O que o CLIENTE paga por esta entrega — receita, ao lado do valor do
+    # material (`Solicitacao.valor_cliente`). Também NULL em retirada na base:
+    # quem foi buscar não paga frete.
+    valor_entrega_cliente = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(Decimal("0.00"))],
+        verbose_name="Valor cobrado do cliente pela entrega",
     )
     status = models.CharField(
         max_length=20,
@@ -366,6 +402,13 @@ class Atribuicao(BaseModel):
                 condition=Q(valor_agente__gte=0) | Q(valor_agente__isnull=True),
                 name="iscas_atrib_valor_nao_negativo",
             ),
+            models.CheckConstraint(
+                condition=(
+                    Q(valor_entrega_cliente__gte=0)
+                    | Q(valor_entrega_cliente__isnull=True)
+                ),
+                name="iscas_atrib_entrega_nao_negativa",
+            ),
             # Retirada na base não tem agente a pagar (requisito do usuário).
             # No banco, e não só na tela: senão o custo total pode ser inflado
             # por um valor gravado numa linha que não tem agente nenhum.
@@ -375,6 +418,14 @@ class Atribuicao(BaseModel):
                     | Q(valor_agente__isnull=True)
                 ),
                 name="iscas_atrib_retirada_sem_valor",
+            ),
+            # Retirada na base também não cobra entrega do cliente.
+            models.CheckConstraint(
+                condition=(
+                    ~Q(origem_tipo=OrigemAtribuicao.RETIRADA_BASE)
+                    | Q(valor_entrega_cliente__isnull=True)
+                ),
+                name="iscas_atrib_retirada_sem_entrega",
             ),
         ]
 
@@ -394,7 +445,13 @@ class Atribuicao(BaseModel):
 
     @property
     def eh_retirada_base(self) -> bool:
+        """Sai do depósito. Diz DE ONDE, não como chega."""
         return self.origem_tipo == OrigemAtribuicao.RETIRADA_BASE
+
+    @property
+    def eh_retirada(self) -> bool:
+        """O cliente vem buscar. Diz COMO CHEGA, não de onde sai."""
+        return self.forma_entrega == FormaEntrega.RETIRADA
 
     @property
     def eh_terminal(self) -> bool:

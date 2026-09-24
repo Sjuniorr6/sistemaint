@@ -263,14 +263,24 @@ DATE_FORMAT = 'd/m/Y'
 
 # Backend customizado: SMTP da Golden Sat usa certificado da hospedagem,
 # cujo hostname não bate com smtp.grupogoldensat.com.br. Ignora verificação.
-EMAIL_BACKEND = 'app.email_backend.UnverifiedSSLEmailBackend'
-EMAIL_HOST = 'smtp.grupogoldensat.com.br'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_USE_SSL = False
-EMAIL_HOST_USER = 'infodev@grupogoldensat.com.br'
-EMAIL_HOST_PASSWORD = 'GGSintdev20xx#!'  # Senha de app do Gmail
-DEFAULT_FROM_EMAIL = 'infodev@grupogoldensat.com.br'
+# Credenciais no .env (fora do git). Os defaults abaixo são os valores que
+# estavam fixos aqui — mantidos para nenhum ambiente quebrar na troca —, mas
+# quem manda é o .env: trocar a senha do SMTP é editar lá, não versionar aqui.
+EMAIL_BACKEND = os.getenv(
+    'EMAIL_BACKEND', 'app.email_backend.UnverifiedSSLEmailBackend'
+)
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.grupogoldensat.com.br')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').strip().lower() == 'true'
+EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'False').strip().lower() == 'true'
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'infodev@grupogoldensat.com.br')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.getenv(
+    'DEFAULT_FROM_EMAIL', 'infodev@grupogoldensat.com.br'
+)
+# Sem timeout explícito o socket usa o do SO, que pode ser de minutos — e o
+# envio de e-mail acontece no fluxo de uma requisição do operador.
+EMAIL_TIMEOUT = 10
 
 # OpenAI
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")

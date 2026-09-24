@@ -70,14 +70,6 @@ registra para onde a entrega foi de fato.
           {% for erro in form.solicitante_nome.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
         </div>
         <div class="col-12 col-md-4">
-          <label class="form-label small" for="{{ form.valor_cliente.id_for_label }}">
-            Valor cobrado do cliente <span class="text-danger">*</span>
-          </label>
-          {{ form.valor_cliente }}
-          <div class="form-text small">O que será cobrado por esta solicitação.</div>
-          {% for erro in form.valor_cliente.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
-        </div>
-        <div class="col-12 col-md-4">
           <label class="form-label small" for="{{ form.telefone.id_for_label }}">Telefone para contato</label>
           {{ form.telefone }}
           <div class="form-text small">Vai no texto de WhatsApp enviado ao agente.</div>
@@ -245,7 +237,12 @@ registra para onde a entrega foi de fato.
     <div class="card-header">Itens do pedido</div>
     <div class="card-body p-0 tabela-rolavel">
       <table class="table table-dark table-sm iscas-tabela mb-0">
-        <thead><tr><th>Modelo</th><th>Tipo</th><th style="width:9rem">Quantidade</th></tr></thead>
+        <thead><tr>
+          <th>Modelo</th><th>Tipo</th>
+          <th style="width:9rem">Quantidade</th>
+          <th style="width:10rem">Preço unitário</th>
+          <th style="width:9rem" class="text-end">Subtotal</th>
+        </tr></thead>
         <tbody>
         {% for modelo in modelos %}
           <tr>
@@ -257,20 +254,38 @@ registra para onde a entrega foi de fato.
             </td>
             <td>
               <input type="number" min="0" name="quantidade_{{ modelo.pk }}"
-                     class="form-control form-control-sm" placeholder="0">
+                     class="form-control form-control-sm" placeholder="0"
+                     x-model.number="qtds[{{ modelo.pk }}]">
             </td>
+            <td>
+              <input type="number" min="0" step="0.01" name="preco_{{ modelo.pk }}"
+                     class="form-control form-control-sm" placeholder="0,00"
+                     x-model.number="precos[{{ modelo.pk }}]">
+            </td>
+            <td class="text-end align-middle small"
+                x-text="subtotal({{ modelo.pk }})"></td>
           </tr>
         {% empty %}
-          <tr><td colspan="3" class="text-muted">
+          <tr><td colspan="5" class="text-muted">
             Nenhum modelo cadastrado. <a href="{% url 'iscas:modelo_criar' %}">Cadastre um modelo</a> primeiro.
           </td></tr>
         {% endfor %}
         </tbody>
       </table>
     </div>
-    <div class="card-body pt-2">
+    <div class="card-body pt-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
       <div class="form-text small mb-0">
         Descartável sai do estoque na entrega; retornável continua rastreado até voltar.
+        O preço unitário é obrigatório em todo item com quantidade.
+      </div>
+      {% comment %}
+      O total aqui é só para o operador conferir enquanto digita. Quem grava é
+      o Python, somando de novo a partir dos itens — o número do banco nunca
+      vem do navegador.
+      {% endcomment %}
+      <div class="text-end">
+        <div class="small text-muted">Total da solicitação</div>
+        <div class="h5 mb-0" x-text="totalFormatado()"></div>
       </div>
     </div>
   </div>
@@ -300,6 +315,29 @@ registra para onde a entrega foi de fato.
 <script>
 function novaSolicitacao() {
   return {
+    // Quantidade e preço por modelo, para o total conferir enquanto se digita.
+    // Só exibição: o valor gravado é recalculado no servidor.
+    qtds: {},
+    precos: {},
+
+    subtotal(pk) {
+      const total = (this.qtds[pk] || 0) * (this.precos[pk] || 0);
+      return total ? this.moeda(total) : '—';
+    },
+
+    totalFormatado() {
+      const total = Object.keys(this.qtds).reduce(
+        (soma, pk) => soma + (this.qtds[pk] || 0) * (this.precos[pk] || 0), 0
+      );
+      return 'R$ ' + this.moeda(total);
+    },
+
+    moeda(valor) {
+      return valor.toLocaleString('pt-BR', {
+        minimumFractionDigits: 2, maximumFractionDigits: 2,
+      });
+    },
+
     buscandoCep: false,
     erroCep: '',
     // Guarda o endereço vindo do cadastro para detectar alteração e permitir
@@ -519,7 +557,13 @@ function novaSolicitacao() {
         this.campo('email').value = dados.email || '';
         this.campo('contato_nome').value = dados.contato_nome || '';
         this.campo('telefone').value = dados.telefone || '';
-        this.campo('comercial_responsavel').value = dados.comercial_responsavel || '';
+        // Não sobrescreve o que já está preenchido: quando quem abre é do
+        // comercial, o campo vem com o nome dele, e trocar de cliente apagaria
+        // esse valor sem o operador perceber.
+        const campoComercial = this.campo('comercial_responsavel');
+        if (!campoComercial.value) {
+          campoComercial.value = dados.comercial_responsavel || '';
+        }
 
         this.clienteSemEndereco = !dados.tem_endereco;
 

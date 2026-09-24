@@ -93,6 +93,12 @@ CAPACIDADE_ESPERADA = {
     "api_dados_cliente": Capacidade.CONSULTAR_APOIO,
 
     "auditoria": Capacidade.VER_AUDITORIA,
+
+    "notificacao_lista": Capacidade.CADASTRAR_NOTIFICACAO,
+    "notificacao_criar": Capacidade.CADASTRAR_NOTIFICACAO,
+    "notificacao_editar": Capacidade.CADASTRAR_NOTIFICACAO,
+    "notificacao_desativar": Capacidade.CADASTRAR_NOTIFICACAO,
+    "notificacao_reativar": Capacidade.CADASTRAR_NOTIFICACAO,
 }
 
 

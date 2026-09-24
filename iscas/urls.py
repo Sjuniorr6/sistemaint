@@ -91,6 +91,12 @@ urlpatterns = [
     path("historico/agente/<int:pk>/", relatorio.historico_agente, name="historico_agente"),
     path("historico/cliente/<int:pk>/", relatorio.historico_cliente, name="historico_cliente"),
 
+    path("notificacoes/", cadastro.notificacao_lista, name="notificacao_lista"),
+    path("notificacoes/novo/", cadastro.notificacao_criar, name="notificacao_criar"),
+    path("notificacoes/<int:pk>/editar/", cadastro.notificacao_editar, name="notificacao_editar"),
+    path("notificacoes/<int:pk>/desativar/", cadastro.notificacao_desativar, name="notificacao_desativar"),
+    path("notificacoes/<int:pk>/reativar/", cadastro.notificacao_reativar, name="notificacao_reativar"),
+
     # — Auditoria (só o grupo total) —
     path("auditoria/", auditoria.lista, name="auditoria"),
 

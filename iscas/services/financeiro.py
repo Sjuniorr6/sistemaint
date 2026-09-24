@@ -1,8 +1,9 @@
 """Quanto uma solicitação rendeu e quanto custou (ISC-RF-39).
 
-Receita é o valor cobrado do cliente, gravado na abertura; custo é a soma do
-que os agentes cobraram. Retirada na base não tem custo de agente — o cliente
-foi buscar.
+Receita tem duas parcelas: o valor do material, gravado na abertura da
+solicitação, e o que se cobra do cliente por cada entrega. Custo é a soma do
+que os agentes cobraram. Retirada na base não tem nenhum dos dois lados — o
+cliente foi buscar.
 
 Service, e não property no model: uma property que somasse
 `self.atribuicoes.all()` seria N+1 garantido na listagem. O par
@@ -34,14 +35,15 @@ def totais_da_solicitacao(solicitacao) -> dict:
     """Receita, custo e margem de uma solicitação.
 
     Returns:
-        dict com `valor_cliente`, `custo_agentes`, `margem` e
-        `tem_custo_incompleto`.
+        dict com `valor_cliente` (material), `valor_entregas` (frete cobrado),
+        `receita_total`, `custo_agentes`, `margem` e `tem_custo_incompleto`.
 
     Semântica que importa:
 
-    - `margem` é `None` — nunca zero — quando não há valor do cliente. Zero é
+    - `margem` é `None` — nunca zero — quando não há valor do material. Zero é
       um valor de negócio (cortesia); `None` é ausência de informação, e
-      confundir os dois faz um relatório mentir.
+      confundir os dois faz um relatório mentir. O frete sozinho não basta para
+      afirmar margem: faltaria a maior parte da receita.
     - Atribuição de agente sem valor informado soma zero, **mas levanta**
       `tem_custo_incompleto`. Somar zero calado transforma a margem numa
       afirmação que ninguém conferiu.
@@ -78,6 +80,7 @@ def totais_em_lote(solicitacoes) -> dict:
             .values("solicitacao_id")
             .annotate(
                 custo=Sum("valor_agente"),
+                entregas=Sum("valor_entrega_cliente"),
                 # 1 para cada atribuição de agente sem valor; 0 no resto.
                 # Retirada na base não conta: ela legitimamente não tem valor.
                 sem_valor=Sum(
@@ -98,23 +101,18 @@ def totais_em_lote(solicitacoes) -> dict:
     resultado = {}
     for solicitacao in solicitacoes:
         linha = agregados.get(solicitacao.pk, {})
-        custo = linha.get("custo") or Decimal("0.00")
-        margem = (
-            solicitacao.valor_cliente - custo
-            if solicitacao.valor_cliente is not None
-            else None
+        resultado[solicitacao.pk] = _com_totais(
+            solicitacao.valor_cliente,
+            linha.get("entregas") or Decimal("0.00"),
+            linha.get("custo") or Decimal("0.00"),
+            bool(linha.get("sem_valor")),
         )
-        resultado[solicitacao.pk] = {
-            "valor_cliente": solicitacao.valor_cliente,
-            "custo_agentes": custo,
-            "margem": margem,
-            "tem_custo_incompleto": bool(linha.get("sem_valor")),
-        }
     return resultado
 
 
 def _montar(valor_cliente, atribuicoes) -> dict:
     custo = Decimal("0.00")
+    entregas = Decimal("0.00")
     incompleto = False
     for atribuicao in atribuicoes:
         if atribuicao.valor_agente is not None:
@@ -123,10 +121,22 @@ def _montar(valor_cliente, atribuicoes) -> dict:
             # Retirada na base legitimamente não tem valor; agente sem valor é
             # informação que falta.
             incompleto = True
+        if atribuicao.valor_entrega_cliente is not None:
+            entregas += atribuicao.valor_entrega_cliente
 
+    return _com_totais(valor_cliente, entregas, custo, incompleto)
+
+
+def _com_totais(valor_cliente, entregas, custo, incompleto) -> dict:
+    """Monta o dict final. Ponto único, para as duas funções não divergirem."""
+    receita = (
+        valor_cliente + entregas if valor_cliente is not None else None
+    )
     return {
         "valor_cliente": valor_cliente,
+        "valor_entregas": entregas,
+        "receita_total": receita,
         "custo_agentes": custo,
-        "margem": valor_cliente - custo if valor_cliente is not None else None,
+        "margem": receita - custo if receita is not None else None,
         "tem_custo_incompleto": incompleto,
     }
