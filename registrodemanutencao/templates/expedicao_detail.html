@@ -11,7 +11,7 @@
             <h5 class="card-title">Nome: {{ expedicoes.registro.nome }}</h5>
             <p class="card-text"><b>ID:</b> {{ expedicoes.descricao }}</p>
             <p class="card-text"><b>Tipo de Entrada:</b> {{ expedicoes.registro.tipo_entrada }}</p>
-            <p class="card-text"><b>Tipo de Produto:</b> {{ expedicoes.registro.tipo_produto }}</p>
+            {% include 'partials/_itens_resumo.html' with registro=expedicoes.registro %}
             <p class="card-text"><b>Customização:</b> {{ expedicoes.registro.customizacao }}</p>
             <p class="card-text"><b>Motivo:</b> {{ expedicoes.registro.motivo }}</p>
             <p class="card-text"><b>Setor:</b> {{ expedicoes.registro.setor }}</p>

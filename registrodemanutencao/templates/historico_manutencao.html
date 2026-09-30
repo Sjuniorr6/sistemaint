@@ -364,7 +364,7 @@
                                     <td>{{ manutencao.nome }}</td>
                                     <td>{{ manutencao.data_criacao|date:"d/m/Y" }}</td>
                                     <td>{{ manutencao.tipo_entrada }}</td>
-                                    <td>{{ manutencao.tipo_produto }}</td>
+                                    <td>{% for item in manutencao.itens.all %}{{ item.tipo_produto|default:"—" }} ({{ item.quantidade }}){% if not forloop.last %}<br>{% endif %}{% endfor %}</td>
                                     <td>{{ manutencao.quantidade }}</td>
                                     <td>{{ manutencao.numero_equipamento }}</td>
                                     <td>{{ manutencao.entregue_por_retirado_por }}</td>
@@ -397,7 +397,7 @@
                                         </select>
                                     </td>
 
-                                    <td>{{ manutencao.customizacaoo }}</td>
+                                    <td>{% for item in manutencao.itens.all %}{{ item.customizacao|default:"—" }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</td>
                                     <td class="text-truncate" style="max-width: 320px;" title="{{ manutencao.observacoes }}">{{ manutencao.observacoes }}</td>
                                     <td class="text-center" style="min-width: 260px;">
                                         {% if manutencao.status == "Comercial" or manutencao.status == "Manutenção" or manutencao.status == "Aprovado pela Inteligência" or manutencao.status == "Tratativa Finalizada" %}

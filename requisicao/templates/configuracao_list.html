@@ -477,7 +477,7 @@
                                 
                                 <div class="mb-1 row">
                                     <div class="col-sm-6 col-form-label"><b>Comercial:</b> {{ registro.comercial }}</div>
-                                    <div class="col-sm-6 col-form-label"><b style="color:#100cf7;">Tipo de Produto:</b> {{ registro.tipo_produto }}</div>
+                                    <div class="col-sm-6 col-form-label"><b style="color:#100cf7;">Tipo de Produto:</b> {% comment %} Entrada de manutenção (tem `itens`): um produto por item; requisição: campo único. {% endcomment %}{% if registro.itens %}{% for item in registro.itens.all %}{{ item.tipo_produto|default:"—" }} ({{ item.quantidade }}){% if not forloop.last %}, {% endif %}{% endfor %}{% else %}{{ registro.tipo_produto }}{% endif %}</div>
                                 </div>
                                 {% if registro.antenista %}
                                 <div class="mb-1 row">

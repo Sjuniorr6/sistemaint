@@ -33,7 +33,7 @@ from django.urls import reverse_lazy
 from django.db.models import Q
 from django.http import HttpResponse
 from.forms import RetornoForm
-from .services import criar_backup_manutencao
+from .services import criar_backup_manutencao, resumo_itens
 
 from datetime import date
 
@@ -81,7 +81,8 @@ class entradasListView(PermissionRequiredMixin, LoginRequiredMixin, ListView):
         if status_param:
             queryset = queryset.filter(status=status_param)
 
-        return queryset.order_by('-id')
+        # Tipos de produto de cada card (partials/_itens_resumo.html).
+        return queryset.order_by('-id').select_related('nome').prefetch_related('itens__tipo_produto')
 
 # View para listar todos os backups de Manutenção
 #-----------------------------------------------------------------------
@@ -154,7 +155,8 @@ class aprovarListView(PermissionRequiredMixin, LoginRequiredMixin, ListView):
         if nome_param:
             queryset = queryset.filter(nome__nome__icontains=nome_param)
         
-        queryset = queryset.order_by('-id')
+        # Tipos de produto de cada card (partials/_itens_resumo.html).
+        queryset = queryset.order_by('-id').select_related('nome').prefetch_related('itens__tipo_produto')
         return queryset
 
 #----------------------------------------------------------------------------
@@ -188,7 +190,8 @@ class realizadasListView(PermissionRequiredMixin, LoginRequiredMixin, ListView):
         if nome_param:
             queryset = queryset.filter(nome__nome__icontains=nome_param)
         
-        queryset = queryset.order_by('-id')
+        # Tipos de produto de cada card (partials/_itens_resumo.html).
+        queryset = queryset.order_by('-id').select_related('nome').prefetch_related('itens__tipo_produto')
         return queryset
 #----------------------------------------------------------------------------
 
@@ -225,9 +228,52 @@ class FormulariosCreateView(PermissionRequiredMixin, LoginRequiredMixin, CreateV
     success_url = reverse_lazy('FormulariosCreateView')
     permission_required = 'registrodemanutencao.add_registrodemanutencao'
 
+    def dispatch(self, request, *args, **kwargs):
+        # Entrada vinda do chamado (Expedição, logo após marcar a chegada):
+        # ?chamado=<id> no GET, campo oculto no POST. Chamado inelegível → avulsa.
+        from chamados.services import chamado_para_entrada
+
+        chamado_id = request.POST.get('chamado') or request.GET.get('chamado')
+        self.chamado = None
+        if chamado_id and str(chamado_id).isdigit() and request.user.is_authenticated:
+            self.chamado = chamado_para_entrada(int(chamado_id), request.user)
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        if self.chamado is not None and self.request.method == 'GET':
+            from chamados.services import dados_iniciais_entrada
+
+            dados = dados_iniciais_entrada(self.chamado)
+            kwargs['initial'] = {**kwargs.get('initial', {}), **dados['initial']}
+            kwargs['itens_iniciais'] = dados['blocos']
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['chamado'] = self.chamado
+        return context
+
     def form_valid(self, form):
-        form.instance.quantidade = self.request.POST.get('quantidade', 0)
-        return super().form_valid(form)
+        from django.core.exceptions import ValidationError
+
+        from .services import criar_entrada
+
+        try:
+            self.object = criar_entrada(
+                form.save(commit=False), form.cleaned_data['itens'], chamado=self.chamado
+            )
+        except ValidationError as exc:
+            form.add_error(None, exc)
+            return self.form_invalid(form)
+        if self.chamado is not None:
+            messages.success(
+                self.request,
+                f"Entrada #{self.object.pk} registrada e vinculada ao chamado {self.chamado.protocolo}.",
+            )
+            return redirect('chamados:fila')
+        messages.success(self.request, f"Entrada #{self.object.pk} registrada.")
+        return redirect(self.get_success_url())
 
 
 
@@ -304,7 +350,10 @@ class FormulariosUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateV
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        if self.request.POST:
+        if 'imagens_formset' in kwargs:
+            # form_invalid já passa o formset validado — recriá-lo perderia os erros.
+            pass
+        elif self.request.POST:
             context['imagens_formset'] = ImagemRegistroFormSet(
                 self.request.POST, self.request.FILES, instance=self.object
             )
@@ -498,17 +547,21 @@ def download_protocolo_entrada(request, pk):
 
     elements.append(Spacer(1, 12))
 
+    # Tipo de produto/customização/contrato vêm dos itens da entrada.
+    itens = resumo_itens(registro)
     fields = [
         [P("Nº REGISTRO:", True), P(registro.id), P("DATA:", True), P(registro.data_criacao.strftime("%d/%m/%Y"))],
         [P("NOME:", True), P(registro.nome), P("TIPO ENTRADA:", True), P(registro.tipo_entrada)],
-        [P("CUSTOMIZAÇÃO:", True), P(registro.customizacaoo), P("ENTREGUE POR:", True), P(registro.entregue_por_retirado_por)],
-        [P("QUANTIDADE:", True), P(registro.quantidade), P("TIPO DE CONTRATO:", True), P(registro.tipo_contrato)],
+        [P("CUSTOMIZAÇÃO:", True), P(itens["customizacoes"]), P("ENTREGUE POR:", True), P(registro.entregue_por_retirado_por)],
+        [P("QUANTIDADE:", True), P(registro.quantidade), P("TIPO DE CONTRATO:", True), P(itens["contratos"])],
+        [P("TIPO DE PRODUTO:", True), P(itens["produtos"]), "", ""],
     ]
 
     table = Table(fields, colWidths=[100, 250, 100, 100])
 
     table.setStyle(TableStyle([
         ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+        ("SPAN", (1, 4), (3, 4)),  # tipo de produto ocupa a linha toda
 
         ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#FFFACD")),
         ("BACKGROUND", (2, 0), (2, -1), colors.HexColor("#FFFACD")),
@@ -715,16 +768,17 @@ def _gerar_laudo_pdf_bytes(registro):
     elements.append(header_table)
     elements.append(Spacer(1, 20))
 
-    # Informações principais na tabela
+    # Informações principais na tabela (produto/contrato/customização: itens)
+    itens = resumo_itens(registro)
     data = [
         ["Registro #", Paragraph(str(registro.id), body_style)],
         ["Data", Paragraph(registro.data_criacao.strftime("%d/%m/%Y"), body_style)],
         ["Nome", Paragraph(str(registro.nome or "Não informado"), body_style)],
         ["Tipo de Entrada", Paragraph(registro.tipo_entrada or "Não informado", body_style)],
-        ["Tipo de Produto", Paragraph(str(registro.tipo_produto or "Não informado"), body_style)],
-        ["Tipo de Contrato", Paragraph(str(registro.tipo_contrato or "Não informado"), body_style)],
-        ["Customização", Paragraph(registro.customizacaoo or "Não informado", body_style)],
-        ["Número Equipamento", Paragraph(registro.numero_equipamento or "Não informado", body_style)],
+        ["Tipo de Produto", Paragraph(itens["produtos"] or "Não informado", body_style)],
+        ["Tipo de Contrato", Paragraph(itens["contratos"] or "Não informado", body_style)],
+        ["Customização", Paragraph(itens["customizacoes"] or "Não informado", body_style)],
+        ["Número Equipamento", Paragraph(itens["numeros_por_produto"] or "Não informado", body_style)],
         ["Observações", Paragraph(registro.observacoes or "Não informado", body_style)],
         ["Quantidade", Paragraph(str(registro.quantidade or "Não informado"), body_style)],
     ]
@@ -1001,7 +1055,7 @@ class historico_manutencaoListView(PermissionRequiredMixin, LoginRequiredMixin, 
     permission_required = 'registrodemanutencao.view_registrodemanutencao'  # Substitua 'registrodemanutencao' pelo nome do seu aplicativo
     
     def get_queryset(self):
-        queryset = registrodemanutencao.objects.all().order_by('-id')  # Ordenar por ID decrescente
+        queryset = registrodemanutencao.objects.all().order_by('-id').select_related('nome').prefetch_related('itens__tipo_produto')  # itens: tabela do histórico
         
         # Filtros existentes
         nome = self.request.GET.get('nome')

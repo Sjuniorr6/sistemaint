@@ -1,6 +1,14 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import registrodemanutencao, ImagemRegistro, retorno, registro_manutencao_backup
+from .models import ItemEntrada, registrodemanutencao, ImagemRegistro, retorno, registro_manutencao_backup
+
+
+class ItemEntradaInline(admin.TabularInline):
+    """Tipos de produto da entrada (nºs, customização, contrato, quantidade)."""
+
+    model = ItemEntrada
+    extra = 0
+    fields = ('tipo_produto', 'numero_equipamento', 'customizacao', 'tipo_contrato', 'quantidade')
 
 
 # Classe para personalizar o modelo registrodemanutencao
@@ -10,6 +18,7 @@ class RegistroDeManutencaoAdmin(admin.ModelAdmin):
                     
                      'data_criacao', 'status')
     search_fields = ('nome__nome',)  # Permite busca pelo nome do cliente relacionado
+    inlines = [ItemEntradaInline]
     list_filter = ( 'status',  'tratativa')  # Filtros no admin
 
     # Exibição da imagem como miniatura no admin

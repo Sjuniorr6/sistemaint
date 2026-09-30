@@ -29,28 +29,76 @@ def _usuarios_do_grupo(nome_grupo):
     ).order_by("username").distinct()
 
 
-class MultiTextWidget(forms.TextInput):
-    """Widget que aceita VÁRIOS inputs de mesmo nome e os junta numa string.
+class EquipamentosWidget(forms.Widget):
+    """Lê os blocos "modelo + números" da abertura.
 
-    O chamado pode ter mais de um equipamento; o template renderiza N inputs com
-    o mesmo `name`. Aqui lemos todos via getlist(), descartamos vazios e juntamos
-    por ", ". Assim o resto do form/serviço continua tratando um único texto.
+    A tela renderiza um bloco por modelo: `grupo` (id do bloco, repetido),
+    `grupo_<id>_modelo` (select) e `grupo_<id>_numero` (N inputs). Devolve
+    [(modelo_id, [números]), ...]; bloco sem modelo e sem número é descartado.
     """
 
     def value_from_datadict(self, data, files, name):
-        if hasattr(data, "getlist"):
-            valores = data.getlist(name)
-        else:  # dict simples (ex.: initial em teste): trata como valor único
-            valor = data.get(name)
-            valores = valor if isinstance(valor, (list, tuple)) else [valor]
-        limpos = [v.strip() for v in valores if v and v.strip()]
-        return ", ".join(limpos)
+        def lista(chave):
+            if hasattr(data, "getlist"):
+                return data.getlist(chave)
+            valor = data.get(chave)
+            if valor is None:
+                return []
+            return list(valor) if isinstance(valor, (list, tuple)) else [valor]
+
+        grupos = []
+        for gid in dict.fromkeys(lista("grupo")):  # ordem da tela, sem repetir
+            modelo = str(data.get(f"grupo_{gid}_modelo") or "").strip()
+            numeros = [
+                n.strip() for n in lista(f"grupo_{gid}_numero") if n and n.strip()
+            ]
+            if modelo or numeros:
+                grupos.append((modelo, numeros))
+        return grupos
 
 
-class MultiEquipamentoField(forms.CharField):
-    """CharField cujo valor vem de múltiplos inputs (via MultiTextWidget)."""
+class EquipamentosField(forms.Field):
+    """Equipamentos do chamado agrupados por modelo.
 
-    widget = MultiTextWidget
+    Entra [(modelo_id, [números]), ...] e sai [(número, Produto), ...] — um
+    modelo por nº, o formato que o service de abertura grava.
+    """
+
+    widget = EquipamentosWidget
+
+    def __init__(self, *, queryset, **kwargs):
+        self.queryset = queryset
+        super().__init__(**kwargs)
+
+    def clean(self, value):
+        grupos = value or []
+        if not grupos:
+            raise forms.ValidationError("Informe ao menos um equipamento.")
+        # Uma query só para todos os modelos (sem lookup por bloco).
+        ids = {m for m, _ in grupos if m.isdigit()}
+        produtos = {str(p.pk): p for p in self.queryset.filter(pk__in=ids)}
+        erros = []
+        numeros_vistos = set()
+        for modelo_id, numeros in grupos:
+            if not modelo_id:
+                erros.append(f"Selecione o modelo dos equipamentos {', '.join(numeros)}.")
+            elif modelo_id not in produtos:
+                erros.append("Modelo de equipamento inválido.")
+            elif not numeros:
+                erros.append(f"Informe ao menos um nº para o modelo {produtos[modelo_id]}.")
+            for numero in numeros:
+                if len(numero) > 60:
+                    erros.append(f"Nº {numero[:20]}…: máximo de 60 caracteres.")
+                elif numero in numeros_vistos:
+                    erros.append(f"Nº {numero} informado mais de uma vez.")
+                numeros_vistos.add(numero)
+        if erros:
+            raise forms.ValidationError(list(dict.fromkeys(erros)))
+        return [
+            (numero, produtos[modelo_id])
+            for modelo_id, numeros in grupos
+            for numero in numeros
+        ]
 
 
 class AberturaChamadoForm(forms.Form):
@@ -71,19 +119,11 @@ class AberturaChamadoForm(forms.Form):
         choices=Categoria.choices,
         widget=forms.Select(attrs={"class": "form-select select2"}),
     )
-    # Aceita múltiplos equipamentos: o template renderiza vários inputs de mesmo
-    # name e o widget os junta em "EQ-1, EQ-2". max_length casa com o model (500).
-    numero_equipamento = MultiEquipamentoField(
-        max_length=500,
-        widget=MultiTextWidget(attrs={"class": "form-control"}),
-    )
-    # modelo_equipamento puxa do cadastro de produtos (produto.Produto), a mesma
-    # fonte do "Tipo produto" da entrada de manutenção, num select2 com busca.
-    modelo_equipamento = forms.ModelChoiceField(
-        queryset=Produto.objects.order_by("nome"),
-        label="Modelo do equipamento",
-        widget=forms.Select(attrs={"class": "form-select select2"}),
-        empty_label="Selecione o modelo",
+    # Um ou mais equipamentos, cada um com o SEU modelo (ex.: isca 4G + isca 2G).
+    # Modelos vêm do cadastro de produtos (produto.Produto), a mesma fonte do
+    # "Tipo produto" da entrada de manutenção.
+    equipamentos = EquipamentosField(
+        queryset=Produto.objects.order_by("nome"), label="Equipamentos"
     )
     problema_relatado = forms.CharField(
         widget=forms.Textarea(attrs={"class": "form-control", "rows": 3}),
@@ -141,6 +181,14 @@ class AberturaChamadoForm(forms.Form):
         widget=forms.Select(attrs={"class": "form-select"}),
         label="Responsável (Inteligência)",
     )
+
+    def grupos_equipamento(self):
+        """Blocos modelo + números para o template: o que foi postado (ao
+        reexibir com erro) ou um bloco vazio."""
+        grupos = self["equipamentos"].value() if self.is_bound else None
+        return [
+            {"modelo": m, "numeros": numeros or [""]} for m, numeros in (grupos or [])
+        ] or [{"modelo": "", "numeros": [""]}]
 
     def clean(self):
         cleaned = super().clean()

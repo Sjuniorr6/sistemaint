@@ -81,8 +81,7 @@ def abrir_chamado(
     autor,
     cliente,
     categoria,
-    numero_equipamento,
-    modelo_equipamento,
+    equipamentos,
     problema_relatado,
     responsavel,
     contato_nome,
@@ -96,6 +95,8 @@ def abrir_chamado(
 ):
     """Cria um chamado em ABERTO ou, quando `encaminhar`, direto em ENCAMINHADO.
 
+    `equipamentos`: lista de (número, Produto) — um modelo por equipamento.
+
     Só Quality abre (RN-01). O `responsavel` deve ser do grupo quality (RN-02).
     `aberto_em` é NOW() do servidor (RN-06). Abrindo já encaminhado (RN-08),
     exige procedimento, tratativa e um responsável do grupo inteligencia. Grava
@@ -103,7 +104,18 @@ def abrir_chamado(
 
     Tudo numa transação; retry sob colisão de protocolo (UNIQUE, ADR-006).
     """
-    from chamados.models import Chamado, ChamadoEvento
+    from chamados.models import Chamado, ChamadoEquipamento, ChamadoEvento
+
+    equipamentos = [((numero or "").strip(), modelo) for numero, modelo in equipamentos]
+    numeros = [numero for numero, _ in equipamentos]
+    if not equipamentos or not all(numeros) or any(m is None for _, m in equipamentos):
+        raise ValidationError(
+            {"equipamentos": "Informe nº e modelo de cada equipamento."}
+        )
+    if len(set(numeros)) != len(numeros):
+        raise ValidationError(
+            {"equipamentos": "O mesmo nº de equipamento foi informado mais de uma vez."}
+        )
 
     if not is_quality(autor):
         raise PermissionDenied("Apenas usuários do grupo 'quality' podem abrir chamados.")
@@ -140,8 +152,7 @@ def abrir_chamado(
                     protocolo=gerar_protocolo(ano),
                     cliente=cliente,
                     categoria=categoria,
-                    numero_equipamento=numero_equipamento,
-                    modelo_equipamento=modelo_equipamento,
+                    numero_equipamento=", ".join(numeros),
                     problema_relatado=problema_relatado,
                     contato_nome=contato_nome,
                     contato_telefone=contato_telefone or "",
@@ -157,6 +168,10 @@ def abrir_chamado(
                 )
                 chamado.full_clean(exclude=["protocolo"])
                 chamado.save()
+                ChamadoEquipamento.objects.bulk_create(
+                    ChamadoEquipamento(chamado=chamado, numero=numero, modelo=modelo)
+                    for numero, modelo in equipamentos
+                )
                 ChamadoEvento.objects.create(
                     chamado=chamado,
                     acao=Acao.ABRIR,
@@ -850,7 +865,8 @@ def montar_workbook_fila(chamados, setores, campo_entrada):
             chamado.protocolo,
             str(chamado.cliente),
             chamado.numero_equipamento,
-            str(chamado.modelo_equipamento),
+            # Mesma ordem da coluna Equipamento; .all() usa o prefetch da view.
+            ", ".join(str(e.modelo) for e in chamado.equipamentos.all()),
             chamado.get_categoria_display(),
             chamado.get_status_display(),
             chamado.responsavel.get_username() if chamado.responsavel else None,
@@ -895,3 +911,67 @@ def montar_nome_arquivo_fila(filtros):
     if filtros.get("data_ate") is not None:
         segmentos.append(f"ate-{filtros['data_ate'].strftime('%d-%m-%Y')}")
     return "_".join(segmentos)
+
+
+# ---------------------------------------------------------------------------
+# Entrada de equipamento a partir do chamado (Expedição → registrodemanutencao)
+# ---------------------------------------------------------------------------
+
+
+def chamado_para_entrada(chamado_id, user):
+    """Chamado cuja entrada de equipamento `user` pode registrar, ou None.
+
+    Vale para a Expedição logo após marcar a chegada: o chamado está no
+    LABORATORIO e ainda sem manutenção vinculada. Fora disso (outro papel,
+    chamado em outro setor, entrada já feita), a tela de entrada abre avulsa.
+    """
+    from chamados.models import Chamado
+    from chamados.permissions import is_expedicao
+
+    if not is_expedicao(user):
+        return None
+    return (
+        Chamado.objects.filter(
+            pk=chamado_id, status=Status.LABORATORIO, manutencao__isnull=True
+        )
+        .select_related("cliente")
+        .prefetch_related("equipamentos")
+        .first()
+    )
+
+
+def dados_iniciais_entrada(chamado):
+    """Pré-preenchimento da entrada: cliente, tipo e um bloco por modelo com os
+    nºs daquele modelo (o mesmo agrupamento da abertura do chamado)."""
+    blocos = {}
+    for equipamento in chamado.equipamentos.all():
+        blocos.setdefault(equipamento.modelo_id, []).append(equipamento.numero)
+    return {
+        "initial": {
+            "nome": chamado.cliente_id,
+            "tipo_entrada": "Manutenção",
+            "observacoes": f"Chamado {chamado.protocolo}",
+        },
+        "blocos": [
+            # Um nº por linha na caixa de texto da entrada.
+            {"tipo_produto": str(modelo_id), "numero": "\n".join(numeros)}
+            for modelo_id, numeros in blocos.items()
+        ],
+    }
+
+
+def vincular_entrada(chamado, entrada):
+    """Vincula a entrada recém-criada ao chamado (campo `manutencao`).
+
+    UPDATE condicional: só vincula se o chamado ainda está no LABORATORIO e sem
+    manutenção — duas abas salvando ao mesmo tempo não sobrescrevem uma à outra.
+    """
+    from chamados.models import Chamado
+
+    vinculados = Chamado.objects.filter(
+        pk=chamado.pk, status=Status.LABORATORIO, manutencao__isnull=True
+    ).update(manutencao=entrada, atualizado_em=timezone.now())
+    if not vinculados:
+        raise ValidationError(
+            f"O chamado {chamado.protocolo} já tem entrada vinculada ou mudou de setor."
+        )

@@ -19,7 +19,7 @@ def listar_chamados(status=None, responsavel_inteligencia=None):
     `chamados_visiveis_para`, que restringe o queryset ANTES destes filtros.
     """
     qs = Chamado.objects.select_related(
-        "cliente", "modelo_equipamento", "responsavel", "aberto_por",
+        "cliente", "responsavel", "aberto_por",
         "responsavel_inteligencia"
     ).order_by("-aberto_em")
     if status is not None:
@@ -36,22 +36,26 @@ def chamados_visiveis_para(user):
     - Inteligência: vê SOMENTE os encaminhados a ela própria
       (responsavel_inteligencia == user) — nunca os de quality nem os de outros
       colegas de inteligência.
+    - Expedição/Laboratório/Comercial/Financeiro: os que estão no seu setor e
+      os que já passaram por ele (o conteúdo é recortado por `setores_visiveis`).
 
     Aplicado na camada de dados (não só na UI): é o mesmo queryset que a fila e o
     `get_object_or_404` do detalhe usam, então a proteção não depende do template.
     """
-    from django.db.models import Q
+    from django.db.models import Exists, OuterRef, Q
 
+    from chamados.models import PassagemSetor
     from chamados.permissions import (
         is_comercial,
         is_expedicao,
         is_financeiro,
         is_laboratorio,
         is_quality,
+        setores_operacionais,
     )
 
     qs = Chamado.objects.select_related(
-        "cliente", "modelo_equipamento", "responsavel", "aberto_por",
+        "cliente", "responsavel", "aberto_por",
         "responsavel_inteligencia"
     ).order_by("-aberto_em")
     if is_quality(user):  # cobre superuser (is_quality já o inclui)
@@ -69,6 +73,15 @@ def chamados_visiveis_para(user):
         filtro |= Q(status=Status.COMERCIAL)
     if is_financeiro(user):
         filtro |= Q(status=Status.FINANCEIRO)
+
+    # ...e os que JÁ PASSARAM pelo setor dele (continuam visíveis depois de
+    # seguir adiante). O QUE ele vê desses chamados é recortado no detalhe por
+    # `setores_visiveis`. Exists: sem join, então sem linha duplicada.
+    passou_por = setores_operacionais(user)
+    if passou_por:
+        filtro |= Q(Exists(PassagemSetor.objects.filter(
+            chamado=OuterRef("pk"), setor__in=passou_por
+        )))
     return qs.filter(filtro)
 
 

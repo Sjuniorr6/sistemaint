@@ -75,6 +75,19 @@ class PassagemSetorInline(admin.TabularInline):
         return False
 
 
+class ChamadoEquipamentoInline(admin.TabularInline):
+    """Equipamentos do chamado (nº + modelo) — fato de abertura, só leitura."""
+
+    model = models.ChamadoEquipamento
+    extra = 0
+    can_delete = False
+    fields = ("numero", "modelo")
+    readonly_fields = fields
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 class TratativaEquipamentoInline(admin.TabularInline):
     """Tratativas por equipamento (laboratório + comercial) no chamado."""
 
@@ -128,6 +141,7 @@ class chamadoadmin(admin.ModelAdmin):
             obj.termo_substituicao.url,
         )
     inlines = [
+        ChamadoEquipamentoInline,
         PassagemSetorInline,
         ContatoExpedicaoInline,
         TratativaEquipamentoInline,

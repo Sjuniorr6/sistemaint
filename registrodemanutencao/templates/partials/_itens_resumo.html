@@ -1,0 +1,12 @@
+{% comment %} Resumo dos tipos de produto da entrada, para os cards das listagens.
+  Uso: {% include 'partials/_itens_resumo.html' with registro=<entrada> %}
+  O queryset precisa de prefetch_related('itens__tipo_produto'). {% endcomment %}
+{% for item in registro.itens.all %}
+  <p class="card-text">
+    <b>{{ item.tipo_produto|default:"Produto não informado" }}</b> · {{ item.quantidade }} un.
+    {% if item.customizacao %}· {{ item.customizacao }}{% endif %}
+    {% if item.tipo_contrato %}· {{ item.tipo_contrato }}{% endif %}
+  </p>
+{% empty %}
+  <p class="card-text"><b>Tipo de Produto:</b> não informado</p>
+{% endfor %}

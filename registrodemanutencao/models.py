@@ -133,6 +133,40 @@ class registrodemanutencao(models.Model):
     data_criacao = models.DateTimeField(default=timezone.now, null=True, blank=True)
     data_devolucao = models.DateTimeField(null=True, blank=True)
 
+class ItemEntrada(models.Model):
+    """Um tipo de produto dentro da entrada de manutenção.
+
+    Uma mesma entrega pode trazer produtos diferentes (ex.: isca 4G e isca 2G),
+    cada um com seus nºs, customização e contrato. Os itens são a FONTE desses
+    dados; na entrada, `numero_equipamento` (todos os nºs) e `quantidade` (total)
+    são derivados deles pelo service de criação, e `tipo_produto`/`customizacaoo`/
+    `tipo_contrato` da entrada ficam só para os registros legados.
+    """
+
+    registro = models.ForeignKey(
+        registrodemanutencao, on_delete=models.CASCADE, related_name='itens'
+    )
+    # null só por causa do legado (entradas antigas sem produto); o form exige.
+    tipo_produto = models.ForeignKey(
+        Produto, on_delete=models.PROTECT, related_name='itens_entrada',
+        null=True, blank=True,
+    )
+    numero_equipamento = models.TextField(blank=True, default='')
+    customizacao = models.CharField(
+        choices=registrodemanutencao.custom, max_length=250, blank=True, default=''
+    )
+    tipo_contrato = models.CharField(
+        choices=registrodemanutencao.contrato_tipo, max_length=50, blank=True, default=''
+    )
+    quantidade = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['id']  # ordem em que os produtos foram informados
+
+    def __str__(self):
+        return f"{self.tipo_produto or '—'} ({self.quantidade})"
+
+
 class ImagemRegistro(models.Model):
     SETORID = [
         ('Retorno', 'Retorno'),

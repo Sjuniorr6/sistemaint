@@ -175,3 +175,39 @@ def pode_agir(user, chamado) -> bool:
         return is_financeiro(user)
     # ABERTO → posse do Quality.
     return is_quality(user)
+
+
+# ---------------------------------------------------------------------------
+# Horizonte: até onde do fluxo o usuário enxerga um chamado
+# ---------------------------------------------------------------------------
+
+
+def setores_operacionais(user):
+    """Setores do fluxo pós-Inteligência a que o usuário pertence."""
+    from chamados.enums import Setor
+
+    papeis = (
+        (Setor.EXPEDICAO, is_expedicao),
+        (Setor.LABORATORIO, is_laboratorio),
+        (Setor.COMERCIAL, is_comercial),
+        (Setor.FINANCEIRO, is_financeiro),
+    )
+    return [setor for setor, pertence in papeis if pertence(user)]
+
+
+def setores_visiveis(user):
+    """Setores cujas informações o usuário vê, na ordem do fluxo.
+
+    Quality e Inteligência (e o superuser) veem o fluxo inteiro. Os demais veem
+    até o SEU setor mais avançado: a Expedição acompanha um chamado que já está
+    no Comercial, mas não o que Laboratório/Comercial registraram depois dela.
+    """
+    from chamados.selectors import SETORES_TIMELINE
+
+    if is_quality(user) or is_inteligencia(user):
+        return list(SETORES_TIMELINE)
+    proprios = setores_operacionais(user)
+    if not proprios:
+        return []
+    ultimo = max(SETORES_TIMELINE.index(s) for s in proprios)
+    return list(SETORES_TIMELINE[: ultimo + 1])

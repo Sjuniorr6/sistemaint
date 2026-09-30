@@ -64,13 +64,6 @@
                         <input type="text" class="form-control" 
                             value="{{ form.instance.data_devolucao|date:'d/m/Y H:i' }}" readonly>
                     </div>
-                    <div class="form-group col-md-2">
-                        <label for="{{ form.tipo_contrato.id_for_label }}">Tipo Contrato:</label>
-                        {{ form.tipo_contrato }}
-                        {% if form.tipo_contrato.errors %}
-                        <div class="text-danger">{{ form.tipo_contrato.errors }}</div>
-                        {% endif %}
-                    </div>
                 </div>
 
                 <!-- Customização e Quantidade -->
@@ -80,13 +73,6 @@
                         {{ form.tipo_customizacao }}
                         {% if form.tipo_customizacao.errors %}
                         <div class="text-danger">{{ form.tipo_customizacao.errors }}</div>
-                        {% endif %}
-                    </div>
-                    <div class="form-group col-md-2">
-                        <label for="{{ form.quantidade.id_for_label }}">Quantidade:</label>
-                        {{ form.quantidade }}
-                        {% if form.quantidade.errors %}
-                        <div class="text-danger">{{ form.quantidade.errors }}</div>
                         {% endif %}
                     </div>
 
@@ -116,24 +102,16 @@
                         </div>
                     {% endif %}
 
-                    <div class="form-group col-md-2">
-                        <label for="{{ form.tipo_produto.id_for_label }}">Modelo:</label>
-                        {{ form.tipo_produto }}
-                        {% if form.tipo_produto.errors %}
-                            <div class="text-danger">{{ form.tipo_produto.errors }}</div>
-                        {% endif %}
-                    </div>
                 </div>
 
-                <!-- ID do Equipamento e Observações -->
+                <!-- Tipos de produto da entrada (somente leitura: definidos na criação) -->
+                <div class="mb-3">
+                    <label class="fw-semibold">Equipamentos da entrada ({{ form.instance.quantidade|default:0 }} no total):</label>
+                    {% include 'partials/_itens_entrada.html' with registro=form.instance %}
+                </div>
+
+                <!-- Observações -->
                 <div class="row">
-                    <div class="form-group col-md-6">
-                        <label for="{{ form.numero_equipamento.id_for_label }}">ID de Equipamento:</label>
-                        {{ form.numero_equipamento }}
-                        {% if form.numero_equipamento.errors %}
-                        <div class="text-danger">{{ form.numero_equipamento.errors }}</div>
-                        {% endif %}
-                    </div>
                     <div class="form-group col-md-6">
                         <label for="{{ form.observacoes.id_for_label }}">Observações de Entrada:</label>
                         {{ form.observacoes }}
@@ -146,6 +124,10 @@
                 <!-- Formset para imagens adicionais -->
                 <h5 class="mt-5">Dados da Manutenção</h5>
                 {{ imagens_formset.management_form }}
+                {% comment %} Opções do "ID do Equipamento" (nºs dos itens da entrada),
+                  copiadas pelo addField() para as linhas novas. Vazio = entrada
+                  antiga sem nºs: a linha nova usa campo de texto, como antes. {% endcomment %}
+                <template id="opcoes-equipamento">{% if imagens_formset.equipamentos %}<option value="">Selecione o equipamento</option>{% for valor, rotulo in imagens_formset.equipamentos %}<option value="{{ valor }}">{{ rotulo }}</option>{% endfor %}{% endif %}</template>
                     <div id="fields-container">
                         {% for form in imagens_formset %}
                         <div class="card mb-3">
@@ -238,6 +220,33 @@
     // - Substitui os padrões por 5 espaços em branco
     // ========================================
 
+    // Equipamento já escolhido numa linha fica desabilitado nas outras (o
+    // servidor também recusa repetido). Linha marcada para excluir não conta.
+    function bloquearRepetidos() {
+        const selects = document.querySelectorAll('select[name$="-id_equipamento"]');
+        const escolhidos = new Map();
+        selects.forEach(function (sel) {
+            const excluir = document.querySelector(`input[name="${sel.name.replace('id_equipamento', 'DELETE')}"]`);
+            if (sel.value && !(excluir && excluir.checked)) escolhidos.set(sel.value, sel);
+        });
+        selects.forEach(function (sel) {
+            Array.from(sel.options).forEach(function (op) {
+                op.disabled = !!op.value && escolhidos.has(op.value) && escolhidos.get(op.value) !== sel;
+            });
+        });
+    }
+    document.addEventListener('change', function (e) {
+        if (e.target.matches('select[name$="-id_equipamento"], input[name$="-DELETE"]')) bloquearRepetidos();
+    });
+    document.addEventListener('DOMContentLoaded', bloquearRepetidos);
+
+    // Select com os nºs da entrada; sem nºs (entrada antiga), campo de texto.
+    function campoEquipamento(n) {
+        const opcoes = document.getElementById('opcoes-equipamento').innerHTML.trim();
+        const attrs = `name="imagens-${n}-id_equipamento" class="form-control" id="id_imagens-${n}-id_equipamento"`;
+        return opcoes ? `<select ${attrs}>${opcoes}</select>` : `<input type="text" ${attrs}>`;
+    }
+
     function addField() {
         const container = document.getElementById('fields-container');
         const totalForms = document.getElementById('id_imagens-TOTAL_FORMS');
@@ -260,10 +269,7 @@
                     <!-- ID do Equipamento -->
                     <div class="form-group col-md-3">
                         <label>ID do Equipamento:</label>
-                        <input type="text" 
-                               name="imagens-${newFormCount}-id_equipamento" 
-                               class="form-control" 
-                               id="id_imagens-${newFormCount}-id_equipamento">
+                        ${campoEquipamento(newFormCount)}
                     </div>
 
                     <!-- Imagem 1 -->
@@ -347,6 +353,7 @@
             </div>
         `;
         container.appendChild(newCard);
+        bloquearRepetidos();
     }
 
     // Impede que a tecla ENTER submeta o formulário involuntariamente

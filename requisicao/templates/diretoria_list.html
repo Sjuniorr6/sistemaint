@@ -75,8 +75,13 @@
                     <h5 class="card-title">Nome: {{ registro.nome }}</h5>
                     <p class="card-text"><b>Status:</b> {{ registro.status }}</p>
                     <p class="card-text"><b>Tipo de Entrada:</b> {{ registro.tipo_entrada }}</p>
-                    <p class="card-text"><b>Tipo de Produto:</b> {{ registro.tipo_produto }}</p>
-                    <p class="card-text"><b>Customização:</b> {{ registro.customizacaoo }}</p>
+                    {% comment %} Entrada de manutenção (tem `itens`): um produto por item. {% endcomment %}
+                    {% if registro.itens %}
+                        {% include 'partials/_itens_resumo.html' with registro=registro %}
+                    {% else %}
+                        <p class="card-text"><b>Tipo de Produto:</b> {{ registro.tipo_produto }}</p>
+                        <p class="card-text"><b>Customização:</b> {{ registro.customizacaoo }}</p>
+                    {% endif %}
                     <p class="card-text"><b>Faturamento:</b> {{ registro.faturamento }}</p>
                     <p class="card-text"><b>Motivo:</b> {{ registro.motivo }}</p>
                     <p class="card-text"><b>Setor:</b> {{ registro.setor }}</p>

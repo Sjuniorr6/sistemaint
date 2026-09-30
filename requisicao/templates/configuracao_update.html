@@ -285,6 +285,14 @@
                     {% endif %}
                 {% endfor %}
                 
+                {% comment %} Tipos de produto da entrada: somente leitura (definidos
+                  na criação). O input "quantidade" abaixo só existe para o JS de
+                  prefixos; a quantidade não é mais campo do form. {% endcomment %}
+                <div class="form-section">
+                    <h5><i class="bi bi-box-seam"></i> Equipamentos da entrada</h5>
+                    {% include 'partials/_itens_entrada.html' with registro=form.instance %}
+                </div>
+
                 <input type="hidden" id="quantidade" name="quantidade" value="0">
                 
                 <div class="action-buttons">

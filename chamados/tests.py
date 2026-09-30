@@ -15,7 +15,7 @@ from acompanhamento.models import Clientes
 from produto.models import Produto
 from chamados import services
 from chamados.enums import Acao, Setor, Status
-from chamados.models import Chamado, ChamadoEvento
+from chamados.models import Chamado, ChamadoEquipamento, ChamadoEvento
 from chamados.selectors import metricas_painel
 
 User = get_user_model()
@@ -153,7 +153,7 @@ def _pdf_falso(nome="termo.pdf"):
     return SimpleUploadedFile(nome, b"%PDF-1.4 teste", content_type="application/pdf")
 
 
-def _abrir(autor, responsavel, cliente=None, modelo=None, **extra):
+def _abrir(autor, responsavel, cliente=None, modelo=None, equipamentos_override=None, **extra):
     if cliente is None:
         cliente = Clientes.objects.create(
             nome="ACME", endereco="Rua 1", cnpj="00000000000000"
@@ -164,8 +164,7 @@ def _abrir(autor, responsavel, cliente=None, modelo=None, **extra):
         autor=autor,
         cliente=cliente,
         categoria="HARDWARE",
-        numero_equipamento="EQ-001",
-        modelo_equipamento=modelo,
+        equipamentos=equipamentos_override or [("EQ-001", modelo)],
         problema_relatado="Não liga",
         responsavel=responsavel,
         contato_nome="João da Silva",
@@ -174,6 +173,15 @@ def _abrir(autor, responsavel, cliente=None, modelo=None, **extra):
         contato_meio="WHATSAPP",
         **extra,
     )
+
+
+def _blocos(*grupos):
+    """POST da abertura: um bloco por (modelo, [números]), como a tela envia."""
+    dados = {"grupo": [str(i) for i in range(len(grupos))]}
+    for i, (modelo, numeros) in enumerate(grupos):
+        dados[f"grupo_{i}_modelo"] = modelo
+        dados[f"grupo_{i}_numero"] = numeros
+    return dados
 
 
 # --------------------------------------------------------------------------- #
@@ -244,7 +252,7 @@ def test_protocolo_reinicia_no_novo_ano(user_quality, cliente, produto):
     Chamado.objects.create(
         protocolo="2024-000009",
         cliente=cliente, categoria="OUTROS", numero_equipamento="E",
-        modelo_equipamento=produto, problema_relatado="p", responsavel=user_quality,
+        problema_relatado="p", responsavel=user_quality,
         contato_nome="Fulano", contato_meio="TELEFONE",
         aberto_por=user_quality, aberto_em=_dt(2024),
     )
@@ -424,14 +432,16 @@ def test_transicao_nao_altera_fatos_de_abertura(user_quality):
     """RN-03 — nenhuma ação toca cliente/categoria/equipamento/responsável."""
     chamado = _abrir(user_quality, user_quality)
     antes = (chamado.cliente, chamado.categoria, chamado.numero_equipamento,
-             chamado.modelo_equipamento, chamado.problema_relatado,
+             list(chamado.equipamentos.values_list("numero", "modelo_id")),
+             chamado.problema_relatado,
              chamado.responsavel_id, chamado.aberto_em,
              chamado.contato_nome, chamado.contato_telefone,
              chamado.contato_email, chamado.contato_meio)
     services.executar(chamado, Acao.BLOQUEAR, {"motivo": "aguardando"}, user_quality)
     chamado.refresh_from_db()
     depois = (chamado.cliente, chamado.categoria, chamado.numero_equipamento,
-              chamado.modelo_equipamento, chamado.problema_relatado,
+              list(chamado.equipamentos.values_list("numero", "modelo_id")),
+             chamado.problema_relatado,
               chamado.responsavel_id, chamado.aberto_em,
               chamado.contato_nome, chamado.contato_telefone,
               chamado.contato_email, chamado.contato_meio)
@@ -537,8 +547,7 @@ def test_abrir_post_cria_chamado(client, user_quality, cliente, produto):
         {
             "cliente": cliente.pk,
             "categoria": "HARDWARE",
-            "numero_equipamento": "EQ-9",
-            "modelo_equipamento": produto.pk,
+            **_blocos((produto.pk, ["EQ-9"])),
             "problema_relatado": "Falha",
             "contato_nome": "Maria Contato",
             "contato_telefone": "1133334444",
@@ -554,8 +563,10 @@ def test_abrir_post_cria_chamado(client, user_quality, cliente, produto):
 
 
 @pytest.mark.django_db
-def test_abrir_com_multiplos_equipamentos(client, user_quality, cliente, produto):
-    """Vários inputs de numero_equipamento são juntados em 'EQ-1, EQ-2, EQ-3'."""
+def test_abrir_com_equipamentos_de_modelos_diferentes(client, user_quality, cliente):
+    """Cada nº é gravado com o modelo do SEU bloco; bloco vazio é descartado."""
+    isca_4g = Produto.objects.create(nome="Isca 4G")
+    isca_2g = Produto.objects.create(nome="Isca 2G")
     client.force_login(user_quality)
     resp = client.post(
         reverse("chamados:abrir"),
@@ -563,8 +574,11 @@ def test_abrir_com_multiplos_equipamentos(client, user_quality, cliente, produto
             "cliente": cliente.pk,
             "categoria": "HARDWARE",
             # o test client envia a lista como múltiplos valores de mesmo name
-            "numero_equipamento": ["EQ-1", " EQ-2 ", "", "EQ-3"],
-            "modelo_equipamento": produto.pk,
+            **_blocos(
+                (isca_4g.pk, ["EQ-1", " EQ-3 ", ""]),
+                ("", [""]),  # bloco aberto e deixado vazio: ignorado
+                (isca_2g.pk, ["EQ-2"]),
+            ),
             "problema_relatado": "Falha",
             "contato_nome": "Contato",
             "contato_meio": "TELEFONE",
@@ -572,8 +586,54 @@ def test_abrir_com_multiplos_equipamentos(client, user_quality, cliente, produto
     )
     assert resp.status_code == 302
     chamado = Chamado.objects.get(cliente=cliente)
-    # vazios descartados, espaços aparados, juntados por ", "
-    assert chamado.numero_equipamento == "EQ-1, EQ-2, EQ-3"
+    assert chamado.numero_equipamento == "EQ-1, EQ-3, EQ-2"
+    # sabotagem: gravar o 1º modelo em todas as linhas no service → vermelho
+    assert list(chamado.equipamentos.values_list("numero", "modelo__nome")) == [
+        ("EQ-1", "Isca 4G"), ("EQ-3", "Isca 4G"), ("EQ-2", "Isca 2G"),
+    ]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "blocos, erro",
+    [
+        ([("m", ["EQ-1"]), ("", ["EQ-2", "EQ-3"])], "Selecione o modelo dos equipamentos EQ-2, EQ-3."),
+        ([("m", ["EQ-1"]), ("m", [""])], "Informe ao menos um nº para o modelo Rastreador GT06."),
+        ([("m", ["EQ-1"]), ("m", ["EQ-1"])], "Nº EQ-1 informado mais de uma vez."),
+        ([("", [""])], "Informe ao menos um equipamento."),
+        ([("999999", ["EQ-1"])], "Modelo de equipamento inválido."),
+    ],
+)
+def test_abrir_rejeita_linhas_de_equipamento_invalidas(
+    client, user_quality, cliente, produto, blocos, erro
+):
+    """Nada é gravado quando algum bloco modelo + nºs está incompleto ou repete nº."""
+    client.force_login(user_quality)
+    resp = client.post(
+        reverse("chamados:abrir"),
+        {
+            "cliente": cliente.pk,
+            "categoria": "HARDWARE",
+            **_blocos(*[(produto.pk if m == "m" else m, nums) for m, nums in blocos]),
+            "problema_relatado": "Falha",
+            "contato_nome": "Contato",
+            "contato_meio": "TELEFONE",
+        },
+    )
+    assert resp.status_code == 200
+    assert erro in resp.context["form"].errors["equipamentos"]
+    assert not Chamado.objects.exists()
+
+
+@pytest.mark.django_db
+def test_servico_rejeita_numero_repetido_sem_gravar(user_quality, produto):
+    """O service reforça a regra do form: nº repetido não cria o chamado."""
+    with pytest.raises(ValidationError):
+        _abrir(user_quality, user_quality, equipamentos_override=[
+            ("EQ-1", produto), ("EQ-1", produto),
+        ])
+    assert not Chamado.objects.exists()
+    assert not ChamadoEquipamento.objects.exists()
 
 
 @pytest.mark.django_db
@@ -588,8 +648,7 @@ def test_abrir_ignora_responsavel_forjado_no_post(
         {
             "cliente": cliente.pk,
             "categoria": "HARDWARE",
-            "numero_equipamento": "EQ-FORJADO",
-            "modelo_equipamento": produto.pk,
+            **_blocos((produto.pk, ["EQ-FORJADO"])),
             "problema_relatado": "Falha",
             "responsavel": outro_quality.pk,  # tentativa de forjar — deve ser ignorada
             "contato_nome": "Contato",
@@ -827,7 +886,7 @@ def test_laboratorio_ve_fila_de_laboratorio(
     client, user_quality, user_inteligencia, user_expedicao, user_laboratorio
 ):
     """Após marcar chegada, o chamado (LABORATORIO) aparece na fila do laboratório
-    e não na da expedição."""
+    e continua na da expedição, que já passou por ele."""
     chamado = _em_expedicao(user_quality, user_inteligencia, user_expedicao=user_expedicao)
     services.executar(chamado, Acao.MARCAR_CHEGADA, {}, user_expedicao)
 
@@ -836,26 +895,114 @@ def test_laboratorio_ve_fila_de_laboratorio(
     pks = {linha["chamado"].pk for linha in resp.context["linhas"]}
     assert pks == {chamado.pk}
 
-    # e a expedição não vê mais (saiu de EXPEDICAO)
     client.force_login(user_expedicao)
     resp = client.get(reverse("chamados:fila"))
     pks_exp = {linha["chamado"].pk for linha in resp.context["linhas"]}
-    assert chamado.pk not in pks_exp
+    assert chamado.pk in pks_exp
 
 
 @pytest.mark.django_db
 def test_marcar_chegada_via_view(client, user_quality, user_inteligencia, user_expedicao):
-    """POST da ação pela view muda o status para LABORATORIO e, como o chamado
-    sai da fila da expedição, redireciona para a fila (não para o detalhe = 404)."""
+    """POST da ação muda o status para LABORATORIO e leva a Expedição direto à
+    entrada dos equipamentos, preenchida a partir do chamado."""
     chamado = _em_expedicao(user_quality, user_inteligencia, user_expedicao=user_expedicao)
     client.force_login(user_expedicao)
     resp = client.post(
         reverse("chamados:acao", args=[chamado.pk, Acao.MARCAR_CHEGADA])
     )
     assert resp.status_code == 302
-    assert resp.url == reverse("chamados:fila")  # não o detalhe (evita 404)
+    assert resp.url == f"{reverse('FormulariosCreateView')}?chamado={chamado.pk}"
     chamado.refresh_from_db()
     assert chamado.status == Status.LABORATORIO
+
+
+def _expedicao_pode_criar_entrada(user):
+    """Na produção, a permissão vem de outro grupo do usuário da expedição."""
+    from django.contrib.auth.models import Permission
+
+    user.user_permissions.add(Permission.objects.get(codename="add_registrodemanutencao"))
+
+
+def _chegou_no_laboratorio(user_quality, user_inteligencia, user_expedicao):
+    """Chamado com isca 4G (EQ-1, EQ-3) e 2G (EQ-2) cuja chegada foi marcada."""
+    chamado = _em_expedicao(user_quality, user_inteligencia, user_expedicao=user_expedicao)
+    isca_4g, isca_2g = Produto.objects.create(nome="Isca 4G"), Produto.objects.create(nome="Isca 2G")
+    chamado.equipamentos.all().delete()
+    ChamadoEquipamento.objects.bulk_create(
+        ChamadoEquipamento(chamado=chamado, numero=n, modelo=m)
+        for n, m in (("EQ-1", isca_4g), ("EQ-2", isca_2g), ("EQ-3", isca_4g))
+    )
+    services.executar(chamado, Acao.MARCAR_CHEGADA, {}, user_expedicao)
+    return chamado, isca_4g, isca_2g
+
+
+def _post_entrada(chamado, *blocos):
+    dados = {"nome": chamado.cliente_id, "tipo_entrada": "Manutenção", "status": "Pendente",
+             "entregue_por_retirado_por": "", "observacoes": "", "chamado": chamado.pk,
+             "item": [str(i) for i in range(len(blocos))]}
+    for i, (produto, numeros) in enumerate(blocos):
+        dados.update({f"item_{i}_tipo_produto": produto.pk, f"item_{i}_numero": numeros})
+    return dados
+
+
+@pytest.mark.django_db
+def test_entrada_vem_preenchida_do_chamado(client, user_quality, user_inteligencia, user_expedicao):
+    chamado, isca_4g, isca_2g = _chegou_no_laboratorio(user_quality, user_inteligencia, user_expedicao)
+    _expedicao_pode_criar_entrada(user_expedicao)
+    client.force_login(user_expedicao)
+
+    form = client.get(f"{reverse('FormulariosCreateView')}?chamado={chamado.pk}").context["form"]
+
+    assert form.initial["nome"] == chamado.cliente_id
+    assert form.blocos_itens() == [
+        {"tipo_produto": str(isca_4g.pk), "numero": "EQ-1\nEQ-3", "customizacao": "", "tipo_contrato": ""},
+        {"tipo_produto": str(isca_2g.pk), "numero": "EQ-2", "customizacao": "", "tipo_contrato": ""},
+    ]
+
+
+@pytest.mark.django_db
+def test_salvar_entrada_vincula_ao_chamado(client, user_quality, user_inteligencia, user_expedicao):
+    chamado, isca_4g, isca_2g = _chegou_no_laboratorio(user_quality, user_inteligencia, user_expedicao)
+    _expedicao_pode_criar_entrada(user_expedicao)
+    client.force_login(user_expedicao)
+
+    resp = client.post(reverse("FormulariosCreateView"),
+                       _post_entrada(chamado, (isca_4g, "EQ-1 EQ-3"), (isca_2g, "EQ-2")))
+
+    chamado.refresh_from_db()
+    assert resp.url == reverse("chamados:fila")
+    assert chamado.manutencao.itens.count() == 2
+
+
+@pytest.mark.django_db
+def test_vinculo_falho_nao_deixa_entrada_orfa(user_quality, user_inteligencia, user_expedicao, manutencao):
+    """Chamado vinculado por outra aba no meio do caminho: a entrada nova é desfeita."""
+    from registrodemanutencao.models import ItemEntrada, registrodemanutencao
+    from registrodemanutencao.services import criar_entrada
+
+    chamado, isca_4g, _ = _chegou_no_laboratorio(user_quality, user_inteligencia, user_expedicao)
+    Chamado.objects.filter(pk=chamado.pk).update(manutencao=manutencao)
+    antes = registrodemanutencao.objects.count()
+
+    with pytest.raises(ValidationError):
+        criar_entrada(registrodemanutencao(nome=chamado.cliente), [
+            ItemEntrada(tipo_produto=isca_4g, numero_equipamento="EQ-1", quantidade=1)
+        ], chamado=chamado)
+    assert registrodemanutencao.objects.count() == antes
+
+
+@pytest.mark.django_db
+def test_entrada_nao_vem_do_chamado_para_quem_nao_e_expedicao(
+    client, user_quality, user_inteligencia, user_expedicao, user_laboratorio
+):
+    chamado, *_ = _chegou_no_laboratorio(user_quality, user_inteligencia, user_expedicao)
+    _expedicao_pode_criar_entrada(user_laboratorio)
+    client.force_login(user_laboratorio)
+
+    resp = client.get(f"{reverse('FormulariosCreateView')}?chamado={chamado.pk}")
+
+    assert resp.context["chamado"] is None
+    assert "nome" not in resp.context["form"].initial
 
 
 @pytest.mark.django_db
@@ -1024,7 +1171,7 @@ def test_comercial_ve_fila_de_comercial(
     user_laboratorio, user_comercial,
 ):
     """Após encaminhar p/ comercial, o chamado (COMERCIAL) aparece na fila do
-    comercial e sai da fila do laboratório."""
+    comercial e continua na do laboratório, que já passou por ele."""
     chamado = _em_laboratorio(user_quality, user_inteligencia, user_expedicao, user_laboratorio=user_laboratorio)
     services.executar(
         chamado, Acao.ENCAMINHAR_COMERCIAL,
@@ -1040,7 +1187,7 @@ def test_comercial_ve_fila_de_comercial(
     client.force_login(user_laboratorio)
     resp = client.get(reverse("chamados:fila"))
     pks_lab = {linha["chamado"].pk for linha in resp.context["linhas"]}
-    assert chamado.pk not in pks_lab
+    assert chamado.pk in pks_lab
 
 
 @pytest.mark.django_db
@@ -1049,7 +1196,7 @@ def test_encaminhar_comercial_via_view_por_equipamento(
     manutencao,
 ):
     """POST pela view: os campos tratativa_<i> viram linhas por equipamento, a
-    manutenção é vinculada e o status vai para COMERCIAL (redireciona à fila)."""
+    manutenção é vinculada e o status vai para COMERCIAL (o lab segue no detalhe)."""
     from chamados.models import TratativaEquipamento
 
     chamado = _em_laboratorio_multi(
@@ -1065,7 +1212,7 @@ def test_encaminhar_comercial_via_view_por_equipamento(
         },
     )
     assert resp.status_code == 302
-    assert resp.url == reverse("chamados:fila")
+    assert resp.url == reverse("chamados:detalhe", args=[chamado.pk])
     chamado.refresh_from_db()
     assert chamado.status == Status.COMERCIAL
     assert chamado.manutencao == manutencao  # vínculo gravado
@@ -1316,25 +1463,23 @@ def test_resolvido_apos_comercial_e_terminal(
 
 
 @pytest.mark.django_db
-def test_expedicao_perde_detalhe_apos_marcar_chegada(
+def test_expedicao_continua_no_detalhe_apos_marcar_chegada(
     client, user_quality, user_inteligencia, user_expedicao
 ):
-    """A expedição abre o detalhe enquanto está em EXPEDICAO; após marcar chegada
-    (vai p/ LABORATORIO), o mesmo detalhe passa a dar 404 para ela."""
+    """Depois de marcar chegada (vai p/ LABORATORIO) a expedição ainda abre o detalhe."""
     chamado = _em_expedicao(user_quality, user_inteligencia, user_expedicao=user_expedicao)
     client.force_login(user_expedicao)
     assert client.get(reverse("chamados:detalhe", args=[chamado.pk])).status_code == 200
 
     services.executar(chamado, Acao.MARCAR_CHEGADA, {}, user_expedicao)
-    assert client.get(reverse("chamados:detalhe", args=[chamado.pk])).status_code == 404
+    assert client.get(reverse("chamados:detalhe", args=[chamado.pk])).status_code == 200
 
 
 @pytest.mark.django_db
-def test_laboratorio_perde_detalhe_apos_encaminhar_comercial(
+def test_laboratorio_continua_no_detalhe_apos_encaminhar_comercial(
     client, user_quality, user_inteligencia, user_expedicao, user_laboratorio
 ):
-    """O laboratório vê o detalhe em LABORATORIO; após encaminhar p/ comercial
-    (vai p/ COMERCIAL), o detalhe passa a dar 404 para ele."""
+    """Depois de encaminhar p/ comercial o laboratório ainda abre o detalhe."""
     chamado = _em_laboratorio(user_quality, user_inteligencia, user_expedicao, user_laboratorio=user_laboratorio)
     client.force_login(user_laboratorio)
     assert client.get(reverse("chamados:detalhe", args=[chamado.pk])).status_code == 200
@@ -1344,7 +1489,7 @@ def test_laboratorio_perde_detalhe_apos_encaminhar_comercial(
         {"tratativas_equipamento": [{"numero": "EQ-001", "tratativa": "t"}]},
         user_laboratorio,
     )
-    assert client.get(reverse("chamados:detalhe", args=[chamado.pk])).status_code == 404
+    assert client.get(reverse("chamados:detalhe", args=[chamado.pk])).status_code == 200
 
 
 @pytest.mark.django_db
@@ -1383,11 +1528,11 @@ def test_todos_os_papeis_usam_a_mesma_tela(
 
 
 @pytest.mark.django_db
-def test_expedicao_ve_so_expedicao_na_fila_unica(
+def test_expedicao_ve_so_o_que_passou_por_ela_na_fila_unica(
     client, user_quality, user_inteligencia, user_expedicao, user_laboratorio
 ):
-    """Na tela única, a expedição vê só os EXPEDICAO — nem ENCAMINHADO, nem
-    LABORATORIO, nem RESOLVIDO."""
+    """A expedição vê os que estão nela e os que já passaram por ela — nunca um
+    chamado que ainda não chegou à expedição."""
     em_exp = _em_expedicao(user_quality, user_inteligencia, user_expedicao=user_expedicao)
     em_lab = _em_laboratorio(user_quality, user_inteligencia, user_expedicao, user_laboratorio=user_laboratorio)
     so_encaminhado = _encaminhado_para(user_quality, user_inteligencia)
@@ -1395,9 +1540,8 @@ def test_expedicao_ve_so_expedicao_na_fila_unica(
     client.force_login(user_expedicao)
     resp = client.get(reverse("chamados:fila"))
     pks = {linha["chamado"].pk for linha in resp.context["linhas"]}
-    assert pks == {em_exp.pk}
-    assert em_lab.pk not in pks
-    assert so_encaminhado.pk not in pks
+    # sabotagem: Exists com setor__in=SETORES_TIMELINE (qualquer passagem) → vermelho
+    assert pks == {em_exp.pk, em_lab.pk}
 
 
 # --------------------------------------------------------------------------- #
@@ -2174,7 +2318,7 @@ def test_financeiro_ve_fila_de_financeiro(
     client, user_quality, user_inteligencia, user_expedicao, user_laboratorio,
     user_comercial, user_financeiro,
 ):
-    """O financeiro vê os chamados em FINANCEIRO; o comercial deixa de vê-los."""
+    """O financeiro vê os chamados em FINANCEIRO; o comercial continua vendo."""
     chamado = _no_financeiro(
         user_quality, user_inteligencia, user_expedicao, user_laboratorio,
         user_comercial,
@@ -2186,7 +2330,7 @@ def test_financeiro_ve_fila_de_financeiro(
 
     client.force_login(user_comercial)
     resp = client.get(reverse("chamados:fila"))
-    assert chamado.pk not in {l["chamado"].pk for l in resp.context["linhas"]}
+    assert chamado.pk in {l["chamado"].pk for l in resp.context["linhas"]}
 
 
 @pytest.mark.django_db
@@ -2427,6 +2571,7 @@ def test_exportar_devolve_xlsx_com_as_linhas_filtradas(client, user_quality):
     linhas = list(ws.iter_rows(min_row=2, values_only=True))
     assert [linha[0] for linha in linhas] == [dentro.protocolo]  # `fora` ficou fora
 
+    assert linhas[0][cabecalho.index("Modelo")] == "Rastreador GT06"
     valor = linhas[0][cabecalho.index("Entrou em Quality")]
     assert hasattr(valor, "year"), "data deve ser datetime, nao string"
     assert (valor.year, valor.month, valor.day) == (2026, 6, 15)
@@ -2454,3 +2599,78 @@ def test_exportacao_respeita_a_fronteira_de_visibilidade(
     protocolos = {linha[0] for linha in ws.iter_rows(min_row=2, values_only=True)}
     assert meu.protocolo in protocolos
     assert alheio.protocolo not in protocolos
+
+
+# --------------------------------------------------------------------------- #
+# Horizonte: quem já passou o chamado adiante vê só até o seu setor            #
+# --------------------------------------------------------------------------- #
+
+_DO_LAB = ["Tratativas por equipamento", "Encaminhar para comercial"]
+_DO_COMERCIAL = ["orçado", "Com custo", "Finalizar chamado", "Baixar laudo"]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "papel, visiveis, ocultos",
+    [
+        ("user_expedicao", ["Marcar chegada", "Entrada de equipamento #"], _DO_LAB + _DO_COMERCIAL),
+        ("user_laboratorio", _DO_LAB, _DO_COMERCIAL),
+        ("user_comercial", _DO_LAB + _DO_COMERCIAL, []),
+        ("user_inteligencia", _DO_LAB + _DO_COMERCIAL, []),  # Inteligência vê tudo
+    ],
+)
+def test_detalhe_mostra_so_ate_o_setor_do_usuario(
+    request, client, user_quality, user_inteligencia, user_expedicao,
+    user_laboratorio, user_comercial, manutencao, papel, visiveis, ocultos,
+):
+    chamado = _no_financeiro(
+        user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial,
+    )
+    Chamado.objects.filter(pk=chamado.pk).update(manutencao=manutencao)
+    client.force_login(request.getfixturevalue(papel))
+
+    html = client.get(reverse("chamados:detalhe", args=[chamado.pk])).content.decode()
+
+    # sabotagem: setores_visiveis devolver SETORES_TIMELINE para todos → vermelho
+    # sabotagem: tirar "and ve.comercial" da tratativa comercial no detalhe → vermelho
+    assert [t for t in visiveis if t not in html] == []
+    assert [t for t in ocultos if t in html] == []
+
+
+@pytest.mark.django_db
+def test_ver_chamado_passado_nao_da_acao_sobre_ele(
+    client, user_quality, user_inteligencia, user_expedicao
+):
+    """Visibilidade ampliada não é posse: a expedição não age no chamado que já
+    foi para o laboratório."""
+    from chamados.models import ContatoExpedicao
+
+    chamado = _em_laboratorio(user_quality, user_inteligencia, user_expedicao)
+    client.force_login(user_expedicao)
+
+    client.post(reverse("chamados:acao", args=[chamado.pk, Acao.REGISTRAR_CONTATO]),
+                {"nome_contato": "Fulano", "tratativa": "ligou"})
+    client.post(reverse("chamados:acao", args=[chamado.pk, Acao.MARCAR_CHEGADA]))
+
+    chamado.refresh_from_db()
+    assert chamado.status == Status.LABORATORIO
+    assert not ContatoExpedicao.objects.filter(chamado=chamado).exists()
+
+
+@pytest.mark.django_db
+def test_linha_do_tempo_da_fila_e_do_excel_para_no_setor_do_usuario(
+    client, user_quality, user_inteligencia, user_expedicao
+):
+    import io
+
+    from openpyxl import load_workbook
+
+    _em_laboratorio(user_quality, user_inteligencia, user_expedicao)
+    client.force_login(user_expedicao)
+
+    fila = client.get(reverse("chamados:fila")).context["setores_timeline"]
+    ws = load_workbook(io.BytesIO(client.get(reverse("chamados:exportar")).content)).active
+    cabecalho = [c.value for c in ws[1]]
+
+    assert [s["label"] for s in fila] == ["Quality", "Inteligência", "Expedição"]
+    assert "Entrou em Expedição" in cabecalho and "Entrou em Laboratório" not in cabecalho

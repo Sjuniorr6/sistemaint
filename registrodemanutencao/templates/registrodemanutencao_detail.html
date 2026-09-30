@@ -9,7 +9,6 @@
         <div class="card-body">
             <h3 class="card-title"><strong>Nome:</strong> {{ registrodemanutencao_detail.nome }}</h3> 
             <p class="card-text"><strong>Tipo de Entrada:</strong> {{ registrodemanutencao_detail.tipo_entrada }}</p> 
-            <p class="card-text"><strong>Tipo de Produto:</strong> {{ registrodemanutencao_detail.tipo_produto }}</p> 
             <p class="card-text"><strong>Motivo:</strong> {{ registrodemanutencao_detail.motivo }}</p> 
             <p class="card-text"><strong>Tipo Customização:</strong> {{ registrodemanutencao_detail.tipo_customizacao }}</p> 
             <p class="card-text"><strong>Recebimento:</strong> {{ registrodemanutencao_detail.recebimento }}</p> 
@@ -17,8 +16,8 @@
             <p class="card-text"><strong>ID Equipamentos:</strong> {{ registrodemanutencao_detail.id_equipamentos }}</p> 
             <p class="card-text"><strong>Faturamento:</strong> {{ registrodemanutencao_detail.faturamento }}</p> 
             <p class="card-text"><strong>Setor:</strong> {{ registrodemanutencao_detail.setor }}</p> 
-            <p class="card-text"><strong>Customização:</strong> {{ registrodemanutencao_detail.customizacaoo }}</p> 
-            <p class="card-text"><strong>Numero de Equipamentos:</strong> {{ registrodemanutencao_detail.numero_equipamento }}</p> 
+            <p class="card-text mb-1"><strong>Equipamentos ({{ registrodemanutencao_detail.quantidade|default:0 }}):</strong></p>
+            {% include 'partials/_itens_entrada.html' with registro=registrodemanutencao_detail %}
             <p class="card-text"><strong>Tratativa:</strong> {{ registrodemanutencao_detail.tratativa }}</strong></p> 
             <p class="card-text"><strong>Status:</strong> {{ registrodemanutencao_detail.status }}</p>
         </div>

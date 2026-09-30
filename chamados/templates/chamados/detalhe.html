@@ -89,13 +89,17 @@
           <dt class="col-sm-4">Cliente</dt><dd class="col-sm-8">{{ chamado.cliente }}</dd>
           <dt class="col-sm-4">Categoria</dt>
           <dd class="col-sm-8"><span class="badge rounded-pill text-bg-light">{{ chamado.get_categoria_display }}</span></dd>
-          {% comment %} numero_equipamento pode ter vários, já gravados como
-            "EQ-1, EQ-2" — exibidos como badges separados. {% endcomment %}
-          <dt class="col-sm-4">Nº do equipamento</dt>
+          {% comment %} Um chamado pode ter vários equipamentos, cada um com o
+            seu modelo (ex.: isca 4G + isca 2G). {% endcomment %}
+          <dt class="col-sm-4">Equipamentos</dt>
           <dd class="col-sm-8">
-            {% for eq in chamado.numero_equipamento|split:", " %}<span class="badge rounded-pill text-bg-light me-1 mb-1">{{ eq }}</span>{% endfor %}
+            {% for eq in equipamentos %}
+              <div class="mb-1">
+                <span class="badge rounded-pill text-bg-light me-1">{{ eq.numero }}</span>
+                <span class="text-muted small"><i class="bi bi-hdd me-1"></i>{{ eq.modelo }}</span>
+              </div>
+            {% endfor %}
           </dd>
-          <dt class="col-sm-4">Modelo do equipamento</dt><dd class="col-sm-8">{{ chamado.modelo_equipamento }}</dd>
           <dt class="col-sm-4">Problema relatado</dt><dd class="col-sm-8">{{ chamado.problema_relatado|linebreaksbr }}</dd>
           <dt class="col-sm-4">Contato feito por</dt>
           <dd class="col-sm-8">
@@ -110,7 +114,7 @@
             <dt class="col-sm-4">Responsável (Inteligência)</dt>
             <dd class="col-sm-8"><i class="bi bi-person-badge text-primary me-1"></i>{{ chamado.responsavel_inteligencia.get_username }}</dd>
           {% endif %}
-          {% if chamado.manutencao %}
+          {% if chamado.manutencao and ve.manutencao %}
             <dt class="col-sm-4">Manutenção vinculada</dt>
             <dd class="col-sm-8">
               <span class="badge rounded-pill text-bg-light">
@@ -224,9 +228,22 @@
         ao encaminhar (Quality → Inteligência, Inteligência → Expedição), com quem
         fez e quando. Vem do log de eventos (os campos do chamado são únicos e
         sobrescritos, então não distinguiriam os setores). {% endcomment %}
-      {% if tratativas_por_setor %}
+      {% if tratativas_por_setor or chamado.manutencao and ve.manutencao %}
         <div class="ch-card card mb-4"><div class="card-body">
           <h6 class="ch-section-title"><i class="bi bi-journal-text me-1"></i>Tratativas</h6>
+          {% comment %} Entrada de equipamento vinculada (feita pela Expedição ou
+            pelo Laboratório): atalho para o próximo setor abrir a manutenção. {% endcomment %}
+          {% if chamado.manutencao and ve.manutencao %}
+            <a href="{% url 'FormularioDetailView' chamado.manutencao_id %}" target="_blank" rel="noopener"
+               class="d-flex align-items-center gap-2 border rounded p-3 mb-2 text-decoration-none">
+              <i class="bi bi-wrench-adjustable fs-5"></i>
+              <span>
+                <span class="fw-semibold d-block">Entrada de equipamento #{{ chamado.manutencao_id }}</span>
+                <span class="small text-muted">Ver a manutenção deste chamado</span>
+              </span>
+              <i class="bi bi-box-arrow-up-right ms-auto"></i>
+            </a>
+          {% endif %}
           {% for t in tratativas_por_setor %}
             <div class="border rounded p-3 {% if not forloop.last %}mb-2{% endif %}">
               <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
@@ -286,9 +303,8 @@
             <div class="border rounded p-3 mb-2">
               <div class="d-flex align-items-center gap-2 mb-1">
                 <span class="badge rounded-pill text-bg-light">{{ t.numero_equipamento }}</span>
-                {% comment %} Tipo/modelo do equipamento (mesmo p/ todo o chamado). {% endcomment %}
-                <span class="text-muted small"><i class="bi bi-hdd me-1"></i>{{ chamado.modelo_equipamento }}</span>
-                {% if t.custo %}
+                {% if t.modelo %}<span class="text-muted small"><i class="bi bi-hdd me-1"></i>{{ t.modelo }}</span>{% endif %}
+                {% if t.custo and ve.comercial %}
                   <span class="badge rounded-pill {% if t.custo == 'COM_CUSTO' %}text-bg-warning{% else %}text-bg-success{% endif %}">
                     {{ t.get_custo_display }}
                   </span>
@@ -296,7 +312,7 @@
               </div>
               <div class="small text-muted text-uppercase fw-semibold mt-2">Laboratório</div>
               <div>{{ t.tratativa|linebreaksbr }}</div>
-              {% if t.tratativa_comercial %}
+              {% if t.tratativa_comercial and ve.comercial %}
                 <div class="small text-muted text-uppercase fw-semibold mt-2">Comercial</div>
                 <div>{{ t.tratativa_comercial|linebreaksbr }}</div>
               {% endif %}

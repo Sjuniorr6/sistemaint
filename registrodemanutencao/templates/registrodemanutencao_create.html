@@ -315,94 +315,138 @@
   </div>
 
   <div class="modern-form-card">
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %}">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    {% if chamado %}
+      <div class="alert alert-info">
+        <i class="bi bi-link-45deg"></i>
+        Entrada do chamado <strong>{{ chamado.protocolo }}</strong>: dados preenchidos a partir do chamado.
+        Confira e complete antes de salvar — a entrada fica vinculada ao chamado para o Laboratório.
+      </div>
+    {% endif %}
+
     <form method="post" enctype="multipart/form-data">
       {% csrf_token %}
+      {% if chamado %}<input type="hidden" name="chamado" value="{{ chamado.pk }}">{% endif %}
 
       <div class="form-section">
         <div class="form-section-title">
           <i class="bi bi-info-circle-fill"></i>
           Informações Principais
         </div>
-
-        <div class="row">
-          <div class="col-12 col-md-4 col-lg-3">
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
             {{ form.nome.label_tag }}
             {{ form.nome }}
-            {% if form.nome.errors %}
-            <ul class="errorlist">
-              {% for error in form.nome.errors %}
-              <li>{{ error }}</li>
-              {% endfor %}
-            </ul>
-            {% endif %}
+            {% if form.nome.errors %}<ul class="errorlist">{% for error in form.nome.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
           </div>
-          <div class="col-12 col-md-4 col-lg-3">
-            {{ form.tipo_produto.label_tag }}
-            {{ form.tipo_produto }}
-            {% if form.tipo_produto.errors %}
-            <ul class="errorlist">
-              {% for error in form.tipo_produto.errors %}
-              <li>{{ error }}</li>
-              {% endfor %}
-            </ul>
-            {% endif %}
-          </div>
-          <div class="col-12 col-md-4 col-lg-3">
+          <div class="col-12 col-md-6">
             {{ form.tipo_entrada.label_tag }}
             {{ form.tipo_entrada }}
-            {% if form.tipo_entrada.errors %}
-            <ul class="errorlist">
-              {% for error in form.tipo_entrada.errors %}
-              <li>{{ error }}</li>
-              {% endfor %}
-            </ul>
-            {% endif %}
-          </div>
-          <div class="col-12 col-md-4 col-lg-3">
-             {{ form.status.label_tag }}
-            {{ form.status }}
-            {% if form.status.errors %}
-            <ul class="errorlist">
-              {% for error in form.status.errors %}
-              <li>{{ error }}</li>
-              {% endfor %}
-            </ul>
-            {% endif %}
+            {% if form.tipo_entrada.errors %}<ul class="errorlist">{% for error in form.tipo_entrada.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
           </div>
         </div>
       </div>
 
-      <div class="form-section">
+      {% comment %} Um bloco por tipo de produto: tipo, nºs, customização e contrato.
+        "Adicionar novo tipo de produto" abre outro bloco (ex.: isca 4G + isca 2G
+        na mesma entrega). Os names levam o id do bloco (item_<id>_<campo>) e o
+        form monta um ItemEntrada por bloco. A quantidade de cada bloco é a
+        contagem dos nºs (espaço, linha, vírgula ou ; separam); o total vai no
+        rodapé e é recalculado no servidor. Ao repostar com erro, os blocos
+        voltam do form (json_script). {% endcomment %}
+      {{ form.blocos_itens|json_script:"blocos-itens" }}
+      <div class="form-section" x-data="entradaItens()">
         <div class="form-section-title">
-          <i class="bi bi-list-check"></i>
-          Informações Adicionais
+          <i class="bi bi-box-seam"></i>
+          Equipamentos
         </div>
 
-        <div class="row">
-            {% for field in form %}
-                {% if field.name != 'nome' and field.name != 'tipo_produto' and field.name != 'tipo_entrada' and field.name != 'status' %}
-                    <div class="col-12 col-md-4 col-lg-3 mb-3">
-                        <div class="form-group">
-                            {{ field.label_tag }}
-                            {{ field }}
+        <template x-for="(b, i) in blocos" :key="b.id">
+          <div>
+            <input type="hidden" name="item" :value="b.id">
+            <div class="d-flex align-items-center mb-2">
+              <span class="fw-semibold" style="color: #665b1d;" x-text="'Tipo de produto ' + (i + 1)"></span>
+              <span class="badge text-bg-light ms-2" x-text="contar(b.numero) + ' equipamento(s)'"></span>
+              <button type="button" class="btn btn-link btn-sm text-danger ms-auto p-0"
+                      @click="remove(i)" x-show="blocos.length > 1">
+                <i class="bi bi-trash me-1"></i>Remover tipo de produto
+              </button>
+            </div>
+            <div class="row g-3">
+              <div class="col-12 col-md-6 col-lg-3">
+                <label>Tipo de produto</label>
+                <select class="form-control" :name="'item_' + b.id + '_tipo_produto'" x-model="b.tipo_produto">
+                  <option value="">---------</option>
+                  {% for produto in form.opcoes_itens.produtos %}
+                    <option value="{{ produto.pk }}">{{ produto }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-12 col-md-6 col-lg-3">
+                <label>Nº dos equipamentos</label>
+                <textarea class="form-control" rows="3" :name="'item_' + b.id + '_numero'"
+                          :value="b.numero" @input="digitar(b, $event.target)"
+                          placeholder="Um por linha ou separados por espaço"></textarea>
+              </div>
+              <div class="col-12 col-md-6 col-lg-3">
+                <label>Customização</label>
+                <select class="form-control" :name="'item_' + b.id + '_customizacao'" x-model="b.customizacao">
+                  <option value="">---------</option>
+                  {% for valor, rotulo in form.opcoes_itens.customizacoes %}
+                    <option value="{{ valor }}">{{ rotulo }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-12 col-md-6 col-lg-3">
+                <label>Tipo de contrato</label>
+                <select class="form-control" :name="'item_' + b.id + '_tipo_contrato'" x-model="b.tipo_contrato">
+                  <option value="">---------</option>
+                  {% for valor, rotulo in form.opcoes_itens.contratos %}
+                    <option value="{{ valor }}">{{ rotulo }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            <hr class="my-4">
+          </div>
+        </template>
 
-                            {% if field.help_text %}
-                                <small class="form-text text-muted">
-                                    {{ field.help_text }}
-                                </small>
-                            {% endif %}
+        {% if form.itens.errors %}<ul class="errorlist mb-3">{% for error in form.itens.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+        <button type="button" class="btn btn-outline-secondary" @click="add()">
+          <i class="bi bi-plus-circle me-1"></i>Adicionar novo tipo de produto
+        </button>
 
-                            {% if field.errors %}
-                                <div class="invalid-feedback d-block">
-                                    {% for error in field.errors %}
-                                        {{ error }}<br>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                {% endif %}
-            {% endfor %}
+        <div class="form-section-title mt-5">
+          <i class="bi bi-truck"></i>
+          Entrega
+        </div>
+        <div class="row g-3">
+          <div class="col-12 col-md-6 col-lg-3">
+            {{ form.entregue_por_retirado_por.label_tag }}
+            {{ form.entregue_por_retirado_por }}
+            {% if form.entregue_por_retirado_por.errors %}<ul class="errorlist">{% for error in form.entregue_por_retirado_por.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+          </div>
+          <div class="col-12 col-md-6 col-lg-3">
+            {{ form.observacoes.label_tag }}
+            {{ form.observacoes }}
+            {% if form.observacoes.errors %}<ul class="errorlist">{% for error in form.observacoes.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+          </div>
+          <div class="col-12 col-md-6 col-lg-3">
+            {{ form.status.label_tag }}
+            {{ form.status }}
+          </div>
+          <div class="col-12 col-md-6 col-lg-3">
+            <label>Quantidade total</label>
+            <input type="text" class="form-control" :value="total" readonly>
+          </div>
         </div>
       </div>
 
@@ -421,43 +465,56 @@
 </div>
 
 <script>
+  // Enter não envia o formulário (o leitor de código de barras manda Enter a
+  // cada leitura); dentro da caixa de nºs ele vira quebra de linha.
   document.addEventListener("keydown", function (e) {
-    if (e.key === "Enter") {
-      e.preventDefault(); // Bloqueia a tecla Enter
+    if (e.key === "Enter" && e.target.tagName !== "TEXTAREA") {
+      e.preventDefault();
     }
   });
 
-  document.addEventListener("input", function (e) {
-    var input = e.target;
-    var value = input.value;
-    var patterns = ["35154", "35642", "86590", "86325", "35196", "35643"]; // Padrões a serem encontrados
-
-    // Recupera o campo do formulário de quantidade
-    var quantidadeCampo = document.getElementById("id_quantidade"); // Campo do formulário
-    var quantidadeAtual = parseInt(quantidadeCampo.value || "0", 10); // Valor atual do campo
-    var quantidadeEncontrada = 0; // Contador para padrões encontrados
-
-    // Itera pelos padrões e substitui cada ocorrência
-    patterns.forEach(function (pattern) {
-      var regex = new RegExp(pattern, "g"); // Regex global para encontrar o padrão
-      value = value.replace(regex, function () {
-        quantidadeEncontrada += 1; // Incrementa a quantidade para cada correspondência encontrada
-        return "     "; // Substitui o padrão por 5 espaços
-      });
-    });
-
-    // Atualiza o valor do campo de entrada sem os padrões
-    input.value = value;
-
-    // Incrementa a quantidade total e atualiza o campo do formulário
-    var novaQuantidade = quantidadeAtual + quantidadeEncontrada;
-    quantidadeCampo.value = novaQuantidade; // Atualiza o campo do formulário diretamente
-
-    console.log(`Quantidade encontrada nesta entrada: ${quantidadeEncontrada}`);
-    console.log(`Quantidade total acumulada: ${novaQuantidade}`);
-  });
+  function entradaItens() {
+    // Prefixos de lote lidos pelo leitor de código de barras: viram separador
+    // (mesmo comportamento que a tela tinha antes, agora só na caixa de nºs).
+    var PREFIXOS = /(35154|35642|86590|86325|35196|35643)/g;
+    return {
+      seq: 0,
+      blocos: [],
+      bloco: function (b) {
+        return {
+          id: this.seq++,
+          tipo_produto: b.tipo_produto || '',
+          numero: b.numero || '',
+          customizacao: b.customizacao || '',
+          tipo_contrato: b.tipo_contrato || ''
+        };
+      },
+      add: function () { this.blocos.push(this.bloco({})); },
+      remove: function (i) {
+        this.blocos.splice(i, 1);
+        if (!this.blocos.length) this.add();
+      },
+      digitar: function (b, el) {
+        b.numero = el.value.replace(PREFIXOS, ' ');
+        el.value = b.numero;
+      },
+      contar: function (texto) {
+        return texto.split(/[\s,;]+/).filter(function (n) { return n; }).length;
+      },
+      get total() {
+        var self = this;
+        return this.blocos.reduce(function (s, b) { return s + self.contar(b.numero); }, 0);
+      },
+      init: function () {
+        var self = this;
+        var iniciais = JSON.parse(document.getElementById('blocos-itens').textContent);
+        this.blocos = iniciais.map(function (b) { return self.bloco(b); });
+      }
+    };
+  }
 </script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
 </body>
 
-</html>>
+</html>

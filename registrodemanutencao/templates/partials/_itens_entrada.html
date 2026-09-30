@@ -1,0 +1,29 @@
+{% comment %} Tipos de produto da entrada (ItemEntrada), somente leitura.
+  Uso: {% include 'partials/_itens_entrada.html' with registro=<entrada> %}
+  Em listagens, o queryset precisa de prefetch_related('itens__tipo_produto'). {% endcomment %}
+<div class="table-responsive">
+  <table class="table table-sm align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Tipo de produto</th>
+        <th>Nº dos equipamentos</th>
+        <th>Customização</th>
+        <th>Contrato</th>
+        <th class="text-end">Qtd.</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in registro.itens.all %}
+        <tr>
+          <td class="fw-semibold">{{ item.tipo_produto|default:"—" }}</td>
+          <td style="max-width: 320px; word-break: break-word;">{{ item.numero_equipamento|default:"—" }}</td>
+          <td>{{ item.customizacao|default:"—" }}</td>
+          <td>{{ item.tipo_contrato|default:"—" }}</td>
+          <td class="text-end">{{ item.quantidade }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="text-muted">Nenhum tipo de produto registrado.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

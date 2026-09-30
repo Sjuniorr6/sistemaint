@@ -46,19 +46,12 @@ class Chamado(models.Model):
     categoria = models.CharField(
         max_length=20, choices=Categoria.choices, verbose_name="Categoria"
     )
-    # Pode conter mais de um equipamento, separados por vírgula ("EQ-1, EQ-2").
-    # O form junta os vários inputs numa string; aqui é só o armazenamento.
+    # Números dos equipamentos juntados por vírgula ("EQ-1, EQ-2"). É DERIVADO
+    # das linhas de `ChamadoEquipamento` (fonte do par nº → modelo) e gravado
+    # só pelo service de abertura; fica aqui porque tratativas, exportação e a
+    # busca do admin leem os números por este campo.
     numero_equipamento = models.CharField(
         max_length=500, verbose_name="Nº do equipamento"
-    )
-    # modelo_equipamento: vínculo ao cadastro de produtos do sistema
-    # (produto.Produto) — a mesma fonte do "Tipo produto" da entrada de
-    # manutenção. PROTECT, no mesmo estilo da FK de cliente.
-    modelo_equipamento = models.ForeignKey(
-        "produto.Produto",
-        on_delete=models.PROTECT,
-        related_name="chamados",
-        verbose_name="Modelo do equipamento",
     )
     problema_relatado = models.TextField(verbose_name="Problema relatado")
 
@@ -176,9 +169,6 @@ class Chamado(models.Model):
                 {"numero_equipamento": "O número do equipamento não pode ficar vazio."}
             )
 
-        # modelo_equipamento agora é FK (produto.Produto): obrigatoriedade e
-        # integridade ficam a cargo do campo (null=False) e do PROTECT.
-
         self.problema_relatado = (self.problema_relatado or "").strip()
         if not self.problema_relatado:
             raise ValidationError(
@@ -196,6 +186,45 @@ class Chamado(models.Model):
 
     def __str__(self):
         return f"{self.protocolo} · {self.cliente}"
+
+
+class ChamadoEquipamento(models.Model):
+    """Um equipamento do chamado: o número e o modelo DELE.
+
+    Um mesmo chamado pode trazer equipamentos de modelos diferentes (ex.: uma
+    isca 4G e outra 2G). Fato de abertura, imutável como os demais (RN-03).
+    """
+
+    chamado = models.ForeignKey(
+        Chamado,
+        on_delete=models.CASCADE,
+        related_name="equipamentos",
+        verbose_name="Chamado",
+    )
+    numero = models.CharField(max_length=60, verbose_name="Nº do equipamento")
+    # Cadastro de produtos (produto.Produto), a mesma fonte do "Tipo produto"
+    # da entrada de manutenção. PROTECT, no estilo da FK de cliente.
+    modelo = models.ForeignKey(
+        "produto.Produto",
+        on_delete=models.PROTECT,
+        related_name="equipamentos_chamado",
+        verbose_name="Modelo do equipamento",
+    )
+    criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+
+    class Meta:
+        verbose_name = "Equipamento do chamado"
+        verbose_name_plural = "Equipamentos do chamado"
+        ordering = ["id"]  # ordem em que os equipamentos foram informados
+        constraints = [
+            models.UniqueConstraint(
+                fields=["chamado", "numero"],
+                name="chamado_equipamento_numero_unico",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.numero} · {self.modelo}"
 
 
 class ChamadoEvento(models.Model):

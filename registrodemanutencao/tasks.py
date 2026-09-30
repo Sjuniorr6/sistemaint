@@ -1,4 +1,5 @@
 import logging
+import os
 from io import BytesIO
 
 from celery import shared_task
@@ -137,14 +138,18 @@ def _gerar_pdf_manutencao(registro):
     elements.append(header_table)
     elements.append(Spacer(1, 20))
 
+    from .services import resumo_itens
+
+    # Produto/customização/nºs vêm dos itens da entrada.
+    itens = resumo_itens(registro)
     data = [
         ["Registro #", Paragraph(str(registro.id), body_style)],
         ["Data", Paragraph(registro.data_criacao.strftime("%d/%m/%Y"), body_style)],
         ["Nome", Paragraph(str(registro.nome or "Não informado"), body_style)],
         ["Tipo de Entrada", Paragraph(registro.tipo_entrada or "Não informado", body_style)],
-        ["Tipo de Produto", Paragraph(str(registro.tipo_produto or "Não informado"), body_style)],
-        ["Customização", Paragraph(registro.customizacaoo or "Não informado", body_style)],
-        ["Número Equipamento", Paragraph(registro.numero_equipamento or "Não informado", body_style)],
+        ["Tipo de Produto", Paragraph(itens["produtos"] or "Não informado", body_style)],
+        ["Customização", Paragraph(itens["customizacoes"] or "Não informado", body_style)],
+        ["Número Equipamento", Paragraph(itens["numeros_por_produto"] or "Não informado", body_style)],
         ["Observações", Paragraph(registro.observacoes or "Não informado", body_style)],
         ["Quantidade", Paragraph(str(registro.quantidade or "Não informado"), body_style)],
     ]

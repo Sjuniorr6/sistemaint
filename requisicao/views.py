@@ -354,20 +354,28 @@ class ConfiguracaoListView(PermissionRequiredMixin, LoginRequiredMixin, ListView
                 "GS8310 (4G)",
             ]
         )
+        # Entrada de manutenção pode ter vários tipos de produto (ItemEntrada).
+        # Sai da Configuração só quando TODOS os itens são desses produtos; uma
+        # entrada mista (ex.: GS310 + outro) continua aparecendo. Item sem
+        # produto conta como "precisa de configuração", como antes.
+        from django.db.models import Exists, OuterRef
+        from registrodemanutencao.models import ItemEntrada
+
+        produtos_sem_configuracao = ["GS310", "GS340", "GS390", "GS8310 (4G)"]
+        itens_da_entrada = ItemEntrada.objects.filter(registro=OuterRef("pk"))
         manutencao_queryset = registrodemanutencao.objects.filter(
             status__in=[
                 "Aprovado Inteligência",
                 "Aprovado pela Diretoria",
                 "Aprovado pelo CEO",
             ]
-        ).exclude(
-            tipo_produto__nome__in=[
-                "GS310",
-                "GS340",
-                "GS390",
-                "GS8310 (4G)",
-            ]
-        )
+        ).filter(
+            Exists(itens_da_entrada.filter(
+                Q(tipo_produto__isnull=True)
+                | ~Q(tipo_produto__nome__in=produtos_sem_configuracao)
+            ))
+            | ~Exists(itens_da_entrada)
+        ).prefetch_related("itens__tipo_produto")
 
         # Aplicar filtro por ID se fornecido
         if id_filtro:
@@ -570,7 +578,9 @@ class diretoriaListViews(PermissionRequiredMixin, LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         requisicoes_queryset = Requisicoes.objects.filter(status__in=["", ""])
-        manutencao_queryset = registrodemanutencao.objects.filter(status="Manutenção")
+        manutencao_queryset = registrodemanutencao.objects.filter(
+            status="Manutenção"
+        ).prefetch_related("itens__tipo_produto")  # partials/_itens_resumo.html
 
         # Combine os querysets
         combined_queryset = list(requisicoes_queryset) + list(manutencao_queryset)

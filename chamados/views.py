@@ -10,6 +10,7 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from chamados.enums import Acao, Setor
@@ -25,9 +26,8 @@ from chamados.forms import (
     FiltroFilaForm,
     MotivoForm,
 )
-from chamados.permissions import exige_operador, exige_quality, is_quality
+from chamados.permissions import exige_operador, exige_quality, is_quality, setores_visiveis
 from chamados.selectors import (
-    SETORES_TIMELINE,
     acoes_disponiveis,
     campo_entrada,
     chamados_visiveis_para,
@@ -51,9 +51,9 @@ _FORM_POR_ACAO = {
 }
 
 
-def _linhas_com_acoes(user, chamados):
+def _linhas_com_acoes(user, chamados, setores):
     """Emparelha cada chamado com as ações que a UI deve oferecer (RF-07) e com
-    a linha do tempo já RESOLVIDA em lista, na ordem de SETORES_TIMELINE.
+    a linha do tempo já RESOLVIDA em lista, na ordem de `setores` (horizonte).
 
     Resolver aqui (e não no template) evita precisar de um filtro de lookup em
     dict só para ler as anotações: o template itera a lista e imprime, sem
@@ -63,7 +63,7 @@ def _linhas_com_acoes(user, chamados):
         {
             "chamado": c,
             "acoes": acoes_disponiveis(user, c),
-            "entradas": [getattr(c, campo_entrada(s), None) for s in SETORES_TIMELINE],
+            "entradas": [getattr(c, campo_entrada(s), None) for s in setores],
         }
         for c in chamados
     ]
@@ -110,9 +110,11 @@ def fila(request):
     """
     form, filtros = _filtros_da_fila(request)
     chamados = listar_fila(request.user, **filtros)
+    # Colunas da linha do tempo só até o setor do usuário (horizonte).
+    setores = setores_visiveis(request.user)
     # Base da querystring do botão "Exportar": leva os filtros ativos adiante.
     contexto = {
-        "linhas": _linhas_com_acoes(request.user, chamados),
+        "linhas": _linhas_com_acoes(request.user, chamados, setores),
         "metricas": metricas_painel(),
         "pode_abrir": is_quality(request.user),
         "Acao": Acao,
@@ -120,7 +122,7 @@ def fila(request):
         "filtros_querystring": request.GET.urlencode(),
         "setores_timeline": [
             {"valor": s, "label": Setor(s).label, "campo": campo_entrada(s)}
-            for s in SETORES_TIMELINE
+            for s in setores
         ],
     }
     return render(request, "chamados/fila.html", contexto)
@@ -136,10 +138,13 @@ def exportar(request):
     fica no service, que segue puro.
     """
     _, filtros = _filtros_da_fila(request)
-    chamados = listar_fila(request.user, **filtros)
+    # Modelos por equipamento: 1 query a mais, constante (coluna "Modelo").
+    chamados = listar_fila(request.user, **filtros).prefetch_related(
+        "equipamentos__modelo"
+    )
 
     conteudo = services.montar_workbook_fila(
-        chamados, SETORES_TIMELINE, campo_entrada
+        chamados, setores_visiveis(request.user), campo_entrada
     )
     response = HttpResponse(
         conteudo,
@@ -161,9 +166,33 @@ def detalhe(request, pk):
     o acesso por URL direta, não só na fila.
     """
     chamado = get_object_or_404(chamados_visiveis_para(request.user), pk=pk)
-    eventos = chamado.eventos.select_related("autor", "responsavel_inteligencia").all()
+    # Horizonte: quem já passou o chamado adiante continua vendo, mas só o que
+    # foi registrado até o seu setor (eventos de setores posteriores somem).
+    setores = setores_visiveis(request.user)
+    ve = {
+        "manutencao": Setor.EXPEDICAO in setores,
+        "laboratorio": Setor.LABORATORIO in setores,
+        "comercial": Setor.COMERCIAL in setores,
+    }
+    eventos = [
+        e for e in chamado.eventos.select_related("autor", "responsavel_inteligencia")
+        # Evento pertence ao setor de ORIGEM (quem agiu); ABRIR não tem origem
+        # (Quality) e BLOQUEADO não é setor — ambos antes da Expedição.
+        if (services.setor_do_status(e.estado_origem) or Setor.QUALITY) in setores
+    ]
+    # Cada equipamento tem o seu modelo; as tratativas (por nº) exibem o modelo
+    # do equipamento a que se referem.
+    equipamentos = list(chamado.equipamentos.select_related("modelo"))
+    modelo_por_numero = {e.numero: e.modelo for e in equipamentos}
+    tratativas_equipamento = (
+        list(chamado.tratativas_equipamento.all()) if ve["laboratorio"] else []
+    )
+    for tratativa in tratativas_equipamento:
+        tratativa.modelo = modelo_por_numero.get(tratativa.numero_equipamento)
     contexto = {
         "chamado": chamado,
+        "ve": ve,
+        "equipamentos": equipamentos,
         "eventos": eventos,
         # Procedimento/tratativa POR SETOR — derivados do log (os campos do
         # chamado são únicos e sobrescritos a cada encaminhamento; a fonte fiel
@@ -176,8 +205,10 @@ def detalhe(request, pk):
         "encaminhar_form": EncaminharForm(),
         # Form dinâmico do modal "Encaminhar p/ comercial": um campo de tratativa
         # por equipamento do chamado.
+        # A entrada feita pela Expedição já vem selecionada no modal.
         "comercial_form": EncaminharComercialForm(
-            equipamentos=services.equipamentos_do_chamado(chamado)
+            equipamentos=services.equipamentos_do_chamado(chamado),
+            initial={"manutencao": chamado.manutencao_id},
         ),
         # Form dinâmico do modal "Finalizar chamado" (comercial): tratativa + custo
         # por equipamento.
@@ -186,7 +217,7 @@ def detalhe(request, pk):
         ),
         # Modal "Faturado" (Financeiro): valor + NF.
         "faturar_form": FaturarForm(),
-        "tratativas_equipamento": chamado.tratativas_equipamento.all(),
+        "tratativas_equipamento": tratativas_equipamento,
         # Tentativas de contato da Expedição — visíveis da expedição em diante.
         "contato_form": ContatoExpedicaoForm(),
         "contatos_expedicao": chamado.contatos_expedicao.select_related(
@@ -195,7 +226,7 @@ def detalhe(request, pk):
         # Laudo da manutenção vinculada: liberado a partir do momento em que o
         # Comercial ACEITA a tratativa (o chamado já chegou nele com a manutenção
         # vinculada pelo laboratório). Segue disponível depois de resolvido.
-        "pode_baixar_laudo": _pode_baixar_laudo(chamado),
+        "pode_baixar_laudo": ve["comercial"] and _pode_baixar_laudo(chamado),
     }
     return render(request, "chamados/detalhe.html", contexto)
 
@@ -266,8 +297,7 @@ def abrir(request):
                     autor=request.user,
                     cliente=dados["cliente"],
                     categoria=dados["categoria"],
-                    numero_equipamento=dados["numero_equipamento"],
-                    modelo_equipamento=dados["modelo_equipamento"],
+                    equipamentos=dados["equipamentos"],
                     problema_relatado=dados["problema_relatado"],
                     # Responsável (Quality) é sempre o próprio usuário logado
                     # (Quality, por @exige_quality), nunca vem do POST.
@@ -283,8 +313,12 @@ def abrir(request):
                 )
             except ValidationError as exc:
                 for campo, erros in (exc.message_dict if hasattr(exc, "message_dict") else {"__all__": exc.messages}).items():
+                    # numero_equipamento (lista juntada, max 500) é exibido
+                    # no bloco de equipamentos do form.
+                    if campo == "numero_equipamento":
+                        campo = "equipamentos"
                     for erro in erros:
-                        form.add_error(campo if campo != "__all__" else None, erro)
+                        form.add_error(campo if campo in form.fields else None, erro)
             else:
                 messages.success(request, f"Chamado {chamado.protocolo} aberto.")
                 return redirect("chamados:detalhe", pk=chamado.pk)
@@ -395,6 +429,10 @@ def acao(request, pk, acao):
         messages.error(request, " ".join(exc.messages))
     else:
         messages.success(request, f"Ação '{Acao(acao).label}' aplicada.")
+        # Chegada confirmada: a Expedição segue direto para a entrada dos
+        # equipamentos, já preenchida a partir do chamado.
+        if acao == Acao.MARCAR_CHEGADA:
+            return redirect(f"{reverse('FormulariosCreateView')}?chamado={pk}")
         # Ações que "passam a bola" (encaminhar, marcar chegada) tiram o chamado
         # da visibilidade de quem agiu — ex.: expedição deixa de ver após marcar
         # chegada. Nesse caso, ir ao detalhe daria 404; volta-se para a fila.

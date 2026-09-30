@@ -442,7 +442,7 @@
                             <p class="card-text"><b>Customização:</b> {{ registro.customizacaoo }}</p>
                             <p class="card-text"><b>Tipo de Contrato:</b> {{ registro.tipo_contrato }}</p>
                             <p class="card-text"><b>Motivo:</b> {{ registro.motivo }}</p>
-                            <p class="card-text"><b>Tipo de Produto:</b> {{ registro.tipo_produto }}</p>
+                            <p class="card-text"><b>Tipo de Produto:</b> {{ registro.tipo_produto|default:registro.produto_nome_snapshot }}</p>
                         </div>
                         <div class="col-12">
                             <p class="card-text mt-2">
