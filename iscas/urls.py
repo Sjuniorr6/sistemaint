@@ -58,6 +58,7 @@ urlpatterns = [
     path("manutencao/retorno/", custodia.manutencao_retorno, name="manutencao_retorno"),
     path("movimentacoes/<int:pk>/estornar/", custodia.estornar, name="estornar"),
     path("saldos/", custodia.painel_saldo, name="painel_saldo"),
+    path("saldos/excel/", custodia.saldo_excel, name="saldo_excel"),
 
     # — Mapa —
     path("mapa/", mapa.mapa, name="mapa"),

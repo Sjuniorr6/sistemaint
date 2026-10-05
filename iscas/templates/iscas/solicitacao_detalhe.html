@@ -174,7 +174,12 @@ campos de texto destrutivos sempre a um clique de distância.
             <tbody>
             {% for linha in cobertura %}
               <tr>
-                <td>{{ linha.modelo.nome }}</td>
+                <td>
+                  {{ linha.modelo.nome }}
+                  <span class="badge {% if linha.modelo.tipo == 'RETORNAVEL' %}bg-info text-dark{% else %}bg-secondary{% endif %} ms-1">
+                    {{ linha.modelo.get_tipo_display }}
+                  </span>
+                </td>
                 <td class="text-end">{{ linha.solicitado }}</td>
                 <td class="text-end">{{ linha.atribuido }}</td>
                 <td class="text-end {% if linha.falta %}text-warning fw-bold{% endif %}">{{ linha.falta }}</td>
@@ -203,10 +208,11 @@ campos de texto destrutivos sempre a um clique de distância.
               <span class="text-muted">não informado</span>
             {% endif %}
           </div>
-          {% if totais.valor_entregas %}
+          {% if totais.valor_entregas or totais.valor_pedagios %}
             <div class="small text-muted">
               material R$ {{ totais.valor_cliente|floatformat:2 }}
               + entrega R$ {{ totais.valor_entregas|floatformat:2 }}
+              {% if totais.valor_pedagios %}+ pedágio R$ {{ totais.valor_pedagios|floatformat:2 }}{% endif %}
             </div>
           {% endif %}
         </div>
@@ -215,6 +221,9 @@ campos de texto destrutivos sempre a um clique de distância.
         <div class="col-12 col-md-4">
           <div class="small text-muted">Custo dos agentes</div>
           <div class="h5 mb-0">R$ {{ totais.custo_agentes|floatformat:2 }}</div>
+          {% if totais.valor_pedagios %}
+            <div class="small text-muted">inclui pedágio R$ {{ totais.valor_pedagios|floatformat:2 }}</div>
+          {% endif %}
           {% if totais.tem_custo_incompleto %}
             <div class="small text-warning">
               <i class="bi bi-exclamation-triangle"></i> há agente sem valor informado
@@ -239,10 +248,17 @@ campos de texto destrutivos sempre a um clique de distância.
   <div class="col-12 col-lg-5">
     {% if not solicitacao.eh_terminal %}
       {% if cap.ATENDER_SOLICITACAO %}
-      <div class="card iscas-card">
+      <div class="card iscas-card" id="atribuir">
         <div class="card-header">Atribuir a um agente</div>
         <div class="card-body">
-          <a href="{% url 'iscas:mapa' %}?cliente={{ solicitacao.cliente.pk }}"
+          {% if agente_indisponivel %}
+            <div class="alert alert-warning py-2 small">
+              <i class="bi bi-exclamation-triangle"></i>
+              {{ agente_indisponivel.nome }} não tem equipamento disponível dos modelos
+              que faltam nesta solicitação. Escolha outro agente.
+            </div>
+          {% endif %}
+          <a href="{% url 'iscas:mapa' %}?solicitacao={{ solicitacao.pk }}"
              class="btn btn-outline-info btn-sm w-100 mb-3">
             <i class="bi bi-geo-alt"></i> Buscar agentes próximos no mapa
           </a>
@@ -253,7 +269,7 @@ campos de texto destrutivos sempre a um clique de distância.
             Alpine. Um "Retirada na base" dentro do select de agente exigiria
             subverter o ModelChoiceField, que quebra em silêncio.
             {% endcomment %}
-            <div class="mb-3" x-data="{ modo: 'AGENTE' }">
+            <div class="mb-3" x-data="valoresAtribuicao()" @input="aoDigitar($event)">
               <div class="btn-group w-100 mb-3" role="group">
                 <input type="radio" class="btn-check" name="origem_tipo" id="origemAgente"
                        value="AGENTE" x-model="modo" checked>
@@ -288,7 +304,18 @@ campos de texto destrutivos sempre a um clique de distância.
                   {{ form_atribuicao.valor_entrega_cliente.label }}
                 </label>
                 {{ form_atribuicao.valor_entrega_cliente }}
-                <div class="form-text small">O que você cobra do cliente por esta entrega.</div>
+                <div class="form-text small">
+                  O que você cobra do cliente por esta entrega. Vem com o dobro do valor
+                  do agente; pode editar.
+                </div>
+
+                <label class="form-label small mt-3" for="{{ form_atribuicao.valor_pedagio.id_for_label }}">
+                  {{ form_atribuicao.valor_pedagio.label }}
+                </label>
+                {{ form_atribuicao.valor_pedagio }}
+                <div class="form-text small">
+                  Repasse: soma no que o cliente paga e no custo do agente.
+                </div>
               </div>
 
               <div x-show="modo === 'RETIRADA_BASE'" x-cloak>
@@ -394,6 +421,11 @@ campos de texto destrutivos sempre a um clique de distância.
                   {% if item.atribuicao.valor_entrega_cliente is not None %}
                     <div class="small text-success">
                       Entrega ao cliente R$ {{ item.atribuicao.valor_entrega_cliente|floatformat:2 }}
+                    </div>
+                  {% endif %}
+                  {% if item.atribuicao.valor_pedagio is not None %}
+                    <div class="small text-muted">
+                      Pedágio R$ {{ item.atribuicao.valor_pedagio|floatformat:2 }}
                     </div>
                   {% endif %}
                 {% endif %}
@@ -631,6 +663,26 @@ function ajustePinEntrega() {
           this.lng = numeros[1].replace(',', '.');
         }
       });
+    },
+  };
+}
+
+// O cliente paga, por padrão, o dobro do que o agente cobra. O campo segue o
+// do agente até o operador digitar nele; apagá-lo volta ao automático.
+function valoresAtribuicao() {
+  return {
+    modo: 'AGENTE',
+    clienteEditado: false,
+    aoDigitar(evento) {
+      const campo = evento.target;
+      if (campo.name === 'valor_entrega_cliente') {
+        this.clienteEditado = campo.value !== '';
+        return;
+      }
+      if (campo.name !== 'valor_agente' || this.clienteEditado) return;
+      const cliente = this.$root.querySelector('[name="valor_entrega_cliente"]');
+      const agente = parseFloat(String(campo.value).replace(',', '.'));
+      cliente.value = Number.isNaN(agente) ? '' : (agente * 2).toFixed(2);
     },
   };
 }

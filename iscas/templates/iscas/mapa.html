@@ -181,7 +181,26 @@ ao servidor (ISC-RF-20). A busca chama o endpoint JSON e redesenha as camadas.
 
     <div id="mapa"></div>
     <div class="small text-muted mt-1">
-      Distância em linha reta. Clique no mapa para buscar a partir de um ponto arbitrário.
+      Distância em linha reta; em verde, os três agentes mais próximos. Com uma
+      solicitação selecionada, clique num agente para escolhê-lo. Clique no mapa
+      para buscar a partir de um ponto arbitrário.
+    </div>
+    <div class="small text-info mt-1" x-show="solicitacaoAtiva && agentesOcultos" x-cloak>
+      <i class="bi bi-funnel"></i>
+      Mostrando só os agentes no raio com saldo dos modelos que faltam —
+      <span x-text="agentesOcultos"></span> agente(s) oculto(s).
+      <a href="#" @click.prevent="document.querySelector('#id_solicitacao').value = ''; limparBusca()">Mostrar todos</a>
+    </div>
+    <div class="alert alert-warning py-2 small mt-2 mb-0"
+         x-show="solicitacaoAtiva && !resultados.length && !carregando" x-cloak>
+      <i class="bi bi-exclamation-triangle"></i>
+      <span x-show="faltaDaSolicitacao.length">
+        Nenhum agente no raio tem saldo dos modelos que esta solicitação precisa.
+        Aumente a distância ou abasteça um agente.
+      </span>
+      <span x-show="!faltaDaSolicitacao.length">
+        Esta solicitação já está coberta: não falta equipamento para atribuir.
+      </span>
     </div>
     <template x-if="solicitacoesSemCoordenada">
       <div class="alert alert-warning py-2 small mt-2 mb-0">
@@ -206,6 +225,7 @@ ao servidor (ISC-RF-20). A busca chama o endpoint JSON e redesenha as camadas.
           <tbody>
             <template x-for="(item, indice) in resultados" :key="item.id">
               <tr @mouseenter="destacar(item.id)" @click="focar(item.id)"
+                  :title="solicitacaoAtiva ? 'Clique para ver o agente e escolhê-lo' : ''"
                   :class="selecionado === item.id ? 'table-primary' : ''"
                   style="cursor:pointer;">
                 <td>
@@ -227,19 +247,41 @@ ao servidor (ISC-RF-20). A busca chama o endpoint JSON e redesenha as camadas.
 
 <script>
 function mapaIscas() {
-  return {
+  /* Objetos do Leaflet ficam FORA do estado do Alpine. Tudo que o componente
+     devolve vira Proxy reativo, e um mapa/marcador embrulhado em Proxy faz o
+     Leaflet calcular posição errada depois do zoom animado — o popup abria
+     longe do agente clicado. Aqui, closure comum: o Alpine nem os enxerga. */
+  const leaflet = {
     mapa: null,
-    cluster: null,
+    camadaAgentes: null,
     camadaBusca: null,
     camadaSolicitacoes: null,
     marcadores: {},
     marcadoresSolicitacao: {},
+    linhas: {},
+  };
+  const URL_DETALHE = '{% url "iscas:solicitacao_detalhe" 0 %}';
+  const urlDetalhe = (id) => URL_DETALHE.replace('/0/', '/' + id + '/');
+  // Nome de agente/cliente vai para HTML de popup: escapa via DOM.
+  const esc = (texto) => {
+    const caixa = document.createElement('div');
+    caixa.textContent = texto ?? '';
+    return caixa.innerHTML;
+  };
+  // Os três mais próximos ganham destaque: é a pergunta que o operador faz.
+  const DESTAQUES = 3;
+
+  return {
     resultados: [],
     solicitacoes: [],
     solicitacoesSemCoordenada: 0,
     faltaDaSolicitacao: [],
     mostrarSolicitacoes: true,
     solicitacaoSelecionada: null,
+    // Solicitação da última busca bem-sucedida: é ela que o popup do agente
+    // oferece para atribuir. Busca por ponto do mapa zera.
+    solicitacaoAtiva: null,
+    agentesOcultos: 0,
     selecionado: null,
     carregando: false,
     erro: '',
@@ -249,48 +291,33 @@ function mapaIscas() {
     buscandoEndereco: false,
     erroBusca: '',
 
-    /* A lista é worklist: só o que ainda precisa de agente. Os marcadores
-       continuam mostrando tudo — uma solicitação coberta ainda é uma entrega
-       em andamento, e sumir do mapa esconderia onde ela está. Daí os dois
-       números da tela contarem coisas diferentes, cada um com seu rótulo. */
     get descobertas() { return this.solicitacoes.filter(s => s.falta_total > 0) },
     get cobertas() { return this.solicitacoes.filter(s => !s.falta_total) },
 
     init() {
-      this.mapa = L.map('mapa').setView([-23.55052, -46.633308], 9);
+      leaflet.mapa = L.map('mapa').setView([-23.55052, -46.633308], 9);
       L.tileLayer('{{ config.tiles_url|escapejs }}', {
         attribution: '{{ config.tiles_atribuicao|escapejs }}',
         maxZoom: 19,
-      }).addTo(this.mapa);
+      }).addTo(leaflet.mapa);
 
-      // markercluster cobre o requisito de 500 marcadores sem degradação.
-      this.cluster = L.markerClusterGroup();
-      this.mapa.addLayer(this.cluster);
-      this.camadaBusca = L.layerGroup().addTo(this.mapa);
+      // Agentes sem agrupamento: cada um no seu ponto, em qualquer zoom.
+      leaflet.camadaAgentes = L.featureGroup().addTo(leaflet.mapa);
+      leaflet.camadaBusca = L.layerGroup().addTo(leaflet.mapa);
 
-      /* Solicitações num cluster próprio, com regras diferentes das dos
-         agentes. O problema concreto: várias solicitações do MESMO cliente
-         caem na mesma coordenada e os pinos se sobrepõem exatamente — só o
-         último desenhado fica clicável, e os outros somem sem deixar sinal.
-
-         `maxClusterRadius: 1` agrupa apenas o que está praticamente no mesmo
-         ponto: solicitações de clientes vizinhos, mas distintos, continuam
-         cada uma com seu pino. Clicar no grupo abre o leque (spiderfy) e cada
-         solicitação vira um pino próprio, com seu popup.
-
-         `spiderfyOnMaxZoom` garante que no zoom máximo o leque ainda abre —
-         sem isso, coordenadas idênticas nunca se separam, por mais que o
-         operador aproxime. */
-      this.camadaSolicitacoes = L.markerClusterGroup({
+      /* Solicitações seguem num cluster próprio, mas só para o que cai no
+         MESMO ponto: várias solicitações do mesmo cliente se sobrepõem
+         exatamente e só o último pino ficaria clicável. `maxClusterRadius: 1`
+         agrupa apenas coordenadas praticamente idênticas; clicar abre o leque
+         (spiderfy), inclusive no zoom máximo. */
+      leaflet.camadaSolicitacoes = L.markerClusterGroup({
         maxClusterRadius: 1,
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: false,
         zoomToBoundsOnClick: false,
         spiderfyDistanceMultiplier: 1.6,
         iconCreateFunction: (cluster) => {
-          // A cor do grupo é a do caso mais urgente que ele esconde: se
-          // qualquer solicitação ali dentro está descoberta, o grupo é
-          // vermelho. Um grupo âmbar sobre uma descoberta seria mentira.
+          // A cor do grupo é a do caso mais urgente que ele esconde.
           const filhos = cluster.getAllChildMarkers();
           const alguemDescoberto = filhos.some(m => m.options.descoberta);
           const cor = alguemDescoberto ? '#f87171' : '#fbbf24';
@@ -304,18 +331,36 @@ function mapaIscas() {
             iconSize: [30, 30],
           });
         },
-      }).addTo(this.mapa);
+      }).addTo(leaflet.mapa);
 
-      this.mapa.on('click', (evento) => {
+      leaflet.mapa.on('click', (evento) => {
         document.querySelector('#id_latitude').value = evento.latlng.lat.toFixed(6);
         document.querySelector('#id_longitude').value = evento.latlng.lng.toFixed(6);
         document.querySelector('#id_solicitacao').value = '';
+        this.solicitacaoSelecionada = null;
         this.faltaDaSolicitacao = [];
+        this.buscar();
+      });
+
+      // Escolher no select já busca e risca as linhas: não há outro passo
+      // que o operador faria em seguida.
+      const select = document.querySelector('#id_solicitacao');
+      select.addEventListener('change', () => {
+        if (!select.value) { this.limparBusca(); return; }
+        this.solicitacaoSelecionada = Number(select.value);
+        document.querySelector('#id_latitude').value = '';
+        document.querySelector('#id_longitude').value = '';
         this.buscar();
       });
 
       this.carregarAgentes();
       this.carregarSolicitacoes();
+      // Vindo da tela da solicitação (`?solicitacao=`), o select já chega
+      // preenchido: busca direto.
+      if (select.value) {
+        this.solicitacaoSelecionada = Number(select.value);
+        this.buscar();
+      }
     },
 
     async carregarSolicitacoes() {
@@ -335,8 +380,8 @@ function mapaIscas() {
     },
 
     desenharSolicitacoes() {
-      this.camadaSolicitacoes.clearLayers();
-      this.marcadoresSolicitacao = {};
+      leaflet.camadaSolicitacoes.clearLayers();
+      leaflet.marcadoresSolicitacao = {};
 
       this.solicitacoes.forEach((s) => {
         // Vermelho = falta equipamento, precisa de atribuição agora.
@@ -344,18 +389,18 @@ function mapaIscas() {
         const cor = s.descoberta ? '#f87171' : '#fbbf24';
 
         const itens = s.itens.map(i =>
-          `<tr><td>${i.modelo}</td>
+          `<tr><td>${esc(i.modelo)}</td>
            <td style="text-align:right">${i.atribuido}/${i.solicitado}</td>
            <td style="text-align:right;color:${i.falta ? '#c0392b' : '#1e8449'}">
              ${i.falta ? 'faltam ' + i.falta : 'ok'}</td></tr>`
         ).join('');
 
         const agentes = s.agentes.length
-          ? `<div style="margin-top:.4rem"><strong>Atribuída a:</strong> ${s.agentes.join(', ')}</div>`
+          ? `<div style="margin-top:.4rem"><strong>Atribuída a:</strong> ${esc(s.agentes.join(', '))}</div>`
           : '';
-        const prazo = s.prazo ? `<div><strong>Prazo:</strong> ${s.prazo}</div>` : '';
+        const prazo = s.prazo ? `<div><strong>Prazo:</strong> ${esc(s.prazo)}</div>` : '';
         const observacao = s.observacao
-          ? `<div style="margin-top:.4rem"><em>${s.observacao}</em></div>` : '';
+          ? `<div style="margin-top:.4rem"><em>${esc(s.observacao)}</em></div>` : '';
 
         const marcador = L.marker([s.lat, s.lng], {
           descoberta: s.descoberta,
@@ -365,55 +410,56 @@ function mapaIscas() {
                    transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5)"></div>`,
             iconSize: [22, 22],
             iconAnchor: [11, 22],
+            popupAnchor: [0, -22],
           }),
         }).bindPopup(
-          `<strong>Solicitação #${s.id}</strong> — ${s.status_display}
+          `<strong>Solicitação #${s.id}</strong> — ${esc(s.status_display)}
            ${s.falta_total
              ? `<span style="color:#c0392b;font-weight:700">· faltam ${s.falta_total}</span>`
              : '<span style="color:#1e8449;font-weight:700">· coberta</span>'}<br>
-           <strong>${s.cliente}</strong><br>
-           <small>${s.endereco}</small>
-           ${s.telefone ? '<br><small>' + s.telefone + '</small>' : ''}
+           <strong>${esc(s.cliente)}</strong><br>
+           <small>${esc(s.endereco)}</small>
+           ${s.telefone ? '<br><small>' + esc(s.telefone) + '</small>' : ''}
            <hr class="my-1">
            <table style="font-size:.85em;width:100%">${itens}</table>
            ${agentes}${prazo}${observacao}
            <hr class="my-1">
-           <a href="/iscas/solicitacoes/${s.id}/">Abrir solicitação</a>`,
+           <a href="${urlDetalhe(s.id)}">Abrir solicitação</a>`,
           {maxWidth: 320}
         );
+        // Clicar no pino seleciona a solicitação: busca e risca as linhas
+        // até os agentes, sem passar pelo select.
+        marcador.on('click', () => this.selecionarSolicitacao(s.id));
 
-        this.marcadoresSolicitacao[s.id] = marcador;
-        this.camadaSolicitacoes.addLayer(marcador);
+        leaflet.marcadoresSolicitacao[s.id] = marcador;
+        leaflet.camadaSolicitacoes.addLayer(marcador);
       });
     },
 
     alternarSolicitacoes() {
       if (this.mostrarSolicitacoes) {
-        this.mapa.addLayer(this.camadaSolicitacoes);
+        leaflet.mapa.addLayer(leaflet.camadaSolicitacoes);
       } else {
-        this.mapa.removeLayer(this.camadaSolicitacoes);
+        leaflet.mapa.removeLayer(leaflet.camadaSolicitacoes);
       }
     },
 
-    focarSolicitacao(id) {
+    selecionarSolicitacao(id) {
       this.solicitacaoSelecionada = id;
-      const solicitacao = this.solicitacoes.find(s => s.id === id);
-      const marcador = this.marcadoresSolicitacao[id];
-      if (!solicitacao || !marcador) { return; }
-
-      this.mapa.setView([solicitacao.lat, solicitacao.lng], 13);
-      // `zoomToShowLayer` abre o leque do cluster (ou aproxima) e só então
-      // devolve o controle — sem isso, o popup de uma solicitação agrupada
-      // com outra no mesmo endereço simplesmente não aparece.
-      this.camadaSolicitacoes.zoomToShowLayer(marcador, () => marcador.openPopup());
-
-      // Já dispara a busca: é o que o operador faria em seguida de qualquer
-      // forma. Seleciona a SOLICITAÇÃO, então a busca sai filtrada pelos
-      // modelos que faltam nela.
       document.querySelector('#id_solicitacao').value = id;
       document.querySelector('#id_latitude').value = '';
       document.querySelector('#id_longitude').value = '';
       this.buscar();
+    },
+
+    focarSolicitacao(id) {
+      const marcador = leaflet.marcadoresSolicitacao[id];
+      if (marcador) {
+        // `zoomToShowLayer` abre o leque do cluster antes do popup — sem
+        // isso, uma solicitação no mesmo endereço de outra não abre.
+        leaflet.camadaSolicitacoes.zoomToShowLayer(marcador, () => marcador.openPopup());
+      }
+      this.selecionarSolicitacao(id);
     },
 
     async carregarAgentes() {
@@ -422,19 +468,66 @@ function mapaIscas() {
       geojson.features.forEach((feature) => {
         const [lng, lat] = feature.geometry.coordinates;
         const p = feature.properties;
-        const saldos = p.saldos.length
-          ? p.saldos.map(s => `${s.disponivel}/${s.total} ${s.modelo}`).join('<br>')
-          : '<em>sem saldo</em>';
-        const marcador = L.marker([lat, lng]).bindPopup(
-          `<strong>${p.nome}</strong><br>${p.telefone || ''}<br>
-           <small>${p.cidade}/${p.uf}</small><hr class="my-1">${saldos}`
-        );
-        this.marcadores[p.id] = marcador;
-        this.cluster.addLayer(marcador);
+        // Conteúdo como função: o Leaflet chama a cada abertura, então o
+        // botão de atribuir reflete a solicitação selecionada naquele momento.
+        const marcador = L.marker([lat, lng]).bindPopup(() => this.popupAgente(p), {maxWidth: 280});
+        leaflet.marcadores[p.id] = marcador;
+        leaflet.camadaAgentes.addLayer(marcador);
         // As properties precisam ficar: sem isto a busca por nome teria de
         // voltar ao servidor para saber quem é quem.
         this.agentes.push({ id: p.id, nome: p.nome, cidade: p.cidade, uf: p.uf });
       });
+      // A busca inicial (`?solicitacao=`) pode ter voltado antes dos agentes.
+      this.filtrarAgentes();
+    },
+
+    /* Com solicitação ativa, o mapa mostra só os candidatos: agentes dentro
+       do raio com saldo de algum modelo que falta — a mesma lista da tabela,
+       calculada no servidor. Sem solicitação, todos os agentes. */
+    filtrarAgentes() {
+      const candidatos = this.solicitacaoAtiva
+        ? new Set(this.resultados.map(r => r.id)) : null;
+      let ocultos = 0;
+      Object.entries(leaflet.marcadores).forEach(([id, marcador]) => {
+        if (!candidatos || candidatos.has(Number(id))) {
+          leaflet.camadaAgentes.addLayer(marcador);
+        } else {
+          leaflet.camadaAgentes.removeLayer(marcador);
+          ocultos += 1;
+        }
+      });
+      this.agentesOcultos = ocultos;
+    },
+
+    popupAgente(p) {
+      const saldos = p.saldos.length
+        ? p.saldos.map(s => `${s.disponivel}/${s.total} ${esc(s.modelo)}`).join('<br>')
+        : '<em>sem saldo</em>';
+      let acao = '';
+      const id = this.solicitacaoAtiva;
+      if (id) {
+        const candidato = this.resultados.find(r => r.id === p.id);
+        const situacao = candidato
+          ? `<strong>${candidato.distancia_km} km</strong> da solicitação · ${candidato.disponivel} disponível`
+          : '<span style="color:#b45309">Fora do raio ou sem saldo dos modelos que faltam.</span>';
+        const href = `${urlDetalhe(id)}?agente=${p.id}#atribuir`;
+        acao = `<hr class="my-1"><div class="small mb-2">${situacao}</div>
+                <a class="btn btn-primary btn-sm w-100" href="${href}">
+                  Escolher para a solicitação #${id}</a>`;
+      }
+      return `<strong>${esc(p.nome)}</strong><br>${esc(p.telefone)}<br>
+              <small>${esc(p.cidade)}/${esc(p.uf)}</small><hr class="my-1">${saldos}${acao}`;
+    },
+
+    limparBusca() {
+      leaflet.camadaBusca.clearLayers();
+      leaflet.linhas = {};
+      this.resultados = [];
+      this.faltaDaSolicitacao = [];
+      this.solicitacaoSelecionada = null;
+      this.solicitacaoAtiva = null;
+      this.erro = '';
+      this.filtrarAgentes();
     },
 
     async buscar() {
@@ -463,7 +556,9 @@ function mapaIscas() {
         if (!resposta.ok) { this.erro = dados.erro || 'Falha na busca.'; return; }
         this.resultados = dados.agentes;
         this.faltaDaSolicitacao = dados.solicitacao ? dados.solicitacao.falta : [];
+        this.solicitacaoAtiva = dados.solicitacao ? dados.solicitacao.id : null;
         this.desenhar(dados);
+        this.filtrarAgentes();
       } catch (e) {
         this.erro = 'Não foi possível consultar o servidor.';
       } finally {
@@ -472,42 +567,64 @@ function mapaIscas() {
     },
 
     desenhar(dados) {
-      this.camadaBusca.clearLayers();
+      leaflet.camadaBusca.clearLayers();
+      leaflet.linhas = {};
       const origem = [dados.origem.latitude, dados.origem.longitude];
 
-      L.circleMarker(origem, {radius: 9, color: '#dc3545', fillOpacity: .9})
-        .bindPopup(dados.cliente ? `<strong>${dados.cliente.properties.nome}</strong>` : 'Ponto de referência')
-        .addTo(this.camadaBusca);
-      L.circle(origem, {radius: dados.raio_km * 1000, color: '#0d6efd', fillOpacity: .05})
-        .addTo(this.camadaBusca);
+      L.circle(origem, {radius: dados.raio_km * 1000, color: '#0d6efd', weight: 1, fillOpacity: .04})
+        .addTo(leaflet.camadaBusca);
 
-      // Linha até cada candidato (ISC-RF-19).
-      dados.agentes.forEach((a) => {
-        L.polyline([origem, [a.latitude, a.longitude]],
-                   {color: '#0d6efd', weight: 1, opacity: .5}).addTo(this.camadaBusca);
+      // Linha de cada candidato até a solicitação (ISC-RF-19). A lista já
+      // vem ordenada por distância: os primeiros são os mais próximos.
+      dados.agentes.forEach((a, indice) => {
+        const destaque = indice < DESTAQUES;
+        const linha = L.polyline([[a.latitude, a.longitude], origem], {
+          color: destaque ? '#16a34a' : '#0d6efd',
+          weight: destaque ? 4 : 2,
+          opacity: destaque ? .9 : .55,
+          dashArray: destaque ? null : '6 6',
+        }).bindTooltip(`${indice + 1}º · ${a.distancia_km} km`, {
+          permanent: destaque, direction: 'center', className: 'mapa-distancia',
+        });
+        linha.on('click', () => this.focar(a.id));
+        linha.addTo(leaflet.camadaBusca);
+        leaflet.linhas[a.id] = {linha, destaque};
       });
+
+      L.circleMarker(origem, {radius: 9, color: '#fff', weight: 2, fillColor: '#dc3545', fillOpacity: 1})
+        .bindPopup(dados.cliente ? `<strong>${esc(dados.cliente.properties.nome)}</strong>` : 'Ponto de referência')
+        .addTo(leaflet.camadaBusca);
 
       if (dados.agentes.length) {
         const pontos = [origem, ...dados.agentes.map(a => [a.latitude, a.longitude])];
-        this.mapa.fitBounds(L.latLngBounds(pontos), {padding: [40, 40]});
+        leaflet.mapa.fitBounds(L.latLngBounds(pontos), {padding: [40, 40]});
       } else {
-        this.mapa.setView(origem, 10);
+        leaflet.mapa.setView(origem, 12);
       }
     },
 
-    destacar(id) { this.selecionado = id; },
+    destacar(id) {
+      const anterior = leaflet.linhas[this.selecionado];
+      if (anterior) {
+        anterior.linha.setStyle({
+          weight: anterior.destaque ? 4 : 2,
+          opacity: anterior.destaque ? .9 : .55,
+        });
+      }
+      this.selecionado = id;
+      const atual = leaflet.linhas[id];
+      if (atual) {
+        atual.linha.setStyle({weight: 6, opacity: 1});
+        atual.linha.bringToFront();
+      }
+    },
 
     focar(id) {
-      this.selecionado = id;
-      const marcador = this.marcadores[id];
+      this.destacar(id);
+      const marcador = leaflet.marcadores[id];
       if (!marcador) return;
-      // `zoomToShowLayer` e não `setView`: o marcador está dentro de um
-      // cluster, e com setView simples o popup abre num ponto agrupado — ou
-      // não abre. Mesmo tratamento que `focarSolicitacao` já faz.
-      this.cluster.zoomToShowLayer(marcador, () => {
-        this.mapa.setView(marcador.getLatLng(), 15);
-        marcador.openPopup();
-      });
+      leaflet.mapa.setView(marcador.getLatLng(), Math.max(leaflet.mapa.getZoom(), 14));
+      marcador.openPopup();
     },
 
     /* ---- Busca no mapa ---- */
@@ -563,11 +680,12 @@ function mapaIscas() {
         const url = '{% url "iscas:api_geocodificar" %}?endereco=' + encodeURIComponent(termo);
         const dados = await (await fetch(url)).json();
         if (dados.ok) {
-          this.mapa.setView([dados.latitude, dados.longitude], 15);
-          this.camadaBusca.clearLayers();
+          leaflet.mapa.setView([dados.latitude, dados.longitude], 15);
+          leaflet.camadaBusca.clearLayers();
+          leaflet.linhas = {};
           L.marker([dados.latitude, dados.longitude])
-            .bindPopup(`<strong>${termo}</strong>`)
-            .addTo(this.camadaBusca).openPopup();
+            .bindPopup(`<strong>${esc(termo)}</strong>`)
+            .addTo(leaflet.camadaBusca).openPopup();
         } else {
           this.erroBusca = dados.erro || 'Endereço não encontrado.';
         }

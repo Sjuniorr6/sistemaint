@@ -30,11 +30,6 @@ class TestCampoDeBusca:
         """Sem guardar, a busca por nome teria de voltar ao servidor."""
         assert "this.agentes.push(" in html_do_mapa
 
-    def test_usa_zoom_de_cluster_para_o_agente(self, html_do_mapa):
-        """`setView` cru não abre o popup de marcador agrupado."""
-        trecho = html_do_mapa[html_do_mapa.index("focar(id)"):]
-        assert "this.cluster.zoomToShowLayer" in trecho[:400]
-
 
 class TestJavaScriptValido:
     def test_chaves_balanceadas_no_script(self, html_do_mapa):

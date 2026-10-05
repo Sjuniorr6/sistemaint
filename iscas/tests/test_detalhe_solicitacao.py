@@ -162,3 +162,38 @@ class TestEstadosDaTela:
 
         assert "Restaurar" in conteudo
         assert 'data-bs-target="#modalExcluir"' not in conteudo
+
+
+class TestAgenteVindoDoMapa:
+    """`?agente=` pre-seleciona quem o select oferece; fora disso, avisa."""
+
+    def test_agente_com_saldo_vem_selecionado(
+        self, client, operador_logado, pedido, agente, unidades_com_agente
+    ):
+        resposta = client.get(
+            reverse("iscas:solicitacao_detalhe", args=[pedido.pk]),
+            {"agente": agente.pk},
+        )
+
+        assert resposta.context["form_atribuicao"]["agente"].value() == agente.pk
+        assert f'<option value="{agente.pk}" selected>' in resposta.content.decode()
+        assert resposta.context["agente_indisponivel"] is None
+
+    def test_agente_sem_saldo_nao_e_selecionado_e_gera_aviso(
+        self, client, operador_logado, pedido, agente2
+    ):
+        resposta = client.get(
+            reverse("iscas:solicitacao_detalhe", args=[pedido.pk]),
+            {"agente": agente2.pk},
+        )
+
+        assert resposta.context["form_atribuicao"]["agente"].value() is None
+        assert resposta.context["agente_indisponivel"] == agente2
+        assert "não tem equipamento disponível" in resposta.content.decode()
+
+    def test_mapa_chega_com_a_solicitacao_escolhida(
+        self, client, operador_logado, pedido
+    ):
+        resposta = client.get(reverse("iscas:mapa"), {"solicitacao": pedido.pk})
+
+        assert f'<option value="{pedido.pk}" selected>' in resposta.content.decode()

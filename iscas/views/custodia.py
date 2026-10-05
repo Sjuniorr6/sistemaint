@@ -1,7 +1,9 @@
 """Views de estoque: entrada, transferência, baixa, manutenção e retornáveis."""
 from django.contrib import messages
 from django.core.paginator import Paginator
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from iscas.enums import SituacaoUnidade, TipoModelo
@@ -26,6 +28,7 @@ from iscas.services import estorno as estorno_service
 from iscas.services import retorno as retorno_service
 from iscas.services import transferencia as transferencia_service
 from iscas.services.exceptions import IscasError
+from iscas.services.exportacao import saldo_agentes_xlsx
 from iscas.services.saldo import saldo_por_modelo_em_lote
 
 
@@ -463,3 +466,16 @@ def registrar_retorno(request):
             f"{unidades.count()} unidade(s) retornaram para {dados['destino']}.",
         )
     return redirect("iscas:retornaveis")
+
+
+@exige(Capacidade.VER_ESTOQUE)
+def saldo_excel(request):
+    """Iscas com agentes, por região, em Excel — respeita a busca da tela."""
+    conteudo = saldo_agentes_xlsx(busca=(request.GET.get("q") or "").strip())
+    nome = f"iscas_com_agentes_{timezone.localdate():%Y-%m-%d}.xlsx"
+    resposta = HttpResponse(
+        conteudo,
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    resposta["Content-Disposition"] = f'attachment; filename="{nome}"'
+    return resposta

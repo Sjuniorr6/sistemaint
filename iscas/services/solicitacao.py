@@ -597,6 +597,7 @@ def criar_atribuicao(
     deposito=None,
     valor_agente=None,
     valor_entrega_cliente=None,
+    valor_pedagio=None,
     forma_entrega=None,
     unidades_por_modelo=None,
 ):
@@ -610,6 +611,8 @@ def criar_atribuicao(
         valor_agente: quanto o agente cobrou. Não se aplica a retirada.
         valor_entrega_cliente: quanto o cliente paga por esta entrega. Também
             não se aplica a retirada na base — quem foi buscar não paga frete.
+        valor_pedagio: pedágio que o agente paga no trajeto. Repasse: soma na
+            receita e no custo. Não se aplica a retirada na base.
         forma_entrega: `FormaEntrega`. Default ENTREGA, que é o que as
             chamadas existentes significam.
         unidades_por_modelo: dict `{modelo_id: [Unidade]}` quando o operador
@@ -639,6 +642,8 @@ def criar_atribuicao(
         raise MovimentacaoInvalida(
             "Retirada na base não cobra entrega do cliente."
         )
+    if deposito and valor_pedagio is not None:
+        raise MovimentacaoInvalida("Retirada na base não tem pedágio a pagar.")
 
     origem = agente or deposito
     if not origem.is_active:
@@ -659,6 +664,7 @@ def criar_atribuicao(
         deposito=deposito,
         valor_agente=valor_agente,
         valor_entrega_cliente=valor_entrega_cliente,
+        valor_pedagio=valor_pedagio,
         # Default por origem, não global: quem escolheu "retirada na base" e
         # não disse a forma quis retirada — era o sentido único daquela opção
         # antes de `forma_entrega` existir. Agente sem forma é entrega, que é

@@ -15,7 +15,7 @@ from iscas.forms import (
     MotivoForm,
     SolicitacaoForm,
 )
-from iscas.models.cadastro import ModeloEquipamento
+from iscas.models.cadastro import Agente, ModeloEquipamento
 from iscas.models.config import ConfiguracaoIscas
 from iscas.models.operacao import Atribuicao, Solicitacao
 from iscas.enums import Capacidade
@@ -286,6 +286,18 @@ def detalhe(request, pk):
     )
     atribuicoes = solicitacao.atribuicoes.select_related("agente").order_by("id")
 
+    # `?agente=<pk>` vem do mapa: o operador clicou no agente com esta
+    # solicitação selecionada. Só pré-seleciona quem o select oferece — os
+    # agentes com saldo dos modelos que faltam; fora disso, avisa pelo nome.
+    form_atribuicao = AtribuicaoForm(solicitacao=solicitacao)
+    agente_indisponivel = None
+    sugerido = request.GET.get("agente", "")
+    if sugerido.isdigit():
+        if form_atribuicao.fields["agente"].queryset.filter(pk=sugerido).exists():
+            form_atribuicao.initial["agente"] = int(sugerido)
+        else:
+            agente_indisponivel = Agente.objects.filter(pk=sugerido).first()
+
     return render(
         request,
         "iscas/solicitacao_detalhe.html",
@@ -302,7 +314,8 @@ def detalhe(request, pk):
                 }
                 for atribuicao in atribuicoes
             ],
-            "form_atribuicao": AtribuicaoForm(solicitacao=solicitacao),
+            "form_atribuicao": form_atribuicao,
+            "agente_indisponivel": agente_indisponivel,
             "form_entrega": ConfirmarEntregaForm(),
             "form_motivo": MotivoForm(),
             "eventos": solicitacao.eventos.select_related("autor").order_by(
@@ -340,6 +353,7 @@ def atribuir(request, pk):
     deposito = form_agente.cleaned_data.get("deposito")
     valor_agente = form_agente.cleaned_data.get("valor_agente")
     valor_entrega = form_agente.cleaned_data.get("valor_entrega_cliente")
+    valor_pedagio = form_agente.cleaned_data.get("valor_pedagio")
     forma_entrega = form_agente.cleaned_data.get("forma_entrega")
     origem = agente or deposito
     confirmando = "confirmar" in request.POST
@@ -368,6 +382,7 @@ def atribuir(request, pk):
             deposito=deposito,
             valor_agente=valor_agente,
             valor_entrega_cliente=valor_entrega,
+            valor_pedagio=valor_pedagio,
             forma_entrega=forma_entrega,
             itens=form_unidades.itens(),
             unidades_por_modelo=form_unidades.unidades_por_modelo(),
@@ -407,7 +422,7 @@ def _campos_da_origem(form_agente) -> dict:
     # `str()` e não o Decimal cru: o template renderiza com a vírgula do
     # locale pt-BR ("75,50"), e o DecimalField do passo 2 espera ponto — o
     # valor voltaria inválido e se perderia sem erro visível.
-    for campo in ("valor_agente", "valor_entrega_cliente"):
+    for campo in ("valor_agente", "valor_entrega_cliente", "valor_pedagio"):
         if dados.get(campo) is not None:
             campos[campo] = str(dados[campo])
     return campos

@@ -350,6 +350,14 @@ class Atribuicao(BaseModel):
         validators=[MinValueValidator(Decimal("0.00"))],
         verbose_name="Valor cobrado do cliente pela entrega",
     )
+    # Pedágio que o agente paga na entrega. É REPASSE: entra no que o cliente
+    # paga e no custo do agente, então não mexe na margem. NULL em retirada na
+    # base — não há trajeto do agente.
+    valor_pedagio = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(Decimal("0.00"))],
+        verbose_name="Pedágio pago pelo agente",
+    )
     status = models.CharField(
         max_length=20,
         choices=StatusAtribuicao.choices,
@@ -426,6 +434,18 @@ class Atribuicao(BaseModel):
                     | Q(valor_entrega_cliente__isnull=True)
                 ),
                 name="iscas_atrib_retirada_sem_entrega",
+            ),
+            models.CheckConstraint(
+                condition=Q(valor_pedagio__gte=0) | Q(valor_pedagio__isnull=True),
+                name="iscas_atrib_pedagio_nao_negativo",
+            ),
+            # Sem agente não há trajeto, logo não há pedágio a repassar.
+            models.CheckConstraint(
+                condition=(
+                    ~Q(origem_tipo=OrigemAtribuicao.RETIRADA_BASE)
+                    | Q(valor_pedagio__isnull=True)
+                ),
+                name="iscas_atrib_retirada_sem_pedagio",
             ),
         ]
 

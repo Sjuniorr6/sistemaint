@@ -20,9 +20,16 @@ depois "de qual modelo?".
       {{ total_geral.reservado }} reservada(s)
     </div>
   </div>
-  {% if cap.MOVIMENTAR_ESTOQUE %}<a href="{% url 'iscas:transferencia' %}" class="btn btn-primary btn-sm">
-    <i class="bi bi-arrow-left-right"></i> Transferir
-  </a>{% endif %}
+  <div class="d-flex gap-2">
+    <a href="{% url 'iscas:saldo_excel' %}{% if busca %}?q={{ busca|urlencode }}{% endif %}"
+       class="btn btn-outline-light btn-sm"
+       title="Agente, região (UF), modelos, quantidades e IDs das iscas">
+      <i class="bi bi-file-earmark-excel"></i> Exportar iscas com agentes
+    </a>
+    {% if cap.MOVIMENTAR_ESTOQUE %}<a href="{% url 'iscas:transferencia' %}" class="btn btn-primary btn-sm">
+      <i class="bi bi-arrow-left-right"></i> Transferir
+    </a>{% endif %}
+  </div>
 </div>
 
 <form method="get" class="mb-3">

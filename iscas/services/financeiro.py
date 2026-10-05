@@ -2,7 +2,9 @@
 
 Receita tem duas parcelas: o valor do material, gravado na abertura da
 solicitação, e o que se cobra do cliente por cada entrega. Custo é a soma do
-que os agentes cobraram. Retirada na base não tem nenhum dos dois lados — o
+que os agentes cobraram. O pedágio que o agente paga é repasse: entra nas
+duas pontas — o cliente paga, o agente é reembolsado — e a margem não muda.
+Retirada na base não tem nenhum dos dois lados — o
 cliente foi buscar.
 
 Service, e não property no model: uma property que somasse
@@ -36,7 +38,8 @@ def totais_da_solicitacao(solicitacao) -> dict:
 
     Returns:
         dict com `valor_cliente` (material), `valor_entregas` (frete cobrado),
-        `receita_total`, `custo_agentes`, `margem` e `tem_custo_incompleto`.
+        `valor_pedagios`, `receita_total`, `custo_agentes` (já com pedágio),
+        `margem` e `tem_custo_incompleto`.
 
     Semântica que importa:
 
@@ -81,6 +84,7 @@ def totais_em_lote(solicitacoes) -> dict:
             .annotate(
                 custo=Sum("valor_agente"),
                 entregas=Sum("valor_entrega_cliente"),
+                pedagios=Sum("valor_pedagio"),
                 # 1 para cada atribuição de agente sem valor; 0 no resto.
                 # Retirada na base não conta: ela legitimamente não tem valor.
                 sem_valor=Sum(
@@ -104,6 +108,7 @@ def totais_em_lote(solicitacoes) -> dict:
         resultado[solicitacao.pk] = _com_totais(
             solicitacao.valor_cliente,
             linha.get("entregas") or Decimal("0.00"),
+            linha.get("pedagios") or Decimal("0.00"),
             linha.get("custo") or Decimal("0.00"),
             bool(linha.get("sem_valor")),
         )
@@ -113,6 +118,7 @@ def totais_em_lote(solicitacoes) -> dict:
 def _montar(valor_cliente, atribuicoes) -> dict:
     custo = Decimal("0.00")
     entregas = Decimal("0.00")
+    pedagios = Decimal("0.00")
     incompleto = False
     for atribuicao in atribuicoes:
         if atribuicao.valor_agente is not None:
@@ -123,18 +129,26 @@ def _montar(valor_cliente, atribuicoes) -> dict:
             incompleto = True
         if atribuicao.valor_entrega_cliente is not None:
             entregas += atribuicao.valor_entrega_cliente
+        if atribuicao.valor_pedagio is not None:
+            pedagios += atribuicao.valor_pedagio
 
-    return _com_totais(valor_cliente, entregas, custo, incompleto)
+    return _com_totais(valor_cliente, entregas, pedagios, custo, incompleto)
 
 
-def _com_totais(valor_cliente, entregas, custo, incompleto) -> dict:
-    """Monta o dict final. Ponto único, para as duas funções não divergirem."""
+def _com_totais(valor_cliente, entregas, pedagios, custo, incompleto) -> dict:
+    """Monta o dict final. Ponto único, para as duas funções não divergirem.
+
+    O pedágio soma aqui, nas duas pontas, e só aqui: `custo` e `entregas`
+    chegam sem ele.
+    """
     receita = (
-        valor_cliente + entregas if valor_cliente is not None else None
+        valor_cliente + entregas + pedagios if valor_cliente is not None else None
     )
+    custo = custo + pedagios
     return {
         "valor_cliente": valor_cliente,
         "valor_entregas": entregas,
+        "valor_pedagios": pedagios,
         "receita_total": receita,
         "custo_agentes": custo,
         "margem": receita - custo if receita is not None else None,

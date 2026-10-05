@@ -54,6 +54,7 @@ CAPACIDADE_ESPERADA = {
     "unidade_lista": Capacidade.VER_ESTOQUE,
     "unidade_detalhe": Capacidade.VER_ESTOQUE,
     "painel_saldo": Capacidade.VER_ESTOQUE,
+    "saldo_excel": Capacidade.VER_ESTOQUE,
     "retornaveis": Capacidade.VER_ESTOQUE,
     "entrada": Capacidade.MOVIMENTAR_ESTOQUE,
     "transferencia": Capacidade.MOVIMENTAR_ESTOQUE,

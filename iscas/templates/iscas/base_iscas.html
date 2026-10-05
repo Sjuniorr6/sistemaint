@@ -202,6 +202,17 @@ de manutenção. Trocar para arquivos locais é substituir estas tags.
 #mapa, .mapa-caixa { height: 520px; border-radius: .5rem; z-index: 1; }
 /* O Leaflet injeta texto escuro nos popups; o app não pode sobrescrever. */
 .leaflet-popup-content { color: #1a1a1a; }
+/* `.iscas-app a` pinta link de branco e vence o leaflet.css (mesma
+   especificidade, declarado depois): os botões de zoom ficavam vazios e os
+   links dos popups, invisíveis no fundo branco. */
+.iscas-app .leaflet-container a { color: #0b5ed7; }
+.iscas-app .leaflet-bar a { color: #1a1a1a; }
+.iscas-app .leaflet-container a.leaflet-popup-close-button { color: #757575; }
+.iscas-app .leaflet-popup-content a.btn-primary { color: #fff; }
+.mapa-distancia {
+    background: #fff; color: #1a1a1a; border: 0; font-weight: 600;
+    font-size: .75rem; padding: 1px 6px; box-shadow: 0 1px 3px rgba(0,0,0,.4);
+}
 
 /* O operador registra confirmações fora da mesa: 360px precisa funcionar. */
 @media (max-width: 576px) {

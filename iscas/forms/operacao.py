@@ -169,6 +169,14 @@ class AtribuicaoForm(forms.Form):
                    "placeholder": "0,00"}
         ),
     )
+    valor_pedagio = forms.DecimalField(
+        label="Pedágio pago pelo agente", required=False,
+        max_digits=10, decimal_places=2, min_value=Decimal("0.00"),
+        widget=forms.NumberInput(
+            attrs={"class": "form-control", "step": "0.01", "min": "0",
+                   "placeholder": "0,00"}
+        ),
+    )
 
     def __init__(self, *args, solicitacao=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -216,6 +224,10 @@ class AtribuicaoForm(forms.Form):
             if dados.get("valor_entrega_cliente") is not None:
                 raise forms.ValidationError(
                     "Retirada na base não cobra entrega do cliente."
+                )
+            if dados.get("valor_pedagio") is not None:
+                raise forms.ValidationError(
+                    "Retirada na base não tem pedágio a pagar."
                 )
             self._exigir_unidades_uteis(deposito)
             return dados

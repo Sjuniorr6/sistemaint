@@ -113,8 +113,12 @@ def montar_texto_entrega(solicitacao) -> str:
     # Receita = material + o que se cobra por cada entrega. A linha só aparece
     # quando há frete cobrado: sem ela, repetiria o "Valor total" acima.
     totais = financeiro.totais_da_solicitacao(solicitacao)
-    if totais["valor_entregas"]:
+    # Pedágio é repasse e entra no total do cliente: sem a linha, o total
+    # não bateria com as parcelas mostradas.
+    if totais["valor_entregas"] or totais["valor_pedagios"]:
         linhas.append(f"Valor da entrega: {_moeda(totais['valor_entregas'])}")
+        if totais["valor_pedagios"]:
+            linhas.append(f"Pedágio: {_moeda(totais['valor_pedagios'])}")
         if totais["receita_total"] is not None:
             linhas.append(
                 f"Valor total com entrega: {_moeda(totais['receita_total'])}"
@@ -134,6 +138,8 @@ def montar_texto_entrega(solicitacao) -> str:
                 f"Valor entrega cobrado do cliente: "
                 f"{_moeda(atribuicao.valor_entrega_cliente)}"
             )
+        if atribuicao.valor_pedagio is not None:
+            linhas.append(f"Pedágio: {_moeda(atribuicao.valor_pedagio)}")
         # Depósito não tem telefone — acessar `.telefone` ali seria
         # AttributeError em produção.
         if not atribuicao.eh_retirada_base:

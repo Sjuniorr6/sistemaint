@@ -16,12 +16,16 @@ from iscas.services.geo import (
 @exige(Capacidade.VER_MAPA)
 def mapa(request):
     """Mapa com todos os agentes ativos e coordenada válida (ISC-RF-16)."""
+    # `?solicitacao=` vem do botão da tela da solicitação: o select já chega
+    # escolhido e o mapa busca sozinho. Fora do queryset, o select ignora.
+    sugerida = request.GET.get("solicitacao", "")
+    initial = {"solicitacao": int(sugerida)} if sugerida.isdigit() else {}
     return render(
         request,
         "iscas/mapa.html",
         {
             "config": ConfiguracaoIscas.carregar(),
-            "form": BuscaProximidadeForm(),
+            "form": BuscaProximidadeForm(initial=initial),
             "sem_coordenada": agentes_sem_coordenada(),
         },
     )
