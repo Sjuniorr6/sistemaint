@@ -117,9 +117,9 @@
                         <p class="card-text"><b>Data</b>: {{ item.data|date:"d/m/Y H:i:s" }}</p>
                         <p class="card-text"><b>Comercial</b>: {{ item.comercial }}</p>
                         <p class="card-text"><b>Contrato</b>: {{ item.contrato }}</p>
-                        <p class="card-text"><b>Tipo de Produto</b>: {{ item.tipo_produto }}</p>
+                        <p class="card-text"><b>Tipo de Produto</b>: {% include 'partials/_modelos_inline.html' with r=item %}</p>
                         <p class="card-text"><b>Observações</b>: {{ item.observacoes }}</p>
-                        <p class="card-text"><b>Customização</b>: {{ item.tipo_customizacao }}</p>
+                        <p class="card-text"><b>Customização</b>: {% include 'partials/_customizacoes_inline.html' with r=item %}</p>
                         <p class="card-text"><b>ID Equipamentos </b>: {{ item.id_equipamentos }}</p>
                         <p class="card-text"><b>Status</b>: {{ item.status }}</p>
                         <p class="card-text"><b>TP</b>: {{ item.TP }}</p>

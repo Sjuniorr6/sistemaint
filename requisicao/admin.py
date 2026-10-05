@@ -3,8 +3,17 @@ from . import models
 
 # Configuração para exibir os modelos no admin
 
+class ItemRequisicaoInline(admin.TabularInline):
+    """Modelos da requisição (tipo de produto, quantidade, customização, valor)."""
+
+    model = models.ItemRequisicao
+    extra = 0
+    fields = ('tipo_produto', 'quantidade', 'customizacao', 'valor_unitario', 'numeros_referencia')
+
+
 # Admin personalizado para o modelo Requisicoes
 class RequisicoesAdmin(admin.ModelAdmin):
+    inlines = [ItemRequisicaoInline]
     list_display = (
         'nome', 'endereco', 'cnpj', 'contrato', 'inicio_de_contrato', 
         'vigencia', 'data', 'motivo', 'envio', 'comercial', 'tipo_produto',

@@ -124,7 +124,7 @@ class FaturamentoListView(PermissionRequiredMixin, LoginRequiredMixin, ListView)
             queryset = queryset.filter(motivo=motivo)
 
         if tipo_produto:
-            queryset = queryset.filter(tipo_produto_id=tipo_produto)
+            queryset = _com_produto(queryset, tipo_produto)
 
         if contrato_tipo:
             queryset = queryset.filter(contrato=contrato_tipo)
@@ -144,7 +144,8 @@ class FaturamentoListView(PermissionRequiredMixin, LoginRequiredMixin, ListView)
         if busca:
             queryset = queryset.filter(nome__nome__icontains=busca)
 
-        return queryset
+        # Modelos de cada linha (a tabela lista os itens da requisição).
+        return queryset.prefetch_related('itens__tipo_produto')
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['status_faturamento_choices'] = Requisicoes._meta.get_field('status_faturamento').choices
@@ -186,6 +187,17 @@ class FaturamentoListView(PermissionRequiredMixin, LoginRequiredMixin, ListView)
         ]
 
         return context
+
+def _com_produto(queryset, produto_id):
+    """Requisições com ALGUM modelo igual a `produto_id` (vários modelos por requisição)."""
+    from django.db.models import Exists, OuterRef
+
+    from requisicao.models import ItemRequisicao
+
+    return queryset.filter(Exists(ItemRequisicao.objects.filter(
+        requisicao=OuterRef('pk'), tipo_produto_id=produto_id
+    )))
+
 
 def _build_faturamento_queryset(request):
     """Reconstrói o mesmo queryset da FaturamentoListView a partir dos parâmetros GET."""
@@ -255,7 +267,7 @@ def _build_faturamento_queryset(request):
     if motivo:
         queryset = queryset.filter(motivo=motivo)
     if tipo_produto:
-        queryset = queryset.filter(tipo_produto_id=tipo_produto)
+        queryset = _com_produto(queryset, tipo_produto)
     if contrato_tipo:
         queryset = queryset.filter(contrato=contrato_tipo)
     if fatura_tipo:
@@ -311,7 +323,10 @@ def _get_cell_value(registro, field):
     if field == "nome__nome":
         return str(registro.nome) if registro.nome else ''
     if field == "tipo_produto__nome":
-        return registro.tipo_produto.nome if registro.tipo_produto else ''
+        # Modelos da requisição com a quantidade de cada um.
+        from requisicao.services import resumo_itens
+
+        return resumo_itens(registro)["produtos"]
     if field == "quantidade_expedida":
         return registro.quantidade_expedida if registro.quantidade_expedida is not None else 0
     return getattr(registro, field, '') or ''
@@ -345,7 +360,7 @@ def faturamento_export_excel(request):
         cell.alignment = center
         cell.border = border
 
-    for registro in queryset.select_related('nome', 'tipo_produto'):
+    for registro in queryset.select_related('nome', 'tipo_produto').prefetch_related('itens__tipo_produto'):
         ws.append([_get_cell_value(registro, field) for _, field, _ in colunas])
         for col_idx in range(1, len(colunas) + 1):
             cell = ws.cell(row=ws.max_row, column=col_idx)

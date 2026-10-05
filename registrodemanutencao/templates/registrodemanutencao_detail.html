@@ -31,16 +31,17 @@
             {% if registrodemanutencao_detail.imagem %}
                 <p><img src="{{ registrodemanutencao_detail.imagem.url }}" alt="Descrição da imagem" width="450"></p>
             {% endif %}
+            {% comment %} Laudo por equipamento: as fotos são opcionais (sem o `if`, laudo
+              sem foto derrubava a página com ValueError). {% endcomment %}
             {% for imagem in registrodemanutencao_detail.imagens.all %}
-    
-    <p>ID: {{ imagem.descricao }}</p>
-    <p>Tipo de Problema: {{ imagem.tipo_problema }}</p>
-   
-
-
-            
-                <img src="{{ imagem.imagem.url }}" alt="Descrição da imagem" style="width: 500px; height: 250px;" />
-            
+                <p>ID: {{ imagem.id_equipamento }}</p>
+                <p>Tipo de Problema: {{ imagem.tipo_problema }}</p>
+                {% if imagem.imagem %}
+                    <img src="{{ imagem.imagem.url }}" alt="Foto do equipamento {{ imagem.id_equipamento }}" style="width: 500px; height: 250px;" />
+                {% endif %}
+                {% if imagem.imagem2 %}
+                    <img src="{{ imagem.imagem2.url }}" alt="Foto do equipamento {{ imagem.id_equipamento }}" style="width: 500px; height: 250px;" />
+                {% endif %}
             {% endfor %}
         </div>
     </div>

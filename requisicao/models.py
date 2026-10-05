@@ -418,6 +418,44 @@ class Requisicoes(models.Model):
         return len(self.id_equipamentos.strip().split())
 
 
+class ItemRequisicao(models.Model):
+    """Um modelo de equipamento dentro da requisição.
+
+    Uma requisição pode pedir modelos diferentes (ex.: isca 4G e isca 2G), cada
+    um com quantidade, customização e valor próprios. Os itens são a FONTE
+    desses dados; na requisição, `numero_de_equipamentos` (total), `valor_total`
+    (soma) e `tipo_produto`/`tipo_customizacao`/`valor_unitario` (do primeiro
+    item) são um resumo gravado pelo service de criação — mantido porque a API
+    dos parceiros, o kanban, a expedição parcial e o faturamento leem esses
+    campos. O contrato continua um só, na requisição.
+    """
+
+    requisicao = models.ForeignKey(
+        Requisicoes, on_delete=models.CASCADE, related_name='itens'
+    )
+    tipo_produto = models.ForeignKey(
+        Produto, on_delete=models.PROTECT, related_name='itens_requisicao'
+    )
+    quantidade = models.PositiveIntegerField(default=0)
+    # Mesmo nome do ItemEntrada: os partials de itens servem aos dois.
+    customizacao = models.CharField(
+        choices=Requisicoes.customizacoes, max_length=50, blank=True, default=''
+    )
+    valor_unitario = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    # Nºs dos equipamentos que este item substitui (requisição vinda de chamado).
+    numeros_referencia = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['id']  # ordem em que os modelos foram informados
+
+    @property
+    def valor_total(self):
+        return self.quantidade * self.valor_unitario
+
+    def __str__(self):
+        return f"{self.tipo_produto} ({self.quantidade})"
+
+
 class estoque_antenista(models.Model):
     ANTENISTA_CHOICES =[
     ('RODRIGO SILVA', 'RODRIGO SILVA'),

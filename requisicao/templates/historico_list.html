@@ -559,7 +559,7 @@
                                 <div class="col-6">
                                     <p class="card-text"><b>CNPJ:</b> {{ item.cnpj }}</p>
                                     <p class="card-text"><b>Comercial:</b> {{ item.comercial }}</p>
-                                    <p class="card-text"><b>Tipo de Produto:</b> {{ item.tipo_produto }}</p>
+                                    <p class="card-text"><b>Tipo de Produto:</b> {% include 'partials/_modelos_inline.html' with r=item %}</p>
                                     <p class="card-text"><b>Quantidade:</b> {{ item.numero_de_equipamentos }}</p>
                                 </div>
                                 <div class="col-6">

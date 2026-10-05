@@ -15,6 +15,7 @@ from chamados.enums import (
     GRUPO_INTELIGENCIA,
     Categoria,
     CustoEquipamento,
+    DestinoEquipamento,
     MeioContato,
     Setor,
 )
@@ -33,8 +34,9 @@ class EquipamentosWidget(forms.Widget):
     """Lê os blocos "modelo + números" da abertura.
 
     A tela renderiza um bloco por modelo: `grupo` (id do bloco, repetido),
-    `grupo_<id>_modelo` (select) e `grupo_<id>_numero` (N inputs). Devolve
-    [(modelo_id, [números]), ...]; bloco sem modelo e sem número é descartado.
+    `grupo_<id>_modelo`, `grupo_<id>_customizacao`, `grupo_<id>_tipo_contrato`
+    (selects) e `grupo_<id>_numero` (N inputs). Devolve uma lista de dicts crus;
+    bloco totalmente vazio é descartado.
     """
 
     def value_from_datadict(self, data, files, name):
@@ -48,20 +50,25 @@ class EquipamentosWidget(forms.Widget):
 
         grupos = []
         for gid in dict.fromkeys(lista("grupo")):  # ordem da tela, sem repetir
-            modelo = str(data.get(f"grupo_{gid}_modelo") or "").strip()
-            numeros = [
+            grupo = {
+                campo: str(data.get(f"grupo_{gid}_{campo}") or "").strip()
+                for campo in ("modelo", "customizacao", "tipo_contrato")
+            }
+            grupo["numeros"] = [
                 n.strip() for n in lista(f"grupo_{gid}_numero") if n and n.strip()
             ]
-            if modelo or numeros:
-                grupos.append((modelo, numeros))
+            if any(grupo.values()):
+                grupos.append(grupo)
         return grupos
 
 
 class EquipamentosField(forms.Field):
     """Equipamentos do chamado agrupados por modelo.
 
-    Entra [(modelo_id, [números]), ...] e sai [(número, Produto), ...] — um
-    modelo por nº, o formato que o service de abertura grava.
+    Entra a lista de blocos e sai [(número, Produto, customização, contrato)] —
+    um modelo por nº, o formato que o service de abertura grava. Customização e
+    contrato são obrigatórios em cada bloco e usam o vocabulário da entrada de
+    equipamento (a Expedição recebe a entrada já com eles).
     """
 
     widget = EquipamentosWidget
@@ -71,21 +78,31 @@ class EquipamentosField(forms.Field):
         super().__init__(**kwargs)
 
     def clean(self, value):
+        from registrodemanutencao.models import registrodemanutencao as entrada
+
         grupos = value or []
         if not grupos:
             raise forms.ValidationError("Informe ao menos um equipamento.")
+        customizacoes = {v for v, _ in entrada.custom}
+        contratos = {v for v, _ in entrada.contrato_tipo}
         # Uma query só para todos os modelos (sem lookup por bloco).
-        ids = {m for m, _ in grupos if m.isdigit()}
+        ids = {g["modelo"] for g in grupos if g["modelo"].isdigit()}
         produtos = {str(p.pk): p for p in self.queryset.filter(pk__in=ids)}
         erros = []
         numeros_vistos = set()
-        for modelo_id, numeros in grupos:
+        for g in grupos:
+            modelo_id, numeros = g["modelo"], g["numeros"]
+            rotulo = produtos.get(modelo_id) or "sem modelo"
             if not modelo_id:
                 erros.append(f"Selecione o modelo dos equipamentos {', '.join(numeros)}.")
             elif modelo_id not in produtos:
                 erros.append("Modelo de equipamento inválido.")
             elif not numeros:
-                erros.append(f"Informe ao menos um nº para o modelo {produtos[modelo_id]}.")
+                erros.append(f"Informe ao menos um nº para o modelo {rotulo}.")
+            if g["customizacao"] not in customizacoes:
+                erros.append(f"Selecione a customização do modelo {rotulo}.")
+            if g["tipo_contrato"] not in contratos:
+                erros.append(f"Selecione o tipo de contrato do modelo {rotulo}.")
             for numero in numeros:
                 if len(numero) > 60:
                     erros.append(f"Nº {numero[:20]}…: máximo de 60 caracteres.")
@@ -95,9 +112,9 @@ class EquipamentosField(forms.Field):
         if erros:
             raise forms.ValidationError(list(dict.fromkeys(erros)))
         return [
-            (numero, produtos[modelo_id])
-            for modelo_id, numeros in grupos
-            for numero in numeros
+            (numero, produtos[g["modelo"]], g["customizacao"], g["tipo_contrato"])
+            for g in grupos
+            for numero in g["numeros"]
         ]
 
 
@@ -183,12 +200,22 @@ class AberturaChamadoForm(forms.Form):
     )
 
     def grupos_equipamento(self):
-        """Blocos modelo + números para o template: o que foi postado (ao
-        reexibir com erro) ou um bloco vazio."""
+        """Blocos para o template: o que foi postado (ao reexibir com erro) ou
+        um bloco vazio."""
+        vazio = {"modelo": "", "customizacao": "", "tipo_contrato": "", "numeros": [""]}
         grupos = self["equipamentos"].value() if self.is_bound else None
         return [
-            {"modelo": m, "numeros": numeros or [""]} for m, numeros in (grupos or [])
-        ] or [{"modelo": "", "numeros": [""]}]
+            {**g, "numeros": g["numeros"] or [""]} for g in (grupos or [])
+        ] or [vazio]
+
+    def opcoes_equipamento(self):
+        """Opções de customização e contrato (as mesmas da entrada de equipamento)."""
+        from registrodemanutencao.models import registrodemanutencao as entrada
+
+        return {
+            "customizacoes": [c for c in entrada.custom if c[0]],
+            "contratos": entrada.contrato_tipo,
+        }
 
     def clean(self):
         cleaned = super().clean()
@@ -231,6 +258,43 @@ class EncaminharExpedicaoForm(forms.Form):
     )
     tratativa = forms.CharField(
         widget=forms.Textarea(attrs={"class": "form-control", "rows": 3})
+    )
+
+
+class EncaminharEnvioForm(forms.Form):
+    """Modal "Encaminhar para expedição" (Configuração → envio ao cliente)."""
+
+    tratativa = forms.CharField(
+        label="O que foi configurado",
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+    )
+
+
+class RegistrarEnvioForm(forms.Form):
+    """Modal "Registrar envio" (Expedição → Financeiro)."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from requisicao.models import Requisicoes
+
+        # Mesmas opções de envio da requisição.
+        self.fields["metodo_envio"] = forms.ChoiceField(
+            label="Método de envio",
+            choices=[("", "Selecione")] + list(Requisicoes.tipo_envio),
+            widget=forms.Select(attrs={"class": "form-select"}),
+        )
+        # A ordem dos campos no modal: método, data, rastreio.
+        self.order_fields(["metodo_envio", "data_envio", "codigo_rastreio_envio"])
+
+    data_envio = forms.DateField(
+        label="Data de envio",
+        widget=forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+    )
+    codigo_rastreio_envio = forms.CharField(
+        label="Código de rastreio",
+        required=False,
+        max_length=100,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
     )
 
 
@@ -355,10 +419,11 @@ class EncaminharComercialForm(forms.Form):
 
 
 class FinalizarComercialForm(forms.Form):
-    """Modal Finalizar (Comercial → RESOLVIDO), POR EQUIPAMENTO.
+    """Modal "Realizar tratativa" (Comercial), POR EQUIPAMENTO.
 
-    Para cada equipamento do chamado, o Comercial informa a tratativa e seleciona
-    o custo (com/sem). Construído dinamicamente como o form do laboratório.
+    Para cada equipamento do chamado, o Comercial informa a tratativa, o custo
+    (com/sem) e o destino (substituição/devolução). Construído dinamicamente
+    como o form do laboratório.
     """
 
     def __init__(self, *args, equipamentos=None, **kwargs):
@@ -387,6 +452,11 @@ class FinalizarComercialForm(forms.Form):
                         "x-ref": f"custo{i}",
                     }
                 ),
+            )
+            self.fields[f"destino_{i}"] = forms.ChoiceField(
+                label=f"Destino de {numero}",
+                choices=[("", "Selecione")] + list(DestinoEquipamento.choices),
+                widget=forms.Select(attrs={"class": "form-select"}),
             )
 
         # Termo de substituição: exigido quando houver equipamento COM CUSTO.
@@ -421,6 +491,7 @@ class FinalizarComercialForm(forms.Form):
                 "numero": numero,
                 "tratativa": self.cleaned_data.get(f"tratativa_{i}", ""),
                 "custo": self.cleaned_data.get(f"custo_{i}", ""),
+                "destino": self.cleaned_data.get(f"destino_{i}", ""),
             }
             for i, numero in enumerate(self.equipamentos)
         ]
@@ -433,6 +504,7 @@ class FinalizarComercialForm(forms.Form):
                 "numero": numero,
                 "tratativa": self[f"tratativa_{i}"],
                 "custo": self[f"custo_{i}"],
+                "destino": self[f"destino_{i}"],
             }
             for i, numero in enumerate(self.equipamentos)
         ]

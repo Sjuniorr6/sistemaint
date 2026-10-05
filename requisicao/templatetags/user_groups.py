@@ -61,8 +61,9 @@ def eh_carregador_cabo(requisicao):
     Normaliza espaços extras para evitar problemas de comparação.
     Uso: {% if requisicao|eh_carregador_cabo %}
     """
-    if not requisicao or not requisicao.tipo_produto:
+    if not requisicao:
         return False
-    
-    nome_produto = requisicao.tipo_produto.nome.strip().upper()
-    return 'CARREGADOR' in nome_produto and 'CABO' in nome_produto
+    # Pelos modelos da requisição (todos CARREGADOR + CABO) — ver services.
+    from requisicao.services import eh_carregador_cabo as _eh_carregador_cabo
+
+    return _eh_carregador_cabo(requisicao)

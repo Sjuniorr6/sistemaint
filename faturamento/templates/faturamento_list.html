@@ -412,7 +412,7 @@
                                         <td title="{{ registro.motivo }}">{{ registro.motivo }}</td>
                                         <td title="Envio: {{ registro.envio }}">{{ registro.envio }}</td>
                                         <td title="Comercial: {{ registro.comercial }}">{{ registro.comercial }}</td>
-                                        <td title="Produto: {{ registro.tipo_produto.nome }}">{{ registro.tipo_produto.nome }}</td>
+                                        <td>{% for item in registro.itens.all %}{{ item.tipo_produto.nome }} ({{ item.quantidade }}){% if not forloop.last %}<br>{% endif %}{% empty %}{{ registro.tipo_produto.nome }}{% endfor %}</td>
                                         <td class="text-center" title="Quantidade: {{ registro.numero_de_equipamentos }}">{{ registro.numero_de_equipamentos }}</td>
                                         <td class="text-center" title="Quantidade Expedida: {{ registro.quantidade_expedida|default:'0' }}">
                                             {% if registro.quantidade_expedida and registro.quantidade_expedida > 0 %}

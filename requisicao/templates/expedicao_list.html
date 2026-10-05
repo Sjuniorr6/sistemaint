@@ -467,7 +467,7 @@
 
             <div class="info-compact-item">
               <span class="label">Produto</span>
-              <span class="value">{{ registro.tipo_produto }}</span>
+              <span class="value">{% include 'partials/_modelos_inline.html' with r=registro %}</span>
             </div>
 
             <div class="info-compact-item">

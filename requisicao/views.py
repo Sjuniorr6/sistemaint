@@ -52,7 +52,8 @@ class RequisicoesViews(PermissionRequiredMixin, LoginRequiredMixin, ListView):
     permission_required = "requisicao.view_requisicoes"
 
     def get_queryset(self):
-        return Requisicoes.objects.filter(status__in=["Pendente"])
+        # Modelos de cada card (partials/_modelos_inline.html).
+        return Requisicoes.objects.filter(status__in=["Pendente"]).select_related("nome").prefetch_related("itens__tipo_produto")
 
 
 from django.http import JsonResponse
@@ -77,95 +78,127 @@ from django.urls import reverse_lazy
 from django.views.generic.edit import CreateView
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from .models import Requisicoes, estoque_antenista
-from .forms import RequisicaoForm
+from .forms import RequisicaoCreateForm, RequisicaoForm
 
 logger = logging.getLogger(__name__)
+
+from xml.sax.saxutils import escape  # textos livres dentro de Paragraph do reportlab
+
+from .services import resumo_itens
 
 
 class RequisicaoCreateView(PermissionRequiredMixin, LoginRequiredMixin, CreateView):
     model = Requisicoes
     template_name = "requisicao_create.html"
-    form_class = RequisicaoForm
+    form_class = RequisicaoCreateForm
     success_url = reverse_lazy("requisicoes")
     permission_required = "requisicao.add_requisicoes"
 
     def get_queryset(self):
         return Requisicoes.objects.all().order_by("id")
 
+    def dispatch(self, request, *args, **kwargs):
+        # Requisição de substituição vinda do chamado (Recepção, ao aceitar):
+        # ?chamado=<id> no GET, campo oculto no POST. Inelegível → avulsa.
+        from chamados.services import chamado_para_requisicao
+
+        chamado_id = request.POST.get("chamado") or request.GET.get("chamado")
+        self.chamado = None
+        if chamado_id and str(chamado_id).isdigit() and request.user.is_authenticated:
+            self.chamado = chamado_para_requisicao(int(chamado_id), request.user)
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        if self.chamado is not None and self.request.method == "GET":
+            from chamados.services import dados_iniciais_requisicao
+
+            dados = dados_iniciais_requisicao(self.chamado)
+            kwargs["initial"] = {**kwargs.get("initial", {}), **dados["initial"]}
+            kwargs["itens_iniciais"] = dados["blocos"]
+            self.avisos_chamado = dados["avisos"]
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["chamado"] = self.chamado
+        context["avisos_chamado"] = getattr(self, "avisos_chamado", [])
+        return context
+
+    def _salvar(self, form, itens):
+        """Grava pela camada de serviço; vinda do chamado, vincula na mesma transação."""
+        from .services import criar_requisicao
+
+        return criar_requisicao(form.save(commit=False), itens, chamado=self.chamado)
+
+    def _sucesso(self):
+        if self.chamado is not None:
+            messages.success(
+                self.request,
+                f"Requisição #{self.object.pk} criada e vinculada ao chamado {self.chamado.protocolo}.",
+            )
+            return redirect("chamados:detalhe", pk=self.chamado.pk)
+        return redirect(self.get_success_url())
+
     def form_valid(self, form):
+        from django.core.exceptions import ValidationError as _ValidationError
+
         motivo = form.cleaned_data.get("motivo")
         antenista = form.cleaned_data.get("antenista")
-        tipo_produto = form.cleaned_data.get("tipo_produto")
-        numero_de_equipamentos = form.cleaned_data.get("numero_de_equipamentos")
+        itens = form.cleaned_data["itens"]
 
-        logger.info("Formulário válido: %s", form.is_valid())
-        logger.info("Dados do formulário: %s", form.cleaned_data)
-
-        if (
-            motivo in ["Isca FAST", "Estoque Antenista"]
-            and antenista
-            and tipo_produto
-            and numero_de_equipamentos
-        ):
+        if motivo in ["Isca FAST", "Estoque Antenista"] and antenista:
+            # Estoque do antenista movimentado por MODELO (um item por modelo).
             try:
                 with transaction.atomic():
-                    requisicao = form.save(commit=False)
-                    quantidade_requisitada = int(numero_de_equipamentos)
-                    antenista_estoque, created = (
-                        estoque_antenista.objects.get_or_create(
+                    for item in itens:
+                        antenista_estoque, _ = estoque_antenista.objects.get_or_create(
                             nome=antenista,
-                            tipo_produto=tipo_produto,
+                            tipo_produto=item.tipo_produto,
                             defaults={"quantidade": 0},
                         )
-                    )
-
-                    if antenista_estoque.quantidade is None:
-                        antenista_estoque.quantidade = 0
-
-                    if motivo == "Isca FAST":
-                        if antenista_estoque.quantidade >= quantidade_requisitada:
-                            antenista_estoque.quantidade -= quantidade_requisitada
+                        if antenista_estoque.quantidade is None:
+                            antenista_estoque.quantidade = 0
+                        if motivo == "Isca FAST":
+                            if antenista_estoque.quantidade < item.quantidade:
+                                messages.error(
+                                    self.request,
+                                    f"O antenista {antenista} não tem quantidade suficiente no estoque para o produto {item.tipo_produto}. Quantidade disponível: {antenista_estoque.quantidade}, quantidade requisitada: {item.quantidade}.",
+                                )
+                                transaction.set_rollback(True)
+                                return self.form_invalid(form)
+                            antenista_estoque.quantidade -= item.quantidade
                         else:
-                            messages.error(
-                                self.request,
-                                f"O antenista {antenista} não tem quantidade suficiente no estoque para o produto {tipo_produto}. Quantidade disponível: {antenista_estoque.quantidade}, quantidade requisitada: {quantidade_requisitada}.",
-                            )
-                            return self.form_invalid(form)
-                    elif motivo == "Estoque Antenista":
-                        antenista_estoque.quantidade += quantidade_requisitada
-
-                    antenista_estoque.save()
-                    requisicao.save()
-                    return super().form_valid(form)
+                            antenista_estoque.quantidade += item.quantidade
+                        antenista_estoque.save()
+                    self.object = self._salvar(form, itens)
             except Exception as e:
                 logger.error("Erro ao processar a requisição: %s", e)
-                messages.error(
-                    self.request, "Ocorreu um erro ao processar a requisição."
-                )
+                messages.error(self.request, "Ocorreu um erro ao processar a requisição.")
                 return self.form_invalid(form)
-        else:
-            response = super().form_valid(form)
+            return self._sucesso()
 
-            # Registrar log de criação
-            AuditLog.registrar(
-                objeto=form.instance,
-                acao="criacao",
-                usuario=self.request.user,
-                status_novo=form.instance.status,
-                detalhes={
-                    "cliente": str(form.instance.nome) if form.instance.nome else None,
-                    "tipo_produto": (
-                        str(form.instance.tipo_produto)
-                        if form.instance.tipo_produto
-                        else None
-                    ),
-                    "quantidade": form.instance.numero_de_equipamentos,
-                },
-                observacao="Requisição criada",
-                request=self.request,
-            )
+        try:
+            self.object = self._salvar(form, itens)
+        except _ValidationError as exc:
+            form.add_error(None, exc)
+            return self.form_invalid(form)
 
-            return response
+        # Registrar log de criação
+        AuditLog.registrar(
+            objeto=self.object,
+            acao="criacao",
+            usuario=self.request.user,
+            status_novo=self.object.status,
+            detalhes={
+                "cliente": str(self.object.nome) if self.object.nome else None,
+                "tipo_produto": ", ".join(str(i.tipo_produto) for i in itens),
+                "quantidade": self.object.numero_de_equipamentos,
+            },
+            observacao="Requisição criada",
+            request=self.request,
+        )
+        return self._sucesso()
 
 
 class RequisicaoDetailView(PermissionRequiredMixin, LoginRequiredMixin, DetailView):
@@ -344,16 +377,14 @@ class ConfiguracaoListView(PermissionRequiredMixin, LoginRequiredMixin, ListView
         # Obter parâmetro de filtro por ID
         id_filtro = self.request.GET.get("id_filtro")
 
-        requisicoes_queryset = Requisicoes.objects.filter(
-            status__in=["Aprovado pelo CEO"]
-        ).exclude(
-            tipo_produto__nome__in=[
-                "GS310",
-                "GS340",
-                "GS390",
-                "GS8310 (4G)",
-            ]
-        )
+        # Requisição com vários modelos: fica na Configuração se ALGUM modelo
+        # não é do Setor Técnico (ver services.com_algum_item_fora).
+        from requisicao.services import PRODUTOS_SETOR_TECNICO, com_algum_item_fora
+
+        requisicoes_queryset = com_algum_item_fora(
+            Requisicoes.objects.filter(status__in=["Aprovado pelo CEO"]),
+            PRODUTOS_SETOR_TECNICO,
+        ).prefetch_related("itens__tipo_produto")
         # Entrada de manutenção pode ter vários tipos de produto (ItemEntrada).
         # Sai da Configuração só quando TODOS os itens são desses produtos; uma
         # entrada mista (ex.: GS310 + outro) continua aparecendo. Item sem
@@ -400,6 +431,8 @@ class ConfiguracaoUpdateView(PermissionRequiredMixin, LoginRequiredMixin, Update
     context_object_name = "equipamento"
     success_url = reverse_lazy("ConfiguracaoListView")
     permission_required = "requisicao.change_requisicoes"
+    # O template é compartilhado com a entrada de manutenção.
+    extra_context = {"itens_template": "partials/_itens_requisicao.html"}
 
 
 class ConfiguracaoUpdateView2(PermissionRequiredMixin, LoginRequiredMixin, UpdateView):
@@ -420,17 +453,12 @@ class tecnicoListView(PermissionRequiredMixin, LoginRequiredMixin, ListView):
     permission_required = "requisicao.view_requisicoes"
 
     def get_queryset(self):
-        valores_tipo_produto = [
-            "GS310",
-            "GS340",
-            "GS390",
-            "GS8310 (4G)",
-            "PLUG AND PLAY",
-        ]
-        requisicao_queryset = Requisicoes.objects.filter(
-            tipo_produto__nome__in=valores_tipo_produto
-        )
-        return requisicao_queryset
+        # Requisição com vários modelos: aparece aqui se ALGUM modelo é do Setor Técnico.
+        from requisicao.services import PRODUTOS_LISTA_TECNICO, com_algum_item_em
+
+        return com_algum_item_em(
+            Requisicoes.objects.all(), PRODUTOS_LISTA_TECNICO
+        ).prefetch_related("itens__tipo_produto")
 
 
 class tecnicoUpdateView(PermissionRequiredMixin, LoginRequiredMixin, UpdateView):
@@ -502,7 +530,7 @@ class ceoListViews(PermissionRequiredMixin, LoginRequiredMixin, ListView):
     def get_queryset(self):
         return Requisicoes.objects.filter(
             status__in=["Pendente", "Aprovado pela Diretoria"]
-        )
+        ).prefetch_related("itens__tipo_produto")  # modelos de cada card
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -617,7 +645,7 @@ class FinanceiroListViews(ListView):
 #         nome = self.request.GET.get("nome")
 
 #         # Primeiro, busca as requisições
-#         requisicoes_queryset = Requisicoes.objects.filter(status__in=["Configurado"])
+#         requisicoes_queryset = Requisicoes.objects.filter(status__in=["Configurado"]).prefetch_related("itens__tipo_produto")
 #         if nome:
 #             requisicoes_queryset = requisicoes_queryset.filter(
 #                 nome__nome__icontains=nome
@@ -647,7 +675,7 @@ class expedicaoListViews(PermissionRequiredMixin, LoginRequiredMixin, ListView):
         id_filtro = self.request.GET.get("id_filtro")
 
         # Primeiro, busca as requisições
-        requisicoes_queryset = Requisicoes.objects.filter(status__in=["Configurado"])
+        requisicoes_queryset = Requisicoes.objects.filter(status__in=["Configurado"]).prefetch_related("itens__tipo_produto")
         if nome:
             requisicoes_queryset = requisicoes_queryset.filter(
                 nome__nome__icontains=nome
@@ -699,7 +727,7 @@ class historicoListView(PermissionRequiredMixin, LoginRequiredMixin, ListView):
     permission_required = "requisicao.view_requisicoes"
 
     def get_queryset(self):
-        queryset = Requisicoes.objects.all().order_by("-id")
+        queryset = Requisicoes.objects.all().order_by("-id").prefetch_related("itens__tipo_produto")  # modelos de cada card
         nome = self.request.GET.get("nome")
         status = self.request.GET.get("status")
         id_filtro = self.request.GET.get("id_filtro")
@@ -852,7 +880,7 @@ A requisição ID: {registro.id} foi expedida com sucesso e o pedido foi enviado
 
 Informações da Requisição:
 - Cliente: {registro.nome}
-- Tipo de Produto: {registro.tipo_produto}
+- Tipo de Produto: {resumo_itens(registro)["produtos"]}
 - Quantidade: {registro.numero_de_equipamentos}
 - Comercial Responsável: {registro.comercial}
 
@@ -1171,6 +1199,7 @@ import os
 
 
 def gerar_pdf_requisicao(requisicao):
+    itens_pdf = resumo_itens(requisicao)  # modelos da requisição (um ou vários)
     # Caminho para salvar o PDF
     pdf_path = os.path.join(settings.MEDIA_ROOT, f"requisicao-{requisicao.id}.pdf")
 
@@ -1215,7 +1244,8 @@ def gerar_pdf_requisicao(requisicao):
         [Paragraph("<b>Protocolo:</b>", normal_style), requisicao.id],
         [
             Paragraph("<b>Endereço:</b>", normal_style),
-            Paragraph(requisicao.endereco, normal_style),
+            # `or ""`: endereço é opcional e Paragraph(None) derrubava o PDF.
+            Paragraph(escape(requisicao.endereco or ""), normal_style),
         ],  # Usando Paragraph para quebra automática
         [Paragraph("<b>Contrato:</b>", normal_style), requisicao.contrato],
         [Paragraph("<b>CNPJ:</b>", normal_style), requisicao.cnpj],
@@ -1226,7 +1256,8 @@ def gerar_pdf_requisicao(requisicao):
         [Paragraph("<b>Motivo:</b>", normal_style), requisicao.motivo],
         [Paragraph("<b>Taxa de Envio:</b>", normal_style), requisicao.taxa_envio],
         [Paragraph("<b>Comercial:</b>", normal_style), requisicao.comercial],
-        [Paragraph("<b>Tipo de Produto:</b>", normal_style), requisicao.tipo_produto],
+        # Modelos da requisição (um ou vários) — ver services.resumo_itens.
+        [Paragraph("<b>Tipo de Produto:</b>", normal_style), Paragraph(escape(itens_pdf["produtos"]), normal_style)],
         [Paragraph("<b>Carregador:</b>", normal_style), requisicao.carregador],
         [Paragraph("<b>Cabo:</b>", normal_style), requisicao.cabo],
         [Paragraph("<b>TP:</b>", normal_style), requisicao.TP],
@@ -1235,11 +1266,11 @@ def gerar_pdf_requisicao(requisicao):
             Paragraph("<b>Quantidade:</b>", normal_style),
             requisicao.numero_de_equipamentos,
         ],
-        [Paragraph("<b>Valor Unitário:</b>", normal_style), requisicao.valor_unitario],
-        [Paragraph("<b>Customização:</b>", normal_style), requisicao.tipo_customizacao],
+        [Paragraph("<b>Valor Unitário:</b>", normal_style), Paragraph(escape(itens_pdf["valores"]), normal_style)],
+        [Paragraph("<b>Customização:</b>", normal_style), Paragraph(escape(itens_pdf["customizacoes"]), normal_style)],
         [
             Paragraph("<b>Observações:</b>", normal_style),
-            Paragraph(requisicao.observacoes, normal_style),
+            Paragraph(escape(requisicao.observacoes or ""), normal_style),
         ],  # Usando Paragraph para quebra automática
     ]
 
@@ -1504,11 +1535,7 @@ def gerar_pdf_saida(request, id):
         ],
         [
             para("<b>TIPO DE PRODUTO:</b>", "TableHeader"),
-            para(
-                str(requisicao.tipo_produto)
-                if requisicao.tipo_produto
-                else "Não Informado"
-            ),
+            para(escape(resumo_itens(requisicao)["produtos"]) or "Não Informado"),
         ],
         [
             para("<b>TP:</b>", "TableHeader"),
@@ -1524,11 +1551,7 @@ def gerar_pdf_saida(request, id):
         ],
         [
             para("<b>CUSTOMIZAÇÃO:</b>", "TableHeader"),
-            para(
-                str(requisicao.tipo_customizacao)
-                if requisicao.tipo_customizacao
-                else "Não Informado"
-            ),
+            para(escape(resumo_itens(requisicao)["customizacoes"]) or "Não Informado"),
         ],
         [
             para("<b>Tipo de Contrato:</b>", "TableHeader"),
@@ -2043,6 +2066,19 @@ def expedir_requisicao_parcial(request):
 
         requisicao = get_object_or_404(Requisicoes, id=requisicao_id)
 
+        # A conta de sobra e de cobrança da expedição parcial é de UM modelo
+        # (valor unitário × quantidade): requisição com vários modelos só expede total.
+        from requisicao.services import tem_varios_modelos
+
+        if tem_varios_modelos(requisicao):
+            return JsonResponse(
+                {
+                    "success": False,
+                    "message": "Requisição com mais de um modelo: a expedição parcial não está disponível. Expeça o total.",
+                },
+                status=400,
+            )
+
         # Salva dados do checklist
         requisicao.ids_auditados = ids_auditados
         requisicao.verificacao_plataforma = verificacao_plataforma
@@ -2179,6 +2215,17 @@ def expedir_requisicao_parcial(request):
                     # Marca para pular signals (evita envio de email e geração de PDF)
                     nova_requisicao._skip_signals = True
                     nova_requisicao.save()
+                    # O modelo da sobra vira o item da nova requisição (os itens
+                    # são a fonte; a parcial só existe para requisição de um modelo).
+                    from requisicao.models import ItemRequisicao
+
+                    ItemRequisicao.objects.create(
+                        requisicao=nova_requisicao,
+                        tipo_produto=requisicao.tipo_produto,
+                        quantidade=quantidade_restante,
+                        customizacao=nova_requisicao.tipo_customizacao or "",
+                        valor_unitario=valor_unitario,
+                    )
 
                     # Registra log de criação da requisição complementar
                     AuditLog.registrar(
@@ -2374,17 +2421,16 @@ class KanbanGestaoView(PermissionRequiredMixin, LoginRequiredMixin, ListView):
         Exclui produtos: GS310, GS340, GS390, GS8310 (4G), PLUG AND PLAY (mesmos da ConfiguracaoListView).
         Ordena por prioridade (DESC) e data (ASC - mais antigas primeiro).
         """
+        from requisicao.services import PRODUTOS_SETOR_TECNICO, com_algum_item_fora
+
         return (
-            Requisicoes.objects.filter(status="Aprovado pelo CEO")
-            .exclude(
-                tipo_produto__nome__in=[
-                    "GS310",
-                    "GS340",
-                    "GS390",
-                    "GS8310 (4G)",
-                ]
+            com_algum_item_fora(
+                Requisicoes.objects.filter(status="Aprovado pelo CEO"),
+                PRODUTOS_SETOR_TECNICO,
             )
             .select_related("nome", "tipo_produto")
+            # Modelos de cada card (e a regra carregador+cabo do card).
+            .prefetch_related("itens__tipo_produto")
             .order_by("-prioridade", "data")
         )
 
@@ -2548,15 +2594,10 @@ def update_kanban_status(request):
         # EXCEÇÃO: Produtos do tipo "CARREGADOR + CABO" não precisam de ID de equipamento
         if novo_status == "auditoria":
             # Verifica se é um produto do tipo CARREGADOR + CABO (normaliza espaços extras)
-            nome_produto_normalizado = (
-                requisicao.tipo_produto.nome.strip().upper()
-                if requisicao.tipo_produto
-                else ""
-            )
-            eh_carregador_cabo = (
-                "CARREGADOR" in nome_produto_normalizado
-                and "CABO" in nome_produto_normalizado
-            )
+            # Todos os modelos precisam ser CARREGADOR + CABO (ver services).
+            from requisicao.services import eh_carregador_cabo as _eh_carregador_cabo
+
+            eh_carregador_cabo = _eh_carregador_cabo(requisicao)
 
             # Log temporário para debug
             print(
@@ -2787,11 +2828,27 @@ from django.views.decorators.cache import cache_page
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+def _modelos_api(req):
+    itens = req.itens.all()
+    if not itens:
+        return req.tipo_produto.nome if req.tipo_produto else ""
+    return ", ".join(dict.fromkeys(i.tipo_produto.nome for i in itens))
+
+
+def _customizacoes_api(req):
+    itens = req.itens.all()
+    if not itens:
+        return req.tipo_customizacao if req.tipo_customizacao else ""
+    return ", ".join(dict.fromkeys(i.customizacao for i in itens if i.customizacao))
+
+
 @api_view(["GET"])
 @cache_page(60 * 30)
 def api_requisicoes(request):
     requisicoes = (
-        Requisicoes.objects.select_related("nome", "tipo_produto").all().order_by("-id")
+        Requisicoes.objects.select_related("nome", "tipo_produto")
+        .prefetch_related("itens__tipo_produto")
+        .all().order_by("-id")
     )
 
     dados = []
@@ -2802,10 +2859,12 @@ def api_requisicoes(request):
                 "data": req.data.strftime("%d/%m/%Y %H:%M:%S") if req.data else "",
                 "cliente": req.nome.nome if req.nome else "",
                 "contrato": req.contrato if req.contrato else "",
-                "modelo": req.tipo_produto.nome if req.tipo_produto else "",
+                # Vários modelos: nomes juntos ("Isca 4G, Isca 2G"); um modelo:
+                # o mesmo valor de antes.
+                "modelo": _modelos_api(req),
                 "status": req.status if req.status else "",
                 "comercial": req.comercial if req.comercial else "",
-                "customizacao": req.tipo_customizacao if req.tipo_customizacao else "",
+                "customizacao": _customizacoes_api(req),
                 "quantidade": (
                     req.numero_de_equipamentos if req.numero_de_equipamentos else "0"
                 ),
@@ -2849,7 +2908,7 @@ def export_historico_excel(request):
             queryset = Requisicoes.objects.none()
     
     # Gerar Excel
-    workbook = gerar_excel_requisicoes(queryset)
+    workbook = gerar_excel_requisicoes(queryset.prefetch_related("itens__tipo_produto"))
     
     # Preparar resposta HTTP
     response = HttpResponse(

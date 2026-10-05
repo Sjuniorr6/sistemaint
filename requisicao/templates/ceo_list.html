@@ -476,7 +476,7 @@
           <p><strong>Valor Unitário:</strong> <span>{{ item.valor_unitario }}</span></p>
           <p><strong>Valor Total:</strong> <span>{{ item.valor_total }}</span></p>
           <p><strong>Comercial:</strong> <span>{{ item.comercial }}</span></p>
-          <p><strong>Tipo de Produto:</strong> <span>{{ item.tipo_produto }}</span></p>
+          <p><strong>Tipo de Produto:</strong> <span>{% include 'partials/_modelos_inline.html' with r=item %}</span></p>
           <p><strong>Contrato:</strong> <span>{{ item.contrato }}</span></p>
           <p><strong>Status:</strong> <span>{{ item.status }}</span></p>
           <p><strong>TP:</strong> <span>{{ item.TP }}</span></p>

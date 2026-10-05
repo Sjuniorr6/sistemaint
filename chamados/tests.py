@@ -111,6 +111,22 @@ def user_financeiro(db):
 
 
 @pytest.fixture
+def user_recepcao(db):
+    return _usuario_do_grupo("rec1", "recepcao")
+
+
+@pytest.fixture
+def user_configuracao(db):
+    return _usuario_do_grupo("cfg1", "CONFIGURACAO")
+
+
+def _usuario_do_grupo(username, grupo):
+    u, _ = User.objects.get_or_create(username=username)
+    u.groups.add(Group.objects.get_or_create(name=grupo)[0])
+    return u
+
+
+@pytest.fixture
 def user_comum(db):
     return User.objects.create_user(username="comum", password="x")
 
@@ -176,11 +192,16 @@ def _abrir(autor, responsavel, cliente=None, modelo=None, equipamentos_override=
 
 
 def _blocos(*grupos):
-    """POST da abertura: um bloco por (modelo, [números]), como a tela envia."""
+    """POST da abertura: um bloco por (modelo, [números][, customização, contrato]),
+    como a tela envia. Sem customização/contrato, usa valores válidos."""
     dados = {"grupo": [str(i) for i in range(len(grupos))]}
-    for i, (modelo, numeros) in enumerate(grupos):
+    for i, (modelo, numeros, *extra) in enumerate(grupos):
+        padrao = ["Termo branco", "Retornavel"] if modelo else ["", ""]  # bloco vazio: selects em branco
+        customizacao, contrato = (extra + padrao)[:2]
         dados[f"grupo_{i}_modelo"] = modelo
         dados[f"grupo_{i}_numero"] = numeros
+        dados[f"grupo_{i}_customizacao"] = customizacao
+        dados[f"grupo_{i}_tipo_contrato"] = contrato
     return dados
 
 
@@ -992,12 +1013,12 @@ def test_vinculo_falho_nao_deixa_entrada_orfa(user_quality, user_inteligencia, u
 
 
 @pytest.mark.django_db
-def test_entrada_nao_vem_do_chamado_para_quem_nao_e_expedicao(
-    client, user_quality, user_inteligencia, user_expedicao, user_laboratorio
+def test_entrada_nao_vem_do_chamado_para_quem_nao_e_expedicao_nem_laboratorio(
+    client, user_quality, user_inteligencia, user_expedicao, user_comercial
 ):
     chamado, *_ = _chegou_no_laboratorio(user_quality, user_inteligencia, user_expedicao)
-    _expedicao_pode_criar_entrada(user_laboratorio)
-    client.force_login(user_laboratorio)
+    _expedicao_pode_criar_entrada(user_comercial)
+    client.force_login(user_comercial)
 
     resp = client.get(f"{reverse('FormulariosCreateView')}?chamado={chamado.pk}")
 
@@ -1335,7 +1356,7 @@ def test_comercial_tem_acao_finalizar(
 def test_comercial_finaliza_com_tratativa_e_custo(
     user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial
 ):
-    """Finalizar grava tratativa_comercial + custo por equipamento e vai a RESOLVIDO."""
+    """Realizar tratativa grava tratativa_comercial + custo por equipamento."""
     from chamados.models import TratativaEquipamento
 
     chamado = _em_comercial(
@@ -1346,8 +1367,8 @@ def test_comercial_finaliza_com_tratativa_e_custo(
         chamado, Acao.FINALIZAR_COMERCIAL,
         {
             "finalizacao_equipamento": [
-                {"numero": "EQ-1", "tratativa": "orçado", "custo": "COM_CUSTO"},
-                {"numero": "EQ-2", "tratativa": "garantia", "custo": "SEM_CUSTO"},
+                {"numero": "EQ-1", "tratativa": "orçado", "custo": "COM_CUSTO", "destino": "SUBSTITUICAO"},
+                {"numero": "EQ-2", "tratativa": "garantia", "custo": "SEM_CUSTO", "destino": "SUBSTITUICAO"},
             ],
             # Há COM_CUSTO → termo obrigatório.
             "termo_substituicao": _pdf_falso(),
@@ -1355,8 +1376,8 @@ def test_comercial_finaliza_com_tratativa_e_custo(
         user_comercial,
     )
     chamado.refresh_from_db()
-    # Há equipamento COM CUSTO → segue para o FINANCEIRO (não encerra aqui).
-    assert chamado.status == Status.FINANCEIRO
+    # Há equipamento de SUBSTITUIÇÃO → segue para a RECEPÇÃO (abre a requisição).
+    assert chamado.status == Status.RECEPCAO
 
     linhas = {l.numero_equipamento: l for l in
               TratativaEquipamento.objects.filter(chamado=chamado)}
@@ -1380,8 +1401,8 @@ def test_finalizar_comercial_exige_custo_de_cada_equipamento(
         services.executar(
             chamado, Acao.FINALIZAR_COMERCIAL,
             {"finalizacao_equipamento": [
-                {"numero": "EQ-1", "tratativa": "ok", "custo": "COM_CUSTO"},
-                {"numero": "EQ-2", "tratativa": "ok", "custo": ""},
+                {"numero": "EQ-1", "tratativa": "ok", "custo": "COM_CUSTO", "destino": "SUBSTITUICAO"},
+                {"numero": "EQ-2", "tratativa": "ok", "custo": "", "destino": "SUBSTITUICAO"},
             ]},
             user_comercial,
         )
@@ -1399,7 +1420,7 @@ def test_nao_comercial_nao_finaliza(
         services.executar(
             chamado, Acao.FINALIZAR_COMERCIAL,
             {"finalizacao_equipamento": [
-                {"numero": "EQ-001", "tratativa": "x", "custo": "COM_CUSTO"}
+                {"numero": "EQ-001", "tratativa": "x", "custo": "COM_CUSTO", "destino": "SUBSTITUICAO"}
             ]},
             user_comum,
         )
@@ -1410,7 +1431,7 @@ def test_finalizar_comercial_via_view(
     client, user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial
 ):
     """POST pela view: campos tratativa_<i>/custo_<i> viram os dados por equipamento
-    e o chamado vai a RESOLVIDO."""
+    e o chamado segue para a Recepção."""
     from chamados.models import TratativaEquipamento
 
     chamado = _em_comercial(
@@ -1421,15 +1442,15 @@ def test_finalizar_comercial_via_view(
     resp = client.post(
         reverse("chamados:acao", args=[chamado.pk, Acao.FINALIZAR_COMERCIAL]),
         {
-            "tratativa_0": "reparo A", "custo_0": "COM_CUSTO",
-            "tratativa_1": "reparo B", "custo_1": "SEM_CUSTO",
+            "tratativa_0": "reparo A", "custo_0": "COM_CUSTO", "destino_0": "SUBSTITUICAO",
+            "tratativa_1": "reparo B", "custo_1": "SEM_CUSTO", "destino_1": "SUBSTITUICAO",
             "termo_substituicao": _pdf_falso(),  # há COM_CUSTO
         },
     )
     assert resp.status_code == 302
     chamado.refresh_from_db()
-    # COM CUSTO → vai ao FINANCEIRO (encerra só depois do faturamento).
-    assert chamado.status == Status.FINANCEIRO
+    # Há SUBSTITUIÇÃO → vai à RECEPÇÃO.
+    assert chamado.status == Status.RECEPCAO
     assert chamado.termo_substituicao  # anexado
     linhas = {l.numero_equipamento: l for l in
               TratativaEquipamento.objects.filter(chamado=chamado)}
@@ -1441,20 +1462,24 @@ def test_finalizar_comercial_via_view(
 def test_resolvido_apos_comercial_e_terminal(
     user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial
 ):
-    """Após finalizar pelo comercial, RESOLVIDO é terminal (sem novas ações)."""
+    """Encerrado pelo Financeiro, RESOLVIDO é terminal (sem novas ações)."""
     from chamados.selectors import acoes_disponiveis
 
     chamado = _em_comercial(user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial=user_comercial)
     services.executar(
         chamado, Acao.FINALIZAR_COMERCIAL,
         {"finalizacao_equipamento": [
-            {"numero": "EQ-001", "tratativa": "t", "custo": "SEM_CUSTO"}
+            {"numero": "EQ-001", "tratativa": "t", "custo": "SEM_CUSTO", "destino": "DEVOLUCAO"}
         ]},
         user_comercial,
     )
+    _seguir_ate_financeiro(chamado, user_expedicao)
+    financeiro = _usuario_do_grupo("fin1", "financeiro")
+    services.aceitar_tratativa(chamado, financeiro)
+    services.executar(chamado, Acao.CONFIRMAR_ENCERRAMENTO, {}, financeiro)
     chamado.refresh_from_db()
     assert chamado.status == Status.RESOLVIDO
-    assert acoes_disponiveis(user_comercial, chamado) == []
+    assert acoes_disponiveis(financeiro, chamado) == []
 
 
 # --------------------------------------------------------------------------- #
@@ -1660,17 +1685,23 @@ def test_fluxo_completo_gera_uma_passagem_por_setor(
     services.executar(
         chamado, Acao.FINALIZAR_COMERCIAL,
         {"finalizacao_equipamento": [
-            {"numero": "EQ-001", "tratativa": "t", "custo": "SEM_CUSTO"}
+            {"numero": "EQ-001", "tratativa": "t", "custo": "SEM_CUSTO", "destino": "SUBSTITUICAO"}
         ]},
         user_comercial,
     )
+    _seguir_ate_financeiro(chamado, user_expedicao)
+    financeiro = _usuario_do_grupo("fin1", "financeiro")
+    services.aceitar_tratativa(chamado, financeiro)
+    services.executar(chamado, Acao.CONFIRMAR_ENCERRAMENTO, {}, financeiro)
     chamado.refresh_from_db()
     assert chamado.status == Status.RESOLVIDO
 
     passagens = list(chamado.passagens.order_by("id"))
+    # A Expedição aparece duas vezes: a chegada e, no fim, o envio ao cliente.
     assert [p.setor for p in passagens] == [
         Setor.QUALITY, Setor.INTELIGENCIA, Setor.EXPEDICAO,
-        Setor.LABORATORIO, Setor.COMERCIAL,
+        Setor.LABORATORIO, Setor.COMERCIAL, Setor.RECEPCAO,
+        Setor.CONFIGURACAO, Setor.EXPEDICAO, Setor.FINANCEIRO,
     ]
     # todas fechadas, com os três marcos coerentes e durações não-negativas
     for p in passagens:
@@ -1966,8 +1997,8 @@ def test_laudo_continua_apos_finalizar(
     client, user_quality, user_inteligencia, user_expedicao, user_laboratorio,
     user_comercial, manutencao,
 ):
-    """O laudo segue disponível depois de RESOLVIDO (a passagem do comercial
-    permanece registrada como aceita)."""
+    """O laudo segue disponível depois que o Comercial passa o chamado adiante
+    (a passagem do comercial permanece registrada como aceita)."""
     chamado = _em_laboratorio(
         user_quality, user_inteligencia, user_expedicao,
         user_laboratorio=user_laboratorio,
@@ -1984,12 +2015,12 @@ def test_laudo_continua_apos_finalizar(
     services.executar(
         chamado, Acao.FINALIZAR_COMERCIAL,
         {"finalizacao_equipamento": [
-            {"numero": "EQ-001", "tratativa": "t", "custo": "SEM_CUSTO"}
+            {"numero": "EQ-001", "tratativa": "t", "custo": "SEM_CUSTO", "destino": "DEVOLUCAO"}
         ]},
         user_comercial,
     )
     chamado.refresh_from_db()
-    assert chamado.status == Status.RESOLVIDO
+    assert chamado.status == Status.CONFIGURACAO
 
     client.force_login(user_quality)  # quality vê tudo
     html = client.get(reverse("chamados:detalhe", args=[chamado.pk])).content.decode()
@@ -2027,7 +2058,7 @@ def test_com_custo_exige_termo(
         services.executar(
             chamado, Acao.FINALIZAR_COMERCIAL,
             {"finalizacao_equipamento": [
-                {"numero": "EQ-001", "tratativa": "t", "custo": "COM_CUSTO"}
+                {"numero": "EQ-001", "tratativa": "t", "custo": "COM_CUSTO", "destino": "SUBSTITUICAO"}
             ]},
             user_comercial,
         )
@@ -2039,7 +2070,7 @@ def test_com_custo_exige_termo(
 def test_sem_custo_nao_exige_termo(
     user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial
 ):
-    """Todos SEM CUSTO → finaliza normalmente, sem anexo."""
+    """Todos SEM CUSTO → segue sem exigir o termo."""
     chamado = _em_comercial(
         user_quality, user_inteligencia, user_expedicao, user_laboratorio,
         user_comercial=user_comercial,
@@ -2047,12 +2078,12 @@ def test_sem_custo_nao_exige_termo(
     services.executar(
         chamado, Acao.FINALIZAR_COMERCIAL,
         {"finalizacao_equipamento": [
-            {"numero": "EQ-001", "tratativa": "t", "custo": "SEM_CUSTO"}
+            {"numero": "EQ-001", "tratativa": "t", "custo": "SEM_CUSTO", "destino": "SUBSTITUICAO"}
         ]},
         user_comercial,
     )
     chamado.refresh_from_db()
-    assert chamado.status == Status.RESOLVIDO
+    assert chamado.status == Status.RECEPCAO
     assert not chamado.termo_substituicao
 
 
@@ -2068,14 +2099,14 @@ def test_termo_salvo_ao_finalizar_com_custo(
         chamado, Acao.FINALIZAR_COMERCIAL,
         {
             "finalizacao_equipamento": [
-                {"numero": "EQ-001", "tratativa": "t", "custo": "COM_CUSTO"}
+                {"numero": "EQ-001", "tratativa": "t", "custo": "COM_CUSTO", "destino": "SUBSTITUICAO"}
             ],
             "termo_substituicao": _pdf_falso("termo-abc.pdf"),
         },
         user_comercial,
     )
     chamado.refresh_from_db()
-    assert chamado.status == Status.FINANCEIRO  # com custo → financeiro
+    assert chamado.status == Status.RECEPCAO  # substituição → recepção
     assert chamado.termo_substituicao
     assert chamado.termo_substituicao.name.endswith(".pdf")
     assert "chamados/termos/" in chamado.termo_substituicao.name
@@ -2097,7 +2128,7 @@ def test_form_recusa_arquivo_nao_pdf(
     resp = client.post(
         reverse("chamados:acao", args=[chamado.pk, Acao.FINALIZAR_COMERCIAL]),
         {
-            "tratativa_0": "t", "custo_0": "COM_CUSTO",
+            "tratativa_0": "t", "custo_0": "COM_CUSTO", "destino_0": "SUBSTITUICAO",
             "termo_substituicao": SimpleUploadedFile(
                 "termo.docx", b"nao e pdf", content_type="application/msword"
             ),
@@ -2122,7 +2153,7 @@ def test_view_exige_termo_quando_ha_custo(
     client.force_login(user_comercial)
     resp = client.post(
         reverse("chamados:acao", args=[chamado.pk, Acao.FINALIZAR_COMERCIAL]),
-        {"tratativa_0": "t", "custo_0": "COM_CUSTO"},  # sem termo
+        {"tratativa_0": "t", "custo_0": "COM_CUSTO", "destino_0": "SUBSTITUICAO"},  # sem termo
     )
     assert resp.status_code == 302
     assert resp.url == reverse("chamados:detalhe", args=[chamado.pk])
@@ -2154,7 +2185,7 @@ def test_termo_acessivel_a_quem_ve_o_laudo(
         chamado, Acao.FINALIZAR_COMERCIAL,
         {
             "finalizacao_equipamento": [
-                {"numero": "EQ-001", "tratativa": "t", "custo": "COM_CUSTO"}
+                {"numero": "EQ-001", "tratativa": "t", "custo": "COM_CUSTO", "destino": "SUBSTITUICAO"}
             ],
             "termo_substituicao": _pdf_falso(),
         },
@@ -2171,10 +2202,48 @@ def test_termo_acessivel_a_quem_ve_o_laudo(
 # --------------------------------------------------------------------------- #
 
 
+def _requisicao_para(chamado):
+    """Requisição de substituição mínima, vinculada ao chamado."""
+    from requisicao.models import Requisicoes
+
+    req = Requisicoes(nome=chamado.cliente, email="a@b.com",
+                      tipo_produto=chamado.equipamentos.first().modelo,
+                      numero_de_equipamentos="1", motivo="Substituição")
+    req._skip_signals = True
+    req.save()
+    Chamado.objects.filter(pk=chamado.pk).update(requisicao=req)
+    chamado.refresh_from_db()
+    return req
+
+
+def _seguir_ate_financeiro(chamado, user_expedicao):
+    """Da saída do Comercial (RECEPCAO ou CONFIGURACAO) até o FINANCEIRO."""
+    import datetime
+
+    chamado.refresh_from_db()
+    if chamado.status == Status.RECEPCAO:
+        recepcao = _usuario_do_grupo("rec1", "recepcao")
+        services.aceitar_tratativa(chamado, recepcao)
+        _requisicao_para(chamado)
+        services.executar(chamado, Acao.ENCAMINHAR_CONFIGURACAO, {}, recepcao)
+    configuracao = _usuario_do_grupo("cfg1", "CONFIGURACAO")
+    services.aceitar_tratativa(chamado, configuracao)
+    services.executar(chamado, Acao.ENCAMINHAR_ENVIO,
+                      {"tratativa": "configurado ok"}, configuracao)
+    services.aceitar_tratativa(chamado, user_expedicao)
+    services.executar(chamado, Acao.REGISTRAR_ENVIO, {
+        "metodo_envio": "Motoboy", "data_envio": datetime.date(2026, 10, 1),
+        "codigo_rastreio_envio": "",
+    }, user_expedicao)
+    chamado.refresh_from_db()
+    return chamado
+
+
 def _no_financeiro(user_quality, user_inteligencia, user_expedicao,
                    user_laboratorio, user_comercial, user_financeiro=None,
                    manutencao=None):
-    """Chamado levado até FINANCEIRO (comercial finalizou COM CUSTO)."""
+    """Chamado levado até FINANCEIRO: comercial finalizou COM CUSTO e SUBSTITUIÇÃO,
+    e o chamado passou por Recepção, Configuração e envio pela Expedição."""
     chamado = _em_comercial(
         user_quality, user_inteligencia, user_expedicao, user_laboratorio,
         user_comercial=user_comercial,
@@ -2183,12 +2252,13 @@ def _no_financeiro(user_quality, user_inteligencia, user_expedicao,
         chamado, Acao.FINALIZAR_COMERCIAL,
         {
             "finalizacao_equipamento": [
-                {"numero": "EQ-001", "tratativa": "orçado", "custo": "COM_CUSTO"}
+                {"numero": "EQ-001", "tratativa": "orçado", "custo": "COM_CUSTO", "destino": "SUBSTITUICAO"}
             ],
             "termo_substituicao": _pdf_falso(),
         },
         user_comercial,
     )
+    _seguir_ate_financeiro(chamado, user_expedicao)
     if user_financeiro is not None:
         services.aceitar_tratativa(chamado, user_financeiro)
     return chamado
@@ -2213,24 +2283,24 @@ def test_com_custo_vai_para_financeiro(
 
 
 @pytest.mark.django_db
-def test_sem_custo_encerra_no_comercial(
-    user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial
+@pytest.mark.parametrize("destinos, status_esperado", [
+    (["SUBSTITUICAO", "DEVOLUCAO"], Status.RECEPCAO),  # algum de substituição
+    (["DEVOLUCAO", "DEVOLUCAO"], Status.CONFIGURACAO),  # todos de devolução
+])
+def test_saida_do_comercial_depende_de_substituicao(
+    user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial,
+    destinos, status_esperado,
 ):
-    """Sem nenhum equipamento com custo, o chamado encerra no comercial."""
-    chamado = _em_comercial(
-        user_quality, user_inteligencia, user_expedicao, user_laboratorio,
-        user_comercial=user_comercial,
-    )
-    services.executar(
-        chamado, Acao.FINALIZAR_COMERCIAL,
-        {"finalizacao_equipamento": [
-            {"numero": "EQ-001", "tratativa": "t", "custo": "SEM_CUSTO"}
-        ]},
-        user_comercial,
-    )
+    chamado = _em_comercial(user_quality, user_inteligencia, user_expedicao, user_laboratorio,
+                            numeros=["EQ-1", "EQ-2"], user_comercial=user_comercial)
+    services.executar(chamado, Acao.FINALIZAR_COMERCIAL, {"finalizacao_equipamento": [
+        {"numero": n, "tratativa": "t", "custo": "SEM_CUSTO", "destino": d}
+        for n, d in zip(["EQ-1", "EQ-2"], destinos)
+    ]}, user_comercial)
+
     chamado.refresh_from_db()
-    assert chamado.status == Status.RESOLVIDO  # encerrado ali mesmo
-    assert not chamado.passagens.filter(setor="FINANCEIRO").exists()
+    # sabotagem: rotear por custo em vez de destino → vermelho
+    assert chamado.status == status_esperado
 
 
 @pytest.mark.django_db
@@ -2380,12 +2450,13 @@ def test_financeiro_acessa_laudo_e_termo(
         chamado, Acao.FINALIZAR_COMERCIAL,
         {
             "finalizacao_equipamento": [
-                {"numero": "EQ-001", "tratativa": "t", "custo": "COM_CUSTO"}
+                {"numero": "EQ-001", "tratativa": "t", "custo": "COM_CUSTO", "destino": "SUBSTITUICAO"}
             ],
             "termo_substituicao": _pdf_falso(),
         },
         user_comercial,
     )
+    _seguir_ate_financeiro(chamado, user_expedicao)
     services.aceitar_tratativa(chamado, user_financeiro)
 
     client.force_login(user_financeiro)
@@ -2525,16 +2596,17 @@ def test_fila_nao_faz_query_por_linha(user_quality, django_assert_num_queries):
             for c in listar_fila(user_quality)
         ]
 
-    # 2 queries: a checagem de grupo da visibilidade + a listagem com as seis
-    # subqueries de entrada embutidas. Nenhuma delas depende do nº de linhas.
+    # 3 queries: duas checagens de grupo (visibilidade e corte de visibilidade)
+    # + a listagem com as subqueries de entrada embutidas. Nenhuma depende do nº
+    # de linhas.
     for _ in range(3):
         _abrir(user_quality, user_quality)
-    with django_assert_num_queries(2):
+    with django_assert_num_queries(3):
         assert len(_consumir()) == 3
 
     for _ in range(4):
         _abrir(user_quality, user_quality)
-    with django_assert_num_queries(2):  # mesma contagem, mais que o dobro de linhas
+    with django_assert_num_queries(3):  # mesma contagem, mais que o dobro de linhas
         assert len(_consumir()) == 7
 
 
@@ -2623,15 +2695,20 @@ def test_detalhe_mostra_so_ate_o_setor_do_usuario(
     request, client, user_quality, user_inteligencia, user_expedicao,
     user_laboratorio, user_comercial, manutencao, papel, visiveis, ocultos,
 ):
-    chamado = _no_financeiro(
-        user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial,
-    )
+    chamado = _em_comercial(user_quality, user_inteligencia, user_expedicao, user_laboratorio,
+                            user_comercial=user_comercial)
+    services.executar(chamado, Acao.FINALIZAR_COMERCIAL, {
+        "finalizacao_equipamento": [
+            {"numero": "EQ-001", "tratativa": "orçado", "custo": "COM_CUSTO", "destino": "SUBSTITUICAO"}
+        ],
+        "termo_substituicao": _pdf_falso(),
+    }, user_comercial)  # → RECEPCAO: a Expedição ainda não voltou para o envio
     Chamado.objects.filter(pk=chamado.pk).update(manutencao=manutencao)
     client.force_login(request.getfixturevalue(papel))
 
     html = client.get(reverse("chamados:detalhe", args=[chamado.pk])).content.decode()
 
-    # sabotagem: setores_visiveis devolver SETORES_TIMELINE para todos → vermelho
+    # sabotagem: corte_de_visibilidade devolver None para todos → vermelho
     # sabotagem: tirar "and ve.comercial" da tratativa comercial no detalhe → vermelho
     assert [t for t in visiveis if t not in html] == []
     assert [t for t in ocultos if t in html] == []
@@ -2665,12 +2742,493 @@ def test_linha_do_tempo_da_fila_e_do_excel_para_no_setor_do_usuario(
 
     from openpyxl import load_workbook
 
-    _em_laboratorio(user_quality, user_inteligencia, user_expedicao)
+    _em_comercial(user_quality, user_inteligencia, user_expedicao, _usuario_do_grupo("lab9", "laboratorio"))
     client.force_login(user_expedicao)
 
-    fila = client.get(reverse("chamados:fila")).context["setores_timeline"]
+    resp = client.get(reverse("chamados:fila"))
+    setores = [s["label"] for s in resp.context["setores_timeline"]]
+    entradas = dict(zip(setores, resp.context["linhas"][0]["entradas"]))
     ws = load_workbook(io.BytesIO(client.get(reverse("chamados:exportar")).content)).active
-    cabecalho = [c.value for c in ws[1]]
+    linha = dict(zip([c.value for c in ws[1]], [c.value for c in ws[2]]))
 
-    assert [s["label"] for s in fila] == ["Quality", "Inteligência", "Expedição"]
-    assert "Entrou em Expedição" in cabecalho and "Entrou em Laboratório" not in cabecalho
+    # A Expedição saiu ao marcar a chegada (a entrada no Laboratório é esse mesmo
+    # instante): não vê quando o chamado chegou ao Comercial.
+    # sabotagem: entradas_visiveis devolver as entradas sem corte → vermelho
+    assert entradas["Expedição"] is not None and entradas["Comercial"] is None
+    assert linha["Entrou em Expedição"] is not None and linha["Entrou em Comercial"] is None
+
+
+# --------------------------------------------------------------------------- #
+# Laboratório: aceitar → registrar a manutenção                               #
+# --------------------------------------------------------------------------- #
+
+
+def _lab_pode_editar_entrada(user):
+    from django.contrib.auth.models import Permission
+
+    user.user_permissions.add(*Permission.objects.filter(
+        codename__in=["add_registrodemanutencao", "change_registrodemanutencao"]
+    ))
+
+
+def _entrada_do_chamado(chamado):
+    """Entrada vinculada ao chamado, com os nºs dele (como a Expedição grava)."""
+    from registrodemanutencao.models import ItemEntrada, registrodemanutencao
+
+    entrada = registrodemanutencao.objects.create(nome=chamado.cliente, status="Pendente")
+    for e in chamado.equipamentos.all():
+        ItemEntrada.objects.create(registro=entrada, tipo_produto=e.modelo,
+                                   numero_equipamento=e.numero, quantidade=1)
+    Chamado.objects.filter(pk=chamado.pk).update(manutencao=entrada)
+    return entrada
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("com_entrada", [True, False])
+def test_lab_aceita_e_vai_registrar_a_manutencao(
+    client, user_quality, user_inteligencia, user_expedicao, user_laboratorio, com_entrada
+):
+    chamado = _em_laboratorio(user_quality, user_inteligencia, user_expedicao)
+    entrada = _entrada_do_chamado(chamado) if com_entrada else None
+    client.force_login(user_laboratorio)
+
+    resp = client.post(reverse("chamados:acao", args=[chamado.pk, Acao.ACEITAR_TRATATIVA]))
+
+    esperado = (reverse("FormulariosUpdateView", args=[entrada.pk]) if com_entrada
+                else reverse("FormulariosCreateView"))
+    assert resp.url == f"{esperado}?chamado={chamado.pk}"
+
+
+@pytest.mark.django_db
+def test_laudo_vem_com_uma_linha_por_equipamento_e_ignora_linha_nao_preenchida(
+    client, user_quality, user_inteligencia, user_expedicao, user_laboratorio
+):
+    chamado, isca_4g, isca_2g = _chegou_no_laboratorio(user_quality, user_inteligencia, user_expedicao)
+    entrada = _entrada_do_chamado(chamado)
+    _lab_pode_editar_entrada(user_laboratorio)
+    client.force_login(user_laboratorio)
+    url = f"{reverse('FormulariosUpdateView', args=[entrada.pk])}?chamado={chamado.pk}"
+
+    formset = client.get(url).context["imagens_formset"]
+    assert [f.initial.get("id_equipamento") for f in formset.extra_forms] == ["EQ-1", "EQ-2", "EQ-3"]
+
+    dados = {"nome": entrada.nome_id, "tipo_entrada": "Manutenção", "status": "Pendente",
+             "observacoes": "", "chamado": chamado.pk, "imagens-TOTAL_FORMS": "3",
+             "imagens-INITIAL_FORMS": "0", "imagens-MIN_NUM_FORMS": "0", "imagens-MAX_NUM_FORMS": "1000"}
+    for i, numero in enumerate(["EQ-1", "EQ-2", "EQ-3"]):
+        dados.update({f"imagens-{i}-id_equipamento": numero, f"imagens-{i}-tipo_problema": "",
+                      f"imagens-{i}-faturamento": "", f"imagens-{i}-observacao2": ""})
+    dados["imagens-1-tipo_problema"] = "Oxidação"  # só EQ-2 foi preenchido
+
+    resp = client.post(url, dados)
+
+    assert resp.url == reverse("chamados:detalhe", args=[chamado.pk])
+    # sabotagem: montar o formset do POST sem o initial do chamado → vermelho
+    assert list(entrada.imagens.values_list("id_equipamento", flat=True)) == ["EQ-2"]
+
+
+@pytest.mark.django_db
+def test_lab_cria_entrada_e_segue_para_o_laudo(
+    client, user_quality, user_inteligencia, user_expedicao, user_laboratorio
+):
+    chamado, isca_4g, isca_2g = _chegou_no_laboratorio(user_quality, user_inteligencia, user_expedicao)
+    _lab_pode_editar_entrada(user_laboratorio)
+    client.force_login(user_laboratorio)
+
+    resp = client.post(reverse("FormulariosCreateView"),
+                       _post_entrada(chamado, (isca_4g, "EQ-1 EQ-3"), (isca_2g, "EQ-2")))
+
+    chamado.refresh_from_db()
+    assert resp.url == f"{reverse('FormulariosUpdateView', args=[chamado.manutencao_id])}?chamado={chamado.pk}"
+
+
+# --------------------------------------------------------------------------- #
+# Comercial: substituição ou devolução por equipamento                        #
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("destino, gravou", [("DEVOLUCAO", "DEVOLUCAO"), ("", None)])
+def test_comercial_informa_substituicao_ou_devolucao(
+    user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial,
+    destino, gravou,
+):
+    from chamados.models import TratativaEquipamento
+
+    chamado = _em_comercial(user_quality, user_inteligencia, user_expedicao, user_laboratorio,
+                            user_comercial=user_comercial)
+    dados = {"finalizacao_equipamento": [
+        {"numero": "EQ-001", "tratativa": "t", "custo": "SEM_CUSTO", "destino": destino}
+    ]}
+
+    if gravou is None:
+        with pytest.raises(ValidationError):
+            services.executar(chamado, Acao.FINALIZAR_COMERCIAL, dados, user_comercial)
+    else:
+        services.executar(chamado, Acao.FINALIZAR_COMERCIAL, dados, user_comercial)
+    linha = TratativaEquipamento.objects.get(chamado=chamado)
+    assert (linha.destino or None) == gravou
+
+
+# --------------------------------------------------------------------------- #
+# Abertura: customização e contrato por bloco de modelo                       #
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.django_db
+def test_abertura_grava_customizacao_e_contrato_e_a_entrada_herda(
+    client, user_quality, user_inteligencia, user_expedicao, cliente
+):
+    isca_4g, isca_2g = Produto.objects.create(nome="Isca 4G"), Produto.objects.create(nome="Isca 2G")
+    client.force_login(user_quality)
+    client.post(reverse("chamados:abrir"), {
+        "cliente": cliente.pk, "categoria": "HARDWARE", "problema_relatado": "Falha",
+        "contato_nome": "Contato", "contato_meio": "TELEFONE",
+        **_blocos((isca_4g.pk, ["EQ-1"], "Termo branco", "Retornavel"),
+                  (isca_2g.pk, ["EQ-2"], "Caixa de papelão", "Descartavel")),
+    })
+    chamado = Chamado.objects.get(cliente=cliente)
+
+    blocos = services.dados_iniciais_entrada(chamado)["blocos"]
+
+    assert [(b["tipo_produto"], b["customizacao"], b["tipo_contrato"]) for b in blocos] == [
+        (str(isca_4g.pk), "Termo branco", "Retornavel"),
+        (str(isca_2g.pk), "Caixa de papelão", "Descartavel"),
+    ]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("customizacao, contrato, erro", [
+    ("", "Retornavel", "Selecione a customização do modelo Rastreador GT06."),
+    ("Termo branco", "", "Selecione o tipo de contrato do modelo Rastreador GT06."),
+])
+def test_abertura_exige_customizacao_e_contrato(
+    client, user_quality, cliente, produto, customizacao, contrato, erro
+):
+    client.force_login(user_quality)
+    resp = client.post(reverse("chamados:abrir"), {
+        "cliente": cliente.pk, "categoria": "HARDWARE", "problema_relatado": "Falha",
+        "contato_nome": "Contato", "contato_meio": "TELEFONE",
+        **_blocos((produto.pk, ["EQ-1"], customizacao, contrato)),
+    })
+
+    assert erro in resp.context["form"].errors["equipamentos"]
+    assert not Chamado.objects.exists()
+
+
+# --------------------------------------------------------------------------- #
+# Depois do Comercial: Recepção, Configuração, envio e Financeiro             #
+# --------------------------------------------------------------------------- #
+
+
+def _na_recepcao(user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial,
+                 custo="SEM_CUSTO"):
+    chamado = _em_comercial(user_quality, user_inteligencia, user_expedicao, user_laboratorio,
+                            user_comercial=user_comercial)
+    dados = {"finalizacao_equipamento": [
+        {"numero": "EQ-001", "tratativa": "orçado", "custo": custo, "destino": "SUBSTITUICAO"}
+    ]}
+    if custo == "COM_CUSTO":
+        dados["termo_substituicao"] = _pdf_falso()
+    services.executar(chamado, Acao.FINALIZAR_COMERCIAL, dados, user_comercial)
+    chamado.refresh_from_db()
+    return chamado
+
+
+@pytest.mark.django_db
+def test_recepcao_so_encaminha_com_requisicao_vinculada(
+    user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial, user_recepcao
+):
+    from chamados.selectors import acoes_disponiveis
+
+    chamado = _na_recepcao(user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial)
+    services.aceitar_tratativa(chamado, user_recepcao)
+
+    assert Acao.ENCAMINHAR_CONFIGURACAO not in acoes_disponiveis(user_recepcao, chamado)
+    # sabotagem: remover a checagem de requisicao_id em executar → vermelho
+    with pytest.raises(ValidationError):
+        services.executar(chamado, Acao.ENCAMINHAR_CONFIGURACAO, {}, user_recepcao)
+
+    _requisicao_para(chamado)
+    services.executar(chamado, Acao.ENCAMINHAR_CONFIGURACAO, {}, user_recepcao)
+    chamado.refresh_from_db()
+    assert chamado.status == Status.CONFIGURACAO
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("etapa, acao, dados, papel_errado", [
+    ("recepcao", Acao.ENCAMINHAR_CONFIGURACAO, {}, "user_configuracao"),
+    ("configuracao", Acao.ENCAMINHAR_ENVIO, {"tratativa": "x"}, "user_recepcao"),
+    ("envio", Acao.REGISTRAR_ENVIO, {"metodo_envio": "Motoboy", "data_envio": "2026-10-01"}, "user_configuracao"),
+])
+def test_cada_etapa_nova_so_aceita_o_proprio_setor(
+    request, user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial,
+    user_recepcao, user_configuracao, etapa, acao, dados, papel_errado,
+):
+    chamado = _na_recepcao(user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial)
+    _requisicao_para(chamado)
+    if etapa in ("configuracao", "envio"):
+        services.aceitar_tratativa(chamado, user_recepcao)
+        services.executar(chamado, Acao.ENCAMINHAR_CONFIGURACAO, {}, user_recepcao)
+    if etapa == "envio":
+        services.aceitar_tratativa(chamado, user_configuracao)
+        services.executar(chamado, Acao.ENCAMINHAR_ENVIO, {"tratativa": "ok"}, user_configuracao)
+
+    # sabotagem: pode_agir devolver True para RECEPCAO/CONFIGURACAO/ENVIO → vermelho
+    with pytest.raises(PermissionDenied):
+        services.aceitar_tratativa(chamado, request.getfixturevalue(papel_errado))
+    with pytest.raises(PermissionDenied):
+        services.executar(chamado, acao, dados, request.getfixturevalue(papel_errado))
+
+
+@pytest.mark.django_db
+def test_envio_registra_metodo_data_e_rastreio(
+    client, user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial,
+    user_recepcao, user_configuracao,
+):
+    chamado = _na_recepcao(user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial)
+    _requisicao_para(chamado)
+    services.aceitar_tratativa(chamado, user_recepcao)
+    services.executar(chamado, Acao.ENCAMINHAR_CONFIGURACAO, {}, user_recepcao)
+    services.aceitar_tratativa(chamado, user_configuracao)
+    services.executar(chamado, Acao.ENCAMINHAR_ENVIO, {"tratativa": "ok"}, user_configuracao)
+    services.aceitar_tratativa(chamado, user_expedicao)
+    client.force_login(user_expedicao)
+
+    sem_data = client.post(reverse("chamados:acao", args=[chamado.pk, Acao.REGISTRAR_ENVIO]),
+                           {"metodo_envio": "Correio", "codigo_rastreio_envio": "BR123"})
+    chamado.refresh_from_db()
+    assert chamado.status == Status.ENVIO  # data obrigatória
+    client.post(reverse("chamados:acao", args=[chamado.pk, Acao.REGISTRAR_ENVIO]),
+                {"metodo_envio": "Correio", "data_envio": "2026-10-01", "codigo_rastreio_envio": "BR123"})
+
+    chamado.refresh_from_db()
+    assert sem_data.status_code == 302
+    assert (chamado.status, chamado.metodo_envio, str(chamado.data_envio), chamado.codigo_rastreio_envio) == (
+        Status.FINANCEIRO, "Correio", "2026-10-01", "BR123")
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("custo, oferecida, recusada", [
+    ("SEM_CUSTO", Acao.CONFIRMAR_ENCERRAMENTO, Acao.FATURAR),
+    ("COM_CUSTO", Acao.FATURAR, Acao.CONFIRMAR_ENCERRAMENTO),
+])
+def test_financeiro_fatura_com_custo_e_so_confirma_sem_custo(
+    user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial,
+    user_financeiro, custo, oferecida, recusada,
+):
+    from chamados.selectors import acoes_disponiveis
+
+    chamado = _na_recepcao(user_quality, user_inteligencia, user_expedicao, user_laboratorio,
+                           user_comercial, custo=custo)
+    _seguir_ate_financeiro(chamado, user_expedicao)
+    services.aceitar_tratativa(chamado, user_financeiro)
+
+    acoes = acoes_disponiveis(user_financeiro, chamado)
+    assert oferecida in acoes and recusada not in acoes
+    # sabotagem: remover a checagem de custo em executar → vermelho
+    with pytest.raises(ValidationError):
+        services.executar(chamado, recusada,
+                          {"valor_faturamento": "10", "nota_fiscal": "NF1"}, user_financeiro)
+
+
+@pytest.mark.django_db
+def test_expedicao_no_envio_ve_o_que_veio_depois_da_chegada(
+    client, user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial,
+    user_recepcao, user_configuracao,
+):
+    """De volta para o envio, a Expedição vê laboratório e comercial (precisa saber
+    o que mandar); a Recepção, que saiu antes, não vê a Configuração nem o envio."""
+    chamado = _na_recepcao(user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial)
+    _seguir_ate_financeiro(chamado, user_expedicao)
+
+    client.force_login(user_expedicao)
+    html_exp = client.get(reverse("chamados:detalhe", args=[chamado.pk])).content.decode()
+    client.force_login(user_recepcao)
+    html_rec = client.get(reverse("chamados:detalhe", args=[chamado.pk])).content.decode()
+
+    assert "orçado" in html_exp and "configurado ok" in html_exp and "Envio ao cliente" in html_exp
+    assert "orçado" in html_rec
+    assert "configurado ok" not in html_rec and "Envio ao cliente" not in html_rec
+
+
+# --------------------------------------------------------------------------- #
+# Recepção: aceitar → requisição de substituição preenchida                   #
+# --------------------------------------------------------------------------- #
+
+
+def _recepcao_pode_criar_requisicao(user):
+    from django.contrib.auth.models import Permission
+
+    user.user_permissions.add(*Permission.objects.filter(
+        codename__in=["add_requisicoes", "view_requisicoes"]
+    ))
+
+
+def _na_recepcao_com_modelos(user_quality, user_inteligencia, user_expedicao,
+                             user_laboratorio, user_comercial):
+    """EQ-1 (4G, Termo branco + Imã, Retornavel) e EQ-2 (2G) de SUBSTITUIÇÃO —
+    EQ-1 com custo —, EQ-3 (4G) de DEVOLUÇÃO. Chamado na RECEPÇÃO."""
+    isca_4g, isca_2g = Produto.objects.create(nome="Isca 4G"), Produto.objects.create(nome="Isca 2G")
+    chamado = _abrir(user_quality, user_quality, equipamentos_override=[
+        ("EQ-1", isca_4g, "Termo branco + Imã", "Retornavel"),
+        ("EQ-2", isca_2g, "Sem customização", "Retornavel"),
+        ("EQ-3", isca_4g, "Termo branco + Imã", "Retornavel"),
+    ], encaminhar=True, procedimento_realizado="p", tratativa="t",
+       responsavel_inteligencia=user_inteligencia)
+    services.aceitar_tratativa(chamado, user_inteligencia)
+    services.executar(chamado, Acao.ENCAMINHAR_EXPEDICAO,
+                      {"procedimento_realizado": "p", "tratativa": "t"}, user_inteligencia)
+    services.aceitar_tratativa(chamado, user_expedicao)
+    services.executar(chamado, Acao.MARCAR_CHEGADA, {}, user_expedicao)
+    services.aceitar_tratativa(chamado, user_laboratorio)
+    services.executar(chamado, Acao.ENCAMINHAR_COMERCIAL, {"tratativas_equipamento": [
+        {"numero": n, "tratativa": "lab"} for n in ("EQ-1", "EQ-2", "EQ-3")
+    ]}, user_laboratorio)
+    services.aceitar_tratativa(chamado, user_comercial)
+    services.executar(chamado, Acao.FINALIZAR_COMERCIAL, {
+        "finalizacao_equipamento": [
+            {"numero": "EQ-1", "tratativa": "c", "custo": "COM_CUSTO", "destino": "SUBSTITUICAO"},
+            {"numero": "EQ-2", "tratativa": "c", "custo": "SEM_CUSTO", "destino": "SUBSTITUICAO"},
+            {"numero": "EQ-3", "tratativa": "c", "custo": "SEM_CUSTO", "destino": "DEVOLUCAO"},
+        ],
+        "termo_substituicao": _pdf_falso(),
+    }, user_comercial)
+    chamado.refresh_from_db()
+    return chamado, isca_4g, isca_2g
+
+
+@pytest.mark.django_db
+def test_recepcao_aceita_e_vai_abrir_a_requisicao(
+    client, user_quality, user_inteligencia, user_expedicao, user_laboratorio,
+    user_comercial, user_recepcao,
+):
+    chamado, *_ = _na_recepcao_com_modelos(user_quality, user_inteligencia, user_expedicao,
+                                           user_laboratorio, user_comercial)
+    client.force_login(user_recepcao)
+
+    resp = client.post(reverse("chamados:acao", args=[chamado.pk, Acao.ACEITAR_TRATATIVA]))
+
+    assert resp.url == f"{reverse('requisicoescrateview')}?chamado={chamado.pk}"
+
+
+@pytest.mark.django_db
+def test_requisicao_vem_so_com_os_equipamentos_de_substituicao(
+    client, user_quality, user_inteligencia, user_expedicao, user_laboratorio,
+    user_comercial, user_recepcao,
+):
+    chamado, isca_4g, isca_2g = _na_recepcao_com_modelos(
+        user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial)
+    _recepcao_pode_criar_requisicao(user_recepcao)
+    client.force_login(user_recepcao)
+
+    form = client.get(f"{reverse('requisicoescrateview')}?chamado={chamado.pk}").context["form"]
+
+    assert (form.initial["nome"], form.initial["contrato"], form.initial["motivo"], form.initial["tipo_fatura"]) == (
+        chamado.cliente_id, "Retornavel", "Substituição", "Com Custo")
+    # EQ-3 (devolução) fica de fora; customização casada com o vocabulário da requisição.
+    assert [(b["tipo_produto"], b["quantidade"], b["customizacao"], b["numeros"])
+            for b in form.blocos_itens()] == [
+        (str(isca_4g.pk), "1", "Termo branco + imã", "EQ-1"),
+        (str(isca_2g.pk), "1", "Sem custumização", "EQ-2"),
+    ]
+
+
+@pytest.mark.django_db
+def test_salvar_requisicao_vincula_ao_chamado_e_libera_a_configuracao(
+    client, user_quality, user_inteligencia, user_expedicao, user_laboratorio,
+    user_comercial, user_recepcao,
+):
+    from chamados.selectors import acoes_disponiveis
+
+    chamado, isca_4g, isca_2g = _na_recepcao_com_modelos(
+        user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial)
+    services.aceitar_tratativa(chamado, user_recepcao)
+    _recepcao_pode_criar_requisicao(user_recepcao)
+    client.force_login(user_recepcao)
+
+    resp = client.post(reverse("requisicoescrateview"), {
+        "chamado": chamado.pk, "nome": chamado.cliente_id, "email": "c@acme.com",
+        "contrato": "Retornavel", "motivo": "Substituição", "status": "Pendente", "taxa_envio": "0",
+        "item": ["0", "1"],
+        "item_0_tipo_produto": isca_4g.pk, "item_0_quantidade": "1", "item_0_valor_unitario": "0",
+        "item_1_tipo_produto": isca_2g.pk, "item_1_quantidade": "1", "item_1_valor_unitario": "0",
+    })
+
+    chamado.refresh_from_db()
+    assert resp.url == reverse("chamados:detalhe", args=[chamado.pk])
+    assert chamado.requisicao.itens.count() == 2
+    assert Acao.ENCAMINHAR_CONFIGURACAO in acoes_disponiveis(user_recepcao, chamado)
+
+
+@pytest.mark.django_db
+def test_vinculo_falho_desfaz_a_requisicao(
+    user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial,
+):
+    """Chamado já vinculado por outra aba: a requisição nova não fica órfã."""
+    from requisicao.models import ItemRequisicao, Requisicoes
+    from requisicao.services import criar_requisicao
+
+    chamado, isca_4g, _ = _na_recepcao_com_modelos(
+        user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial)
+    _requisicao_para(chamado)
+    antes = Requisicoes.objects.count()
+
+    with pytest.raises(ValidationError):
+        criar_requisicao(Requisicoes(nome=chamado.cliente, email="a@b.com"),
+                         [ItemRequisicao(tipo_produto=isca_4g, quantidade=1)], chamado=chamado)
+    assert Requisicoes.objects.count() == antes
+
+
+@pytest.mark.django_db
+def test_requisicao_nao_vem_do_chamado_para_quem_nao_e_recepcao(
+    client, user_quality, user_inteligencia, user_expedicao, user_laboratorio, user_comercial,
+):
+    chamado, *_ = _na_recepcao_com_modelos(user_quality, user_inteligencia, user_expedicao,
+                                           user_laboratorio, user_comercial)
+    _recepcao_pode_criar_requisicao(user_comercial)
+    client.force_login(user_comercial)
+
+    resp = client.get(f"{reverse('requisicoescrateview')}?chamado={chamado.pk}")
+
+    assert resp.context["chamado"] is None
+    assert "nome" not in resp.context["form"].initial
+
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("inicio", [__import__("datetime").date(2025, 1, 30), None])
+def test_requisicao_preenche_com_inicio_de_contrato_do_cliente(
+    client, user_quality, user_inteligencia, user_expedicao, user_laboratorio,
+    user_comercial, user_recepcao, inicio,
+):
+    """O início de contrato do cadastro é DateField (antes era tratado como texto)."""
+    chamado, *_ = _na_recepcao_com_modelos(user_quality, user_inteligencia, user_expedicao,
+                                           user_laboratorio, user_comercial)
+    Clientes.objects.filter(pk=chamado.cliente_id).update(inicio_de_contrato=inicio)
+    _recepcao_pode_criar_requisicao(user_recepcao)
+    client.force_login(user_recepcao)
+
+    resp = client.get(f"{reverse('requisicoescrateview')}?chamado={chamado.pk}")
+
+    assert resp.context["form"].initial["inicio_de_contrato"] == inicio
+
+
+
+@pytest.mark.django_db
+def test_recepcao_aceita_sem_requisicao_ve_o_botao_de_criar(
+    client, user_quality, user_inteligencia, user_expedicao, user_laboratorio,
+    user_comercial, user_recepcao,
+):
+    """Aceite feito e requisição não salva: o detalhe oferece abrir a requisição
+    (antes o chamado ficava sem nenhuma ação para a Recepção)."""
+    chamado, *_ = _na_recepcao_com_modelos(user_quality, user_inteligencia, user_expedicao,
+                                           user_laboratorio, user_comercial)
+    services.aceitar_tratativa(chamado, user_recepcao)
+    client.force_login(user_recepcao)
+    url = reverse("chamados:detalhe", args=[chamado.pk])
+    link = f"{reverse('requisicoescrateview')}?chamado={chamado.pk}"
+
+    assert link in client.get(url).content.decode()
+    _requisicao_para(chamado)
+    assert link not in client.get(url).content.decode()  # com requisição, some

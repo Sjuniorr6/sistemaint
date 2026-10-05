@@ -28,8 +28,16 @@
     <h3 class="display-4 mb-4 text-white">Editar Registro de Manutenção</h3>
     <div class="card">
         <div class="card-body">
+            {% if chamado %}
+                <div class="alert alert-info">
+                    <i class="bi bi-link-45deg"></i>
+                    Manutenção do chamado <strong>{{ chamado.protocolo }}</strong>: uma linha por equipamento
+                    já vem montada em "Dados da Manutenção". Ao salvar, você volta para o chamado.
+                </div>
+            {% endif %}
             <form method="post" enctype="multipart/form-data">
                 {% csrf_token %}
+                {% if chamado %}<input type="hidden" name="chamado" value="{{ chamado.pk }}">{% endif %}
                 <!-- Exibir Erros Não Associados a Campos Específicos -->
                 {% if form.non_field_errors %}
                 <div class="alert alert-danger">

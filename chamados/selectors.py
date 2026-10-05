@@ -49,8 +49,10 @@ def chamados_visiveis_para(user):
         is_comercial,
         is_expedicao,
         is_financeiro,
+        is_configuracao,
         is_laboratorio,
         is_quality,
+        is_recepcao,
         setores_operacionais,
     )
 
@@ -73,10 +75,16 @@ def chamados_visiveis_para(user):
         filtro |= Q(status=Status.COMERCIAL)
     if is_financeiro(user):
         filtro |= Q(status=Status.FINANCEIRO)
+    if is_recepcao(user):
+        filtro |= Q(status=Status.RECEPCAO)
+    if is_configuracao(user):
+        filtro |= Q(status=Status.CONFIGURACAO)
+    if is_expedicao(user):
+        filtro |= Q(status=Status.ENVIO)  # a volta da Expedição para o envio
 
     # ...e os que JÁ PASSARAM pelo setor dele (continuam visíveis depois de
     # seguir adiante). O QUE ele vê desses chamados é recortado no detalhe por
-    # `setores_visiveis`. Exists: sem join, então sem linha duplicada.
+    # `corte_de_visibilidade`. Exists: sem join, então sem linha duplicada.
     passou_por = setores_operacionais(user)
     if passou_por:
         filtro |= Q(Exists(PassagemSetor.objects.filter(
@@ -165,6 +173,14 @@ def acoes_disponiveis(user, chamado):
         if chamado.status in transicao.origens:
             disponiveis.append(acao)
 
+    if chamado.status == Status.FINANCEIRO:
+        from chamados.services import chamado_tem_custo
+
+        oculta = Acao.CONFIRMAR_ENCERRAMENTO if chamado_tem_custo(chamado) else Acao.FATURAR
+        disponiveis.remove(oculta)
+    if chamado.status == Status.RECEPCAO and chamado.requisicao_id is None:
+        disponiveis.remove(Acao.ENCAMINHAR_CONFIGURACAO)
+
     # Registrar contato não é transição (não muda status): é oferecido enquanto o
     # chamado está na Expedição, ao lado do "Marcar chegada".
     if chamado.status == Status.EXPEDICAO:
@@ -184,6 +200,8 @@ SETORES_TIMELINE = [
     Setor.EXPEDICAO,
     Setor.LABORATORIO,
     Setor.COMERCIAL,
+    Setor.RECEPCAO,
+    Setor.CONFIGURACAO,
     Setor.FINANCEIRO,
 ]
 
@@ -253,4 +271,38 @@ def listar_fila(user, setor=None, data_de=None, data_ate=None):
     o Excel sai com as MESMAS linhas que a tela mostra.
     """
     qs = anotar_entradas_por_setor(chamados_visiveis_para(user))
+    qs = anotar_corte_de_visibilidade(qs, user)
     return filtrar_fila(qs, setor=setor, data_de=data_de, data_ate=data_ate)
+
+
+def anotar_corte_de_visibilidade(qs, user):
+    """Anota, por chamado, o corte de visibilidade de `user` (ver
+    permissions.corte_de_visibilidade): `_no_setor` (está num setor dele agora)
+    e `_corte` (última saída de um setor dele). Sem anotação para quem vê tudo."""
+    from django.db.models import Exists, OuterRef, Subquery
+
+    from chamados.models import PassagemSetor
+    from chamados.permissions import setores_operacionais, ve_fluxo_inteiro
+
+    if ve_fluxo_inteiro(user):
+        return qs
+    passagens = PassagemSetor.objects.filter(
+        chamado=OuterRef("pk"), setor__in=setores_operacionais(user)
+    )
+    return qs.annotate(
+        _no_setor=Exists(passagens.filter(finalizado_em__isnull=True)),
+        _corte=Subquery(
+            passagens.filter(finalizado_em__isnull=False)
+            .order_by("-finalizado_em").values("finalizado_em")[:1]
+        ),
+    )
+
+
+def entradas_visiveis(chamado, setores):
+    """Datas de entrada por setor (linha do tempo), escondendo as posteriores ao
+    corte de visibilidade anotado por `anotar_corte_de_visibilidade`."""
+    corte = None if getattr(chamado, "_no_setor", True) else getattr(chamado, "_corte", None)
+    entradas = [getattr(chamado, campo_entrada(s), None) for s in setores]
+    if corte is None:
+        return entradas
+    return [e if e is not None and e <= corte else None for e in entradas]

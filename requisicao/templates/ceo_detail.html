@@ -365,7 +365,7 @@
       <div class="info-grid">
         <div class="info-item">
           <div class="info-label"><i class="bi bi-box"></i> Tipo de Produto</div>
-          <div class="info-value">{{ requisicoes.tipo_produto }}</div>
+          <div class="info-value">{% include 'partials/_modelos_inline.html' with r=requisicoes %}</div>
         </div>
         <div class="info-item">
           <div class="info-label"><i class="bi bi-hash"></i> Número de Equipamentos</div>

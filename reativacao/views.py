@@ -123,7 +123,8 @@ class RequisicoesListView(PermissionRequiredMixin, LoginRequiredMixin, ListView)
     permission_required = 'reativacao.view_reativacao'
 
     def get_queryset(self):
-        queryset = super().get_queryset().order_by('-id')  # Ordenação decrescente dos IDs
+        # Ordenação decrescente dos IDs; modelos de cada card (requisição com vários modelos).
+        queryset = super().get_queryset().order_by('-id').prefetch_related('itens__tipo_produto')
         nome = self.request.GET.get('nome')
         status = self.request.GET.get('status')
 

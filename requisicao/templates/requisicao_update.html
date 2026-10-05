@@ -309,6 +309,11 @@
                             <i class="bi bi-file-text-fill"></i>
                             Dados da Requisição
                         </h5>
+                            {% comment %} Modelos da requisição: só leitura (definidos na criação). {% endcomment %}
+                            <div class="mb-3">
+                                <label class="fw-semibold">Modelos da requisição</label>
+                                {% include 'partials/_itens_requisicao.html' with registro=form.instance %}
+                            </div>
                             {{ form.as_p }}
                     </div>
                         

@@ -213,3 +213,16 @@ def test_edicao_recusa_mesmo_equipamento_em_duas_linhas(client_edicao, cliente, 
 
     assert "Equipamento 111 já escolhido em outra linha." in resp.content.decode()
     assert not registro.imagens.exists()
+
+
+
+@pytest.mark.django_db
+def test_detalhe_abre_com_laudo_sem_foto(client_edicao, cliente, isca_4g):
+    """Laudo sem foto derrubava o detalhe (ValueError em imagem.url)."""
+    registro = _entrada(cliente, isca_4g)
+    registro.imagens.create(id_equipamento="111", tipo_problema="Oxidação")
+
+    resp = client_edicao.get(reverse("FormularioDetailView", args=[registro.pk]))
+
+    assert resp.status_code == 200
+    assert "ID: 111" in resp.content.decode()

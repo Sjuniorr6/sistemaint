@@ -197,7 +197,7 @@
                                     <label class="col-12 col-form-label"><b>Comercial:</b> {{ registro.comercial }}</label>
                                 </div>
                                 <div class="mb-2 row">
-                                    <label class="col-12 col-form-label"><b>Tipo de Produto:</b> {{ registro.tipo_produto }}</label>
+                                    <label class="col-12 col-form-label"><b>Tipo de Produto:</b> {% include 'partials/_modelos_inline.html' with r=registro %}</label>
                                 </div>
                                <div>
                                     <label class="col-12 col-form-label"><b>Taxa envio:</b> {{ registro.taxa_envio }}</label>

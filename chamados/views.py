@@ -13,11 +13,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from chamados.enums import Acao, Setor
+from chamados.enums import Acao, Setor, Status
 from chamados.forms import (
     AberturaChamadoForm,
     ContatoExpedicaoForm,
     EncaminharComercialForm,
+    EncaminharEnvioForm,
     EncaminharExpedicaoForm,
     EncaminharForm,
     FaturarForm,
@@ -25,10 +26,18 @@ from chamados.forms import (
     FinalizarForm,
     FiltroFilaForm,
     MotivoForm,
+    RegistrarEnvioForm,
 )
-from chamados.permissions import exige_operador, exige_quality, is_quality, setores_visiveis
+from chamados.permissions import (
+    corte_de_visibilidade,
+    exige_operador,
+    exige_quality,
+    is_quality,
+)
 from chamados.selectors import (
+    SETORES_TIMELINE,
     acoes_disponiveis,
+    entradas_visiveis,
     campo_entrada,
     chamados_visiveis_para,
     listar_fila,
@@ -44,6 +53,11 @@ _FORM_POR_ACAO = {
     Acao.MARCAR_CHEGADA: (None, ()),
     # ENCAMINHAR_COMERCIAL é tratado à parte (form dinâmico por equipamento).
     Acao.FATURAR: (FaturarForm, ("valor_faturamento", "nota_fiscal")),
+    # Recepção → Configuração e confirmação do Financeiro: sem dados.
+    Acao.ENCAMINHAR_CONFIGURACAO: (None, ()),
+    Acao.CONFIRMAR_ENCERRAMENTO: (None, ()),
+    Acao.ENCAMINHAR_ENVIO: (EncaminharEnvioForm, ("tratativa",)),
+    Acao.REGISTRAR_ENVIO: (RegistrarEnvioForm, ("metodo_envio", "data_envio", "codigo_rastreio_envio")),
     Acao.FINALIZAR: (FinalizarForm, ("procedimento_realizado",)),
     Acao.RESOLVER: (FinalizarForm, ("procedimento_realizado",)),
     Acao.BLOQUEAR: (MotivoForm, ("motivo",)),
@@ -53,7 +67,8 @@ _FORM_POR_ACAO = {
 
 def _linhas_com_acoes(user, chamados, setores):
     """Emparelha cada chamado com as ações que a UI deve oferecer (RF-07) e com
-    a linha do tempo já RESOLVIDA em lista, na ordem de `setores` (horizonte).
+    a linha do tempo já RESOLVIDA em lista, na ordem de `setores` — com as
+    entradas posteriores ao corte de visibilidade do usuário escondidas.
 
     Resolver aqui (e não no template) evita precisar de um filtro de lookup em
     dict só para ler as anotações: o template itera a lista e imprime, sem
@@ -63,7 +78,7 @@ def _linhas_com_acoes(user, chamados, setores):
         {
             "chamado": c,
             "acoes": acoes_disponiveis(user, c),
-            "entradas": [getattr(c, campo_entrada(s), None) for s in setores],
+            "entradas": entradas_visiveis(c, setores),
         }
         for c in chamados
     ]
@@ -110,8 +125,7 @@ def fila(request):
     """
     form, filtros = _filtros_da_fila(request)
     chamados = listar_fila(request.user, **filtros)
-    # Colunas da linha do tempo só até o setor do usuário (horizonte).
-    setores = setores_visiveis(request.user)
+    setores = SETORES_TIMELINE
     # Base da querystring do botão "Exportar": leva os filtros ativos adiante.
     contexto = {
         "linhas": _linhas_com_acoes(request.user, chamados, setores),
@@ -143,9 +157,12 @@ def exportar(request):
         "equipamentos__modelo"
     )
 
-    conteudo = services.montar_workbook_fila(
-        chamados, setores_visiveis(request.user), campo_entrada
-    )
+    # Mesma máscara da tela: datas posteriores ao corte de visibilidade somem.
+    chamados = list(chamados)
+    for c in chamados:
+        for setor, entrada in zip(SETORES_TIMELINE, entradas_visiveis(c, SETORES_TIMELINE)):
+            setattr(c, campo_entrada(setor), entrada)
+    conteudo = services.montar_workbook_fila(chamados, SETORES_TIMELINE, campo_entrada)
     response = HttpResponse(
         conteudo,
         content_type=(
@@ -166,20 +183,26 @@ def detalhe(request, pk):
     o acesso por URL direta, não só na fila.
     """
     chamado = get_object_or_404(chamados_visiveis_para(request.user), pk=pk)
-    # Horizonte: quem já passou o chamado adiante continua vendo, mas só o que
-    # foi registrado até o seu setor (eventos de setores posteriores somem).
-    setores = setores_visiveis(request.user)
-    ve = {
-        "manutencao": Setor.EXPEDICAO in setores,
-        "laboratorio": Setor.LABORATORIO in setores,
-        "comercial": Setor.COMERCIAL in setores,
-    }
+    # Quem já passou o chamado adiante continua vendo, mas só o registrado até
+    # a última saída do seu setor (corte por TEMPO — ver permissions).
+    corte = corte_de_visibilidade(request.user, chamado)
     eventos = [
         e for e in chamado.eventos.select_related("autor", "responsavel_inteligencia")
-        # Evento pertence ao setor de ORIGEM (quem agiu); ABRIR não tem origem
-        # (Quality) e BLOQUEADO não é setor — ambos antes da Expedição.
-        if (services.setor_do_status(e.estado_origem) or Setor.QUALITY) in setores
+        if corte is None or e.criado_em <= corte
     ]
+    # Cada bloco do detalhe aparece se a ação que o registrou está dentro do corte.
+    feitas = {e.acao for e in eventos}
+
+    def _ve(acao):
+        return corte is None or acao in feitas
+
+    ve = {
+        "manutencao": _ve(Acao.MARCAR_CHEGADA),
+        "laboratorio": _ve(Acao.ENCAMINHAR_COMERCIAL),
+        "comercial": _ve(Acao.FINALIZAR_COMERCIAL),
+        "requisicao": _ve(Acao.ENCAMINHAR_CONFIGURACAO) or chamado.status == Status.RECEPCAO,
+        "envio": _ve(Acao.REGISTRAR_ENVIO),
+    }
     # Cada equipamento tem o seu modelo; as tratativas (por nº) exibem o modelo
     # do equipamento a que se referem.
     equipamentos = list(chamado.equipamentos.select_related("modelo"))
@@ -217,6 +240,8 @@ def detalhe(request, pk):
         ),
         # Modal "Faturado" (Financeiro): valor + NF.
         "faturar_form": FaturarForm(),
+        "encaminhar_envio_form": EncaminharEnvioForm(),
+        "registrar_envio_form": RegistrarEnvioForm(),
         "tratativas_equipamento": tratativas_equipamento,
         # Tentativas de contato da Expedição — visíveis da expedição em diante.
         "contato_form": ContatoExpedicaoForm(),
@@ -227,6 +252,9 @@ def detalhe(request, pk):
         # Comercial ACEITA a tratativa (o chamado já chegou nele com a manutenção
         # vinculada pelo laboratório). Segue disponível depois de resolvido.
         "pode_baixar_laudo": ve["comercial"] and _pode_baixar_laudo(chamado),
+        # Recepção que já aceitou (ou fechou a tela sem salvar) volta a abrir a
+        # requisição por aqui — sem isso, o chamado ficava sem ação nenhuma.
+        "pode_criar_requisicao": _pode_criar_requisicao(request.user, chamado),
     }
     return render(request, "chamados/detalhe.html", contexto)
 
@@ -239,6 +267,7 @@ _SETOR_DA_ACAO = {
     Acao.ABRIR: "Quality",
     Acao.ENCAMINHAR: "Quality",
     Acao.ENCAMINHAR_EXPEDICAO: "Inteligência",
+    Acao.ENCAMINHAR_ENVIO: "Configuração",
 }
 
 
@@ -264,6 +293,16 @@ def _tratativas_por_setor(eventos):
             "tratativa": e.tratativa_snapshot,
         })
     return itens
+
+
+def _pode_criar_requisicao(user, chamado) -> bool:
+    """Recepção com o chamado aceito e ainda sem requisição de substituição."""
+    from chamados.permissions import pode_agir
+
+    if chamado.status != Status.RECEPCAO or chamado.requisicao_id is not None:
+        return False
+    passagem = services.passagem_aberta(chamado)
+    return pode_agir(user, chamado) and passagem is not None and passagem.esta_aceita
 
 
 def _pode_baixar_laudo(chamado) -> bool:
@@ -378,6 +417,10 @@ def acao(request, pk, acao):
             messages.error(request, " ".join(exc.messages))
         else:
             messages.success(request, "Tratativa aceita.")
+            # Laboratório segue direto para registrar a manutenção.
+            destino = services.destino_apos_aceite(chamado, request.user)
+            if destino:
+                return redirect(destino)
         return redirect("chamados:detalhe", pk=pk)
 
     dados = {}

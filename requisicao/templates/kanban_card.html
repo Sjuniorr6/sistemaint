@@ -37,10 +37,10 @@
                 <i class="bi bi-box-seam"></i>
                 <span><strong>Equipamentos:</strong> {{ requisicao.numero_de_equipamentos }}</span>
                 <span style="margin-left: 5px;">|</span>
-                  <span><strong>Produto:</strong> {{ requisicao.tipo_produto.nome }}</span>
+                  <span><strong>Produto:</strong> {% include 'partials/_modelos_inline.html' with r=requisicao %}</span>
                   <br>
                 <i class="bi bi-palette"></i>
-                <span><strong>Customização:</strong> {{ requisicao.tipo_customizacao|default:"Sem customização" }}</span>
+                <span><strong>Customização:</strong> {% include 'partials/_customizacoes_inline.html' with r=requisicao %}</span>
                 <span style="margin-left: 5px;">|</span>
                     <span><strong>TP:</strong> {{ requisicao.TP }}</span>
                     <br>

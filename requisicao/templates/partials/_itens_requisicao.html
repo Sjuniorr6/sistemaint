@@ -1,0 +1,32 @@
+{% comment %} Modelos da requisição (ItemRequisicao), somente leitura.
+  Uso: {% include 'partials/_itens_requisicao.html' with registro=<requisição> %}
+  Em listagens, o queryset precisa de prefetch_related('itens__tipo_produto'). {% endcomment %}
+<div class="table-responsive">
+  <table class="table table-sm align-middle mb-0">
+    <thead>
+      <tr>
+        <th>Tipo de produto</th>
+        <th class="text-end">Qtd.</th>
+        <th>Customização</th>
+        <th class="text-end">Valor unitário</th>
+        <th class="text-end">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in registro.itens.all %}
+        <tr>
+          <td class="fw-semibold">
+            {{ item.tipo_produto }}
+            {% if item.numeros_referencia %}<div class="small text-muted">Substitui: {{ item.numeros_referencia }}</div>{% endif %}
+          </td>
+          <td class="text-end">{{ item.quantidade }}</td>
+          <td>{{ item.customizacao|default:"—" }}</td>
+          <td class="text-end">R$ {{ item.valor_unitario|floatformat:2 }}</td>
+          <td class="text-end">R$ {{ item.valor_total|floatformat:2 }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">{{ registro.tipo_produto }} ({{ registro.numero_de_equipamentos|default:0 }})</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

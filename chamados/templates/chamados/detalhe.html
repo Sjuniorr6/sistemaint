@@ -97,6 +97,8 @@
               <div class="mb-1">
                 <span class="badge rounded-pill text-bg-light me-1">{{ eq.numero }}</span>
                 <span class="text-muted small"><i class="bi bi-hdd me-1"></i>{{ eq.modelo }}</span>
+                {% if eq.customizacao %}<span class="text-muted small"> · {{ eq.customizacao }}</span>{% endif %}
+                {% if eq.tipo_contrato %}<span class="text-muted small"> · {{ eq.tipo_contrato }}</span>{% endif %}
               </div>
             {% endfor %}
           </dd>
@@ -123,6 +125,14 @@
               <span class="ms-1">{{ chamado.manutencao.nome }}</span>
             </dd>
           {% endif %}
+          {% if chamado.metodo_envio and ve.envio %}
+            <dt class="col-sm-4">Envio ao cliente</dt>
+            <dd class="col-sm-8">
+              <i class="bi bi-truck me-1 text-secondary"></i>{{ chamado.get_metodo_envio_display }}
+              · {{ chamado.data_envio|date:"d/m/Y" }}
+              {% if chamado.codigo_rastreio_envio %}<span class="badge rounded-pill text-bg-info ms-1">{{ chamado.codigo_rastreio_envio }}</span>{% endif %}
+            </dd>
+          {% endif %}
           <dt class="col-sm-4">Aberto por</dt><dd class="col-sm-8">{{ chamado.aberto_por.get_username }}</dd>
           <dt class="col-sm-4">Aberto em</dt>
           <dd class="col-sm-8"><i class="bi bi-clock me-1 text-secondary"></i>{{ chamado.aberto_em|date:"d/m/Y H:i" }}</dd>
@@ -134,7 +144,7 @@
       {% comment %} Ações disponíveis conforme estado + posse (RF-07/RF-21).
         O card também aparece quando só há o laudo a oferecer (ex.: chamado já
         resolvido, mas com manutenção vinculada). {% endcomment %}
-      {% if acoes or pode_baixar_laudo %}
+      {% if acoes or pode_baixar_laudo or pode_criar_requisicao %}
       <div class="ch-card card mb-4"><div class="card-body">
         <h6 class="ch-section-title"><i class="bi bi-lightning-charge me-1"></i>Ações</h6>
         <div class="d-flex flex-wrap gap-2">
@@ -174,8 +184,32 @@
               </button>
             {% elif a == Acao.FINALIZAR_COMERCIAL %}
               <button class="btn btn-success fw-semibold" data-bs-toggle="modal" data-bs-target="#modalFinalizarComercial">
-                <i class="bi bi-check2-circle me-1"></i> Finalizar chamado
+                <i class="bi bi-check2-circle me-1"></i> Realizar tratativa
               </button>
+            {% elif a == Acao.ENCAMINHAR_CONFIGURACAO %}
+              {% comment %} Sem dados: a requisição de substituição já está vinculada. {% endcomment %}
+              <form method="post" action="{% url 'chamados:acao' chamado.pk Acao.ENCAMINHAR_CONFIGURACAO %}" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary fw-semibold">
+                  <i class="bi bi-gear me-1"></i> Encaminhar para configuração
+                </button>
+              </form>
+            {% elif a == Acao.ENCAMINHAR_ENVIO %}
+              <button class="btn btn-primary fw-semibold" data-bs-toggle="modal" data-bs-target="#modalEncaminharEnvio">
+                <i class="bi bi-box-seam me-1"></i> Encaminhar para expedição
+              </button>
+            {% elif a == Acao.REGISTRAR_ENVIO %}
+              <button class="btn btn-primary fw-semibold" data-bs-toggle="modal" data-bs-target="#modalRegistrarEnvio">
+                <i class="bi bi-truck me-1"></i> Registrar envio
+              </button>
+            {% elif a == Acao.CONFIRMAR_ENCERRAMENTO %}
+              {% comment %} Sem custo: o Financeiro só confirma o encerramento. {% endcomment %}
+              <form method="post" action="{% url 'chamados:acao' chamado.pk Acao.CONFIRMAR_ENCERRAMENTO %}" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success fw-semibold">
+                  <i class="bi bi-check2-all me-1"></i> Confirmar encerramento
+                </button>
+              </form>
             {% elif a == Acao.FATURAR %}
               <button class="btn btn-success fw-semibold" data-bs-toggle="modal" data-bs-target="#modalFaturar">
                 <i class="bi bi-cash-coin me-1"></i> Faturado
@@ -198,6 +232,12 @@
               </button>
             {% endif %}
           {% endfor %}
+
+          {% if pode_criar_requisicao %}
+            <a class="btn btn-warning fw-semibold" href="{% url 'requisicoescrateview' %}?chamado={{ chamado.pk }}">
+              <i class="bi bi-file-earmark-plus me-1"></i> Criar requisição de substituição
+            </a>
+          {% endif %}
 
           {% comment %} Laudo da manutenção vinculada — mesmo arquivo/URL do botão
             "Laudo" da tela "Registro das entradas" (download_pdfmanutencao).
@@ -228,11 +268,23 @@
         ao encaminhar (Quality → Inteligência, Inteligência → Expedição), com quem
         fez e quando. Vem do log de eventos (os campos do chamado são únicos e
         sobrescritos, então não distinguiriam os setores). {% endcomment %}
-      {% if tratativas_por_setor or chamado.manutencao and ve.manutencao %}
+      {% if tratativas_por_setor or chamado.manutencao and ve.manutencao or chamado.requisicao_id and ve.requisicao %}
         <div class="ch-card card mb-4"><div class="card-body">
           <h6 class="ch-section-title"><i class="bi bi-journal-text me-1"></i>Tratativas</h6>
           {% comment %} Entrada de equipamento vinculada (feita pela Expedição ou
             pelo Laboratório): atalho para o próximo setor abrir a manutenção. {% endcomment %}
+          {% comment %} Requisição de substituição aberta pela Recepção. {% endcomment %}
+          {% if chamado.requisicao_id and ve.requisicao %}
+            <a href="{% url 'ceodetailview' chamado.requisicao_id %}" target="_blank" rel="noopener"
+               class="d-flex align-items-center gap-2 border rounded p-3 mb-2 text-decoration-none">
+              <i class="bi bi-file-earmark-text fs-5"></i>
+              <span>
+                <span class="fw-semibold d-block">Requisição #{{ chamado.requisicao_id }}</span>
+                <span class="small text-muted">Ver a requisição de substituição</span>
+              </span>
+              <i class="bi bi-box-arrow-up-right ms-auto"></i>
+            </a>
+          {% endif %}
           {% if chamado.manutencao and ve.manutencao %}
             <a href="{% url 'FormularioDetailView' chamado.manutencao_id %}" target="_blank" rel="noopener"
                class="d-flex align-items-center gap-2 border rounded p-3 mb-2 text-decoration-none">
@@ -304,6 +356,9 @@
               <div class="d-flex align-items-center gap-2 mb-1">
                 <span class="badge rounded-pill text-bg-light">{{ t.numero_equipamento }}</span>
                 {% if t.modelo %}<span class="text-muted small"><i class="bi bi-hdd me-1"></i>{{ t.modelo }}</span>{% endif %}
+                {% if t.destino and ve.comercial %}
+                  <span class="badge rounded-pill text-bg-info">{{ t.get_destino_display }}</span>
+                {% endif %}
                 {% if t.custo and ve.comercial %}
                   <span class="badge rounded-pill {% if t.custo == 'COM_CUSTO' %}text-bg-warning{% else %}text-bg-success{% endif %}">
                     {{ t.get_custo_display }}
@@ -338,6 +393,12 @@
   {% endif %}
   {% if Acao.FINALIZAR_COMERCIAL in acoes %}
     {% include 'chamados/partials/modal_finalizar_comercial.html' %}
+  {% endif %}
+  {% if Acao.ENCAMINHAR_ENVIO in acoes %}
+    {% include 'chamados/partials/modal_encaminhar_envio.html' %}
+  {% endif %}
+  {% if Acao.REGISTRAR_ENVIO in acoes %}
+    {% include 'chamados/partials/modal_registrar_envio.html' %}
   {% endif %}
   {% if Acao.FATURAR in acoes %}
     {% include 'chamados/partials/modal_faturar.html' %}

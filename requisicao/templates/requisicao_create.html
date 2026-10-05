@@ -141,8 +141,21 @@
             {% endfor %}
         </div>
     {% endif %}
+    {% if chamado %}
+        <div class="alert alert-info">
+            <i class="fas fa-link"></i>
+            Requisição de substituição do chamado <strong>{{ chamado.protocolo }}</strong>: cliente,
+            contrato e os modelos dos equipamentos de substituição já vêm preenchidos. Confira,
+            complete (e-mail, valores, envio) e salve — a requisição fica vinculada ao chamado.
+            {% for aviso in avisos_chamado %}<div class="mt-2"><strong>Atenção:</strong> {{ aviso }}</div>{% endfor %}
+        </div>
+    {% endif %}
+    {% if form.non_field_errors %}
+        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
     <form method="post" class="form">
         {% csrf_token %}
+        {% if chamado %}<input type="hidden" name="chamado" value="{{ chamado.pk }}">{% endif %}
             
             <!-- Informações do Cliente -->
             <div class="section-title"><i class="fas fa-user"></i> Informações do Cliente</div>
@@ -216,21 +229,82 @@
                     {{ form.envio }}
                 </div>
             </div>
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label for="tipo_customizacao" class="form-label">Tipo de Customização</label>
-                    {{ form.tipo_customizacao }}
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label for="numero_de_equipamentos" class="form-label">Número de Equipamentos</label>
-                    {{ form.numero_de_equipamentos }}
+            {% comment %} Um bloco por modelo: tipo de produto, quantidade, customização
+              e valor unitário. "Adicionar novo modelo" abre outro bloco (ex.: isca 4G
+              + isca 2G na mesma requisição). Os names levam o id do bloco
+              (item_<id>_<campo>) e o form monta um ItemRequisicao por bloco. O valor
+              total é a soma dos blocos (recalculado no servidor). Ao repostar com
+              erro, os blocos voltam do form (json_script). {% endcomment %}
+            {{ form.blocos_itens|json_script:"blocos-itens" }}
+            <div x-data="requisicaoItens()">
+                <template x-for="(b, i) in blocos" :key="b.id">
+                    <div>
+                        <input type="hidden" name="item" :value="b.id">
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="fw-semibold" style="color: #665b1d;" x-text="'Modelo ' + (i + 1)"></span>
+                            <button type="button" class="btn btn-link btn-sm text-danger ms-auto p-0"
+                                    @click="remove(i)" x-show="blocos.length > 1">
+                                <i class="fas fa-trash me-1"></i>Remover modelo
+                            </button>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Tipo de Produto</label>
+                                <select class="form-control" :name="'item_' + b.id + '_tipo_produto'" x-model="b.tipo_produto">
+                                    <option value="">---------</option>
+                                    {% for produto in form.opcoes_itens.produtos %}
+                                        <option value="{{ produto.pk }}">{{ produto }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-2 mb-3">
+                                <label class="form-label">Quantidade</label>
+                                <input type="number" min="1" step="1" class="form-control"
+                                       :name="'item_' + b.id + '_quantidade'" x-model="b.quantidade">
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">Customização</label>
+                                <select class="form-control" :name="'item_' + b.id + '_customizacao'" x-model="b.customizacao">
+                                    <option value="">---------</option>
+                                    {% for valor, rotulo in form.opcoes_itens.customizacoes %}
+                                        <option value="{{ valor }}">{{ rotulo }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">Valor Unitário</label>
+                                <input type="number" min="0" step="0.01" class="form-control"
+                                       :name="'item_' + b.id + '_valor_unitario'" x-model="b.valor_unitario">
+                            </div>
+                        </div>
+                        {% comment %} Nºs dos equipamentos substituídos: só aparece quando a
+                          requisição vem de um chamado (referência, não editável). {% endcomment %}
+                        <div class="mb-3" x-show="b.numeros">
+                            <label class="form-label">Equipamentos substituídos</label>
+                            <textarea class="form-control" rows="2" readonly
+                                      :name="'item_' + b.id + '_numeros'" x-text="b.numeros"></textarea>
+                        </div>
+                        <hr class="my-3">
+                    </div>
+                </template>
+                {% if form.itens.errors %}
+                    <div class="errors">{% for e in form.itens.errors %}<div>{{ e }}</div>{% endfor %}</div>
+                {% endif %}
+                <button type="button" class="btn btn-outline-secondary mb-3" @click="add()">
+                    <i class="fas fa-plus-circle me-1"></i>Adicionar novo modelo
+                </button>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Quantidade total</label>
+                        <input type="text" class="form-control" :value="totalQuantidade" readonly>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Valor Total</label>
+                        <input type="text" class="form-control" :value="totalValor" readonly>
+                    </div>
                 </div>
             </div>
             <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label for="tipo_produto" class="form-label">Tipo de Produto</label>
-                    {{ form.tipo_produto }}
-                </div>
                 <div class="col-md-6 mb-3">
                     <label for="TP" class="form-label">TP</label>
                     {{ form.TP }}
@@ -249,20 +323,11 @@
             
             <!-- Informações Financeiras -->
             <div class="section-title"><i class="fas fa-dollar-sign"></i> Informações Financeiras</div>
+            {% comment %} Valor unitário e total moram nos modelos (seção acima). {% endcomment %}
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label for="tipo_fatura" class="form-label">Tipo de Fatura</label>
                     {{ form.tipo_fatura }}
-                </div>
-                <div class="col-md-6 mb-3">
-                    <label for="valor_unitario" class="form-label">Valor Unitário</label>
-                    {{ form.valor_unitario }}
-                </div>
-            </div>
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <label for="valor_total" class="form-label">Valor Total</label>
-                    {{ form.valor_total }}
                 </div>
                 <div class="col-md-6 mb-3">
                     <label for="forma_pagamento" class="form-label">Forma de Pagamento</label>
@@ -303,6 +368,42 @@
 
 
 <script>
+    function requisicaoItens() {
+        return {
+            seq: 0,
+            blocos: [],
+            bloco: function (b) {
+                return {
+                    id: this.seq++,
+                    tipo_produto: b.tipo_produto || '',
+                    quantidade: b.quantidade || '',
+                    customizacao: b.customizacao || '',
+                    valor_unitario: b.valor_unitario || '',
+                    numeros: b.numeros || ''
+                };
+            },
+            add: function () { this.blocos.push(this.bloco({})); },
+            remove: function (i) {
+                this.blocos.splice(i, 1);
+                if (!this.blocos.length) this.add();
+            },
+            get totalQuantidade() {
+                return this.blocos.reduce(function (s, b) { return s + (parseInt(b.quantidade, 10) || 0); }, 0);
+            },
+            get totalValor() {
+                var total = this.blocos.reduce(function (s, b) {
+                    return s + (parseInt(b.quantidade, 10) || 0) * (parseFloat(b.valor_unitario) || 0);
+                }, 0);
+                return total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            },
+            init: function () {
+                var self = this;
+                var iniciais = JSON.parse(document.getElementById('blocos-itens').textContent);
+                this.blocos = iniciais.map(function (b) { return self.bloco(b); });
+            }
+        };
+    }
+
          $(document).ready(function() {
             $('#id_nome').change(function() {
                 var clienteId = $(this).val();
@@ -337,4 +438,5 @@
             });
         });
 </script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 {% endblock %}

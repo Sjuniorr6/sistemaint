@@ -32,6 +32,13 @@ class CustoEquipamento(models.TextChoices):
     SEM_CUSTO = "SEM_CUSTO", "Sem custo"
 
 
+class DestinoEquipamento(models.TextChoices):
+    """O que o Comercial decide para o equipamento ao realizar a tratativa."""
+
+    SUBSTITUICAO = "SUBSTITUICAO", "Substituição"
+    DEVOLUCAO = "DEVOLUCAO", "Devolução"
+
+
 class Status(models.TextChoices):
     """Estados do chamado. ABERTO é o default na criação (RN-08)."""
 
@@ -41,6 +48,11 @@ class Status(models.TextChoices):
     LABORATORIO = "LABORATORIO", "Laboratório"
     COMERCIAL = "COMERCIAL", "Comercial"
     FINANCEIRO = "FINANCEIRO", "Financeiro"
+    # Depois do Comercial: Recepção (substituição → requisição), Configuração e a
+    # volta para a Expedição para o ENVIO ao cliente.
+    RECEPCAO = "RECEPCAO", "Recepção"
+    CONFIGURACAO = "CONFIGURACAO", "Configuração"
+    ENVIO = "ENVIO", "Envio (Expedição)"
     BLOQUEADO = "BLOQUEADO", "Bloqueado"
     RESOLVIDO = "RESOLVIDO", "Resolvido"
 
@@ -58,6 +70,8 @@ class Setor(models.TextChoices):
     LABORATORIO = "LABORATORIO", "Laboratório"
     COMERCIAL = "COMERCIAL", "Comercial"
     FINANCEIRO = "FINANCEIRO", "Financeiro"
+    RECEPCAO = "RECEPCAO", "Recepção"
+    CONFIGURACAO = "CONFIGURACAO", "Configuração"
 
 
 class Acao(models.TextChoices):
@@ -80,6 +94,14 @@ class Acao(models.TextChoices):
     FINALIZAR_COMERCIAL = "FINALIZAR_COMERCIAL", "Finalizar chamado"
     # Financeiro registra valor + NF e encerra o chamado.
     FATURAR = "FATURAR", "Faturado"
+    # Recepção (com a requisição de substituição criada) → Configuração.
+    ENCAMINHAR_CONFIGURACAO = "ENCAMINHAR_CONFIGURACAO", "Encaminhar para configuração"
+    # Configuração → Expedição (envio ao cliente), com observação obrigatória.
+    ENCAMINHAR_ENVIO = "ENCAMINHAR_ENVIO", "Encaminhar para expedição"
+    # Expedição informa método, data e rastreio do envio → Financeiro.
+    REGISTRAR_ENVIO = "REGISTRAR_ENVIO", "Registrar envio"
+    # Financeiro encerra chamado SEM custo (só confirma; com custo é FATURAR).
+    CONFIRMAR_ENCERRAMENTO = "CONFIRMAR_ENCERRAMENTO", "Confirmar encerramento"
     FINALIZAR = "FINALIZAR", "Finalizar"
     RESOLVER = "RESOLVER", "Resolver"
     BLOQUEAR = "BLOQUEAR", "Bloquear"
@@ -95,3 +117,7 @@ GRUPO_LABORATORIO = "laboratorio"
 # padrão minúsculo dos demais papéis do app).
 GRUPO_COMERCIAL = "COMERCIAL"
 GRUPO_FINANCEIRO = "financeiro"
+GRUPO_RECEPCAO = "recepcao"
+# Reaproveita o grupo CONFIGURACAO já existente (time de configuração das
+# requisições), como o COMERCIAL.
+GRUPO_CONFIGURACAO = "CONFIGURACAO"

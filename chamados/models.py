@@ -17,10 +17,16 @@ from chamados.enums import (
     Acao,
     Categoria,
     CustoEquipamento,
+    DestinoEquipamento,
     MeioContato,
     Setor,
     Status,
 )
+# Customização e contrato usam o MESMO vocabulário da entrada de equipamento:
+# a Expedição recebe a entrada já preenchida com o que o Quality informou.
+from registrodemanutencao.models import registrodemanutencao as _EntradaManutencao
+# Método de envio: as mesmas opções da requisição.
+from requisicao.models import Requisicoes as _Requisicao
 
 
 class Chamado(models.Model):
@@ -105,6 +111,25 @@ class Chamado(models.Model):
     )
     nota_fiscal = models.CharField(
         max_length=60, blank=True, verbose_name="Nota fiscal (NF)"
+    )
+    # Requisição de substituição aberta pela Recepção (equipamentos novos para o
+    # cliente). Obrigatória para a Recepção encaminhar à Configuração.
+    requisicao = models.ForeignKey(
+        "requisicao.Requisicoes",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="chamados",
+        verbose_name="Requisição de substituição",
+    )
+    # — Envio ao cliente (Expedição, depois da Configuração) —
+    metodo_envio = models.CharField(
+        max_length=50, blank=True, choices=_Requisicao.tipo_envio,
+        verbose_name="Método de envio",
+    )
+    data_envio = models.DateField(null=True, blank=True, verbose_name="Data de envio")
+    codigo_rastreio_envio = models.CharField(
+        max_length=100, blank=True, verbose_name="Código de rastreio (envio)"
     )
     procedimento_realizado = models.TextField(
         null=True, blank=True, verbose_name="Procedimento realizado"
@@ -210,6 +235,16 @@ class ChamadoEquipamento(models.Model):
         related_name="equipamentos_chamado",
         verbose_name="Modelo do equipamento",
     )
+    # Informados pelo Quality na abertura (por bloco de modelo). Vazios nos
+    # chamados abertos antes destes campos existirem.
+    customizacao = models.CharField(
+        max_length=250, blank=True, default="",
+        choices=_EntradaManutencao.custom, verbose_name="Customização",
+    )
+    tipo_contrato = models.CharField(
+        max_length=50, blank=True, default="",
+        choices=_EntradaManutencao.contrato_tipo, verbose_name="Tipo de contrato",
+    )
     criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
 
     class Meta:
@@ -243,7 +278,7 @@ class ChamadoEvento(models.Model):
         verbose_name="Chamado",
     )
     acao = models.CharField(
-        max_length=20, choices=Acao.choices, verbose_name="Ação"
+        max_length=30, choices=Acao.choices, verbose_name="Ação"
     )
     # null no evento de criação (não há estado de origem antes de existir).
     estado_origem = models.CharField(
@@ -331,6 +366,13 @@ class TratativaEquipamento(models.Model):
         choices=CustoEquipamento.choices,
         blank=True,
         verbose_name="Custo",
+    )
+    # Substituição ou devolução ao cliente — Comercial, ao realizar a tratativa.
+    destino = models.CharField(
+        max_length=20,
+        choices=DestinoEquipamento.choices,
+        blank=True,
+        verbose_name="Destino",
     )
     criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
 

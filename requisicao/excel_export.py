@@ -1,3 +1,4 @@
+from requisicao.services import resumo_itens
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
@@ -84,12 +85,12 @@ def gerar_excel_requisicoes(queryset):
             requisicao.motivo if requisicao.motivo else "",  # Motivo
             f"R$ {requisicao.taxa_envio:.2f}".replace(".", ",") if requisicao.taxa_envio else "R$ 0,00",  # Taxa de Envio
             requisicao.comercial if requisicao.comercial else "",  # Comercial
-            requisicao.tipo_produto.nome if requisicao.tipo_produto else "",  # Tipo de Produto
+            resumo_itens(requisicao)["produtos"],  # Tipo de Produto (modelos e quantidades)
             requisicao.numero_de_equipamentos if requisicao.numero_de_equipamentos else "",  # Quantidade
             requisicao.carregador if requisicao.carregador else "",  # Carregador
             requisicao.cabo if requisicao.cabo else "",  # Cabo
             requisicao.envio if requisicao.envio else "",  # Envio
-            f"R$ {requisicao.valor_unitario:.2f}".replace(".", ",") if requisicao.valor_unitario else "R$ 0,00",  # Valor Unitário
+            resumo_itens(requisicao)["valores"],  # Valor Unitário (por modelo, se vários)
             f"R$ {requisicao.valor_total:.2f}".replace(".", ",") if requisicao.valor_total else "R$ 0,00",  # Valor Total
             requisicao.observacoes if requisicao.observacoes else ""  # Observações
         ]

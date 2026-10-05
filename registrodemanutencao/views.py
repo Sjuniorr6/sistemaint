@@ -29,7 +29,7 @@ import json
 from .models import registrodemanutencao, ImagemRegistro,retorno
 from requisicao.models import Requisicoes
 from .forms import FormulariosForm, FormulariosUpdateForm,ImagemRegistroFormSet, registrodemanutencao
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.db.models import Q
 from django.http import HttpResponse
 from.forms import RetornoForm
@@ -267,10 +267,17 @@ class FormulariosCreateView(PermissionRequiredMixin, LoginRequiredMixin, CreateV
             form.add_error(None, exc)
             return self.form_invalid(form)
         if self.chamado is not None:
+            from chamados.permissions import is_laboratorio
+
             messages.success(
                 self.request,
                 f"Entrada #{self.object.pk} registrada e vinculada ao chamado {self.chamado.protocolo}.",
             )
+            if is_laboratorio(self.request.user):
+                # Laboratório: segue para o laudo por equipamento.
+                return redirect(
+                    f"{reverse('FormulariosUpdateView', args=[self.object.pk])}?chamado={self.chamado.pk}"
+                )
             return redirect('chamados:fila')
         messages.success(self.request, f"Entrada #{self.object.pk} registrada.")
         return redirect(self.get_success_url())
@@ -284,7 +291,7 @@ from django.urls import reverse_lazy
 from django.views.generic.edit import UpdateView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from .models import registrodemanutencao
-from .forms import FormulariosUpdateForm, ImagemRegistroFormSet
+from .forms import FormulariosUpdateForm, ImagemRegistroFormSet, formset_imagens
 
 # View para atualizar um registro de manutenção existente.
 from django.shortcuts import redirect
@@ -294,7 +301,7 @@ from django.views.generic.edit import UpdateView
 
 # Importar seu modelo, form e formset:
 from .models import registrodemanutencao
-from .forms import FormulariosUpdateForm, ImagemRegistroFormSet
+from .forms import FormulariosUpdateForm, ImagemRegistroFormSet, formset_imagens
 
 
 class FormulariosUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
@@ -304,13 +311,35 @@ class FormulariosUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateV
     success_url = reverse_lazy('entradasListView')
     permission_required = 'registrodemanutencao.change_registrodemanutencao'  # Ajuste conforme seu app
 
+    def _chamado(self):
+        """Chamado do Laboratório cuja manutenção se registra aqui (?chamado=)."""
+        from chamados.services import chamado_para_laudo
+
+        chamado_id = self.request.POST.get('chamado') or self.request.GET.get('chamado')
+        if not (chamado_id and str(chamado_id).isdigit()):
+            return None
+        return chamado_para_laudo(int(chamado_id), self.request.user, self.object)
+
+    def _formset_imagens(self, *args):
+        """Formset do laudo. Vindo do chamado, uma linha por equipamento ainda
+        sem laudo — com o MESMO initial no GET e no POST, para que a linha que o
+        laboratório não preencheu seja ignorada em vez de virar laudo vazio."""
+        if self.chamado is None:
+            return ImagemRegistroFormSet(*args, instance=self.object)
+        com_laudo = set(self.object.imagens.values_list('id_equipamento', flat=True))
+        numeros = [e.numero for e in self.chamado.equipamentos.all() if e.numero not in com_laudo]
+        return formset_imagens(extra=len(numeros) or 1)(
+            *args, instance=self.object, initial=[{'id_equipamento': n} for n in numeros],
+        )
+
     def post(self, request, *args, **kwargs):
         self.object = self.get_object()
+        self.chamado = self._chamado()
 
         objeto_original = registrodemanutencao.objects.get(pk=self.object.pk)
 
         form = self.form_class(request.POST, request.FILES, instance=self.object)
-        imagens_formset = ImagemRegistroFormSet(request.POST, request.FILES, instance=self.object)
+        imagens_formset = self._formset_imagens(request.POST, request.FILES)
 
         if form.is_valid() and imagens_formset.is_valid():
             return self.form_valid(form, imagens_formset, objeto_original)
@@ -331,6 +360,10 @@ class FormulariosUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateV
         imagens_formset.instance = self.object
         imagens_formset.save()
 
+        if self.chamado is not None:
+            messages.success(self.request, f"Manutenção do chamado {self.chamado.protocolo} registrada.")
+            return redirect('chamados:detalhe', pk=self.chamado.pk)
+
         referer = self.request.META.get('HTTP_REFERER', '')
         if 'historico' in referer:
             params = self.request.GET.copy()
@@ -350,15 +383,16 @@ class FormulariosUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateV
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        if not hasattr(self, 'chamado'):
+            self.chamado = self._chamado()
+        context['chamado'] = self.chamado
         if 'imagens_formset' in kwargs:
             # form_invalid já passa o formset validado — recriá-lo perderia os erros.
             pass
         elif self.request.POST:
-            context['imagens_formset'] = ImagemRegistroFormSet(
-                self.request.POST, self.request.FILES, instance=self.object
-            )
+            context['imagens_formset'] = self._formset_imagens(self.request.POST, self.request.FILES)
         else:
-            context['imagens_formset'] = ImagemRegistroFormSet(instance=self.object)
+            context['imagens_formset'] = self._formset_imagens()
         return context
     
     

@@ -18,10 +18,12 @@ from django.core.exceptions import PermissionDenied
 from chamados.enums import (
     GRUPO_COMERCIAL,
     GRUPO_EXPEDICAO,
+    GRUPO_CONFIGURACAO,
     GRUPO_FINANCEIRO,
     GRUPO_INTELIGENCIA,
     GRUPO_LABORATORIO,
     GRUPO_QUALITY,
+    GRUPO_RECEPCAO,
     Status,
 )
 
@@ -82,9 +84,25 @@ def is_financeiro(user) -> bool:
     return user.is_superuser or user.groups.filter(name=GRUPO_FINANCEIRO).exists()
 
 
+def is_recepcao(user) -> bool:
+    """True se o usuário é do grupo `recepcao` (ou superuser). Fila COMPARTILHADA:
+    recebe os chamados com equipamento de substituição e abre a requisição."""
+    if not user or not user.is_authenticated:
+        return False
+    return user.is_superuser or user.groups.filter(name=GRUPO_RECEPCAO).exists()
+
+
+def is_configuracao(user) -> bool:
+    """True se o usuário é do grupo `CONFIGURACAO` (ou superuser). Fila
+    COMPARTILHADA: configura os equipamentos antes do envio ao cliente."""
+    if not user or not user.is_authenticated:
+        return False
+    return user.is_superuser or user.groups.filter(name=GRUPO_CONFIGURACAO).exists()
+
+
 def is_operador(user) -> bool:
     """True se o usuário é operador do app: quality, inteligencia, expedicao,
-    laboratorio, comercial OU financeiro (ou superuser).
+    laboratorio, comercial, recepcao, configuracao OU financeiro (ou superuser).
 
     É o gate de acesso às telas do app (fila, detalhe, ações). Quem não é operador
     não enxerga nada de chamados (RN-18: todos os operadores veem tudo; não-
@@ -96,6 +114,8 @@ def is_operador(user) -> bool:
         or is_expedicao(user)
         or is_laboratorio(user)
         or is_comercial(user)
+        or is_recepcao(user)
+        or is_configuracao(user)
         or is_financeiro(user)
     )
 
@@ -170,6 +190,13 @@ def pode_agir(user, chamado) -> bool:
     if estado_de_posse == Status.COMERCIAL:
         # Fila compartilhada do comercial (finaliza a tratativa).
         return is_comercial(user)
+    if estado_de_posse == Status.RECEPCAO:
+        return is_recepcao(user)
+    if estado_de_posse == Status.CONFIGURACAO:
+        return is_configuracao(user)
+    if estado_de_posse == Status.ENVIO:
+        # A volta para a Expedição (envio ao cliente) é da mesma fila compartilhada.
+        return is_expedicao(user)
     if estado_de_posse == Status.FINANCEIRO:
         # Fila compartilhada do financeiro (fatura e encerra).
         return is_financeiro(user)
@@ -190,24 +217,31 @@ def setores_operacionais(user):
         (Setor.EXPEDICAO, is_expedicao),
         (Setor.LABORATORIO, is_laboratorio),
         (Setor.COMERCIAL, is_comercial),
+        (Setor.RECEPCAO, is_recepcao),
+        (Setor.CONFIGURACAO, is_configuracao),
         (Setor.FINANCEIRO, is_financeiro),
     )
     return [setor for setor, pertence in papeis if pertence(user)]
 
 
-def setores_visiveis(user):
-    """Setores cujas informações o usuário vê, na ordem do fluxo.
+def ve_fluxo_inteiro(user) -> bool:
+    """Quality e Inteligência (e o superuser) veem tudo de todo chamado visível."""
+    return is_quality(user) or is_inteligencia(user)
 
-    Quality e Inteligência (e o superuser) veem o fluxo inteiro. Os demais veem
-    até o SEU setor mais avançado: a Expedição acompanha um chamado que já está
-    no Comercial, mas não o que Laboratório/Comercial registraram depois dela.
+
+def corte_de_visibilidade(user, chamado):
+    """Até quando `user` enxerga o que foi registrado no chamado, ou None (tudo).
+
+    Quem está com o chamado agora (passagem aberta num setor seu) vê tudo; quem
+    já passou por ele vê o registrado até a ÚLTIMA saída do seu setor. Por TEMPO,
+    e não pela ordem dos setores, porque o fluxo não é linear: a Expedição recebe
+    a chegada no começo e volta no fim para o envio.
     """
-    from chamados.selectors import SETORES_TIMELINE
-
-    if is_quality(user) or is_inteligencia(user):
-        return list(SETORES_TIMELINE)
-    proprios = setores_operacionais(user)
-    if not proprios:
-        return []
-    ultimo = max(SETORES_TIMELINE.index(s) for s in proprios)
-    return list(SETORES_TIMELINE[: ultimo + 1])
+    if ve_fluxo_inteiro(user):
+        return None
+    setores = setores_operacionais(user)
+    passagens = chamado.passagens.filter(setor__in=setores)
+    if passagens.filter(finalizado_em__isnull=True).exists():
+        return None
+    ultima = passagens.exclude(finalizado_em__isnull=True).order_by("-finalizado_em").first()
+    return ultima.finalizado_em if ultima else None

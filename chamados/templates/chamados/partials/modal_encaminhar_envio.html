@@ -1,0 +1,28 @@
+{% comment %}
+  Modal "Encaminhar para expedição" (Configuração → envio ao cliente): o que foi
+  configurado vira a tratativa da Configuração no histórico do chamado.
+{% endcomment %}
+<div class="modal fade" id="modalEncaminharEnvio" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form method="post" action="{% url 'chamados:acao' chamado.pk Acao.ENCAMINHAR_ENVIO %}">
+      {% csrf_token %}
+      <div class="modal-content border-0 shadow" style="border-radius: var(--ch-radius, .85rem);">
+        <div class="modal-header bg-primary border-0">
+          <h5 class="modal-title text-white"><i class="bi bi-box-seam me-2"></i>Encaminhar para expedição</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body p-4">
+          <p class="text-muted small mb-3">Descreva o que foi configurado. A Expedição define o envio ao cliente.</p>
+          <label for="{{ encaminhar_envio_form.tratativa.id_for_label }}" class="form-label fw-semibold">
+            {{ encaminhar_envio_form.tratativa.label }}
+          </label>
+          {{ encaminhar_envio_form.tratativa }}
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary fw-semibold">Encaminhar para expedição</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>

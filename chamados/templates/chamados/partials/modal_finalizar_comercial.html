@@ -23,11 +23,11 @@
       {% csrf_token %}
       <div class="modal-content border-0 shadow" style="border-radius: var(--ch-radius, .85rem);">
         <div class="modal-header bg-success border-0">
-          <h5 class="modal-title text-white"><i class="bi bi-check2-circle me-2"></i>Finalizar chamado</h5>
+          <h5 class="modal-title text-white"><i class="bi bi-check2-circle me-2"></i>Realizar tratativa</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
         </div>
         <div class="modal-body p-4">
-          <p class="text-muted small mb-3">Informe a tratativa e o custo de cada equipamento.</p>
+          <p class="text-muted small mb-3">Informe a tratativa, o custo e o destino de cada equipamento.</p>
           {% for linha in finalizar_comercial_form.linhas_equipamento %}
             <div class="border rounded p-3 mb-3">
               <div class="fw-semibold mb-2"><i class="bi bi-hdd me-1"></i>{{ linha.numero }}</div>
@@ -36,10 +36,15 @@
                 {{ linha.tratativa }}
                 {% for e in linha.tratativa.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
               </div>
-              <div class="mb-0">
+              <div class="mb-2">
                 <label for="{{ linha.custo.id_for_label }}" class="form-label small fw-semibold">Custo</label>
                 {{ linha.custo }}
                 {% for e in linha.custo.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+              </div>
+              <div class="mb-0">
+                <label for="{{ linha.destino.id_for_label }}" class="form-label small fw-semibold">Substituição ou devolução</label>
+                {{ linha.destino }}
+                {% for e in linha.destino.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
               </div>
             </div>
           {% endfor %}
@@ -64,7 +69,7 @@
         </div>
         <div class="modal-footer border-0 pt-0">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-success fw-semibold">Finalizar chamado</button>
+          <button type="submit" class="btn btn-success fw-semibold">Realizar tratativa</button>
         </div>
       </div>
     </form>

@@ -74,7 +74,7 @@
                  seq: 0,
                  grupos: [],
                  numero(v) { return { id: this.seq++, valor: v || '' }; },
-                 grupo(g) { return { id: this.seq++, modelo: g.modelo || '', numeros: (g.numeros || ['']).map(v => this.numero(v)) }; },
+                 grupo(g) { return { id: this.seq++, modelo: g.modelo || '', customizacao: g.customizacao || '', tipo_contrato: g.tipo_contrato || '', numeros: (g.numeros || ['']).map(v => this.numero(v)) }; },
                  addGrupo() { this.grupos.push(this.grupo({})); },
                  removeGrupo(i) { this.grupos.splice(i, 1); if (!this.grupos.length) this.addGrupo(); },
                  addNumero(g) { g.numeros.push(this.numero('')); },
@@ -100,6 +100,28 @@
                         <option value="{{ produto.pk }}">{{ produto }}</option>
                       {% endfor %}
                     </select>
+                    {% comment %} Customização e contrato do bloco: mesmo vocabulário da
+                      entrada de equipamento, que a Expedição recebe já preenchida. {% endcomment %}
+                    <div class="row g-2 mt-1">
+                      <div class="col-sm-7">
+                        <label class="form-label fw-semibold small mb-1">Customização</label>
+                        <select class="form-select" :name="'grupo_' + grupo.id + '_customizacao'" x-model="grupo.customizacao">
+                          <option value="">Selecione</option>
+                          {% for valor, rotulo in form.opcoes_equipamento.customizacoes %}
+                            <option value="{{ valor }}">{{ rotulo }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                      <div class="col-sm-5">
+                        <label class="form-label fw-semibold small mb-1">Tipo de contrato</label>
+                        <select class="form-select" :name="'grupo_' + grupo.id + '_tipo_contrato'" x-model="grupo.tipo_contrato">
+                          <option value="">Selecione</option>
+                          {% for valor, rotulo in form.opcoes_equipamento.contratos %}
+                            <option value="{{ valor }}">{{ rotulo }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                    </div>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label fw-semibold">Nº do equipamento</label>

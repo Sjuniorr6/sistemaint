@@ -231,6 +231,29 @@ class ImagemRegistroBaseFormSet(BaseInlineFormSet):
         )
 
 
+def formset_imagens(extra=1):
+    """Formset do laudo por equipamento com `extra` linhas novas (o laudo vindo
+    do chamado abre com uma linha por equipamento ainda sem laudo)."""
+    return inlineformset_factory(
+        registrodemanutencao,
+        ImagemRegistro,
+        formset=ImagemRegistroBaseFormSet,
+        fields=('id_equipamento', 'imagem', 'imagem2', 'tipo_problema', 'faturamento', 'observacao2'),
+        extra=extra,
+        can_delete=True,
+        widgets=_WIDGETS_IMAGEM,
+    )
+
+
+_WIDGETS_IMAGEM = {
+    'imagem': forms.ClearableFileInput(attrs={'class': 'form-control'}),
+    'imagem2': forms.ClearableFileInput(attrs={'class': 'form-control'}),
+    'id_equipamento': forms.TextInput(attrs={'class': 'form-control', 'rows': 3}),
+    'observacao2': forms.TextInput(attrs={'class': 'form-control', 'rows': 3}),
+    'faturamento': forms.Select(attrs={'class': 'form-control', 'rows': 3}),
+    'tipo_problema': forms.Select(attrs={'class': 'form-control', 'rows': 1}),
+}
+
 ImagemRegistroFormSet = inlineformset_factory(
     registrodemanutencao,
     ImagemRegistro,

@@ -1,0 +1,4 @@
+{% comment %} Modelos da requisição em uma linha: "Isca 4G (2), Isca 2G (1)". Requisição
+  antiga sem itens mostra o produto único. Uso: include ... with r=<requisição>.
+  Em listagens, o queryset precisa de prefetch_related("itens__tipo_produto"). {% endcomment %}
+{% for i in r.itens.all %}{{ i.tipo_produto }} ({{ i.quantidade }}){% if not forloop.last %}, {% endif %}{% empty %}{{ r.tipo_produto }}{% endfor %}

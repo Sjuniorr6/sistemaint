@@ -4,14 +4,16 @@ from datetime import datetime
 from franquia.models import registrodefranquia
 
 class RequisicaoForm(forms.ModelForm):
+    """Edição da requisição. Modelo, quantidade e customização moram nos itens
+    (ItemRequisicao) e são só leitura aqui — o template os exibe de `itens`.
+    Valor unitário/total seguem editáveis (ajuste de cobrança)."""
+
     class Meta:
         model = Requisicoes
         fields = [
             'nome', 'endereco', 'email', 'data_entrega', 'contrato', 'cnpj', 'inicio_de_contrato', 
-            'vigencia', 'motivo', 'antenista', 'envio', 'comercial', 'tipo_produto', 
-            'aos_cuidados', 'carregador', 'cabo', 'tipo_fatura', 'valor_unitario', 
-            'valor_total', 'forma_pagamento', 'tipo_customizacao', 'numero_de_equipamentos', 
-            'observacoes', 'status', 'TP', 'taxa_envio', 'status_faturamento','id_equipamentos', 'iccid', 'tipo_entrega', 'codigo_rastreio'
+            'vigencia', 'motivo', 'antenista', 'envio', 'comercial', 'aos_cuidados', 'carregador', 'cabo', 'tipo_fatura', 'valor_unitario', 
+            'valor_total', 'forma_pagamento', 'observacoes', 'status', 'TP', 'taxa_envio', 'status_faturamento','id_equipamentos', 'iccid', 'tipo_entrega', 'codigo_rastreio'
         ]
         widgets = {
             'nome': forms.Select(attrs={'class': 'form-control'}),
@@ -61,12 +63,13 @@ class RequisicaoForm(forms.ModelForm):
 
 
 class requisicaoFormup(forms.ModelForm):
+    """Edição pela Configuração/Setor técnico. Itens só leitura (ver RequisicaoForm)."""
+
     class Meta:
         model = Requisicoes
         fields = ['nome', 'endereco', 'email', 'contrato', 'cnpj', 'inicio_de_contrato', 'vigencia', 
-                  'motivo', 'envio', 'comercial', 'tipo_produto', 
-                  'carregador', 'cabo', 'tipo_fatura', 'valor_unitario', 'valor_total',
-                  'forma_pagamento','tipo_customizacao', 'numero_de_equipamentos', 'observacoes', 'status', 'TP', 'taxa_envio','id_equipamentos', 'iccid', 'tipo_entrega', 'codigo_rastreio']
+                  'motivo', 'envio', 'comercial', 'carregador', 'cabo', 'tipo_fatura', 'valor_unitario', 'valor_total',
+                  'forma_pagamento','observacoes', 'status', 'TP', 'taxa_envio','id_equipamentos', 'iccid', 'tipo_entrega', 'codigo_rastreio']
         widgets = {
             'nome': forms.Select(attrs={'class': 'form-control'}),
             'endereco': forms.Textarea(attrs={'class': 'form-control', 'rows': 1}),
@@ -308,4 +311,103 @@ class AntenistaForm(forms.ModelForm):
         widgets = {
             'nome': forms.TextInput(attrs={'class': 'form-control'}),
             'estado': forms.TextInput(attrs={'class': 'form-control'}),
+        }
+
+
+from decimal import Decimal, InvalidOperation
+
+from produto.models import Produto
+
+
+class ItensRequisicaoWidget(forms.Widget):
+    """Lê os blocos "modelo" da requisição.
+
+    A tela renderiza um bloco por modelo: `item` (id do bloco, repetido) e
+    `item_<id>_tipo_produto`, `_quantidade`, `_customizacao`, `_valor_unitario`,
+    `_numeros`. Devolve dicts crus; bloco totalmente vazio é descartado.
+    """
+
+    CAMPOS = ("tipo_produto", "quantidade", "customizacao", "valor_unitario", "numeros")
+
+    def value_from_datadict(self, data, files, name):
+        ids = data.getlist("item") if hasattr(data, "getlist") else (data.get("item") or [])
+        blocos = []
+        for bid in dict.fromkeys(ids):  # ordem da tela, sem repetir
+            bloco = {c: str(data.get(f"item_{bid}_{c}") or "").strip() for c in self.CAMPOS}
+            if any(bloco.values()):
+                blocos.append(bloco)
+        return blocos
+
+
+class ItensRequisicaoField(forms.Field):
+    """Modelos da requisição. Sai uma lista de ItemRequisicao NÃO salvos."""
+
+    widget = ItensRequisicaoWidget
+
+    def clean(self, value):
+        from requisicao.models import ItemRequisicao
+
+        blocos = value or []
+        if not blocos:
+            raise forms.ValidationError("Informe ao menos um modelo de equipamento.")
+        customizacoes = {v for v, _ in Requisicoes.customizacoes}
+        ids = {b["tipo_produto"] for b in blocos if b["tipo_produto"].isdigit()}
+        produtos = {str(p.pk): p for p in Produto.objects.filter(pk__in=ids)}
+
+        erros, itens = [], []
+        for n, b in enumerate(blocos, start=1):
+            rotulo = f"Modelo {n}"
+            produto = produtos.get(b["tipo_produto"])
+            if not b["tipo_produto"]:
+                erros.append(f"{rotulo}: selecione o tipo de produto.")
+            elif produto is None:
+                erros.append(f"{rotulo}: tipo de produto inválido.")
+            quantidade = int(b["quantidade"]) if b["quantidade"].isdigit() else 0
+            if quantidade < 1:
+                erros.append(f"{rotulo}: informe a quantidade (número inteiro maior que zero).")
+            if b["customizacao"] and b["customizacao"] not in customizacoes:
+                erros.append(f"{rotulo}: customização inválida.")
+            try:
+                valor = Decimal(b["valor_unitario"].replace(",", ".") or "0")
+                if valor < 0:
+                    raise InvalidOperation
+            except InvalidOperation:
+                erros.append(f"{rotulo}: valor unitário inválido.")
+                valor = Decimal("0")
+            itens.append(ItemRequisicao(
+                tipo_produto=produto,
+                quantidade=quantidade,
+                customizacao=b["customizacao"],
+                valor_unitario=valor,
+                numeros_referencia=b["numeros"],
+            ))
+        if erros:
+            raise forms.ValidationError(erros)
+        return itens
+
+
+class RequisicaoCreateForm(RequisicaoForm):
+    """Criação da requisição: dados do cliente/contrato/envio + um bloco por modelo."""
+
+    itens = ItensRequisicaoField(label="Modelos")
+
+    class Meta(RequisicaoForm.Meta):
+        # valor_unitario/valor_total são derivados dos itens na criação.
+        fields = [f for f in RequisicaoForm.Meta.fields if f not in ("valor_unitario", "valor_total")]
+
+    def __init__(self, *args, itens_iniciais=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.itens_iniciais = itens_iniciais or []
+
+    def blocos_itens(self):
+        """Blocos para o template: o postado (reexibição com erro), os iniciais
+        (ex.: vindos de um chamado) ou um bloco vazio."""
+        blocos = self["itens"].value() if self.is_bound else self.itens_iniciais
+        vazio = {c: "" for c in ItensRequisicaoWidget.CAMPOS}
+        return [{**vazio, **b} for b in blocos] or [vazio]
+
+    def opcoes_itens(self):
+        return {
+            "produtos": Produto.objects.order_by("nome"),
+            "customizacoes": Requisicoes.customizacoes,
         }

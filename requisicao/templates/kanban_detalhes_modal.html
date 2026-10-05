@@ -72,7 +72,7 @@
             <div class="col-md-6">
                 <div class="info-item">
                     <label>Tipo de Produto:</label>
-                    <span class="text-info fw-bold">{{ requisicao.tipo_produto.nome }}</span>
+                    <span class="text-info fw-bold">{% include 'partials/_modelos_inline.html' with r=requisicao %}</span>
                 </div>
             </div>
             <div class="col-md-6">
@@ -90,7 +90,7 @@
             <div class="col-md-6">
                 <div class="info-item">
                     <label>Customização:</label>
-                    <span>{{ requisicao.tipo_customizacao|default:"Sem customização" }}</span>
+                    <span>{% include 'partials/_customizacoes_inline.html' with r=requisicao %}</span>
                 </div>
             </div>
         </div>

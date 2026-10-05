@@ -1,0 +1,2 @@
+{% comment %} Customizações dos modelos da requisição, sem repetir (antiga: campo único). {% endcomment %}
+{% for i in r.itens.all %}{% ifchanged i.customizacao %}{{ i.customizacao|default:"Sem customização" }}{% if not forloop.last %}, {% endif %}{% endifchanged %}{% empty %}{{ r.tipo_customizacao|default:"Sem customização" }}{% endfor %}

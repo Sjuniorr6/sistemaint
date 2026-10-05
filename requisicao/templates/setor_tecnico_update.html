@@ -9,6 +9,8 @@
         <div class="card-body">
             <form method="post" class="form">
                 {% csrf_token %}
+                {% comment %} Modelos da requisição: só leitura (definidos na criação). {% endcomment %}
+                {% include 'partials/_itens_requisicao.html' with registro=form.instance %}
                 {{ form.as_p }}
                 <button type="submit" class="btn btn-primary">Salvar</button>
             </form>

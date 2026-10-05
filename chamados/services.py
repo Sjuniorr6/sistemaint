@@ -31,6 +31,10 @@ _SETOR_POR_STATUS = {
     Status.EXPEDICAO: Setor.EXPEDICAO,
     Status.LABORATORIO: Setor.LABORATORIO,
     Status.COMERCIAL: Setor.COMERCIAL,
+    Status.RECEPCAO: Setor.RECEPCAO,
+    Status.CONFIGURACAO: Setor.CONFIGURACAO,
+    # O envio ao cliente volta para a Expedição (mesmo setor, nova passagem).
+    Status.ENVIO: Setor.EXPEDICAO,
     Status.FINANCEIRO: Setor.FINANCEIRO,
 }
 
@@ -95,7 +99,8 @@ def abrir_chamado(
 ):
     """Cria um chamado em ABERTO ou, quando `encaminhar`, direto em ENCAMINHADO.
 
-    `equipamentos`: lista de (número, Produto) — um modelo por equipamento.
+    `equipamentos`: lista de (número, Produto[, customização, contrato]) — um
+    modelo por equipamento; customização/contrato vêm do form (obrigatórios lá).
 
     Só Quality abre (RN-01). O `responsavel` deve ser do grupo quality (RN-02).
     `aberto_em` é NOW() do servidor (RN-06). Abrindo já encaminhado (RN-08),
@@ -106,9 +111,13 @@ def abrir_chamado(
     """
     from chamados.models import Chamado, ChamadoEquipamento, ChamadoEvento
 
-    equipamentos = [((numero or "").strip(), modelo) for numero, modelo in equipamentos]
-    numeros = [numero for numero, _ in equipamentos]
-    if not equipamentos or not all(numeros) or any(m is None for _, m in equipamentos):
+    # Cada item: (nº, modelo) ou (nº, modelo, customização, contrato).
+    equipamentos = [
+        ((e[0] or "").strip(), e[1], *(list(e[2:4]) + ["", ""])[:2])
+        for e in equipamentos
+    ]
+    numeros = [e[0] for e in equipamentos]
+    if not equipamentos or not all(numeros) or any(e[1] is None for e in equipamentos):
         raise ValidationError(
             {"equipamentos": "Informe nº e modelo de cada equipamento."}
         )
@@ -169,8 +178,11 @@ def abrir_chamado(
                 chamado.full_clean(exclude=["protocolo"])
                 chamado.save()
                 ChamadoEquipamento.objects.bulk_create(
-                    ChamadoEquipamento(chamado=chamado, numero=numero, modelo=modelo)
-                    for numero, modelo in equipamentos
+                    ChamadoEquipamento(
+                        chamado=chamado, numero=numero, modelo=modelo,
+                        customizacao=customizacao or "", tipo_contrato=contrato or "",
+                    )
+                    for numero, modelo, customizacao, contrato in equipamentos
                 )
                 ChamadoEvento.objects.create(
                     chamado=chamado,
@@ -387,20 +399,47 @@ TRANSICOES = {
         posse=POSSE_DONO_ATUAL,  # dono de LABORATORIO = grupo laboratorio
     ),
     Acao.FINALIZAR_COMERCIAL: Transicao(
-        # O Comercial informa tratativa + custo (com/sem) POR EQUIPAMENTO. O
-        # destino é CONDICIONAL (destino=None → resolvido em `executar`):
-        #   - algum equipamento COM CUSTO → segue para o FINANCEIRO (cobrança);
-        #   - todos SEM CUSTO            → encerra o chamado (RESOLVIDO).
+        # O Comercial informa tratativa + custo + destino POR EQUIPAMENTO. O
+        # destino do chamado é CONDICIONAL (destino=None → resolvido em `executar`):
+        #   - algum equipamento de SUBSTITUIÇÃO → RECEPÇÃO (abre a requisição);
+        #   - todos de DEVOLUÇÃO               → CONFIGURAÇÃO.
         origens=(Status.COMERCIAL,),
         destino=None,
         posse=POSSE_DONO_ATUAL,  # dono de COMERCIAL = grupo comercial
     ),
+    Acao.ENCAMINHAR_CONFIGURACAO: Transicao(
+        # A Recepção, com a requisição de substituição vinculada, passa para a
+        # Configuração. A exigência da requisição é validada em `executar`.
+        origens=(Status.RECEPCAO,),
+        destino=Status.CONFIGURACAO,
+        posse=POSSE_DONO_ATUAL,  # dono de RECEPCAO = grupo recepcao
+    ),
+    Acao.ENCAMINHAR_ENVIO: Transicao(
+        # A Configuração devolve para a Expedição definir o envio ao cliente.
+        origens=(Status.CONFIGURACAO,),
+        destino=Status.ENVIO,
+        posse=POSSE_DONO_ATUAL,  # dono de CONFIGURACAO = grupo CONFIGURACAO
+        campos_obrigatorios=("tratativa",),
+    ),
+    Acao.REGISTRAR_ENVIO: Transicao(
+        # A Expedição informa método, data e (opcional) rastreio → Financeiro.
+        origens=(Status.ENVIO,),
+        destino=Status.FINANCEIRO,
+        posse=POSSE_DONO_ATUAL,  # dono de ENVIO = grupo expedicao
+        campos_obrigatorios=("metodo_envio", "data_envio"),
+    ),
     Acao.FATURAR: Transicao(
-        # O Financeiro registra valor + NF e ENCERRA o chamado.
+        # Com custo: o Financeiro registra valor + NF e ENCERRA o chamado.
         origens=(Status.FINANCEIRO,),
         destino=Status.RESOLVIDO,
         posse=POSSE_DONO_ATUAL,  # dono de FINANCEIRO = grupo financeiro
         campos_obrigatorios=("valor_faturamento", "nota_fiscal"),
+    ),
+    Acao.CONFIRMAR_ENCERRAMENTO: Transicao(
+        # Sem custo: o Financeiro só confirma o encerramento.
+        origens=(Status.FINANCEIRO,),
+        destino=Status.RESOLVIDO,
+        posse=POSSE_DONO_ATUAL,
     ),
     Acao.FINALIZAR: Transicao(
         origens=(Status.ABERTO,),
@@ -532,16 +571,34 @@ def executar(chamado, acao, dados, autor):
                      "Anexe o termo de substituição (PDF): há equipamento com custo."}
                 )
 
+    # (3d) Recepção só encaminha com a requisição de substituição vinculada.
+    if acao == Acao.ENCAMINHAR_CONFIGURACAO and chamado.requisicao_id is None:
+        raise ValidationError(
+            "Crie a requisição de substituição antes de encaminhar para a configuração."
+        )
+
+    # (3e) Financeiro: com custo, fatura (valor + NF); sem custo, só confirma.
+    if acao in (Acao.FATURAR, Acao.CONFIRMAR_ENCERRAMENTO):
+        com_custo = chamado_tem_custo(chamado)
+        if acao == Acao.FATURAR and not com_custo:
+            raise ValidationError(
+                "Chamado sem equipamento com custo: use 'Confirmar encerramento'."
+            )
+        if acao == Acao.CONFIRMAR_ENCERRAMENTO and com_custo:
+            raise ValidationError(
+                "Chamado com equipamento com custo: registre o faturamento (valor e NF)."
+            )
+
     # Destino: fixo, ou dinâmico quando a transição declara destino=None.
     #  - REABRIR: derivado do log (ADR-005);
-    #  - FINALIZAR_COMERCIAL: FINANCEIRO se houver custo, senão RESOLVIDO.
+    #  - FINALIZAR_COMERCIAL: RECEPÇÃO se houver substituição, senão CONFIGURAÇÃO.
     if transicao.destino is not None:
         destino = transicao.destino
     elif acao == Acao.FINALIZAR_COMERCIAL:
         destino = (
-            Status.FINANCEIRO
-            if tem_equipamento_com_custo(finalizacao_equip)
-            else Status.RESOLVIDO
+            Status.RECEPCAO
+            if tem_equipamento_de_substituicao(finalizacao_equip)
+            else Status.CONFIGURACAO
         )
     else:
         destino = estado_ativo_anterior_ao_bloqueio(chamado)
@@ -556,6 +613,12 @@ def executar(chamado, acao, dados, autor):
             chamado.tratativa = dados["tratativa"]
         if acao == Acao.ENCAMINHAR:
             chamado.responsavel_inteligencia = dados["responsavel_inteligencia"]
+
+        # Envio ao cliente (Expedição): método, data e rastreio opcional.
+        if acao == Acao.REGISTRAR_ENVIO:
+            chamado.metodo_envio = dados["metodo_envio"]
+            chamado.data_envio = dados["data_envio"]
+            chamado.codigo_rastreio_envio = (dados.get("codigo_rastreio_envio") or "").strip()
 
         # Faturamento (Financeiro): valor + NF gravados ao encerrar o chamado.
         if acao == Acao.FATURAR:
@@ -602,6 +665,7 @@ def executar(chamado, acao, dados, autor):
                     )
                 linha.tratativa_comercial = item["tratativa"]
                 linha.custo = item["custo"]
+                linha.destino = item["destino"]
                 linha.save()
             chamado.tratativa = "\n".join(
                 f"{item['numero']}: {item['tratativa']} "
@@ -621,6 +685,9 @@ def executar(chamado, acao, dados, autor):
                 "termo_substituicao",
                 "valor_faturamento",
                 "nota_fiscal",
+                "metodo_envio",
+                "data_envio",
+                "codigo_rastreio_envio",
                 "status",
                 "atualizado_em",
             ]
@@ -725,11 +792,12 @@ def _validar_tratativas_equipamento(chamado, tratativas):
 def _validar_finalizacao_comercial(chamado, finalizacoes):
     """Valida tratativa + custo por equipamento na finalização pelo Comercial.
 
-    `finalizacoes` é uma lista de dicts {"numero", "tratativa", "custo"}. Exige,
-    para CADA equipamento do chamado, uma tratativa não-vazia e um custo válido
-    (COM_CUSTO/SEM_CUSTO). Retorna a lista normalizada na ordem dos equipamentos.
+    `finalizacoes` é uma lista de dicts {"numero", "tratativa", "custo",
+    "destino"}. Exige, para CADA equipamento do chamado, uma tratativa não-vazia,
+    um custo válido (COM_CUSTO/SEM_CUSTO) e um destino válido (substituição/
+    devolução). Retorna a lista normalizada na ordem dos equipamentos.
     """
-    from chamados.enums import CustoEquipamento
+    from chamados.enums import CustoEquipamento, DestinoEquipamento
 
     equipamentos = equipamentos_do_chamado(chamado)
     por_numero = {}
@@ -739,12 +807,13 @@ def _validar_finalizacao_comercial(chamado, finalizacoes):
             por_numero[numero] = {
                 "tratativa": (item.get("tratativa") or "").strip(),
                 "custo": (item.get("custo") or "").strip(),
+                "destino": (item.get("destino") or "").strip(),
             }
 
     custos_validos = set(CustoEquipamento.values)
     normalizadas = []
     for numero in equipamentos:
-        dados_eq = por_numero.get(numero, {"tratativa": "", "custo": ""})
+        dados_eq = por_numero.get(numero, {"tratativa": "", "custo": "", "destino": ""})
         if not dados_eq["tratativa"]:
             raise ValidationError(
                 {"finalizacao_equipamento": f"Informe a tratativa do equipamento {numero}."}
@@ -753,10 +822,26 @@ def _validar_finalizacao_comercial(chamado, finalizacoes):
             raise ValidationError(
                 {"finalizacao_equipamento": f"Selecione o custo do equipamento {numero}."}
             )
-        normalizadas.append(
-            {"numero": numero, "tratativa": dados_eq["tratativa"], "custo": dados_eq["custo"]}
-        )
+        if dados_eq["destino"] not in DestinoEquipamento.values:
+            raise ValidationError(
+                {"finalizacao_equipamento": f"Selecione substituição ou devolução do equipamento {numero}."}
+            )
+        normalizadas.append({"numero": numero, **dados_eq})
     return normalizadas
+
+
+def tem_equipamento_de_substituicao(finalizacoes) -> bool:
+    """True se ao menos um equipamento foi marcado SUBSTITUIÇÃO pelo Comercial."""
+    from chamados.enums import DestinoEquipamento
+
+    return any(f["destino"] == DestinoEquipamento.SUBSTITUICAO for f in finalizacoes)
+
+
+def chamado_tem_custo(chamado) -> bool:
+    """True se o Comercial marcou algum equipamento do chamado COM CUSTO."""
+    from chamados.enums import CustoEquipamento
+
+    return chamado.tratativas_equipamento.filter(custo=CustoEquipamento.COM_CUSTO).exists()
 
 
 def tem_equipamento_com_custo(finalizacoes) -> bool:
@@ -921,14 +1006,15 @@ def montar_nome_arquivo_fila(filtros):
 def chamado_para_entrada(chamado_id, user):
     """Chamado cuja entrada de equipamento `user` pode registrar, ou None.
 
-    Vale para a Expedição logo após marcar a chegada: o chamado está no
-    LABORATORIO e ainda sem manutenção vinculada. Fora disso (outro papel,
-    chamado em outro setor, entrada já feita), a tela de entrada abre avulsa.
+    Vale para a Expedição logo após marcar a chegada, e para o Laboratório ao
+    aceitar um chamado que chegou sem entrada: o chamado está no LABORATORIO e
+    ainda sem manutenção vinculada. Fora disso (outro papel, chamado em outro
+    setor, entrada já feita), a tela de entrada abre avulsa.
     """
     from chamados.models import Chamado
-    from chamados.permissions import is_expedicao
+    from chamados.permissions import is_expedicao, is_laboratorio
 
-    if not is_expedicao(user):
+    if not (is_expedicao(user) or is_laboratorio(user)):
         return None
     return (
         Chamado.objects.filter(
@@ -941,11 +1027,12 @@ def chamado_para_entrada(chamado_id, user):
 
 
 def dados_iniciais_entrada(chamado):
-    """Pré-preenchimento da entrada: cliente, tipo e um bloco por modelo com os
-    nºs daquele modelo (o mesmo agrupamento da abertura do chamado)."""
+    """Pré-preenchimento da entrada: cliente, tipo e um bloco por modelo +
+    customização + contrato, com os nºs daquele bloco (como na abertura)."""
     blocos = {}
-    for equipamento in chamado.equipamentos.all():
-        blocos.setdefault(equipamento.modelo_id, []).append(equipamento.numero)
+    for e in chamado.equipamentos.all():
+        chave = (e.modelo_id, e.customizacao, e.tipo_contrato)
+        blocos.setdefault(chave, []).append(e.numero)
     return {
         "initial": {
             "nome": chamado.cliente_id,
@@ -954,10 +1041,57 @@ def dados_iniciais_entrada(chamado):
         },
         "blocos": [
             # Um nº por linha na caixa de texto da entrada.
-            {"tipo_produto": str(modelo_id), "numero": "\n".join(numeros)}
-            for modelo_id, numeros in blocos.items()
+            {
+                "tipo_produto": str(modelo_id),
+                "numero": "\n".join(numeros),
+                "customizacao": customizacao,
+                "tipo_contrato": contrato,
+            }
+            for (modelo_id, customizacao, contrato), numeros in blocos.items()
         ],
     }
+
+
+def chamado_para_laudo(chamado_id, user, entrada):
+    """Chamado cujo laudo por equipamento `user` registra nesta entrada, ou None.
+
+    Laboratório, chamado no LABORATORIO e a entrada é a vinculada a ele. Fora
+    disso, a edição da entrada abre como sempre (sem linhas pré-montadas).
+    """
+    from chamados.models import Chamado
+    from chamados.permissions import is_laboratorio
+
+    if not is_laboratorio(user) or entrada is None:
+        return None
+    return (
+        Chamado.objects.filter(
+            pk=chamado_id, status=Status.LABORATORIO, manutencao_id=entrada.pk
+        )
+        .prefetch_related("equipamentos")
+        .first()
+    )
+
+
+def destino_apos_aceite(chamado, user):
+    """Para onde o setor vai depois de aceitar a tratativa, ou None (detalhe).
+
+    Laboratório: com entrada vinculada, editar a manutenção (laudo por
+    equipamento); sem entrada, criá-la a partir do chamado.
+    Recepção: abrir a requisição de substituição já preenchida.
+    """
+    from django.urls import reverse
+
+    from chamados.permissions import is_laboratorio, is_recepcao
+
+    if chamado.status == Status.RECEPCAO and is_recepcao(user) and chamado.requisicao_id is None:
+        return f"{reverse('requisicoescrateview')}?chamado={chamado.pk}"
+    if chamado.status != Status.LABORATORIO or not is_laboratorio(user):
+        return None
+    if chamado.manutencao_id:
+        url = reverse("FormulariosUpdateView", args=[chamado.manutencao_id])
+    else:
+        url = reverse("FormulariosCreateView")
+    return f"{url}?chamado={chamado.pk}"
 
 
 def vincular_entrada(chamado, entrada):
@@ -974,4 +1108,134 @@ def vincular_entrada(chamado, entrada):
     if not vinculados:
         raise ValidationError(
             f"O chamado {chamado.protocolo} já tem entrada vinculada ou mudou de setor."
+        )
+
+
+
+# ---------------------------------------------------------------------------
+# Requisição de substituição a partir do chamado (Recepção → requisicao)
+# ---------------------------------------------------------------------------
+
+
+def chamado_para_requisicao(chamado_id, user):
+    """Chamado cuja requisição de substituição `user` pode abrir, ou None.
+
+    Recepção, chamado na RECEPCAO e ainda sem requisição. Fora disso, a tela de
+    requisição abre avulsa.
+    """
+    from chamados.models import Chamado
+    from chamados.permissions import is_recepcao
+
+    if not is_recepcao(user):
+        return None
+    return (
+        Chamado.objects.filter(pk=chamado_id, status=Status.RECEPCAO, requisicao__isnull=True)
+        .select_related("cliente")
+        .first()
+    )
+
+
+def _data_do_cadastro(valor):
+    """Início de contrato do cadastro de cliente. É DateField, mas registros
+    antigos guardam texto (AAAA-MM-DD ou DD/MM/AAAA) e o SQLite devolve como
+    veio: data passa direto; texto é lido; formato desconhecido → None."""
+    import datetime
+
+    if isinstance(valor, datetime.date):
+        return valor
+    texto = valor
+    for formato in ("%Y-%m-%d", "%d/%m/%Y"):
+        try:
+            return datetime.datetime.strptime((texto or "").strip(), formato).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _customizacao_da_requisicao(valor):
+    """O chamado usa o vocabulário da entrada de equipamento; a requisição tem o
+    próprio (grafias e espaços diferentes). Casa ignorando caixa e espaços;
+    sem correspondência → vazio (a Recepção escolhe)."""
+    from requisicao.models import Requisicoes
+
+    def normal(v):
+        # A requisição grafa "Sem custumização": o erro de digitação de origem
+        # não pode impedir o caso mais comum de casar.
+        return " ".join((v or "").split()).casefold().replace("custumiz", "customiz")
+
+    alvo = normal(valor)
+    if not alvo:
+        return ""
+    for opcao, _ in Requisicoes.customizacoes:
+        if normal(opcao) == alvo:
+            return opcao
+    return ""
+
+
+def dados_iniciais_requisicao(chamado):
+    """Pré-preenchimento da requisição de substituição.
+
+    Só os equipamentos que o Comercial marcou SUBSTITUIÇÃO entram, agrupados
+    por modelo + customização (um bloco por grupo, com a quantidade e os nºs
+    substituídos). Cliente/CNPJ/endereço/vigência vêm do cadastro; contrato,
+    dos equipamentos do chamado. `avisos` lista o que a Recepção precisa conferir.
+    """
+    from chamados.enums import CustoEquipamento, DestinoEquipamento
+
+    tratativas = {
+        t.numero_equipamento: t
+        for t in chamado.tratativas_equipamento.filter(destino=DestinoEquipamento.SUBSTITUICAO)
+    }
+    substituidos = [e for e in chamado.equipamentos.select_related("modelo") if e.numero in tratativas]
+
+    blocos = {}
+    for e in substituidos:
+        chave = (e.modelo_id, _customizacao_da_requisicao(e.customizacao))
+        blocos.setdefault(chave, []).append(e.numero)
+
+    contratos = list(dict.fromkeys(e.tipo_contrato for e in substituidos if e.tipo_contrato))
+    avisos = []
+    if len(contratos) > 1:
+        avisos.append(
+            "Os equipamentos de substituição têm contratos diferentes "
+            f"({', '.join(contratos)}): a requisição usa o primeiro. Confira."
+        )
+    com_custo = any(t.custo == CustoEquipamento.COM_CUSTO for t in tratativas.values())
+    cliente = chamado.cliente
+    initial = {
+        "nome": cliente.pk,
+        "cnpj": cliente.cnpj or "",
+        "endereco": cliente.endereco or "",
+        "vigencia": cliente.vigencia or None,
+        "inicio_de_contrato": _data_do_cadastro(cliente.inicio_de_contrato),
+        "contrato": contratos[0] if contratos else (cliente.tipo_contrato or ""),
+        "motivo": "Substituição",
+        "tipo_fatura": "Com Custo" if com_custo else "Sem Custo",
+        "observacoes": (
+            f"Chamado {chamado.protocolo} — substituição dos equipamentos "
+            f"{', '.join(e.numero for e in substituidos)}."
+        ),
+    }
+    return {
+        "initial": initial,
+        "blocos": [
+            {"tipo_produto": str(modelo_id), "quantidade": str(len(numeros)),
+             "customizacao": customizacao, "numeros": "\n".join(numeros)}
+            for (modelo_id, customizacao), numeros in blocos.items()
+        ],
+        "avisos": avisos,
+    }
+
+
+def vincular_requisicao(chamado, requisicao):
+    """Vincula a requisição recém-criada ao chamado (UPDATE condicional: só se
+    ainda está na RECEPCAO e sem requisição — duas abas não se sobrescrevem)."""
+    from chamados.models import Chamado
+
+    vinculados = Chamado.objects.filter(
+        pk=chamado.pk, status=Status.RECEPCAO, requisicao__isnull=True
+    ).update(requisicao=requisicao, atualizado_em=timezone.now())
+    if not vinculados:
+        raise ValidationError(
+            f"O chamado {chamado.protocolo} já tem requisição vinculada ou mudou de setor."
         )

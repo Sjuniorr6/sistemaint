@@ -228,7 +228,7 @@
                     <p class="card-text"><b>Taxa de Envio:</b> {{ requisicao.taxa_envio }}</p>
                     <p class="card-text"><b>Comercial:</b> {{ requisicao.comercial }}</p>
                     <p class="card-text"><b>Quantidade:</b> {{ requisicao.numero_de_equipamentos }}</p>
-                    <p class="card-text"><b>Tipo de Produto:</b> {{ requisicao.tipo_produto }}</p>               
+                    <p class="card-text"><b>Tipo de Produto:</b> {% include 'partials/_modelos_inline.html' with r=requisicao %}</p>               
                     <p class="card-text"><b>Tipo de Fatura:</b> {{ requisicao.tipo_fatura }}</p>
                     <p class="card-text"><b>Valor Unitário:</b> {{ requisicao.valor_unitario }}</p>
                     <p class="card-text"><b>Valor Total:</b> {{ requisicao.valor_total }}</p>
