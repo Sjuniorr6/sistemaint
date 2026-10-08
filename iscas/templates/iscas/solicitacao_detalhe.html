@@ -305,7 +305,12 @@ campos de texto destrutivos sempre a um clique de distância.
                   {{ form_atribuicao.valor_agente.label }}
                 </label>
                 {{ form_atribuicao.valor_agente }}
-                <div class="form-text small">Quanto o agente cobrou por esta entrega.</div>
+                <div class="form-text small">
+                  <span x-show="!explicacao">Quanto o agente cobrou por esta entrega.</span>
+                  <span x-show="explicacao" x-cloak class="text-info">
+                    <i class="bi bi-calculator"></i> <span x-text="explicacao"></span>
+                  </span>
+                </div>
 
                 <label class="form-label small mt-3" for="{{ form_atribuicao.valor_entrega_cliente.id_for_label }}">
                   {{ form_atribuicao.valor_entrega_cliente.label }}
@@ -680,16 +685,53 @@ function valoresAtribuicao() {
   return {
     modo: 'AGENTE',
     clienteEditado: false,
+    // O valor do agente vem da tabela dele (sugestão). Depois que o operador
+    // digita, a tabela não sobrescreve mais — negociação pontual vence.
+    agenteEditado: false,
+    explicacao: '',
+
+    init() {
+      const sugerir = () => this.sugerirValorDoAgente();
+      this.$root.querySelector('[name="agente"]').addEventListener('change', sugerir);
+      this.$root.querySelectorAll('[name="forma_entrega"]').forEach(r => r.addEventListener('change', sugerir));
+      // Agente pré-selecionado (vindo do mapa): sugere já ao abrir.
+      if (this.$root.querySelector('[name="agente"]').value) sugerir();
+    },
+
+    async sugerirValorDoAgente() {
+      const agente = this.$root.querySelector('[name="agente"]').value;
+      const forma = this.$root.querySelector('[name="forma_entrega"]:checked')?.value || 'ENTREGA';
+      this.explicacao = '';
+      if (!agente || this.agenteEditado) return;
+      try {
+        const params = new URLSearchParams({ solicitacao: '{{ solicitacao.pk }}', agente, forma });
+        const dados = await (await fetch(`{% url "iscas:api_valor_agente" %}?${params}`)).json();
+        this.explicacao = dados.explicacao || '';
+        if (dados.valor === null || dados.valor === undefined) return;
+        const campo = this.$root.querySelector('[name="valor_agente"]');
+        campo.value = dados.valor;
+        this.preencherCliente(dados.valor);
+      } catch (e) {
+        this.explicacao = 'Não foi possível consultar a tabela do agente — digite o valor.';
+      }
+    },
+
+    preencherCliente(valorAgente) {
+      if (this.clienteEditado) return;
+      const cliente = this.$root.querySelector('[name="valor_entrega_cliente"]');
+      const agente = parseFloat(String(valorAgente).replace(',', '.'));
+      cliente.value = Number.isNaN(agente) ? '' : (agente * 2).toFixed(2);
+    },
+
     aoDigitar(evento) {
       const campo = evento.target;
       if (campo.name === 'valor_entrega_cliente') {
         this.clienteEditado = campo.value !== '';
         return;
       }
-      if (campo.name !== 'valor_agente' || this.clienteEditado) return;
-      const cliente = this.$root.querySelector('[name="valor_entrega_cliente"]');
-      const agente = parseFloat(String(campo.value).replace(',', '.'));
-      cliente.value = Number.isNaN(agente) ? '' : (agente * 2).toFixed(2);
+      if (campo.name !== 'valor_agente') return;
+      this.agenteEditado = campo.value !== '';
+      this.preencherCliente(campo.value);
     },
   };
 }

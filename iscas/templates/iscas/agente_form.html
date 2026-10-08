@@ -54,6 +54,65 @@
     </div>
   </div>
 
+  {% comment %}
+  Tabela de preço do agente. A entrega cobra ida e volta: 2 × a faixa da
+  distância até o cliente — o cálculo é do sistema, aqui se cadastra só o
+  preço de UMA perna. Linhas novas nascem do `empty_form` no navegador.
+  {% endcomment %}
+  <div class="card iscas-card mb-3" x-data="faixasPreco({{ faixas.total_form_count }})">
+    <div class="card-header">Valores do agente</div>
+    <div class="card-body">
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-md-4">
+          <label class="form-label small" for="{{ form.valor_retirada.id_for_label }}">{{ form.valor_retirada.label }} (R$)</label>
+          {{ form.valor_retirada }}
+          <div class="form-text small">Quando o cliente busca as iscas na casa do agente.</div>
+          {% for erro in form.valor_retirada.errors %}<div class="text-danger small mt-1">{{ erro }}</div>{% endfor %}
+        </div>
+      </div>
+
+      <label class="form-label small d-block">Entrega por distância</label>
+      {{ faixas.management_form }}
+      {% for erro in faixas.non_form_errors %}<div class="text-danger small mb-2">{{ erro }}</div>{% endfor %}
+      <div class="table-responsive">
+        <table class="table table-dark table-sm iscas-tabela mb-2" style="max-width:520px">
+          <thead><tr><th>Até (km)</th><th>Valor da rota (R$)</th><th style="width:3rem"></th></tr></thead>
+          <tbody x-ref="linhas">
+            {% for f in faixas %}
+              <tr x-data="{ removida: false }" x-show="!removida">
+                <td>{{ f.id }}{{ f.km_ate }}{% for e in f.km_ate.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+                <td>{{ f.valor }}{% for e in f.valor.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</td>
+                <td class="align-middle">
+                  <input type="checkbox" name="{{ f.DELETE.html_name }}" class="d-none" :checked="removida">
+                  <button type="button" class="btn btn-sm btn-outline-danger" @click="removida = true"
+                          title="Remover faixa" aria-label="Remover faixa"><i class="bi bi-trash"></i></button>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <template x-ref="modelo">
+        <tr x-data="{ removida: false }" x-show="!removida">
+          <td>{{ faixas.empty_form.km_ate }}</td>
+          <td>{{ faixas.empty_form.valor }}</td>
+          <td class="align-middle">
+            <input type="checkbox" name="{{ faixas.empty_form.DELETE.html_name }}" class="d-none" :checked="removida">
+            <button type="button" class="btn btn-sm btn-outline-danger" @click="removida = true"
+                    title="Remover faixa" aria-label="Remover faixa"><i class="bi bi-trash"></i></button>
+          </td>
+        </tr>
+      </template>
+      <button type="button" class="btn btn-outline-light btn-sm" @click="adicionar()">
+        <i class="bi bi-plus-lg"></i> Adicionar faixa
+      </button>
+      <div class="form-text small mt-2">
+        Ex.: até 30 km → R$ 100,00. Numa entrega a 30 km, o agente recebe 2 × R$ 100,00
+        (ida e volta). Acima da última faixa, vale a última.
+      </div>
+    </div>
+  </div>
+
   <div class="card iscas-card mb-3">
     <div class="card-body">
       <label class="form-label small" for="{{ form.observacao.id_for_label }}">Observação</label>
@@ -66,4 +125,19 @@
     <a href="{% url 'iscas:agente_lista' %}" class="btn btn-outline-light">Cancelar</a>
   </div>
 </form>
+
+<script>
+function faixasPreco(total) {
+  return {
+    total,
+    adicionar() {
+      // `__prefix__` vira o índice da linha nova; TOTAL_FORMS acompanha.
+      const html = this.$refs.modelo.innerHTML.replace(/__prefix__/g, this.total);
+      this.$refs.linhas.insertAdjacentHTML('beforeend', html);
+      this.total += 1;
+      document.querySelector('#id_faixas-TOTAL_FORMS').value = this.total;
+    },
+  };
+}
+</script>
 {% endblock %}

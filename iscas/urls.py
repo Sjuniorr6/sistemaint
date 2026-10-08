@@ -109,6 +109,7 @@ urlpatterns = [
         name="api_solicitacoes",
     ),
     path("api/proximidade/", api.proximidade, name="api_proximidade"),
+    path("api/valor-agente/", api.valor_agente, name="api_valor_agente"),
     path("api/saldo/<int:agente_id>/", api.saldo_agente, name="api_saldo_agente"),
     path("api/unidades/", api.unidades_da_custodia, name="api_unidades_custodia"),
     path(

@@ -6,7 +6,7 @@ from django.views.decorators.http import require_POST
 
 from django.db import IntegrityError
 
-from iscas.forms import AgenteForm, ClienteForm, DepositoForm, ModeloForm
+from iscas.forms import AgenteForm, ClienteForm, DepositoForm, FaixaPrecoFormSet, ModeloForm
 from iscas.forms.cadastro import DestinatarioNotificacaoForm
 from iscas.models.config import DestinatarioNotificacao
 from iscas.models.cadastro import Agente, Cliente, Deposito, ModeloEquipamento
@@ -115,15 +115,31 @@ def agente_detalhe(request, pk):
     return render(request, "iscas/agente_detalhe.html", contexto)
 
 
+def _faixas_do_post(request, agente=None):
+    """Formset das faixas de preço, ou `None` se o POST não as trouxe.
+
+    `None` = não mexer na tabela. Um POST sem o bloco de faixas (integração,
+    teste antigo) continua salvando o agente em vez de falhar por
+    "ManagementForm ausente".
+    """
+    if "faixas-TOTAL_FORMS" not in request.POST:
+        return None
+    return FaixaPrecoFormSet(request.POST, instance=agente, prefix="faixas")
+
+
 @exige(Capacidade.CADASTRAR_AGENTE)
 def agente_criar(request):
     if request.method == "POST":
         form = AgenteForm(request.POST)
-        if form.is_valid():
+        faixas = _faixas_do_post(request)
+        if form.is_valid() and (faixas is None or faixas.is_valid()):
             agente = form.save(commit=False)
             cadastro_service.salvar_com_geocodificacao(
                 agente, endereco_mudou=True, pin=form.pin_ajustado()
             )
+            if faixas is not None:
+                faixas.instance = agente
+                faixas.save()
             if agente.tem_coordenada:
                 messages.success(request, f"Agente {agente.nome} cadastrado.")
             else:
@@ -136,10 +152,14 @@ def agente_criar(request):
             return redirect("iscas:agente_detalhe", pk=agente.pk)
     else:
         form = AgenteForm()
+        faixas = FaixaPrecoFormSet(prefix="faixas")
     return render(
         request,
         "iscas/agente_form.html",
-        _contexto_endereco(form, titulo="Novo agente"),
+        _contexto_endereco(
+            form, titulo="Novo agente",
+            faixas=faixas or FaixaPrecoFormSet(prefix="faixas"),
+        ),
     )
 
 
@@ -148,22 +168,27 @@ def agente_editar(request, pk):
     agente = get_object_or_404(Agente.todos, pk=pk)
     if request.method == "POST":
         form = AgenteForm(request.POST, instance=agente)
-        if form.is_valid():
+        faixas = _faixas_do_post(request, agente)
+        if form.is_valid() and (faixas is None or faixas.is_valid()):
             atualizado = form.save(commit=False)
             cadastro_service.salvar_com_geocodificacao(
                 atualizado,
                 endereco_mudou=form.endereco_mudou(),
                 pin=form.pin_ajustado(),
             )
+            if faixas is not None:
+                faixas.save()
             messages.success(request, "Agente atualizado.")
             return redirect("iscas:agente_detalhe", pk=agente.pk)
     else:
         form = AgenteForm(instance=agente)
+        faixas = FaixaPrecoFormSet(instance=agente, prefix="faixas")
     return render(
         request,
         "iscas/agente_form.html",
         _contexto_endereco(
-            form, titulo=f"Editar {agente.nome}", entidade=agente, agente=agente
+            form, titulo=f"Editar {agente.nome}", entidade=agente, agente=agente,
+            faixas=faixas or FaixaPrecoFormSet(instance=agente, prefix="faixas"),
         ),
     )
 

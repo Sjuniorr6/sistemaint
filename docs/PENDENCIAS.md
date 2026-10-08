@@ -39,7 +39,7 @@ Ordenadas por quando mordem. Item fechado sai daqui; item cujo escopo mudou é r
 
 ## iscas — devolução, pedido por tipo e valores
 
-- **N1 — rodar as migrações 0014, 0015 e 0016 do `iscas` contra dump restaurado de
+- **N1 — rodar as migrações 0014 a 0017 do `iscas` contra dump restaurado de
   produção antes do deploy.** A 0015 preenche `ItemSolicitacao.tipo` a partir do
   modelo; no banco local havia pedido com dois modelos do mesmo tipo (#16), o caso
   que só aparece com dado real. Gatilho: o próximo deploy.

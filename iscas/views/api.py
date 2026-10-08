@@ -407,3 +407,29 @@ def unidades_com_cliente(request):
             for unidade in unidades
         ]
     })
+
+
+@exige(Capacidade.ATENDER_SOLICITACAO)
+def valor_agente(request):
+    """Valor sugerido do agente para a solicitação, pela tabela dele.
+
+    Só calcula, não grava. `{"valor": null}` quando a tabela não permite.
+    """
+    from iscas.enums import FormaEntrega
+    from iscas.services.precificacao import valor_sugerido
+
+    solicitacao = get_object_or_404(Solicitacao.todos, pk=request.GET.get("solicitacao") or 0)
+    agente = get_object_or_404(Agente.todos, pk=request.GET.get("agente") or 0)
+    forma = request.GET.get("forma") or FormaEntrega.ENTREGA
+
+    sugestao = valor_sugerido(agente=agente, solicitacao=solicitacao, forma_entrega=forma)
+    if sugestao is None:
+        return JsonResponse({
+            "valor": None,
+            "explicacao": "Sem valor na tabela do agente para este caso — digite o valor.",
+        })
+    return JsonResponse({
+        "valor": f"{sugestao['valor']:.2f}",
+        "explicacao": sugestao["explicacao"],
+        "distancia_km": sugestao["distancia_km"],
+    })

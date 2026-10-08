@@ -9,8 +9,12 @@ código do GSInt): o `acompanhamento.Clientes` existente não tem endereço
 estruturado nem coordenadas, e a fronteira de migração do ISC-ADR-01 depende de
 não criar FK para outros apps.
 """
+from decimal import Decimal
+
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import models
+from django.db.models import Q
 
 from iscas import crypto
 from iscas.enums import GeoOrigem, TipoDocumento, TipoModelo, UF_CHOICES
@@ -56,6 +60,14 @@ class Agente(BaseModel, EnderecoGeoMixin):
     telefone = models.CharField(max_length=30, verbose_name="Telefone")
     email = models.EmailField(max_length=254, blank=True, verbose_name="E-mail")
     observacao = models.TextField(blank=True, verbose_name="Observação")
+    # Quanto o agente cobra quando o cliente retira na casa dele. As entregas
+    # seguem a tabela de faixas (`FaixaPrecoAgente`). NULL = não informado:
+    # o sistema não sugere valor, o operador digita.
+    valor_retirada = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(Decimal("0.00"))],
+        verbose_name="Valor da retirada",
+    )
 
     class Meta:
         verbose_name = "Agente"
@@ -93,6 +105,38 @@ class Agente(BaseModel, EnderecoGeoMixin):
         super().clean()
         if self.cpf_cifrado and not crypto.cpf_valido(self.cpf):
             raise ValidationError({"cpf": "CPF inválido."})
+
+
+class FaixaPrecoAgente(models.Model):
+    """Uma linha da tabela de preço do agente: "até `km_ate` km → `valor`".
+
+    O valor é de UMA perna. A entrega cobra ida e volta: 2 × a faixa da
+    distância de ida (`services.precificacao`).
+    """
+
+    agente = models.ForeignKey(
+        "iscas.Agente", on_delete=models.CASCADE, related_name="faixas_preco",
+        verbose_name="Agente",
+    )
+    km_ate = models.PositiveIntegerField(verbose_name="Até (km)")
+    valor = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        validators=[MinValueValidator(Decimal("0.00"))],
+        verbose_name="Valor (R$)",
+    )
+
+    class Meta:
+        verbose_name = "Faixa de preço do agente"
+        verbose_name_plural = "Faixas de preço do agente"
+        ordering = ["agente", "km_ate"]
+        constraints = [
+            models.UniqueConstraint(fields=["agente", "km_ate"], name="iscas_faixa_km_unico"),
+            models.CheckConstraint(condition=Q(km_ate__gt=0), name="iscas_faixa_km_positivo"),
+            models.CheckConstraint(condition=Q(valor__gte=0), name="iscas_faixa_valor_nao_negativo"),
+        ]
+
+    def __str__(self):
+        return f"{self.agente} — até {self.km_ate} km: R$ {self.valor}"
 
 
 class Cliente(BaseModel, EnderecoGeoMixin):

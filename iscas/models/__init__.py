@@ -4,7 +4,13 @@ O import agregado aqui mantém `from iscas.models import Agente` funcionando e
 faz o Django enxergar todos os models do app.
 """
 from iscas.models.base import ActiveManager, BaseModel, EnderecoGeoMixin, LogModel
-from iscas.models.cadastro import Agente, Cliente, Deposito, ModeloEquipamento
+from iscas.models.cadastro import (
+    Agente,
+    Cliente,
+    Deposito,
+    FaixaPrecoAgente,
+    ModeloEquipamento,
+)
 from iscas.models.config import (
     ConfiguracaoIscas,
     DestinatarioNotificacao,
@@ -29,6 +35,7 @@ from iscas.models.operacao import (
 __all__ = [
     "ActiveManager",
     "Agente",
+    "FaixaPrecoAgente",
     "Atribuicao",
     "AtribuicaoUnidade",
     "BaseModel",

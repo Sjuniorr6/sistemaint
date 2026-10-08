@@ -3,7 +3,13 @@
 Forms validam formato e coerência de campo; regra de negócio fica no service
 (ARCHITECTURE, "Service Layer"). O que um form NUNCA faz aqui é mover estoque.
 """
-from iscas.forms.cadastro import AgenteForm, ClienteForm, DepositoForm, ModeloForm
+from iscas.forms.cadastro import (
+    AgenteForm,
+    ClienteForm,
+    DepositoForm,
+    FaixaPrecoFormSet,
+    ModeloForm,
+)
 from iscas.forms.custodia import (
     BaixaForm,
     EntradaLoteForm,
@@ -25,6 +31,7 @@ from iscas.forms.operacao import (
 
 __all__ = [
     "AgenteForm",
+    "FaixaPrecoFormSet",
     "AtribuicaoForm",
     "BaixaForm",
     "BuscaProximidadeForm",

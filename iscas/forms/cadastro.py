@@ -4,7 +4,13 @@ from django import forms
 from iscas.crypto import cpf_valido, normalizar_cpf
 from iscas.enums import UF_CHOICES
 from iscas.models.config import DestinatarioNotificacao
-from iscas.models.cadastro import Agente, Cliente, Deposito, ModeloEquipamento
+from iscas.models.cadastro import (
+    Agente,
+    Cliente,
+    Deposito,
+    FaixaPrecoAgente,
+    ModeloEquipamento,
+)
 
 #: Campos de endereço, compartilhados pelos três cadastros geolocalizados.
 CAMPOS_ENDERECO = [
@@ -101,10 +107,13 @@ class AgenteForm(_EnderecoFormMixin, forms.ModelForm):
 
     class Meta:
         model = Agente
-        fields = ["nome", "telefone", "email", *CAMPOS_ENDERECO, "observacao"]
+        fields = ["nome", "telefone", "email", *CAMPOS_ENDERECO, "observacao", "valor_retirada"]
         widgets = _widgets_bootstrap(
             ["nome", "telefone", *CAMPOS_ENDERECO],
             {
+                "valor_retirada": forms.NumberInput(
+                    attrs={"class": "form-control", "step": "0.01", "min": "0", "placeholder": "0,00"}
+                ),
                 "email": forms.EmailInput(attrs={"class": "form-control"}),
                 "uf": forms.Select(
                     choices=[("", "—"), *UF_CHOICES], attrs={"class": "form-select"}
@@ -264,3 +273,18 @@ class DestinatarioNotificacaoForm(forms.ModelForm):
         sensível a caixa e a mesma pessoa receberia dois e-mails.
         """
         return (self.cleaned_data["email"] or "").strip().lower()
+
+
+#: Faixas de preço do agente, editadas junto com o cadastro. Prefixo fixo
+#: (`faixas`) porque o template monta linhas novas no navegador.
+FaixaPrecoFormSet = forms.inlineformset_factory(
+    Agente,
+    FaixaPrecoAgente,
+    fields=["km_ate", "valor"],
+    extra=0,
+    can_delete=True,
+    widgets={
+        "km_ate": forms.NumberInput(attrs={"class": "form-control form-control-sm", "min": "1", "placeholder": "km"}),
+        "valor": forms.NumberInput(attrs={"class": "form-control form-control-sm", "step": "0.01", "min": "0", "placeholder": "0,00"}),
+    },
+)
