@@ -56,10 +56,10 @@ def _post(cliente, modelo, **extra):
         "entrega_cep": cliente.cep,
         "prazo_desejado": "",
         "observacao": "",
-        f"quantidade_{modelo.pk}": "5",
+        f"quantidade_{modelo.tipo}": "5",
         # Preço por item é obrigatório na abertura desde que o total passou a
         # ser calculado dos itens; sem ele o service recusa.
-        f"preco_{modelo.pk}": "20.00",
+        f"preco_{modelo.tipo}": "20.00",
     }
     dados.update(extra)
     return dados

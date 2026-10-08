@@ -238,45 +238,41 @@ registra para onde a entrega foi de fato.
     <div class="card-body p-0 tabela-rolavel">
       <table class="table table-dark table-sm iscas-tabela mb-0">
         <thead><tr>
-          <th>Modelo</th><th>Tipo</th>
+          <th>Tipo de isca</th>
           <th style="width:9rem">Quantidade</th>
           <th style="width:10rem">Preço unitário</th>
           <th style="width:9rem" class="text-end">Subtotal</th>
         </tr></thead>
         <tbody>
-        {% for modelo in modelos %}
+        {% for valor, rotulo in tipos %}
           <tr>
-            <td>{{ modelo.nome }} <span class="text-muted small">{{ modelo.codigo|default_if_none:"" }}</span></td>
-            <td>
-              <span class="badge {% if modelo.eh_retornavel %}bg-info{% else %}bg-secondary{% endif %}">
-                {{ modelo.get_tipo_display }}
+            <td class="align-middle">
+              <span class="badge {% if valor == 'RETORNAVEL' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                {{ rotulo }}
               </span>
             </td>
             <td>
-              <input type="number" min="0" name="quantidade_{{ modelo.pk }}"
+              <input type="number" min="0" name="quantidade_{{ valor }}"
                      class="form-control form-control-sm" placeholder="0"
-                     x-model.number="qtds[{{ modelo.pk }}]">
+                     x-model.number="qtds['{{ valor }}']">
             </td>
             <td>
-              <input type="number" min="0" step="0.01" name="preco_{{ modelo.pk }}"
+              <input type="number" min="0" step="0.01" name="preco_{{ valor }}"
                      class="form-control form-control-sm" placeholder="0,00"
-                     x-model.number="precos[{{ modelo.pk }}]">
+                     x-model.number="precos['{{ valor }}']">
             </td>
             <td class="text-end align-middle small"
-                x-text="subtotal({{ modelo.pk }})"></td>
+                x-text="subtotal('{{ valor }}')"></td>
           </tr>
-        {% empty %}
-          <tr><td colspan="5" class="text-muted">
-            Nenhum modelo cadastrado. <a href="{% url 'iscas:modelo_criar' %}">Cadastre um modelo</a> primeiro.
-          </td></tr>
         {% endfor %}
         </tbody>
       </table>
     </div>
     <div class="card-body pt-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
       <div class="form-text small mb-0">
-        Descartável sai do estoque na entrega; retornável continua rastreado até voltar.
-        O preço unitário é obrigatório em todo item com quantidade.
+        Qualquer modelo do tipo atende o pedido. Descartável sai do estoque na
+        entrega; retornável continua rastreado até voltar. O valor unitário é
+        obrigatório em todo tipo com quantidade.
       </div>
       {% comment %}
       O total aqui é só para o operador conferir enquanto digita. Quem grava é
@@ -286,6 +282,27 @@ registra para onde a entrega foi de fato.
       <div class="text-end">
         <div class="small text-muted">Total da solicitação</div>
         <div class="h5 mb-0" x-text="totalFormatado()"></div>
+      </div>
+    </div>
+    {% comment %}
+    Só com retornável no pedido. Escondido, o campo fica DESABILITADO — e
+    campo desabilitado não vai no POST, então um valor esquecido não chega ao
+    service (que recusaria assinatura sem retornável).
+    {% endcomment %}
+    <div class="card-body pt-0" x-show="qtds['RETORNAVEL'] > 0" x-cloak>
+      <div class="row g-2 align-items-end border-top border-secondary pt-3">
+        <div class="col-12 col-md-4">
+          <label class="form-label small" for="id_valor_assinatura_mensal">
+            Assinatura mensal (R$) <span class="text-danger">*</span>
+          </label>
+          <input type="number" min="0" step="0.01" name="valor_assinatura_mensal"
+                 id="id_valor_assinatura_mensal" class="form-control form-control-sm"
+                 placeholder="0,00" :disabled="!(qtds['RETORNAVEL'] > 0)">
+        </div>
+        <div class="col-12 col-md-8 form-text small">
+          O que o cliente paga por mês enquanto estiver com as iscas retornáveis.
+          Não entra no total acima.
+        </div>
       </div>
     </div>
   </div>
@@ -315,7 +332,7 @@ registra para onde a entrega foi de fato.
 <script>
 function novaSolicitacao() {
   return {
-    // Quantidade e preço por modelo, para o total conferir enquanto se digita.
+    // Quantidade e preço por tipo, para o total conferir enquanto se digita.
     // Só exibição: o valor gravado é recalculado no servidor.
     qtds: {},
     precos: {},

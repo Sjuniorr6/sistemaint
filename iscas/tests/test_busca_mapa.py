@@ -14,16 +14,12 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def html_do_mapa(client, operador_logado):
-    return client.get(reverse("iscas:mapa")).content.decode()
+    return client.get(reverse("iscas:painel")).content.decode()
 
 
 class TestCampoDeBusca:
     def test_a_tela_tem_o_campo(self, html_do_mapa):
-        assert "Buscar agente, cliente ou endereço" in html_do_mapa
-
-    def test_chama_o_geocodificador_do_app(self, html_do_mapa):
-        """Reusa o endpoint que já existe, sem rota nova."""
-        assert reverse("iscas:api_geocodificar") in html_do_mapa
+        assert "Buscar agente no mapa" in html_do_mapa
 
     # sabotagem: remover `this.agentes.push(...)` de carregarAgentes → vermelho
     def test_guarda_as_properties_dos_agentes(self, html_do_mapa):

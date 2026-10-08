@@ -156,6 +156,8 @@ def solicitacoes_geojson():
                     "cliente": cliente.nome_razao_social,
                     "cliente_id": cliente.pk,
                     "endereco": solicitacao.endereco_entrega,
+                    "cidade": solicitacao.entrega_cidade or cliente.cidade,
+                    "uf": (solicitacao.entrega_uf or cliente.uf or "").upper(),
                     "telefone": solicitacao.telefone or cliente.telefone,
                     "aberta_em": solicitacao.aberta_em.strftime("%d/%m/%Y %H:%M"),
                     "prazo": (
@@ -170,8 +172,8 @@ def solicitacoes_geojson():
                     "descoberta": falta_total > 0,
                     "itens": [
                         {
-                            "modelo": linha["modelo"].nome,
-                            "codigo": linha["modelo"].codigo or "",
+                            "tipo": linha["tipo"],
+                            "rotulo": linha["tipo_display"],
                             "solicitado": linha["solicitado"],
                             "atribuido": linha["atribuido"],
                             "falta": linha["falta"],
@@ -242,6 +244,134 @@ def unidades_filtradas(
         # resolve isso num HAVING sobre o CASE.
         qs = qs.filter(situacao=situacao)
     return qs
+
+
+#: Ordem e rótulo das seções da lista de unidades, por tipo de custódia.
+_SECOES_DE_CUSTODIA = (
+    (TipoCustodia.AGENTE, "Agentes", "bi-person-badge"),
+    (TipoCustodia.DEPOSITO, "Depósitos", "bi-building"),
+    (TipoCustodia.CLIENTE, "Clientes", "bi-briefcase"),
+    (TipoCustodia.MANUTENCAO, "Manutenção", "bi-tools"),
+    (TipoCustodia.BAIXA, "Baixa", "bi-x-octagon"),
+)
+
+
+def unidades_por_custodia(*, modelo=None, situacao=None, incluir_encerradas=False):
+    """Contagem de unidades por custódia e situação, agrupada por seção.
+
+    Três consultas, independentemente de quantos agentes houver: contagem por
+    (custódia, situação), contagem geral por situação e as custódias. As
+    unidades de cada custódia NÃO vêm aqui — a tela as carrega quando o
+    operador abre o grupo (`unidades_filtradas(custodia=...)`).
+
+    Args:
+        incluir_encerradas: consumidas e baixadas são histórico; por padrão
+            ficam fora, senão os clientes viram uma lista sem fim de iscas
+            que não voltam. Escolher essas situações no filtro as inclui.
+
+    Returns:
+        dict com `secoes` (lista de `{titulo, icone, grupos}`) e `resumo`
+        (total por situação, sem o filtro de situação, para os cartões do
+        topo).
+    """
+    from iscas.enums import SITUACOES_TERMINAIS
+    from iscas.models.custodia import Custodia
+
+    base = Unidade.objects.com_situacao()
+    if modelo:
+        base = base.filter(modelo=modelo)
+
+    por_situacao = {
+        linha["situacao"]: linha["n"]
+        for linha in base.order_by().values("situacao").annotate(n=Count("id"))
+    }
+
+    qs = base
+    if situacao:
+        qs = qs.filter(situacao=situacao)
+    elif not incluir_encerradas:
+        qs = qs.exclude(situacao__in=SITUACOES_TERMINAIS)
+
+    contagens = {}
+    # `.order_by()` limpa o `ordering` do model: sem isso o identificador
+    # entra no GROUP BY e a contagem vira uma linha por unidade.
+    for linha in qs.order_by().values("custodia_atual_id", "situacao").annotate(n=Count("id")):
+        contagens.setdefault(linha["custodia_atual_id"], {})[linha["situacao"]] = linha["n"]
+
+    rotulos = dict(SituacaoUnidade.choices)
+    grupos_por_tipo = {}
+    custodias = Custodia.todos.filter(pk__in=contagens).select_related(
+        "agente", "cliente", "deposito"
+    )
+    for custodia in custodias:
+        entidade = custodia.agente or custodia.deposito or custodia.cliente
+        if custodia.agente_id:
+            nome = custodia.agente.nome
+        elif custodia.deposito_id:
+            nome = custodia.deposito.nome
+        elif custodia.cliente_id:
+            nome = custodia.cliente.nome_razao_social
+        else:
+            nome = custodia.get_tipo_display()
+        local = " | ".join(
+            p for p in (getattr(entidade, "cidade", ""), (getattr(entidade, "uf", "") or "").upper()) if p
+        )
+        por_sit = contagens[custodia.pk]
+        grupos_por_tipo.setdefault(custodia.tipo, []).append(
+            {
+                "custodia": custodia,
+                "nome": nome,
+                "local": local,
+                "total": sum(por_sit.values()),
+                "situacoes": [
+                    {"valor": valor, "rotulo": rotulos[valor], "n": n}
+                    for valor, n in sorted(por_sit.items())
+                ],
+            }
+        )
+
+    secoes = []
+    for tipo, titulo, icone in _SECOES_DE_CUSTODIA:
+        grupos = sorted(grupos_por_tipo.get(tipo, []), key=lambda g: g["nome"].lower())
+        if grupos:
+            secoes.append({
+                "titulo": titulo, "icone": icone, "grupos": grupos,
+                "total": sum(g["total"] for g in grupos),
+            })
+    resumo = [
+        {"valor": valor, "rotulo": rotulo, "n": por_situacao.get(valor, 0)}
+        for valor, rotulo in SituacaoUnidade.choices
+    ]
+    return {"secoes": secoes, "resumo": resumo}
+
+
+def solicitacoes_pendentes():
+    """Solicitações em aberto que ainda têm isca a atribuir.
+
+    "Pendente" é o contrário de finalizada: finalizada é a que tem agente (ou
+    depósito) cobrindo TODAS as iscas pedidas — falta zero. É a mesma régua
+    da lista de pendentes do mapa. Três consultas no total.
+    """
+    from iscas.services.solicitacao import cobertura_em_lote
+
+    abertas = list(
+        Solicitacao.objects.filter(
+            status__in=(
+                StatusSolicitacao.ABERTA,
+                StatusSolicitacao.ATRIBUIDA,
+                StatusSolicitacao.EM_ROTA,
+            )
+        )
+        .select_related("cliente")
+        .order_by("aberta_em")
+    )
+    coberturas = cobertura_em_lote(abertas)
+    pendentes = []
+    for solicitacao in abertas:
+        falta = sum(linha["falta"] for linha in coberturas.get(solicitacao.pk, []))
+        if falta:
+            pendentes.append({"solicitacao": solicitacao, "falta": falta})
+    return pendentes
 
 
 def extrato_movimentacoes(
@@ -329,58 +459,52 @@ def solicitacoes_filtradas(*, status=None, cliente=None, busca="", excluidas=Fal
     return qs
 
 
-def modelos_em_falta(solicitacao):
-    """Modelos da solicitação que ainda não estão cobertos (ISC-RF-30).
+def tipos_em_falta(solicitacao):
+    """Tipos da solicitação que ainda não estão cobertos (ISC-RF-30).
 
-    Retorna `[(modelo, falta)]` na ordem dos itens do pedido. É o contrato do
-    que ainda pode ser atribuído: quem escolhe o agente e quem escolhe as
-    unidades partem desta mesma lista.
+    Retorna `[(tipo, falta)]` na ordem de `TipoModelo`. É o contrato do que
+    ainda pode ser atribuído: quem escolhe o agente e quem escolhe as unidades
+    partem desta mesma lista.
     """
     from iscas.services.solicitacao import cobertura
 
     return [
-        (linha["modelo"], linha["falta"])
+        (linha["tipo"], linha["falta"])
         for linha in cobertura(solicitacao)
         if linha["falta"] > 0
     ]
 
 
 def agentes_que_atendem(solicitacao):
-    """Agentes com ao menos uma unidade disponível de algum modelo em falta.
+    """Agentes com ao menos uma unidade disponível de algum tipo em falta.
 
     Sem esse filtro a tela lista o cadastro inteiro, e o operador só descobre
-    que o agente não tem o equipamento depois de submeter — o erro chega do
-    service, tarde demais. Agente sem nenhuma unidade útil para ESTE pedido
-    não é opção e some do select.
-
-    Vale registrar o que a regra NÃO é: não se exige que o agente cubra o
-    pedido inteiro, nem um modelo inteiro. Atendimento parcial, completado por
-    outro agente, é o funcionamento normal (ISC-RN-10) — exigir cobertura total
-    aqui esconderia agentes legítimos.
+    que o agente não tem iscas daquele tipo depois de submeter. Atendimento
+    parcial, completado por outro agente, é o funcionamento normal
+    (ISC-RN-10) — por isso basta UMA unidade útil.
 
     Duas consultas, independentemente do número de agentes.
     """
-    from iscas.services.saldo import unidades_disponiveis_por_modelos
+    from iscas.services.saldo import unidades_disponiveis_por_tipos
 
-    faltantes = [modelo.pk for modelo, _ in modelos_em_falta(solicitacao)]
+    faltantes = [tipo for tipo, _ in tipos_em_falta(solicitacao)]
     if not faltantes:
         return Agente.objects.none()
 
     return Agente.objects.filter(
-        pk__in=unidades_disponiveis_por_modelos(faltantes).values(
+        pk__in=unidades_disponiveis_por_tipos(faltantes).values(
             "custodia_atual__agente_id"
         )
     ).order_by("nome")
 
 
-def unidades_uteis_por_modelo(*, agente, solicitacao):
+def unidades_uteis_por_tipo(*, agente, solicitacao):
     """O que ESTE agente pode contribuir para ESTE pedido.
 
     Returns:
-        Lista de `(modelo, falta, queryset de unidades disponíveis)`, só para
-        os modelos em que o agente tem ao menos uma unidade livre. Modelo que
-        falta no pedido mas que o agente não tem fica de fora — oferecer um
-        select vazio só confunde.
+        Lista de `(tipo, falta, queryset de unidades disponíveis)`, só para os
+        tipos em que o agente tem ao menos uma unidade livre — de qualquer
+        modelo do tipo.
 
     É a fonte única da tela de escolha e da validação do agente: as duas
     respondem à mesma pergunta e não podem divergir.
@@ -388,12 +512,15 @@ def unidades_uteis_por_modelo(*, agente, solicitacao):
     from iscas.services.saldo import unidades_disponiveis
 
     resultado = []
-    for modelo, falta in modelos_em_falta(solicitacao):
-        disponiveis = unidades_disponiveis(agente, modelo=modelo).select_related(
-            "modelo"
-        ).order_by("custodia_desde", "identificador")
+    for tipo, falta in tipos_em_falta(solicitacao):
+        disponiveis = (
+            unidades_disponiveis(agente)
+            .filter(modelo__tipo=tipo)
+            .select_related("modelo")
+            .order_by("modelo__nome", "custodia_desde", "identificador")
+        )
         if disponiveis.exists():
-            resultado.append((modelo, falta, disponiveis))
+            resultado.append((tipo, falta, disponiveis))
     return resultado
 
 
@@ -479,7 +606,7 @@ def historico_agente(agente):
     conta = custodia_de(agente)
     return {
         "agente": agente,
-        "saldos": list(saldo_por_modelo(agente)),
+        "saldos": _saldos_com_ids(agente),
         "recebidas": Movimentacao.objects.filter(destino=conta).count(),
         "enviadas": Movimentacao.objects.filter(origem=conta).count(),
         "movimentacoes": Movimentacao.objects.filter(
@@ -509,3 +636,13 @@ def historico_cliente(cliente):
         .annotate(quantidade_linhas=Count("linhas"))
         .order_by("-ocorrido_em", "-id"),
     }
+
+
+def _saldos_com_ids(entidade):
+    """Saldo por modelo da ficha, com os IDs das unidades de cada modelo."""
+    from iscas.services.custodia import custodia_de
+    from iscas.services.saldo import anexar_identificadores, saldo_por_modelo
+
+    conta = custodia_de(entidade)
+    linhas = list(saldo_por_modelo(entidade))
+    return anexar_identificadores([conta], {conta.pk: linhas})[conta.pk]

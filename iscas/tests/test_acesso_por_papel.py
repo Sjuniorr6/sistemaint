@@ -37,7 +37,6 @@ NEGADAS_AO_COMERCIAL = [
 #: Rotas sem argumento que o Comercial PODE alcançar.
 PERMITIDAS_AO_COMERCIAL = [
     "iscas:painel",
-    "iscas:mapa",
     "iscas:solicitacao_lista",
     "iscas:solicitacao_criar",
     "iscas:cliente_lista",
@@ -58,7 +57,6 @@ NEGADAS_AO_OPERADOR_FAST = [
 #: Rotas sem argumento que o Operador Fast PODE alcançar.
 PERMITIDAS_AO_OPERADOR_FAST = [
     "iscas:painel",
-    "iscas:mapa",
     "iscas:solicitacao_lista",
     "iscas:solicitacao_criar",
     "iscas:cliente_lista",

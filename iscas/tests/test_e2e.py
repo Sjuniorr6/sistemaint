@@ -165,8 +165,8 @@ def test_jornada_completa_do_prd(
     em_posse = retorno_service.retornaveis_em_posse(cliente=cliente)
     assert em_posse.count() == 5
 
-    retorno_service.registrar_retorno(
-        unidades=list(em_posse[:3]), destino=deposito, autor=operador
+    retorno_service.registrar_devolucao(
+        unidades=list(em_posse[:3]), destino=deposito, motivo="fim do uso", autor=operador
     )
     assert saldo_service.saldo_em_custodia(deposito, modelo=modelo_retornavel) == 3
     assert retorno_service.retornaveis_em_posse(cliente=cliente).count() == 2

@@ -164,7 +164,7 @@ class AtribuicaoUnidadeAdmin(_SomenteLeitura):
 
 @admin.register(ItemSolicitacao)
 class ItemSolicitacaoAdmin(_SomenteLeitura):
-    list_display = ("solicitacao", "modelo", "quantidade")
+    list_display = ("solicitacao", "tipo", "modelo", "quantidade", "valor_unitario")
 
 
 @admin.register(SolicitacaoEvento)

@@ -1,0 +1,682 @@
+{% comment %}
+Mapa operacional do painel: agentes, solicitações em aberto e busca por
+proximidade (ISC-RF-16 a ISC-RF-21).
+
+Os controles ficam DENTRO da área do mapa, como camadas sobrepostas, e não ao
+lado: o mapa ocupa a largura toda e a lista de solicitações vira um painel
+recolhível no canto. Os overlays são irmãos do contêiner do Leaflet, não
+filhos — assim clique e rolagem neles nunca chegam ao mapa.
+
+Pinos fixos: nada de cluster. Cluster reagrupa a cada zoom e os pinos "pulam"
+de lugar. Solicitações no mesmo ponto viram um pino só, com contador, e o popup
+lista todas.
+{% endcomment %}
+<style>
+.mapa-operacional { position: relative; height: 72vh; min-height: 520px; border-radius: .5rem; overflow: hidden; }
+.mapa-operacional #mapa { position: absolute; inset: 0; height: 100%; border-radius: 0; }
+
+.mapa-overlay {
+    position: absolute; z-index: 500;
+    background: var(--iscas-superficie-alta); color: var(--iscas-texto);
+    border: 1px solid var(--iscas-borda); border-radius: .6rem;
+    box-shadow: 0 6px 24px rgba(0,0,0,.45);
+}
+.mapa-painel {
+    top: 12px; left: 12px; bottom: 12px; width: 340px;
+    display: flex; flex-direction: column;
+}
+.mapa-painel.recolhido { bottom: auto; }
+.mapa-painel__cabeca {
+    display: flex; align-items: center; gap: .5rem; padding: .65rem .8rem;
+    border-bottom: 1px solid var(--iscas-borda); cursor: pointer; user-select: none;
+}
+.mapa-painel.recolhido .mapa-painel__cabeca { border-bottom: 0; }
+.mapa-painel__contador {
+    background: rgba(251,191,36,.15); color: var(--iscas-alerta);
+    border: 1px solid rgba(251,191,36,.45); border-radius: 999px;
+    font-weight: 700; font-size: .78rem; padding: 0 .55rem;
+}
+/* Classe própria, e não `d-flex`: o `display:flex !important` do Bootstrap
+   vence o `display:none` que o `x-show` aplica, e o painel não recolhia. */
+.mapa-painel__corpo { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.mapa-painel__filtros { padding: .6rem .8rem; border-bottom: 1px solid var(--iscas-borda); }
+.mapa-painel__lista { flex: 1; overflow-y: auto; padding: .5rem; }
+.mapa-card {
+    border: 1px solid var(--iscas-borda); border-radius: .5rem;
+    background: var(--iscas-superficie); padding: .6rem .7rem; margin-bottom: .5rem;
+}
+.mapa-card.selecionado { border-color: var(--iscas-alerta); box-shadow: 0 0 0 1px var(--iscas-alerta) inset; }
+.mapa-card__titulo { font-weight: 600; font-size: .9rem; line-height: 1.25; }
+.mapa-card__linha { font-size: .78rem; color: var(--iscas-texto-suave); display: flex; gap: .4rem; align-items: baseline; }
+.mapa-card__linha i { color: var(--iscas-texto-fraco); width: 1rem; text-align: center; }
+.mapa-card .falta { color: var(--iscas-erro); font-weight: 600; }
+.mapa-card .ok { color: var(--iscas-ok); font-weight: 600; }
+
+.mapa-busca-agente { right: 12px; bottom: 28px; width: 300px; }
+.mapa-busca-agente .form-control { background: transparent; border: 0; color: var(--iscas-texto); box-shadow: none; }
+.mapa-busca-agente .sugestoes {
+    position: absolute; bottom: calc(100% + 6px); left: 0; right: 0; max-height: 260px; overflow-y: auto;
+}
+.mapa-legenda { top: 12px; right: 56px; padding: .35rem .6rem; font-size: .75rem; display: flex; gap: .7rem; }
+
+.pino-solicitacao { position: relative; width: 30px; height: 30px; }
+.pino-solicitacao i {
+    display: block; font-size: 30px; line-height: 1;
+    filter: drop-shadow(0 0 1px #fff) drop-shadow(0 1px 2px rgba(0,0,0,.6));
+}
+.pino-solicitacao span {
+    position: absolute; top: -6px; right: -8px; min-width: 18px; height: 18px; padding: 0 4px;
+    border-radius: 9px; background: #1a1d21; color: #fff; border: 1px solid #fff;
+    font: 700 11px/16px sans-serif; text-align: center;
+}
+
+@media (max-width: 768px) {
+    .mapa-operacional { height: auto; min-height: 0; overflow: visible; }
+    .mapa-operacional #mapa { position: relative; height: 420px; border-radius: .5rem; }
+    .mapa-painel, .mapa-busca-agente, .mapa-legenda { position: static; width: auto; margin-top: .75rem; }
+    .mapa-busca-agente .sugestoes { position: static; }
+    .mapa-painel { max-height: 60vh; }
+    .mapa-legenda { display: none; }
+}
+</style>
+
+<div x-data="mapaIscas()">
+  <div class="mapa-operacional">
+    <div id="mapa"></div>
+
+    <div class="mapa-overlay mapa-legenda">
+      <span><i class="bi bi-geo-alt-fill" style="color:#2a81cb"></i> Agente</span>
+      <span><i class="bi bi-geo-alt-fill" style="color:#f87171"></i> Solicitação pendente</span>
+    </div>
+
+    {# ---- Solicitações em aberto ---- #}
+    <aside class="mapa-overlay mapa-painel" :class="{ recolhido: recolhido }">
+      <div class="mapa-painel__cabeca" @click="recolhido = !recolhido">
+        <span class="mapa-painel__contador" x-text="solicitacoes.length">0</span>
+        <strong class="small flex-grow-1">solicitações pendentes</strong>
+        <i class="bi" :class="recolhido ? 'bi-chevron-down' : 'bi-chevron-up'"></i>
+      </div>
+
+      <div x-show="!recolhido" class="mapa-painel__corpo">
+        <div class="mapa-painel__filtros">
+          <label class="visually-hidden" for="id_solicitacao">{{ form.solicitacao.label }}</label>
+          {{ form.solicitacao }}
+
+          {# Raio e mínimo só fazem sentido com uma solicitação escolhida. #}
+          <div x-show="solicitacaoSelecionada" x-cloak class="mt-2">
+            <div class="row g-2">
+              <div class="col-6">
+                <label class="form-label small mb-0" for="id_raio_km">Raio (km)</label>
+                {{ form.raio_km }}
+              </div>
+              <div class="col-6">
+                <label class="form-label small mb-0" for="id_minimo_disponivel">Mín. iscas</label>
+                {{ form.minimo_disponivel }}
+              </div>
+            </div>
+            <div class="d-flex gap-2 mt-2">
+              <button type="button" class="btn btn-primary btn-sm flex-grow-1" @click="buscar()" :disabled="carregando">
+                <span x-show="!carregando"><i class="bi bi-search"></i> Buscar agentes</span>
+                <span x-show="carregando" x-cloak>Buscando…</span>
+              </button>
+              <button type="button" class="btn btn-outline-light btn-sm" @click="desselecionar()" title="Limpar seleção">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </div>
+            <div class="small mt-2" x-show="solicitacaoAtiva" x-cloak>
+              <span x-show="resultados.length">
+                <i class="bi bi-people"></i> <span x-text="resultados.length"></span> agente(s) atendem —
+                linhas verdes: os 3 mais próximos.
+              </span>
+              <span class="text-warning" x-show="!resultados.length && faltaDaSolicitacao.length">
+                Nenhum agente no raio tem iscas do tipo que falta.
+              </span>
+              <span class="text-success" x-show="!faltaDaSolicitacao.length">
+                Já coberta: não falta isca para atribuir.
+              </span>
+            </div>
+          </div>
+          <div class="alert alert-warning py-1 px-2 small mt-2 mb-0" x-show="erro" x-cloak x-text="erro"></div>
+        </div>
+
+        <div class="mapa-painel__lista">
+          <template x-for="s in solicitacoes" :key="s.id">
+            <div class="mapa-card" :class="{ selecionado: solicitacaoSelecionada === s.id }"
+                 :id="'card-solicitacao-' + s.id">
+              <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+                <div class="mapa-card__titulo" x-text="s.cliente"></div>
+                <span class="badge" :class="s.descoberta ? 'bg-danger' : 'bg-warning text-dark'"
+                      x-text="'#' + s.id"></span>
+              </div>
+              <div class="mapa-card__linha"><i class="bi bi-flag"></i><span x-text="s.status_display"></span></div>
+              <template x-for="i in s.itens" :key="i.tipo">
+                <div class="mapa-card__linha">
+                  <i class="bi bi-box-seam"></i>
+                  <span>
+                    <span x-text="i.solicitado + ' ' + i.rotulo.toLowerCase() + '(s)'"></span> ·
+                    <span :class="i.falta ? 'falta' : 'ok'"
+                          x-text="i.falta ? 'faltam ' + i.falta : 'ok'"></span>
+                  </span>
+                </div>
+              </template>
+              <div class="mapa-card__linha" x-show="s.cidade">
+                <i class="bi bi-geo"></i><span x-text="s.cidade + (s.uf ? '/' + s.uf : '')"></span>
+              </div>
+              <div class="mapa-card__linha" x-show="s.prazo">
+                <i class="bi bi-calendar-event"></i><span x-text="'Prazo ' + s.prazo"></span>
+              </div>
+              <div class="mapa-card__linha" x-show="s.agentes.length">
+                <i class="bi bi-person-check"></i><span x-text="s.agentes.join(', ')"></span>
+              </div>
+              <div class="d-flex gap-2 mt-2">
+                <button type="button" class="btn btn-primary btn-sm flex-grow-1"
+                        @click="focarSolicitacao(s.id)">
+                  <i class="bi bi-crosshair"></i> Buscar agentes
+                </button>
+                <a class="btn btn-outline-light btn-sm" :href="urlDetalhe(s.id)" title="Abrir solicitação">
+                  <i class="bi bi-box-arrow-up-right"></i>
+                </a>
+              </div>
+            </div>
+          </template>
+          <div class="small text-muted p-2" x-show="!solicitacoes.length">
+            Nenhuma solicitação pendente.
+          </div>
+          <div class="small text-warning p-2" x-show="solicitacoesSemCoordenada" x-cloak>
+            <i class="bi bi-exclamation-triangle"></i>
+            <span x-text="solicitacoesSemCoordenada"></span> solicitação(ões) fora do mapa: entrega sem coordenada.
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    {# ---- Busca de agente: nome, cidade, UF ou região ---- #}
+    <div class="mapa-overlay mapa-busca-agente" @click.outside="sugestoes = []">
+      <div class="input-group">
+        <span class="input-group-text bg-transparent border-0 text-warning"><i class="bi bi-person-badge"></i></span>
+        <input type="search" class="form-control" placeholder="Buscar agente no mapa…"
+               aria-label="Buscar agente por nome, cidade, UF ou região"
+               x-model="termoBusca" @input="aoDigitarAgente()" @keydown.enter.prevent="buscarNoMapa()"
+               @keydown.escape="sugestoes = []">
+      </div>
+      <div class="sugestoes list-group shadow" x-show="sugestoes.length" x-cloak>
+        <template x-for="s in sugestoes" :key="s.chave">
+          <button type="button" class="list-group-item list-group-item-action py-1" @click="irPara(s)">
+            <span class="badge me-1" :class="s.tipo === 'agente' ? 'bg-primary' : 'bg-warning text-dark'"
+                  x-text="s.tipo === 'agente' ? 'Agente' : 'Região'"></span>
+            <span x-text="s.rotulo"></span>
+            <small class="text-muted d-block" x-text="s.detalhe"></small>
+          </button>
+        </template>
+      </div>
+      <div class="small text-danger px-2 pb-1" x-show="erroBusca" x-cloak x-text="erroBusca"></div>
+    </div>
+  </div>
+
+  <div class="small text-muted mt-1">
+    Distância em linha reta. Com uma solicitação selecionada, clique num agente para escolhê-lo.
+    Clique no mapa para buscar a partir de um ponto qualquer.
+  </div>
+
+  {% if sem_coordenada %}
+    <div class="alert alert-warning py-2 small mt-2 mb-0">
+      <i class="bi bi-exclamation-triangle"></i>
+      {{ sem_coordenada|length }} agente(s) sem coordenada ficam fora do mapa e da busca:
+      {% for agente in sem_coordenada %}<a href="{% url 'iscas:agente_detalhe' agente.pk %}">{{ agente.nome }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}.
+    </div>
+  {% endif %}
+
+  <div style="display:none">{{ form.latitude }}{{ form.longitude }}</div>
+</div>
+
+<script>
+function mapaIscas() {
+  /* Objetos do Leaflet ficam FORA do estado do Alpine. Tudo que o componente
+     devolve vira Proxy reativo, e um mapa/marcador embrulhado em Proxy faz o
+     Leaflet calcular posição errada depois do zoom animado. */
+  const leaflet = {
+    mapa: null,
+    camadaAgentes: null,
+    camadaBusca: null,
+    camadaSolicitacoes: null,
+    marcadores: {},
+    pinoDaSolicitacao: {},
+    linhas: {},
+  };
+  const URL_DETALHE = '{% url "iscas:solicitacao_detalhe" 0 %}';
+  const urlDetalhe = (id) => URL_DETALHE.replace('/0/', '/' + id + '/');
+  // Nome de agente/cliente vai para HTML de popup: escapa via DOM.
+  const esc = (texto) => {
+    const caixa = document.createElement('div');
+    caixa.textContent = texto ?? '';
+    return caixa.innerHTML;
+  };
+  // Os três mais próximos ganham destaque: é a pergunta que o operador faz.
+  const DESTAQUES = 3;
+  const REGIOES = {
+    'Norte': ['AC', 'AP', 'AM', 'PA', 'RO', 'RR', 'TO'],
+    'Nordeste': ['AL', 'BA', 'CE', 'MA', 'PB', 'PE', 'PI', 'RN', 'SE'],
+    'Centro-Oeste': ['DF', 'GO', 'MT', 'MS'],
+    'Sudeste': ['ES', 'MG', 'RJ', 'SP'],
+    'Sul': ['PR', 'RS', 'SC'],
+  };
+  /* Pino como ícone de fonte com âncora na PONTA (base, centro). Um pino
+     girado via CSS tem a ponta fora do ponto de ancoragem e parece escorregar
+     em relação às ruas a cada zoom. */
+  const pino = (cor, contador) => L.divIcon({
+    className: '',
+    html: `<div class="pino-solicitacao"><i class="bi bi-geo-alt-fill" style="color:${cor}"></i>`
+        + (contador > 1 ? `<span>${contador}</span>` : '') + '</div>',
+    iconSize: [30, 30],
+    iconAnchor: [15, 30],
+    popupAnchor: [0, -28],
+  });
+
+  return {
+    resultados: [],
+    solicitacoes: [],
+    solicitacoesSemCoordenada: 0,
+    faltaDaSolicitacao: [],
+    solicitacaoSelecionada: null,
+    // Solicitação da última busca bem-sucedida: é ela que o popup do agente
+    // oferece para atribuir. Busca por ponto do mapa zera.
+    solicitacaoAtiva: null,
+    selecionado: null,
+    carregando: false,
+    erro: '',
+    agentes: [],
+    termoBusca: '',
+    sugestoes: [],
+    erroBusca: '',
+    recolhido: false,
+    filtroRegiao: null,
+    urlDetalhe,
+
+    init() {
+      leaflet.mapa = L.map('mapa', {zoomControl: false}).setView([-23.55052, -46.633308], 9);
+      // Zoom à direita: o canto esquerdo é do painel de solicitações.
+      L.control.zoom({position: 'topright'}).addTo(leaflet.mapa);
+      L.tileLayer('{{ config.tiles_url|escapejs }}', {
+        attribution: '{{ config.tiles_atribuicao|escapejs }}',
+        maxZoom: 19,
+      }).addTo(leaflet.mapa);
+
+      leaflet.camadaAgentes = L.featureGroup().addTo(leaflet.mapa);
+      leaflet.camadaSolicitacoes = L.featureGroup().addTo(leaflet.mapa);
+      leaflet.camadaBusca = L.layerGroup().addTo(leaflet.mapa);
+
+      leaflet.mapa.on('click', (evento) => {
+        document.querySelector('#id_latitude').value = evento.latlng.lat.toFixed(6);
+        document.querySelector('#id_longitude').value = evento.latlng.lng.toFixed(6);
+        document.querySelector('#id_solicitacao').value = '';
+        this.solicitacaoSelecionada = null;
+        this.faltaDaSolicitacao = [];
+        this.buscar();
+      });
+
+      // Botões dentro de popups (lista de solicitações no mesmo ponto) não
+      // enxergam o Alpine: delegação pelo evento de abertura do popup.
+      leaflet.mapa.on('popupopen', (evento) => {
+        evento.popup.getElement().querySelectorAll('[data-solicitacao]').forEach((botao) => {
+          botao.addEventListener('click', () => this.selecionarSolicitacao(Number(botao.dataset.solicitacao)));
+        });
+      });
+
+      const select = document.querySelector('#id_solicitacao');
+      select.addEventListener('change', () => {
+        if (!select.value) { this.desselecionar(); return; }
+        this.selecionarSolicitacao(Number(select.value));
+      });
+
+      this.carregarAgentes();
+      this.carregarSolicitacoes();
+      // Vindo da tela da solicitação (`?solicitacao=`), o select já chega
+      // preenchido: busca direto.
+      if (select.value) { this.selecionarSolicitacao(Number(select.value)); }
+    },
+
+    async carregarSolicitacoes() {
+      try {
+        const resposta = await fetch('{% url "iscas:api_solicitacoes" %}');
+        const geojson = await resposta.json();
+        this.solicitacoesSemCoordenada = geojson.sem_coordenada || 0;
+        // Só as pendentes — ainda falta isca a atribuir. As já cobertas
+        // aguardam rota/entrega e não pedem ação aqui: saem da lista e do mapa.
+        this.solicitacoes = geojson.features
+          .filter(f => f.properties.falta_total > 0)
+          .map(f => ({
+            ...f.properties,
+            lat: f.geometry.coordinates[1],
+            lng: f.geometry.coordinates[0],
+          }));
+        this.desenharSolicitacoes();
+      } catch (e) {
+        this.erro = 'Não foi possível carregar as solicitações.';
+      }
+    },
+
+    /* Um pino por PONTO, não por solicitação: pedidos do mesmo endereço caem
+       na mesma coordenada, e pinos empilhados escondem os de baixo. O pino
+       mostra quantas há ali e herda a cor do caso mais urgente. */
+    desenharSolicitacoes() {
+      leaflet.camadaSolicitacoes.clearLayers();
+      leaflet.pinoDaSolicitacao = {};
+
+      const porPonto = {};
+      this.solicitacoes.forEach((s) => {
+        const chave = `${s.lat.toFixed(5)},${s.lng.toFixed(5)}`;
+        (porPonto[chave] = porPonto[chave] || []).push(s);
+      });
+
+      Object.values(porPonto).forEach((grupo) => {
+        const marcador = L.marker([grupo[0].lat, grupo[0].lng], {
+          icon: pino('#f87171', grupo.length),
+          zIndexOffset: 1000,
+        });
+        if (grupo.length === 1) {
+          marcador.bindPopup(this.popupSolicitacao(grupo[0]), {maxWidth: 320});
+          // Um clique já seleciona: busca e risca as linhas até os agentes.
+          marcador.on('click', () => this.selecionarSolicitacao(grupo[0].id));
+        } else {
+          marcador.bindPopup(
+            `<strong>${grupo.length} solicitações neste endereço</strong><hr class="my-1">`
+            + grupo.map(s => `<div style="margin-bottom:.35rem">
+                 <strong>#${s.id}</strong> ${esc(s.cliente)}
+                 <span style="color:${s.falta_total ? '#c0392b' : '#1e8449'}">
+                   · ${s.falta_total ? 'faltam ' + s.falta_total : 'coberta'}</span><br>
+                 <button type="button" class="btn btn-primary btn-sm py-0" data-solicitacao="${s.id}">Buscar agentes</button>
+                 <a href="${urlDetalhe(s.id)}" class="small ms-1">abrir</a>
+               </div>`).join(''),
+            {maxWidth: 320}
+          );
+        }
+        grupo.forEach(s => { leaflet.pinoDaSolicitacao[s.id] = marcador; });
+        leaflet.camadaSolicitacoes.addLayer(marcador);
+      });
+    },
+
+    popupSolicitacao(s) {
+      const itens = s.itens.map(i =>
+        `<tr><td>${esc(i.rotulo)}</td>
+         <td style="text-align:right">${i.atribuido}/${i.solicitado}</td>
+         <td style="text-align:right;color:${i.falta ? '#c0392b' : '#1e8449'}">
+           ${i.falta ? 'faltam ' + i.falta : 'ok'}</td></tr>`
+      ).join('');
+      return `<strong>Solicitação #${s.id}</strong> — ${esc(s.status_display)}<br>
+        <strong>${esc(s.cliente)}</strong><br><small>${esc(s.endereco)}</small>
+        <hr class="my-1"><table style="font-size:.85em;width:100%">${itens}</table>
+        <hr class="my-1"><a href="${urlDetalhe(s.id)}">Abrir solicitação</a>`;
+    },
+
+    selecionarSolicitacao(id) {
+      this.solicitacaoSelecionada = id;
+      this.recolhido = false;
+      document.querySelector('#id_solicitacao').value = id;
+      document.querySelector('#id_latitude').value = '';
+      document.querySelector('#id_longitude').value = '';
+      this.$nextTick(() => {
+        const card = document.getElementById('card-solicitacao-' + id);
+        if (card) card.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+      });
+      this.buscar();
+    },
+
+    focarSolicitacao(id) {
+      const s = this.solicitacoes.find(x => x.id === id);
+      if (s) leaflet.mapa.setView([s.lat, s.lng], Math.max(leaflet.mapa.getZoom(), 12));
+      this.selecionarSolicitacao(id);
+    },
+
+    desselecionar() {
+      document.querySelector('#id_solicitacao').value = '';
+      leaflet.camadaBusca.clearLayers();
+      leaflet.linhas = {};
+      this.resultados = [];
+      this.faltaDaSolicitacao = [];
+      this.solicitacaoSelecionada = null;
+      this.solicitacaoAtiva = null;
+      this.erro = '';
+      this.filtrarAgentes();
+    },
+
+    async carregarAgentes() {
+      const resposta = await fetch('{% url "iscas:api_agentes" %}');
+      const geojson = await resposta.json();
+      geojson.features.forEach((feature) => {
+        const [lng, lat] = feature.geometry.coordinates;
+        const p = feature.properties;
+        // Conteúdo como função: o Leaflet chama a cada abertura, então o
+        // botão de atribuir reflete a solicitação selecionada naquele momento.
+        const marcador = L.marker([lat, lng]).bindPopup(() => this.popupAgente(p), {maxWidth: 280});
+        leaflet.marcadores[p.id] = marcador;
+        leaflet.camadaAgentes.addLayer(marcador);
+        this.agentes.push({ id: p.id, nome: p.nome, cidade: p.cidade, uf: (p.uf || '').toUpperCase() });
+      });
+      // A busca inicial (`?solicitacao=`) pode ter voltado antes dos agentes.
+      this.filtrarAgentes();
+    },
+
+    /* Dois filtros que se somam: com solicitação ativa, só os candidatos (a
+       lista que o servidor calculou); com região escolhida, só os agentes das
+       UFs dela. Sem nenhum dos dois, todos. */
+    filtrarAgentes() {
+      const candidatos = this.solicitacaoAtiva ? new Set(this.resultados.map(r => r.id)) : null;
+      const ufs = this.filtroRegiao ? new Set(this.filtroRegiao.ufs) : null;
+      this.agentes.forEach((a) => {
+        const marcador = leaflet.marcadores[a.id];
+        const visivel = (!candidatos || candidatos.has(a.id)) && (!ufs || ufs.has(a.uf));
+        if (visivel) leaflet.camadaAgentes.addLayer(marcador);
+        else leaflet.camadaAgentes.removeLayer(marcador);
+      });
+    },
+
+    popupAgente(p) {
+      const saldos = p.saldos.length
+        ? p.saldos.map(s => `${s.disponivel}/${s.total} ${esc(s.modelo)}`).join('<br>')
+        : '<em>sem saldo</em>';
+      let acao = '';
+      const id = this.solicitacaoAtiva;
+      if (id) {
+        const candidato = this.resultados.find(r => r.id === p.id);
+        const situacao = candidato
+          ? `<strong>${candidato.distancia_km} km</strong> da solicitação · ${candidato.disponivel} disponível`
+          : '<span style="color:#b45309">Fora do raio ou sem iscas do tipo que falta.</span>';
+        const href = `${urlDetalhe(id)}?agente=${p.id}#atribuir`;
+        acao = `<hr class="my-1"><div class="small mb-2">${situacao}</div>
+                <a class="btn btn-primary btn-sm w-100" href="${href}">
+                  Escolher para a solicitação #${id}</a>`;
+      }
+      return `<strong>${esc(p.nome)}</strong><br>${esc(p.telefone)}<br>
+              <small>${esc(p.cidade)}/${esc(p.uf)}</small><hr class="my-1">${saldos}${acao}`;
+    },
+
+    async buscar() {
+      this.carregando = true;
+      this.erro = '';
+      const params = new URLSearchParams({
+        raio_km: document.querySelector('#id_raio_km').value || 50,
+      });
+      const minimo = document.querySelector('#id_minimo_disponivel').value;
+      if (minimo) { params.set('minimo', minimo); }
+      const solicitacao = document.querySelector('#id_solicitacao').value || this.solicitacaoSelecionada;
+      if (solicitacao) { params.set('solicitacao', solicitacao); }
+      else {
+        const lat = document.querySelector('#id_latitude').value;
+        const lng = document.querySelector('#id_longitude').value;
+        if (!lat || !lng) {
+          this.erro = 'Escolha uma solicitação ou clique no mapa.';
+          this.carregando = false;
+          return;
+        }
+        params.set('latitude', lat);
+        params.set('longitude', lng);
+      }
+
+      try {
+        const resposta = await fetch(`{% url "iscas:api_proximidade" %}?${params}`);
+        const dados = await resposta.json();
+        if (!resposta.ok) { this.erro = dados.erro || 'Falha na busca.'; return; }
+        this.resultados = dados.agentes;
+        this.faltaDaSolicitacao = dados.solicitacao ? dados.solicitacao.falta : [];
+        this.solicitacaoAtiva = dados.solicitacao ? dados.solicitacao.id : null;
+        this.desenhar(dados);
+        this.filtrarAgentes();
+      } catch (e) {
+        this.erro = 'Não foi possível consultar o servidor.';
+      } finally {
+        this.carregando = false;
+      }
+    },
+
+    desenhar(dados) {
+      leaflet.camadaBusca.clearLayers();
+      leaflet.linhas = {};
+      const origem = [dados.origem.latitude, dados.origem.longitude];
+
+      L.circle(origem, {radius: dados.raio_km * 1000, color: '#0d6efd', weight: 1, fillOpacity: .04, interactive: false})
+        .addTo(leaflet.camadaBusca);
+
+      // Linha de cada candidato até a solicitação (ISC-RF-19). A lista já
+      // vem ordenada por distância: os primeiros são os mais próximos.
+      dados.agentes.forEach((a, indice) => {
+        const destaque = indice < DESTAQUES;
+        const linha = L.polyline([[a.latitude, a.longitude], origem], {
+          color: destaque ? '#16a34a' : '#0d6efd',
+          weight: destaque ? 4 : 2,
+          opacity: destaque ? .9 : .55,
+          dashArray: destaque ? null : '6 6',
+        }).bindTooltip(`${indice + 1}º · ${a.distancia_km} km`, {
+          permanent: destaque, direction: 'center', className: 'mapa-distancia',
+        });
+        linha.on('click', () => this.focar(a.id));
+        linha.addTo(leaflet.camadaBusca);
+        leaflet.linhas[a.id] = {linha, destaque};
+      });
+
+      if (!dados.solicitacao) {
+        // Busca por ponto: marca o ponto clicado (a solicitação já tem pino).
+        L.circleMarker(origem, {radius: 8, color: '#fff', weight: 2, fillColor: '#dc3545', fillOpacity: 1})
+          .bindPopup('Ponto de referência').addTo(leaflet.camadaBusca);
+      }
+
+      if (dados.agentes.length) {
+        const pontos = [origem, ...dados.agentes.map(a => [a.latitude, a.longitude])];
+        // Padding à esquerda: a área sob o painel de solicitações não conta.
+        leaflet.mapa.fitBounds(L.latLngBounds(pontos), {
+          paddingTopLeft: [this.recolhido ? 40 : 380, 40], paddingBottomRight: [40, 40],
+        });
+      } else {
+        leaflet.mapa.setView(origem, Math.max(leaflet.mapa.getZoom(), 11));
+      }
+    },
+
+    destacar(id) {
+      const anterior = leaflet.linhas[this.selecionado];
+      if (anterior) {
+        anterior.linha.setStyle({
+          weight: anterior.destaque ? 4 : 2,
+          opacity: anterior.destaque ? .9 : .55,
+        });
+      }
+      this.selecionado = id;
+      const atual = leaflet.linhas[id];
+      if (atual) {
+        atual.linha.setStyle({weight: 6, opacity: 1});
+        atual.linha.bringToFront();
+      }
+    },
+
+    focar(id) {
+      this.destacar(id);
+      const marcador = leaflet.marcadores[id];
+      if (!marcador) return;
+      leaflet.mapa.setView(marcador.getLatLng(), Math.max(leaflet.mapa.getZoom(), 14));
+      marcador.openPopup();
+    },
+
+    /* ---- Busca de agente: nome, cidade, UF ou região ---- */
+
+    normalizar(texto) {
+      return (texto || '')
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .toLowerCase().trim();
+    },
+
+    regiaoDoTermo(termo) {
+      for (const [nome, ufs] of Object.entries(REGIOES)) {
+        if (this.normalizar(nome).startsWith(termo)) return {rotulo: nome, ufs};
+      }
+      const uf = termo.toUpperCase();
+      if (termo.length === 2 && Object.values(REGIOES).some(l => l.includes(uf))) {
+        return {rotulo: uf, ufs: [uf]};
+      }
+      return null;
+    },
+
+    aoDigitarAgente() {
+      // Campo vazio desfaz o filtro de região: é o "mostrar todos".
+      if (!this.termoBusca.trim() && this.filtroRegiao) this.limparRegiao();
+      this.sugerir();
+    },
+
+    sugerir() {
+      this.erroBusca = '';
+      const termo = this.normalizar(this.termoBusca);
+      if (termo.length < 2) { this.sugestoes = []; return; }
+
+      const sugestoes = [];
+      const regiao = this.regiaoDoTermo(termo);
+      if (regiao) {
+        const ufs = new Set(regiao.ufs);
+        const quantos = this.agentes.filter(a => ufs.has(a.uf)).length;
+        sugestoes.push({
+          chave: 'r-' + regiao.rotulo, tipo: 'regiao', regiao,
+          rotulo: `${regiao.rotulo} — ${quantos} agente(s)`, detalhe: regiao.ufs.join(', '),
+        });
+      }
+      this.agentes
+        .filter(a => this.normalizar(`${a.nome} ${a.cidade} ${a.uf}`).includes(termo))
+        .slice(0, 8)
+        .forEach(a => sugestoes.push({
+          chave: `a-${a.id}`, tipo: 'agente', id: a.id,
+          rotulo: a.nome, detalhe: `${a.cidade || ''}${a.uf ? '/' + a.uf : ''}`,
+        }));
+      this.sugestoes = sugestoes;
+    },
+
+    irPara(sugestao) {
+      this.sugestoes = [];
+      if (sugestao.tipo === 'regiao') {
+        // O nome da região fica no campo; apagá-lo volta a mostrar todos.
+        this.termoBusca = sugestao.regiao.rotulo;
+        this.filtroRegiao = sugestao.regiao;
+        this.filtrarAgentes();
+        const pontos = this.agentes
+          .filter(a => sugestao.regiao.ufs.includes(a.uf))
+          .map(a => leaflet.marcadores[a.id].getLatLng());
+        if (pontos.length) {
+          leaflet.mapa.fitBounds(L.latLngBounds(pontos), {
+            paddingTopLeft: [this.recolhido ? 40 : 380, 40], paddingBottomRight: [40, 40],
+          });
+        } else {
+          this.erroBusca = `Nenhum agente em ${sugestao.regiao.rotulo}.`;
+        }
+        return;
+      }
+      this.termoBusca = sugestao.rotulo;
+      this.focar(sugestao.id);
+    },
+
+    limparRegiao() {
+      this.filtroRegiao = null;
+      this.filtrarAgentes();
+    },
+
+    buscarNoMapa() {
+      this.sugerir();
+      if (this.sugestoes.length) { this.irPara(this.sugestoes[0]); return; }
+      if (this.termoBusca.trim()) this.erroBusca = 'Nenhum agente encontrado.';
+    },
+  };
+}
+</script>

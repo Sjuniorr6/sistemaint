@@ -312,6 +312,14 @@ class Unidade(models.Model):
         return self.identificador
 
     @property
+    def situacao_display(self) -> str:
+        """Rótulo da situação. Exige queryset com `com_situacao()`."""
+        from iscas.enums import SituacaoUnidade
+
+        valor = getattr(self, "situacao", "")
+        return SituacaoUnidade(valor).label if valor else ""
+
+    @property
     def tem_reserva_ativa(self) -> bool:
         return self.reservas.filter(liberada_em__isnull=True).exists()
 

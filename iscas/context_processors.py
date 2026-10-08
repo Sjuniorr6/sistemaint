@@ -10,8 +10,9 @@ from iscas.enums import Capacidade
 _SECAO_POR_PREFIXO = (
     ("painel_saldo", "saldos"),
     ("painel", "painel"),
-    ("mapa", "mapa"),
-    ("busca_proximidade", "mapa"),
+    # O mapa mora no painel: as rotas antigas acendem a aba do painel.
+    ("mapa", "painel"),
+    ("busca_proximidade", "painel"),
     ("solicitacao", "solicitacoes"),
     ("atribuicao", "solicitacoes"),
     ("retornaveis", "retornaveis"),
@@ -64,3 +65,26 @@ def capacidades_iscas(request):
 
     permitidas = capacidades_do(request.user)
     return {"cap": {c.value: (c in permitidas) for c in Capacidade}}
+
+
+def aviso_solicitacoes(request):
+    """Solicitações pendentes para o pop-up fixo das páginas do app.
+
+    Pendente = ainda falta isca a atribuir; some quando todas têm agente
+    cobrindo o pedido inteiro. Só para quem atende (ATENDER_SOLICITACAO) e só
+    nas páginas do iscas — fora dele, nem consulta. Três consultas por página.
+    """
+    match = getattr(request, "resolver_match", None)
+    if not match or match.app_name != "iscas" or not request.user.is_authenticated:
+        return {}
+
+    from iscas.permissions import pode
+    from iscas.selectors import solicitacoes_pendentes
+
+    if not pode(request.user, Capacidade.ATENDER_SOLICITACAO):
+        return {}
+    pendentes = solicitacoes_pendentes()
+    return {
+        "solicitacoes_pendentes": pendentes,
+        "ultimo_pendente_id": max((p["solicitacao"].pk for p in pendentes), default=0),
+    }

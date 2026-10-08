@@ -1,5 +1,6 @@
 """Mapa e busca por proximidade (ISC-RF-16 a ISC-RF-21)."""
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
 from iscas.forms import BuscaProximidadeForm
 from iscas.models.cadastro import Cliente
@@ -13,22 +14,32 @@ from iscas.services.geo import (
 )
 
 
-@exige(Capacidade.VER_MAPA)
-def mapa(request):
-    """Mapa com todos os agentes ativos e coordenada válida (ISC-RF-16)."""
-    # `?solicitacao=` vem do botão da tela da solicitação: o select já chega
-    # escolhido e o mapa busca sozinho. Fora do queryset, o select ignora.
+def contexto_do_mapa(request) -> dict:
+    """O que o mapa operacional do painel precisa (ISC-RF-16).
+
+    `?solicitacao=` vem do botão da tela da solicitação: o select já chega
+    escolhido e o mapa busca sozinho. Fora do queryset, o select ignora.
+    """
     sugerida = request.GET.get("solicitacao", "")
     initial = {"solicitacao": int(sugerida)} if sugerida.isdigit() else {}
-    return render(
-        request,
-        "iscas/mapa.html",
-        {
-            "config": ConfiguracaoIscas.carregar(),
-            "form": BuscaProximidadeForm(initial=initial),
-            "sem_coordenada": agentes_sem_coordenada(),
-        },
-    )
+    return {
+        "form": BuscaProximidadeForm(initial=initial),
+        "sem_coordenada": agentes_sem_coordenada(),
+    }
+
+
+def _para_o_painel(request):
+    """O mapa mora no painel; links antigos para /mapa/ continuam valendo."""
+    destino = reverse("iscas:painel")
+    if request.GET.get("solicitacao", "").isdigit():
+        destino += f"?solicitacao={request.GET['solicitacao']}"
+    return redirect(destino + "#mapa-operacional")
+
+
+@exige(Capacidade.VER_MAPA)
+def mapa(request):
+    """Rota antiga do mapa: redireciona para o painel."""
+    return _para_o_painel(request)
 
 
 @exige(Capacidade.VER_MAPA)
@@ -49,7 +60,8 @@ def busca_proximidade(request):
             # O pedido responde por cliente, modelos e quantidades.
             cliente = solicitacao.cliente
             resultados = agentes_para_solicitacao(
-                solicitacao=solicitacao, raio_km=dados["raio_km"]
+                solicitacao=solicitacao, raio_km=dados["raio_km"],
+                minimo_disponivel=dados.get("minimo_disponivel"),
             )
         else:
             # Busca a partir de um ponto do mapa, sem pedido associado.
@@ -72,4 +84,4 @@ def busca_proximidade(request):
 
     if request.headers.get("HX-Request"):
         return render(request, "iscas/_resultado_proximidade.html", contexto)
-    return render(request, "iscas/mapa.html", contexto)
+    return _para_o_painel(request)

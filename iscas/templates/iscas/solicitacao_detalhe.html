@@ -165,7 +165,7 @@ campos de texto destrutivos sempre a um clique de distância.
           <table class="table table-dark table-sm iscas-tabela mb-0">
             <thead>
               <tr>
-                <th>Modelo</th>
+                <th>Tipo</th>
                 <th class="text-end">Pedido</th>
                 <th class="text-end">Atrib.</th>
                 <th class="text-end">Falta</th>
@@ -175,10 +175,12 @@ campos de texto destrutivos sempre a um clique de distância.
             {% for linha in cobertura %}
               <tr>
                 <td>
-                  {{ linha.modelo.nome }}
-                  <span class="badge {% if linha.modelo.tipo == 'RETORNAVEL' %}bg-info text-dark{% else %}bg-secondary{% endif %} ms-1">
-                    {{ linha.modelo.get_tipo_display }}
+                  <span class="badge {% if linha.tipo == 'RETORNAVEL' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                    {{ linha.tipo_display }}
                   </span>
+                  {% if linha.modelos %}
+                    <div class="small text-muted">pedido antigo: {{ linha.modelos|join:", " }}</div>
+                  {% endif %}
                 </td>
                 <td class="text-end">{{ linha.solicitado }}</td>
                 <td class="text-end">{{ linha.atribuido }}</td>
@@ -213,6 +215,11 @@ campos de texto destrutivos sempre a um clique de distância.
               material R$ {{ totais.valor_cliente|floatformat:2 }}
               + entrega R$ {{ totais.valor_entregas|floatformat:2 }}
               {% if totais.valor_pedagios %}+ pedágio R$ {{ totais.valor_pedagios|floatformat:2 }}{% endif %}
+            </div>
+          {% endif %}
+          {% if totais.assinatura_mensal is not None %}
+            <div class="small text-info">
+              + R$ {{ totais.assinatura_mensal|floatformat:2 }}/mês de assinatura
             </div>
           {% endif %}
         </div>
@@ -258,7 +265,7 @@ campos de texto destrutivos sempre a um clique de distância.
               que faltam nesta solicitação. Escolha outro agente.
             </div>
           {% endif %}
-          <a href="{% url 'iscas:mapa' %}?solicitacao={{ solicitacao.pk }}"
+          <a href="{% url 'iscas:painel' %}?solicitacao={{ solicitacao.pk }}#mapa-operacional"
              class="btn btn-outline-info btn-sm w-100 mb-3">
             <i class="bi bi-geo-alt"></i> Buscar agentes próximos no mapa
           </a>
@@ -350,7 +357,7 @@ campos de texto destrutivos sempre a um clique de distância.
               <div class="text-muted mb-1">Ainda cabe nesta solicitação:</div>
               {% for linha in cobertura %}
                 <span class="badge {% if linha.falta %}bg-dark{% else %}bg-secondary{% endif %} me-1">
-                  {{ linha.modelo.codigo_ou_nome }}:
+                  {{ linha.tipo_display }}:
                   {% if linha.falta %}{{ linha.falta }}{% else %}completo{% endif %}
                 </span>
               {% endfor %}

@@ -11,9 +11,11 @@ Ordenadas por quando mordem. Item fechado sai daqui; item cujo escopo mudou é r
   "Estoque Antenista" nem está nas opções de motivo. Gatilho: criar requisição com
   motivo Isca FAST e antenista. A movimentação agora é por modelo, mas o defeito de
   origem continua.
-- **N2 — modelos não editáveis após a criação.** Na edição (comercial, configuração,
-  técnico) modelo/quantidade/customização são só leitura; valor unitário/total seguem
-  editáveis. Corrigir um modelo exige o admin (inline "Item requisicao").
+- **N2 — só a quantidade dos modelos é editável.** Na edição da requisição
+  (`requisicao_update`) a quantidade de cada modelo e a lista de IDs são editáveis e o
+  resumo é recalculado; trocar o tipo de produto, a customização ou o valor unitário de
+  um modelo, ou incluir/remover modelos, ainda exige o admin. Nas edições pela
+  Configuração e pelo Setor Técnico os modelos seguem só leitura.
 - **N2 — expedição parcial só para requisição de um modelo.** Com vários modelos, o
   kanban recusa a parcial (a conta de sobra e cobrança é de um produto). Gatilho:
   expedir parte de uma requisição mista.
@@ -29,6 +31,20 @@ Ordenadas por quando mordem. Item fechado sai daqui; item cujo escopo mudou é r
 - **N3 — templates de produto sem uso.** `setor_config.html` e `laudos_list.html` leem
   `tipo_produto` da entrada, mas nenhuma view os renderiza; `config_detail.html` é de
   requisição. Não foram migrados para os itens.
-- **N2 — itens não editáveis após a criação.** Decisão de escopo: na edição (laboratório
-  e configuração) os tipos de produto são somente leitura. Corrigir um nº digitado
-  errado exige o admin (inline "Item entrada").
+- **N2 — só os nºs dos tipos de produto são editáveis.** Na edição da entrada os nºs de
+  cada tipo de produto podem ser corrigidos (quantidade recalculada); trocar tipo de
+  produto/customização/contrato ou incluir/remover tipos ainda exige o admin. Nº novo só
+  aparece no select do laudo depois de salvar. Na edição pela Configuração (requisicao)
+  os itens seguem só leitura.
+
+## iscas — devolução, pedido por tipo e valores
+
+- **N1 — rodar as migrações 0014, 0015 e 0016 do `iscas` contra dump restaurado de
+  produção antes do deploy.** A 0015 preenche `ItemSolicitacao.tipo` a partir do
+  modelo; no banco local havia pedido com dois modelos do mesmo tipo (#16), o caso
+  que só aparece com dado real. Gatilho: o próximo deploy.
+- **N2 — spec desatualizada sobre ISC-RN-05.** A regra passou de "descartável
+  entregue é terminal" para "descartável entregue só sai do cliente por devolução"
+  (defeito → substituição). O código (`services/custodia._eh_terminal`) já reflete;
+  a spec do app iscas, não. Gatilho: a próxima pessoa que ler a spec para mexer em
+  custódia.

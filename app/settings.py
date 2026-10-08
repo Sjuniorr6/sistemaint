@@ -168,6 +168,7 @@ TEMPLATES = [
                 'registrodemanutencao.context_processors.manutencoes_pendentes',
                 'iscas.context_processors.secao_ativa',
                 'iscas.context_processors.capacidades_iscas',
+                'iscas.context_processors.aviso_solicitacoes',
             ],
         },
     },

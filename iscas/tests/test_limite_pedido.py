@@ -179,7 +179,7 @@ class TestModeloForaDoPedido:
         self, pedido_de_3, agente, retornaveis_com_agente,
         modelo_retornavel, operador,
     ):
-        with pytest.raises(MovimentacaoInvalida, match="não faz parte desta solicitação"):
+        with pytest.raises(MovimentacaoInvalida, match="não pede isca"):
             solicitacao_service.criar_atribuicao(
                 solicitacao=pedido_de_3, agente=agente,
                 itens=[(modelo_retornavel, 2)], autor=operador,
@@ -232,7 +232,7 @@ class TestPelaTela:
             {
                 "agente": agente.pk,
                 "confirmar": "1",
-                f"unidades_{modelo_descartavel.pk}": [
+                f"unidades_{modelo_descartavel.tipo}": [
                     u.pk for u in unidades_com_agente[:5]
                 ],
             },
@@ -253,7 +253,7 @@ class TestPelaTela:
             {
                 "agente": agente.pk,
                 "confirmar": "1",
-                f"unidades_{modelo_descartavel.pk}": [u.pk for u in escolhidas],
+                f"unidades_{modelo_descartavel.tipo}": [u.pk for u in escolhidas],
             },
         )
         atribuicao = pedido_de_3.atribuicoes.get()
@@ -407,10 +407,10 @@ class TestVariosModelosNumaAtribuicao:
             {
                 "agente": agente.pk,
                 "confirmar": "1",
-                f"unidades_{modelo_descartavel.pk}": [
+                f"unidades_{modelo_descartavel.tipo}": [
                     u.pk for u in unidades_com_agente[:3]
                 ],
-                f"unidades_{modelo_retornavel.pk}": [
+                f"unidades_{modelo_retornavel.tipo}": [
                     u.pk for u in retornaveis_com_agente[:2]
                 ],
             },
@@ -441,10 +441,10 @@ class TestVariosModelosNumaAtribuicao:
             {
                 "agente": agente.pk,
                 "confirmar": "1",
-                f"unidades_{modelo_descartavel.pk}": [
+                f"unidades_{modelo_descartavel.tipo}": [
                     u.pk for u in unidades_com_agente[:5]  # o pedido só cabe 3
                 ],
-                f"unidades_{modelo_retornavel.pk}": [
+                f"unidades_{modelo_retornavel.tipo}": [
                     u.pk for u in retornaveis_com_agente[:2]
                 ],
             },

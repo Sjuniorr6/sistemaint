@@ -40,7 +40,7 @@ class TestConstraint:
 
 
 class TestTotalCalculado:
-    def test_soma_dois_modelos_de_precos_diferentes(
+    def test_soma_dois_tipos_de_precos_diferentes(
         self, cliente, operador, modelo_descartavel, modelo_retornavel
     ):
         solicitacao = service.abrir_solicitacao(
@@ -52,7 +52,7 @@ class TestTotalCalculado:
         )
 
         assert solicitacao.valor_cliente == Decimal("1200.00")
-        assert solicitacao.itens.get(modelo=modelo_descartavel).valor_unitario == Decimal("450.00")
+        assert solicitacao.itens.get(tipo=modelo_descartavel.tipo).valor_unitario == Decimal("450.00")
 
     # sabotagem: somar só os itens com preço em vez de recusar → vermelho
     def test_recusa_mistura_com_e_sem_preco(

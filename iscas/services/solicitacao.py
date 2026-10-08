@@ -19,6 +19,7 @@ from iscas.enums import (
     OrigemAtribuicao,
     StatusAtribuicao,
     StatusSolicitacao,
+    TipoModelo,
     TipoMovimentacao,
 )
 from iscas.models.operacao import (
@@ -210,20 +211,34 @@ def resolver_coordenada_de_entrega(solicitacao, *, pin=None, salvar=True):
 
 
 def _normalizar_itens(itens):
-    """Aceita `(modelo, quantidade)` e `(modelo, quantidade, valor_unitario)`.
+    """`[(tipo, quantidade, valor_unitario)]`, um por tipo.
 
-    A tupla de 2 é a forma histórica e continua válida — ela aparece em dezenas
-    de chamadas, inclusive nas de reconciliação do livro-razão.
+    Aceita o tipo (`TipoModelo`) ou um `ModeloEquipamento` — este vira o tipo
+    dele: o pedido é por tipo, e chamadas antigas (commands, testes) ainda
+    passam modelo. A tupla de 2 (sem preço) continua válida.
+
+    Dois itens do mesmo tipo se somam quando o preço é o mesmo; com preços
+    diferentes não há unitário honesto para a linha única, e a abertura recusa.
     """
-    normalizados = []
+    por_tipo = {}
     for item in itens:
         if len(item) == 3:
-            modelo, quantidade, unitario = item
+            alvo, quantidade, unitario = item
         else:
-            modelo, quantidade = item
-            unitario = None
-        normalizados.append((modelo, quantidade, unitario))
-    return normalizados
+            (alvo, quantidade), unitario = item, None
+        tipo = getattr(alvo, "tipo", alvo)
+        if tipo not in TipoModelo.values:
+            raise MovimentacaoInvalida(f"Tipo de isca inválido: {alvo}.")
+        if tipo in por_tipo:
+            _, anterior, preco = por_tipo[tipo]
+            if preco != unitario:
+                raise MovimentacaoInvalida(
+                    f"{TipoModelo(tipo).label} aparece duas vezes com valores "
+                    "unitários diferentes. Informe uma linha por tipo."
+                )
+            quantidade += anterior
+        por_tipo[tipo] = (tipo, quantidade, unitario)
+    return list(por_tipo.values())
 
 
 def _total_dos_itens(itens):
@@ -238,7 +253,7 @@ def _total_dos_itens(itens):
     if not com_preco:
         return None
     if len(com_preco) != len(itens):
-        sem = ", ".join(str(i[0]) for i in itens if i[2] is None)
+        sem = ", ".join(TipoModelo(i[0]).label for i in itens if i[2] is None)
         raise MovimentacaoInvalida(
             f"Informe o valor unitário de todos os itens — falta em: {sem}."
         )
@@ -264,6 +279,7 @@ def abrir_solicitacao(
     valor_cliente=None,
     solicitante_nome="",
     exigir_valor=False,
+    valor_assinatura_mensal=None,
     **dados_entrega,
 ):
     """Registra a solicitação de um cliente (ISC-RF-22).
@@ -278,6 +294,9 @@ def abrir_solicitacao(
             Parâmetro NOMEADO, não parte de `**dados_entrega` — ver o aviso
             abaixo.
         solicitante_nome: quem, dentro do cliente, pediu. Idem.
+        valor_assinatura_mensal: mensalidade do cliente por isca retornável.
+            Fica fora do total do pedido. Só é aceita com retornável no
+            pedido; com `exigir_valor`, passa a ser obrigatória nesse caso.
         exigir_valor: quando True, recusa a abertura sem valor. A tela passa
             True; chamadas programáticas (commands, testes) não precisam.
         **dados_entrega: contato e endereço específicos desta entrega
@@ -304,6 +323,15 @@ def abrir_solicitacao(
         raise MovimentacaoInvalida(
             "Informe o valor unitário dos itens da solicitação."
         )
+    tem_retornavel = any(tipo == TipoModelo.RETORNAVEL for tipo, _, _ in itens)
+    if valor_assinatura_mensal is not None and not tem_retornavel:
+        raise MovimentacaoInvalida(
+            "A assinatura mensal só existe com isca retornável no pedido."
+        )
+    if exigir_valor and tem_retornavel and valor_assinatura_mensal is None:
+        raise MovimentacaoInvalida(
+            "Informe o valor da assinatura mensal: o pedido tem isca retornável."
+        )
 
     solicitacao = Solicitacao.objects.create(
         cliente=cliente,
@@ -313,131 +341,109 @@ def abrir_solicitacao(
         prazo_desejado=prazo_desejado,
         status=StatusSolicitacao.ABERTA,
         valor_cliente=valor_cliente,
+        valor_assinatura_mensal=valor_assinatura_mensal,
         solicitante_nome=solicitante_nome,
         **dados_de_entrega(cliente, dados_entrega),
     )
-    for modelo, quantidade, unitario in itens:
+    for tipo, quantidade, unitario in itens:
         if quantidade < 1:
             raise MovimentacaoInvalida(
-                f"A quantidade de {modelo} precisa ser positiva."
+                f"A quantidade de {TipoModelo(tipo).label} precisa ser positiva."
             )
-        ItemSolicitacao.objects.create(
-            solicitacao=solicitacao, modelo=modelo, quantidade=quantidade,
+    ItemSolicitacao.objects.bulk_create([
+        ItemSolicitacao(
+            solicitacao=solicitacao, tipo=tipo, quantidade=quantidade,
             valor_unitario=unitario,
         )
+        for tipo, quantidade, unitario in itens
+    ])
 
     SolicitacaoEvento.objects.create(
         solicitacao=solicitacao,
         status_anterior="",
         status_novo=StatusSolicitacao.ABERTA,
         autor=autor,
-        dados={"itens": [[m.pk, q] for m, q, _ in itens]},
+        dados={"itens": [[t, q] for t, q, _ in itens]},
     )
     return solicitacao
 
 
 def cobertura(solicitacao):
-    """Quanto de cada modelo já está atribuído sobre o pedido (ISC-RF-30).
+    """Quanto de cada TIPO já está atribuído sobre o pedido (ISC-RF-30).
 
     Returns:
-        Lista de dicts com modelo, solicitado, atribuido e falta.
+        Lista de dicts com `tipo`, `tipo_display`, `modelos` (nomes, só nas
+        linhas de pedidos antigos), `solicitado`, `atribuido` e `falta`, na
+        ordem de `TipoModelo`.
     """
-    from iscas.models.operacao import AtribuicaoUnidade
-
-    reservas = (
-        AtribuicaoUnidade.objects.filter(
-            atribuicao__solicitacao=solicitacao,
-            atribuicao__status__in=(
-                StatusAtribuicao.RESERVADA,
-                StatusAtribuicao.EM_ROTA,
-            ),
-            liberada_em__isnull=True,
-        )
-        .values_list("unidade__modelo_id", flat=True)
-    )
-    entregues = (
-        AtribuicaoUnidade.objects.filter(
-            atribuicao__solicitacao=solicitacao,
-            atribuicao__status=StatusAtribuicao.ENTREGUE,
-        )
-        .values_list("unidade__modelo_id", flat=True)
-    )
-
-    contagem = {}
-    for modelo_id in list(reservas) + list(entregues):
-        contagem[modelo_id] = contagem.get(modelo_id, 0) + 1
-
-    resultado = []
-    for item in solicitacao.itens.select_related("modelo"):
-        atribuido = contagem.get(item.modelo_id, 0)
-        resultado.append(
-            {
-                "modelo": item.modelo,
-                "solicitado": item.quantidade,
-                "atribuido": atribuido,
-                "falta": max(item.quantidade - atribuido, 0),
-            }
-        )
-    return resultado
+    return cobertura_em_lote([solicitacao])[solicitacao.pk]
 
 
 def cobertura_em_lote(solicitacoes):
     """Cobertura de várias solicitações em duas consultas, não N por item.
 
-    Mesma semântica de `cobertura()`, mas agregando de uma vez: o mapa lista
-    todas as solicitações em aberto, e chamar `cobertura()` num laço custa
-    ~3 consultas por solicitação — N+1 que degrada conforme a operação cresce.
+    O pedido soma por tipo — inclusive as linhas antigas, que têm um modelo
+    cada — e o atribuído conta cada unidade pelo tipo do modelo dela: qualquer
+    modelo do tipo atende.
 
     Returns:
         `{solicitacao_id: [linhas de cobertura]}`, no formato de `cobertura()`.
     """
     from iscas.models.operacao import AtribuicaoUnidade, ItemSolicitacao
 
-    solicitacoes = list(solicitacoes)
-    if not solicitacoes:
+    ids = [s.pk for s in solicitacoes]
+    if not ids:
         return {}
 
-    ids = [s.pk for s in solicitacoes]
-
-    # Uma consulta para tudo que conta como atribuído: reservas ativas de
-    # atribuições vivas + todas as unidades já entregues.
-    contagem = {}
-    linhas = (
-        AtribuicaoUnidade.objects.filter(atribuicao__solicitacao_id__in=ids)
-        .filter(
-            Q(
-                atribuicao__status__in=(
-                    StatusAtribuicao.RESERVADA,
-                    StatusAtribuicao.EM_ROTA,
-                ),
-                liberada_em__isnull=True,
+    # Tudo que conta como atribuído: reservas ativas de atribuições vivas +
+    # todas as unidades já entregues.
+    contagem = {
+        (linha["atribuicao__solicitacao_id"], linha["unidade__modelo__tipo"]): linha["total"]
+        for linha in (
+            AtribuicaoUnidade.objects.filter(atribuicao__solicitacao_id__in=ids)
+            .filter(
+                Q(
+                    atribuicao__status__in=(
+                        StatusAtribuicao.RESERVADA,
+                        StatusAtribuicao.EM_ROTA,
+                    ),
+                    liberada_em__isnull=True,
+                )
+                | Q(atribuicao__status=StatusAtribuicao.ENTREGUE)
             )
-            | Q(atribuicao__status=StatusAtribuicao.ENTREGUE)
+            .values("atribuicao__solicitacao_id", "unidade__modelo__tipo")
+            .annotate(total=Count("id"))
         )
-        .values("atribuicao__solicitacao_id", "unidade__modelo_id")
-        .annotate(total=Count("id"))
-    )
-    for linha in linhas:
-        chave = (linha["atribuicao__solicitacao_id"], linha["unidade__modelo_id"])
-        contagem[chave] = linha["total"]
+    }
 
-    # E uma para os itens pedidos.
-    resultado = {pk: [] for pk in ids}
-    itens = (
-        ItemSolicitacao.objects.filter(solicitacao_id__in=ids)
-        .select_related("modelo")
-        .order_by("modelo__nome")
-    )
+    pedidos = {pk: {} for pk in ids}
+    itens = ItemSolicitacao.objects.filter(solicitacao_id__in=ids).select_related("modelo")
     for item in itens:
-        atribuido = contagem.get((item.solicitacao_id, item.modelo_id), 0)
-        resultado[item.solicitacao_id].append(
-            {
-                "modelo": item.modelo,
-                "solicitado": item.quantidade,
-                "atribuido": atribuido,
-                "falta": max(item.quantidade - atribuido, 0),
-            }
+        linha = pedidos[item.solicitacao_id].setdefault(
+            item.tipo, {"solicitado": 0, "modelos": []}
         )
+        linha["solicitado"] += item.quantidade
+        if item.modelo_id:
+            linha["modelos"].append(item.modelo.nome)
+
+    resultado = {}
+    for pk, por_tipo in pedidos.items():
+        resultado[pk] = []
+        for tipo in TipoModelo.values:
+            if tipo not in por_tipo:
+                continue
+            solicitado = por_tipo[tipo]["solicitado"]
+            atribuido = contagem.get((pk, tipo), 0)
+            resultado[pk].append(
+                {
+                    "tipo": tipo,
+                    "tipo_display": TipoModelo(tipo).label,
+                    "modelos": por_tipo[tipo]["modelos"],
+                    "solicitado": solicitado,
+                    "atribuido": atribuido,
+                    "falta": max(solicitado - atribuido, 0),
+                }
+            )
     return resultado
 
 
@@ -543,47 +549,41 @@ def restaurar_solicitacao(*, solicitacao, autor):
 
 
 def _validar_contra_o_pedido(solicitacao, itens):
-    """A atribuição não pode ultrapassar o que o cliente pediu.
+    """A atribuição não pode ultrapassar o que o cliente pediu, POR TIPO.
 
     Duas regras, ambas do mesmo princípio — o pedido é o contrato:
 
-    1. **Modelo não solicitado é recusado.** Além de entregar o que não foi
-       pedido, essas unidades não aparecem na cobertura (que percorre os itens
-       da solicitação), então a solicitação nunca fecharia — ficaria com
-       estoque preso numa reserva invisível.
-    2. **A soma das atribuições não pode exceder a quantidade pedida.** Conta o
-       que já está atribuído, para que duas atribuições parciais não passem do
-       total por acumulação.
+    1. **Tipo não solicitado é recusado.** Essas unidades não aparecem na
+       cobertura, então a solicitação nunca fecharia — estoque preso numa
+       reserva invisível.
+    2. **A soma por tipo não pode exceder a quantidade pedida.** Conta o que
+       já está atribuído e soma modelos diferentes do mesmo tipo, para que
+       atribuições parciais não passem do total por acumulação.
     """
-    pedido = {
-        item.modelo_id: item.quantidade
-        for item in solicitacao.itens.select_related("modelo")
-    }
-    ja_atribuido = {
-        linha["modelo"].pk: linha["atribuido"] for linha in cobertura(solicitacao)
-    }
+    linhas = {linha["tipo"]: linha for linha in cobertura(solicitacao)}
 
+    pedido_agora = {}
     for modelo, quantidade in itens:
-        if modelo.pk not in pedido:
-            raise MovimentacaoInvalida(
-                f"{modelo} não faz parte desta solicitação. "
-                "Edite o pedido do cliente antes de atribuir este modelo."
-            )
+        pedido_agora[modelo.tipo] = pedido_agora.get(modelo.tipo, 0) + quantidade
 
-        disponivel_no_pedido = pedido[modelo.pk] - ja_atribuido.get(modelo.pk, 0)
-        if quantidade > disponivel_no_pedido:
-            solicitado = pedido[modelo.pk]
-            atribuido = ja_atribuido.get(modelo.pk, 0)
-            if disponivel_no_pedido <= 0:
+    for tipo, quantidade in pedido_agora.items():
+        rotulo = TipoModelo(tipo).label
+        linha = linhas.get(tipo)
+        if linha is None:
+            raise MovimentacaoInvalida(
+                f"Esta solicitação não pede isca {rotulo.lower()}."
+            )
+        if quantidade > linha["falta"]:
+            if linha["falta"] <= 0:
                 raise MovimentacaoInvalida(
-                    f"{modelo} já está totalmente atendido nesta solicitação "
-                    f"({atribuido} de {solicitado}). Para enviar mais, aumente "
-                    "a quantidade do pedido."
+                    f"{rotulo} já está totalmente atendido nesta solicitação "
+                    f"({linha['atribuido']} de {linha['solicitado']}). Para "
+                    "enviar mais, aumente a quantidade do pedido."
                 )
             raise MovimentacaoInvalida(
-                f"O cliente pediu {solicitado} de {modelo} e já há {atribuido} "
-                f"atribuída(s): cabem no máximo {disponivel_no_pedido}, "
-                f"não {quantidade}."
+                f"O cliente pediu {linha['solicitado']} {rotulo.lower()}(s) e já "
+                f"há {linha['atribuido']} atribuída(s): cabem no máximo "
+                f"{linha['falta']}, não {quantidade}."
             )
 
 

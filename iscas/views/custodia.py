@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from iscas.enums import SituacaoUnidade, TipoModelo
+from iscas.enums import SITUACOES_TERMINAIS, SituacaoUnidade, TipoModelo
 from iscas.forms import (
     BaixaForm,
     EntradaLoteForm,
@@ -21,7 +21,7 @@ from iscas.models.config import ConfiguracaoIscas
 from iscas.models.custodia import Movimentacao, Unidade
 from iscas.enums import Capacidade
 from iscas.permissions import exige
-from iscas.selectors import historico_unidade, unidades_filtradas
+from iscas.selectors import historico_unidade, unidades_filtradas, unidades_por_custodia
 from iscas.services import baixa as baixa_service
 from iscas.services import entrada as entrada_service
 from iscas.services import estorno as estorno_service
@@ -29,36 +29,62 @@ from iscas.services import retorno as retorno_service
 from iscas.services import transferencia as transferencia_service
 from iscas.services.exceptions import IscasError
 from iscas.services.exportacao import saldo_agentes_xlsx
-from iscas.services.saldo import saldo_por_modelo_em_lote
+from iscas.services.saldo import anexar_identificadores, saldo_por_modelo_em_lote
+
+
+#: Teto das unidades listadas ao abrir um grupo. Custódia com mais que isso
+#: (um depósito central, por exemplo) mostra o começo e manda filtrar.
+_LIMITE_DO_GRUPO = 500
 
 
 @exige(Capacidade.VER_ESTOQUE)
 def unidade_lista(request):
-    """Listagem de unidades com a situação anotada (ISC-ADR-07)."""
+    """Unidades agrupadas por quem está com elas (ISC-ADR-07).
+
+    Três modos na mesma rota:
+    - padrão: uma linha por custódia (agente, depósito, cliente…), com a
+      contagem por situação; as unidades não vêm junto;
+    - `?custodia=<id>` via HTMX: as unidades daquele grupo, ao abri-lo;
+    - `?q=<id>`: busca por identificador, lista plana e paginada.
+    """
     modelo_id = request.GET.get("modelo") or None
     situacao = request.GET.get("situacao") or None
     identificador = request.GET.get("q", "").strip() or None
+    encerradas = request.GET.get("encerradas") == "1"
+    filtros = {
+        "modelo": modelo_id, "situacao": situacao,
+        "q": identificador or "", "encerradas": encerradas,
+    }
 
-    unidades = unidades_filtradas(
-        modelo=modelo_id, situacao=situacao, identificador=identificador
-    )
-    paginas = Paginator(unidades, 50)
-    pagina = paginas.get_page(request.GET.get("page"))
+    custodia_id = request.GET.get("custodia", "")
+    if custodia_id.isdigit():
+        unidades = unidades_filtradas(
+            modelo=modelo_id, situacao=situacao, custodia=int(custodia_id)
+        )
+        if not situacao and not encerradas:
+            unidades = unidades.exclude(situacao__in=SITUACOES_TERMINAIS)
+        lista = list(unidades[: _LIMITE_DO_GRUPO + 1])
+        return render(request, "iscas/_unidades_do_grupo.html", {
+            "unidades": lista[:_LIMITE_DO_GRUPO],
+            "cortado": len(lista) > _LIMITE_DO_GRUPO,
+            "limite": _LIMITE_DO_GRUPO,
+        })
 
-    return render(
-        request,
-        "iscas/unidade_lista.html",
-        {
-            "pagina": pagina,
-            "modelos": ModeloEquipamento.objects.order_by("nome"),
-            "situacoes": SituacaoUnidade.choices,
-            "filtros": {
-                "modelo": modelo_id,
-                "situacao": situacao,
-                "q": identificador or "",
-            },
-        },
-    )
+    contexto = {
+        "modelos": ModeloEquipamento.objects.order_by("nome"),
+        "situacoes": SituacaoUnidade.choices,
+        "filtros": filtros,
+    }
+    if identificador:
+        unidades = unidades_filtradas(
+            modelo=modelo_id, situacao=situacao, identificador=identificador
+        )
+        contexto["pagina"] = Paginator(unidades, 50).get_page(request.GET.get("page"))
+    else:
+        contexto.update(unidades_por_custodia(
+            modelo=modelo_id, situacao=situacao, incluir_encerradas=encerradas,
+        ))
+    return render(request, "iscas/unidade_lista.html", contexto)
 
 
 @exige(Capacidade.VER_ESTOQUE)
@@ -357,7 +383,9 @@ def painel_saldo(request):
         for e in (*depositos_lista, *agentes_lista)
         if getattr(e, "custodia", None)
     ]
-    saldos_por_custodia = saldo_por_modelo_em_lote(contas)
+    saldos_por_custodia = anexar_identificadores(
+        contas, saldo_por_modelo_em_lote(contas)
+    )
 
     depositos = _blocos_de_saldo(depositos_lista, saldos_por_custodia)
     agentes = _blocos_de_saldo(agentes_lista, saldos_por_custodia)
@@ -411,38 +439,14 @@ def painel_saldo(request):
 
 @exige(Capacidade.VER_ESTOQUE)
 def retornaveis(request):
-    """Retornáveis em posse de cliente, com tempo em posse (ISC-RF-31)."""
-    config = ConfiguracaoIscas.carregar()
-    em_posse = retorno_service.retornaveis_em_posse()
-
-    from django.utils import timezone
-
-    agora = timezone.now()
-    linhas = [
-        {
-            "unidade": unidade,
-            "cliente": unidade.custodia_atual.cliente,
-            "dias": (agora - unidade.custodia_desde).days,
-            "atrasada": (agora - unidade.custodia_desde).days
-            > config.dias_alerta_retornavel,
-        }
-        for unidade in em_posse
-    ]
-    return render(
-        request,
-        "iscas/retornaveis.html",
-        {
-            "linhas": linhas,
-            "config": config,
-            "form": RetornoForm(),
-        },
-    )
+    """Devolução: o operador digita os IDs das iscas que o cliente devolveu."""
+    return render(request, "iscas/retornaveis.html", {"form": RetornoForm()})
 
 
 @exige(Capacidade.BAIXAR_MANUTENCAO)
 @require_POST
 def registrar_retorno(request):
-    """Retorno de retornáveis (ISC-RF-32)."""
+    """Devolução de iscas do cliente para depósito ou agente (ISC-RF-32)."""
     form = RetornoForm(request.POST)
     if not form.is_valid():
         for erro in form.errors.values():
@@ -450,20 +454,19 @@ def registrar_retorno(request):
         return redirect("iscas:retornaveis")
 
     dados = form.cleaned_data
-    unidades = Unidade.objects.filter(pk__in=dados["ids_unidades"])
     try:
-        retorno_service.registrar_retorno(
-            unidades=unidades,
+        retorno_service.registrar_devolucao(
+            unidades=dados["ids_unidades"],
             destino=dados["destino"],
+            motivo=dados["motivo"],
             autor=request.user,
-            ocorrido_em=dados.get("ocorrido_em"),
         )
     except IscasError as exc:
         messages.error(request, str(exc))
     else:
+        total = len(set(dados["ids_unidades"]))
         messages.success(
-            request,
-            f"{unidades.count()} unidade(s) retornaram para {dados['destino']}.",
+            request, f"{total} isca(s) devolvida(s) para {dados['destino']}."
         )
     return redirect("iscas:retornaveis")
 

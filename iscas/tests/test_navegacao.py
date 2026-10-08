@@ -38,7 +38,6 @@ def test_a_barra_alcanca_todas_as_secoes(client, operador_logado):
 
     urls_da_barra = {
         "painel": reverse("iscas:painel"),
-        "mapa": reverse("iscas:mapa"),
         "solicitacoes": reverse("iscas:solicitacao_lista"),
         "saldos": reverse("iscas:painel_saldo"),
         "unidades": reverse("iscas:unidade_lista"),
@@ -62,7 +61,6 @@ def test_a_barra_alcanca_todas_as_secoes(client, operador_logado):
 
 @pytest.mark.parametrize("nome_url,secao_esperada", [
     ("iscas:painel", "painel"),
-    ("iscas:mapa", "mapa"),
     ("iscas:solicitacao_lista", "solicitacoes"),
     ("iscas:painel_saldo", "saldos"),
     ("iscas:unidade_lista", "unidades"),

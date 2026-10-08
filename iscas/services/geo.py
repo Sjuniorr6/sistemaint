@@ -13,7 +13,7 @@ import urllib.request
 from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
-from django.db.models import DecimalField, ExpressionWrapper, F, Value
+from django.db.models import Count, DecimalField, ExpressionWrapper, F, Value
 from django.db.models.functions import ACos, Cast, Cos, Greatest, Least, Radians, Sin
 from django.utils import timezone
 
@@ -86,6 +86,27 @@ def anotar_distancia(queryset, *, lat, lng):
     )
 
 
+def _agentes_no_raio(*, latitude, longitude, raio_km):
+    """Agentes ativos dentro do raio, anotados com `distancia_km`, em ordem."""
+    from iscas.models.cadastro import Agente
+
+    lat_min, lat_max, lng_min, lng_max = bounding_box(latitude, longitude, raio_km)
+
+    # Pré-filtro por caixa: descarta a maioria com o índice B-tree, sem
+    # aritmética. Só o que sobra paga o custo do haversine.
+    candidatos = Agente.objects.filter(
+        latitude__isnull=False,
+        longitude__isnull=False,
+        latitude__gte=Decimal(str(lat_min)),
+        latitude__lte=Decimal(str(lat_max)),
+        longitude__gte=Decimal(str(lng_min)),
+        longitude__lte=Decimal(str(lng_max)),
+    )
+    return anotar_distancia(candidatos, lat=latitude, lng=longitude).filter(
+        distancia_km__lte=Decimal(str(raio_km))
+    ).order_by("distancia_km")
+
+
 def agentes_proximos(*, latitude, longitude, raio_km, modelo=None, quantidade_minima=0):
     """Agentes ativos dentro do raio, do mais perto ao mais longe (ISC-RN-11).
 
@@ -100,25 +121,9 @@ def agentes_proximos(*, latitude, longitude, raio_km, modelo=None, quantidade_mi
     por `agentes_sem_coordenada()`, com alerta. Omitir em silêncio criaria
     estoque invisível.
     """
-    from iscas.models.cadastro import Agente
     from iscas.services.saldo import saldo_disponivel
 
-    lat_min, lat_max, lng_min, lng_max = bounding_box(latitude, longitude, raio_km)
-
-    # Pré-filtro por caixa: descarta a maioria com o índice B-tree, sem
-    # aritmética. Só o que sobra paga o custo do haversine.
-    candidatos = Agente.objects.filter(
-        latitude__isnull=False,
-        longitude__isnull=False,
-        latitude__gte=Decimal(str(lat_min)),
-        latitude__lte=Decimal(str(lat_max)),
-        longitude__gte=Decimal(str(lng_min)),
-        longitude__lte=Decimal(str(lng_max)),
-    )
-
-    candidatos = anotar_distancia(candidatos, lat=latitude, lng=longitude).filter(
-        distancia_km__lte=Decimal(str(raio_km))
-    ).order_by("distancia_km")
+    candidatos = _agentes_no_raio(latitude=latitude, longitude=longitude, raio_km=raio_km)
 
     resultado = []
     for agente in candidatos:
@@ -135,88 +140,84 @@ def agentes_proximos(*, latitude, longitude, raio_km, modelo=None, quantidade_mi
     return resultado
 
 
-def agentes_para_solicitacao(*, solicitacao, raio_km):
+def agentes_para_solicitacao(*, solicitacao, raio_km, minimo_disponivel=None):
     """Agentes próximos que servem para ESTA solicitação (ISC-RF-17, ISC-RF-18).
 
-    A solicitação já sabe o cliente (logo, o ponto de origem) e os modelos que
-    faltam. Pedir esses três dados de novo ao operador — cliente, modelo e
-    quantidade mínima — é redigitar o que o sistema tem, e é onde nascem as
-    buscas incoerentes: cliente de uma solicitação, modelo de outra.
+    O pedido é por TIPO (descartável/retornável): o que conta é quantas iscas
+    disponíveis do tipo em falta o agente tem, de qualquer modelo. A busca é
+    raio + esse número.
 
-    O que cada agente contribui é medido POR MODELO EM FALTA, não pelo saldo
-    total: um agente com 50 unidades de um modelo que a solicitação não pede
-    não serve, e apareceria no topo se a conta fosse saldo bruto.
+    Args:
+        minimo_disponivel: descarta quem tem menos que isso disponível dos
+            tipos em falta. `None`/0 = basta uma isca útil.
 
     Returns:
         Lista de dicts, do mais perto ao mais longe, cada um com:
-        `agente`, `distancia_km`, `disponivel` (soma do que ele cobre desta
-        solicitação), `cobre_tudo` e `por_modelo` — o detalhe que a tela mostra.
+        `agente`, `distancia_km`, `disponivel` (o que ele cobre desta
+        solicitação, limitado ao que falta), `disponivel_total` (o que ele tem
+        dos tipos em falta), `cobre_tudo` e `por_tipo`.
 
     Agente sem NADA do que falta fica de fora: é o mesmo critério do select de
-    atribuição (`selectors.agentes_que_atendem`), para a busca não oferecer
-    quem a tela seguinte vai recusar.
+    atribuição (`selectors.agentes_que_atendem`).
 
     A distância é medida do PONTO DE ENTREGA (`coordenada_de_busca`), não da
-    sede do cliente: a isca vai para onde a solicitação manda, e uma entrega em
-    obra pode estar a dezenas de quilômetros do endereço cadastrado. O cadastro
-    do cliente entra só como fallback, para pedidos antigos.
+    sede do cliente. Precondição: a solicitação tem coordenada — quem chama
+    checa antes e explica ao operador.
 
-    Precondição: a solicitação tem coordenada de busca. Sem ela não há de onde
-    medir distância — quem chama checa antes e explica ao operador, em vez de
-    devolver "nenhum agente próximo", que mentiria sobre a causa.
+    Consultas constantes: uma para os agentes no raio, uma para o saldo deles
+    por tipo — antes era uma por agente e por modelo.
     """
-    from iscas.selectors import modelos_em_falta
-    from iscas.services.saldo import saldo_disponivel
+    from iscas.enums import TipoModelo
+    from iscas.selectors import tipos_em_falta
+    from iscas.services.saldo import unidades_disponiveis_por_tipos
 
     origem = solicitacao.coordenada_de_busca
     if origem is None:
         return []
 
-    faltas = modelos_em_falta(solicitacao)
+    faltas = tipos_em_falta(solicitacao)
     if not faltas:
         return []
 
     latitude, longitude = origem
-    candidatos = agentes_proximos(
-        latitude=latitude,
-        longitude=longitude,
-        raio_km=raio_km,
-    )
+    agentes = list(_agentes_no_raio(latitude=latitude, longitude=longitude, raio_km=raio_km))
+
+    saldo = {}
+    for linha in (
+        unidades_disponiveis_por_tipos([tipo for tipo, _ in faltas])
+        .filter(custodia_atual__agente_id__in=[a.pk for a in agentes])
+        .values("custodia_atual__agente_id", "modelo__tipo")
+        .annotate(total=Count("id"))
+    ):
+        saldo[(linha["custodia_atual__agente_id"], linha["modelo__tipo"])] = linha["total"]
 
     resultado = []
-    for item in candidatos:
-        agente = item["agente"]
-        por_modelo = []
-        total = 0
-        modelos_cobertos = 0
-
-        for modelo, falta in faltas:
-            disponivel = saldo_disponivel(agente, modelo=modelo)
-            # O agente cobre no máximo o que falta — saldo além disso não
-            # entra na conta nem na ordenação.
-            cobre = min(disponivel, falta)
-            total += cobre
-            if cobre >= falta:
-                modelos_cobertos += 1
-            por_modelo.append(
+    for agente in agentes:
+        por_tipo = []
+        for tipo, falta in faltas:
+            disponivel = saldo.get((agente.pk, tipo), 0)
+            por_tipo.append(
                 {
-                    "modelo": modelo.nome,
-                    "codigo": modelo.codigo or "",
+                    "tipo": tipo,
+                    "rotulo": TipoModelo(tipo).label,
                     "falta": falta,
                     "disponivel": disponivel,
-                    "cobre": cobre,
+                    # Cobre no máximo o que falta — saldo além disso não
+                    # entra na conta.
+                    "cobre": min(disponivel, falta),
                 }
             )
-
-        if total == 0:
+        total = sum(t["disponivel"] for t in por_tipo)
+        if total == 0 or total < (minimo_disponivel or 0):
             continue
-
         resultado.append(
             {
-                **item,
-                "disponivel": total,
-                "cobre_tudo": modelos_cobertos == len(faltas),
-                "por_modelo": por_modelo,
+                "agente": agente,
+                "distancia_km": float(agente.distancia_km),
+                "disponivel": sum(t["cobre"] for t in por_tipo),
+                "disponivel_total": total,
+                "cobre_tudo": all(t["cobre"] >= t["falta"] for t in por_tipo),
+                "por_tipo": por_tipo,
             }
         )
     return resultado

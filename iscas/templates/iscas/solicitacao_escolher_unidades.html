@@ -4,7 +4,7 @@ Segundo passo da atribuição: quais unidades DESTE agente vão para o cliente.
 
 Escolher a unidade, e não digitar uma quantidade, é o que mantém o rastreio por
 unidade (ISC-RN-03): a reserva grava qual isca saiu do estoque do agente. Um
-bloco por modelo — o mesmo agente atende vários modelos numa atribuição só
+bloco por tipo — o mesmo agente atende os dois tipos numa atribuição só
 (ISC-RN-10), sem precisar ser vinculado duas vezes.
 {% endcomment %}
 {% block titulo_iscas %}Equipamentos de {{ agente.nome }}{% endblock %}
@@ -51,11 +51,11 @@ bloco por modelo — o mesmo agente atende vários modelos numa atribuição só
     {% endif %}
 
     <div class="row g-3">
-      {% for campo, limite in form_unidades.campos_por_modelo %}
+      {% for campo, limite in form_unidades.campos_por_tipo %}
         <div class="col-12 col-lg-6">
           <div class="card iscas-card h-100">
             <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-              <span>{{ limite.modelo.nome }}</span>
+              <span>{{ limite.rotulo }}</span>
               <span class="badge bg-dark">faltam {{ limite.falta }} no pedido</span>
             </div>
             <div class="card-body"
@@ -70,7 +70,7 @@ bloco por modelo — o mesmo agente atende vários modelos numa atribuição só
 
               <div class="d-flex justify-content-between align-items-center mb-2 small">
                 <span class="text-muted">
-                  {{ limite.modelo.codigo_ou_nome }} — escolha até {{ limite.falta }}
+                  Qualquer modelo {{ limite.rotulo|lower }} — escolha até {{ limite.falta }}
                 </span>
                 <span class="badge"
                       :class="atingiu ? 'bg-warning text-dark' : 'bg-secondary'"
@@ -131,7 +131,7 @@ bloco por modelo — o mesmo agente atende vários modelos numa atribuição só
   </script>
 {% else %}
   <div class="alert alert-warning">
-    {{ agente.nome }} não tem nenhuma unidade disponível dos modelos que faltam
+    {{ agente.nome }} não tem nenhuma isca disponível do tipo que falta
     nesta solicitação.
     <a href="{% url 'iscas:solicitacao_detalhe' solicitacao.pk %}">Escolher outro agente</a>.
   </div>

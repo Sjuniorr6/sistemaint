@@ -176,7 +176,7 @@ class TestTexto:
         assert "Quantidade: 02" in texto
         assert "Valor isca: 450,00" in texto
         assert "Valor total: 900,00" in texto
-        assert f"Modelo: {modelo_descartavel}" in texto
+        assert "Tipo: Descartável (2)" in texto
         assert f"Agente: {agente.nome}" in texto
         assert "Valor frete/agente: 50,00" in texto
         assert f"Contato: {agente.telefone}" in texto

@@ -239,7 +239,7 @@ class TestFluxoCompletoComDeposito:
 
         # E o retornável volta para o depósito.
         em_posse = list(retorno_service.retornaveis_em_posse(cliente=cliente))
-        retorno_service.registrar_retorno(
-            unidades=em_posse, destino=deposito, autor=operador
+        retorno_service.registrar_devolucao(
+            unidades=em_posse, destino=deposito, motivo="fim do uso", autor=operador
         )
         assert saldo_em_custodia(deposito, modelo=modelo_retornavel) == 5

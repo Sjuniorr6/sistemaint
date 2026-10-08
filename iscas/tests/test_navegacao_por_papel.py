@@ -21,7 +21,7 @@ def _barra(client, url_de_partida):
 ESPERADO = [
     (
         "comercial_logado",
-        ["iscas:painel", "iscas:mapa", "iscas:solicitacao_lista",
+        ["iscas:painel", "iscas:solicitacao_lista",
          "iscas:cliente_lista", "iscas:solicitacao_criar"],
         ["iscas:painel_saldo", "iscas:unidade_lista", "iscas:retornaveis",
          "iscas:extrato", "iscas:agente_lista", "iscas:deposito_lista",
@@ -29,7 +29,7 @@ ESPERADO = [
     ),
     (
         "operador_fast_logado",
-        ["iscas:painel", "iscas:mapa", "iscas:solicitacao_lista",
+        ["iscas:painel", "iscas:solicitacao_lista",
          "iscas:painel_saldo", "iscas:unidade_lista", "iscas:retornaveis",
          "iscas:extrato", "iscas:cliente_lista", "iscas:modelo_lista",
          "iscas:solicitacao_criar"],
@@ -37,7 +37,7 @@ ESPERADO = [
     ),
     (
         "operador_logado",
-        ["iscas:painel", "iscas:mapa", "iscas:solicitacao_lista",
+        ["iscas:painel", "iscas:solicitacao_lista",
          "iscas:painel_saldo", "iscas:unidade_lista", "iscas:retornaveis",
          "iscas:extrato", "iscas:agente_lista", "iscas:cliente_lista",
          "iscas:deposito_lista", "iscas:modelo_lista", "iscas:auditoria",

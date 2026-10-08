@@ -1,79 +1,165 @@
 {% extends "iscas/base_iscas.html" %}
 {% comment %}
-Retornáveis em posse de cliente (ISC-RF-31, ISC-RF-32, ISC-RF-33).
+Devolução de iscas do cliente (ISC-RF-32).
 
-Alpine controla a seleção; o form envia os ids escolhidos. O retorno é por
-cliente — um lançamento tem uma origem só.
+O operador digita os IDs — retornável ou descartável — e escolhe para onde
+voltam. O motivo é pedido num modal, depois da seleção: é a última coisa que
+se decide e a que mais se esquece de preencher num form comprido.
+Iscas de clientes diferentes podem ir juntas: o service grava um lançamento
+por cliente, na mesma transação.
 {% endcomment %}
-{% block titulo_iscas %}Retornáveis{% endblock %}
+{% block titulo_iscas %}Devolução{% endblock %}
 {% block iscas_conteudo %}
-<h1 class="h3 mb-3">Retornáveis em posse de clientes</h1>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css">
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 
-<div class="alert alert-secondary py-2 small">
-  Unidades em posse há mais de <strong>{{ config.dias_alerta_retornavel }} dias</strong> aparecem sinalizadas.
-  Selecione unidades <strong>de um mesmo cliente</strong> para registrar o retorno.
-</div>
+<h1 class="h3 mb-3">Devolução</h1>
 
-<form method="post" action="{% url 'iscas:registrar_retorno' %}" x-data="{selecionadas: []}">
+<form method="post" action="{% url 'iscas:registrar_retorno' %}" x-data="devolucao()" @submit="enviando = true">
   {% csrf_token %}
   <input type="hidden" name="unidades" :value="selecionadas.join(',')">
 
   <div class="row g-3">
-    <div class="col-12 col-lg-4">
-      <div class="card iscas-card">
-        <div class="card-header">Destino do retorno</div>
+    <div class="col-12 col-lg-8">
+      <div class="card iscas-card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>Iscas devolvidas</span>
+          <span class="badge bg-secondary" x-text="selecionadas.length + ' selecionada(s)'"></span>
+        </div>
         <div class="card-body">
-          <div class="mb-2">
-            <label class="form-label small">{{ form.destino_deposito.label }}</label>
-            {{ form.destino_deposito }}
+          <label class="form-label small" for="busca-unidades">Digite o ID da isca</label>
+          <select id="busca-unidades" multiple placeholder="Ex.: 123456…"></select>
+          <div class="form-text small">
+            Só aparecem iscas que estão com algum cliente — retornáveis ou descartáveis.
+            Selecione quantas precisar, de um ou mais clientes.
           </div>
-          <div class="mb-2">
-            <label class="form-label small">{{ form.destino_agente.label }}</label>
-            {{ form.destino_agente }}
-          </div>
-          <div class="mb-3">
-            <label class="form-label small">{{ form.ocorrido_em.label }}</label>
-            {{ form.ocorrido_em }}
-          </div>
-          <button class="btn btn-primary w-100" :disabled="!selecionadas.length">
-            Registrar retorno de <span x-text="selecionadas.length"></span> unidade(s)
-          </button>
-          <div class="form-text small mt-2">Informe exatamente um destino.</div>
         </div>
       </div>
     </div>
 
-    <div class="col-12 col-lg-8">
-      <div class="card iscas-card">
-        <div class="card-header">Em posse ({{ linhas|length }})</div>
-        <div class="card-body p-0 tabela-rolavel">
-          <table class="table table-dark table-hover iscas-tabela mb-0">
-            <thead>
-              <tr><th style="width:2.5rem"></th><th>Unidade</th><th>Cliente</th><th>Modelo</th><th class="text-end">Em posse</th></tr>
-            </thead>
-            <tbody>
-            {% for linha in linhas %}
-              <tr {% if linha.atrasada %}class="table-warning text-dark"{% endif %}>
-                <td>
-                  <input type="checkbox" class="form-check-input" value="{{ linha.unidade.pk }}"
-                         x-model="selecionadas">
-                </td>
-                <td><a href="{% url 'iscas:unidade_detalhe' linha.unidade.identificador %}">{{ linha.unidade.identificador }}</a></td>
-                <td class="small">{{ linha.cliente }}</td>
-                <td class="small">{{ linha.unidade.modelo.nome }}</td>
-                <td class="text-end small">
-                  {{ linha.dias }} dia{{ linha.dias|pluralize }}
-                  {% if linha.atrasada %}<i class="bi bi-exclamation-triangle"></i>{% endif %}
-                </td>
-              </tr>
-            {% empty %}
-              <tr><td colspan="5" class="text-muted">Nenhum retornável em posse de cliente.</td></tr>
-            {% endfor %}
-            </tbody>
-          </table>
+    <div class="col-12 col-lg-4">
+      <div class="card iscas-card h-100">
+        <div class="card-header">Para onde voltam</div>
+        <div class="card-body">
+          <div class="btn-group w-100 mb-3" role="group">
+            <input type="radio" class="btn-check" id="destinoDeposito" value="DEPOSITO" x-model="tipoDestino">
+            <label class="btn btn-outline-light btn-sm" for="destinoDeposito"><i class="bi bi-building"></i> Depósito</label>
+            <input type="radio" class="btn-check" id="destinoAgente" value="AGENTE" x-model="tipoDestino">
+            <label class="btn btn-outline-light btn-sm" for="destinoAgente"><i class="bi bi-person-badge"></i> Agente</label>
+          </div>
+          <div x-show="tipoDestino === 'DEPOSITO'">
+            <label class="form-label small" for="{{ form.destino_deposito.id_for_label }}">{{ form.destino_deposito.label }}</label>
+            {{ form.destino_deposito }}
+          </div>
+          <div x-show="tipoDestino === 'AGENTE'" x-cloak>
+            <label class="form-label small" for="{{ form.destino_agente.id_for_label }}">{{ form.destino_agente.label }}</label>
+            {{ form.destino_agente }}
+          </div>
+
+          <button type="button" class="btn btn-primary w-100 mt-3"
+                  :disabled="!pronto" @click="abrirMotivo()">
+            <i class="bi bi-arrow-return-left"></i> Registrar devolução
+          </button>
+          <div class="form-text small mt-2" x-show="!pronto">
+            Selecione ao menos uma isca e o destino.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Motivo: pedido depois da seleção, antes de gravar. #}
+  <div class="modal fade" id="modalMotivo" tabindex="-1" aria-labelledby="tituloMotivo" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content bg-dark text-light border-secondary">
+        <div class="modal-header border-secondary">
+          <h2 class="modal-title h5" id="tituloMotivo">Motivo da devolução</h2>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-2">
+            <span x-text="selecionadas.length"></span> isca(s) voltam para
+            <strong x-text="nomeDestino"></strong>.
+          </p>
+          <label class="form-label small" for="{{ form.motivo.id_for_label }}">{{ form.motivo.label }}</label>
+          {{ form.motivo }}
+        </div>
+        <div class="modal-footer border-secondary">
+          <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Voltar</button>
+          <button type="submit" class="btn btn-primary" :disabled="enviando">
+            <span x-show="!enviando">Confirmar devolução</span>
+            <span x-show="enviando" x-cloak>Registrando…</span>
+          </button>
         </div>
       </div>
     </div>
   </div>
 </form>
+
+<script>
+function devolucao() {
+  return {
+    selecionadas: [],
+    tipoDestino: 'DEPOSITO',
+    destinoEscolhido: '',
+    nomeDestino: '',
+    enviando: false,
+
+    get pronto() { return this.selecionadas.length > 0 && !!this.destinoEscolhido; },
+
+    campoDestino(tipo) {
+      return document.querySelector(tipo === 'AGENTE' ? '#id_destino_agente' : '#id_destino_deposito');
+    },
+
+    init() {
+      const URL = '{% url "iscas:api_unidades_com_cliente" %}';
+      const seletor = new TomSelect('#busca-unidades', {
+        plugins: ['remove_button'],
+        valueField: 'id',
+        labelField: 'identificador',
+        searchField: ['identificador'],
+        maxOptions: 20,
+        // Busca no servidor a cada termo: são todas as iscas com clientes,
+        // não cabe carregar a lista inteira.
+        shouldLoad: (termo) => termo.trim().length >= 1,
+        load: (termo, callback) => {
+          fetch(`${URL}?q=${encodeURIComponent(termo)}`)
+            .then(r => r.json()).then(d => callback(d.unidades || []))
+            .catch(() => callback());
+        },
+        onChange: () => { this.selecionadas = seletor.getValue(); },
+        render: {
+          option: (d, escape) =>
+            `<div><strong>${escape(d.identificador)}</strong>
+               <span style="opacity:.75"> — ${escape(d.modelo)} (${escape(d.tipo)})</span>
+               <div class="small" style="opacity:.6">${escape(d.cliente)}</div></div>`,
+          item: (d, escape) => `<div>${escape(d.identificador)}</div>`,
+          no_results: () => '<div class="no-results">Nenhuma isca com cliente tem esse ID.</div>',
+        },
+      });
+
+      // Um destino só: trocar o tipo limpa o outro select.
+      ['DEPOSITO', 'AGENTE'].forEach((tipo) => {
+        this.campoDestino(tipo).addEventListener('change', () => this.lerDestino());
+      });
+      this.$watch('tipoDestino', (tipo) => {
+        this.campoDestino(tipo === 'AGENTE' ? 'DEPOSITO' : 'AGENTE').value = '';
+        this.lerDestino();
+      });
+      this.lerDestino();
+    },
+
+    lerDestino() {
+      const campo = this.campoDestino(this.tipoDestino);
+      this.destinoEscolhido = campo.value;
+      this.nomeDestino = campo.value ? campo.options[campo.selectedIndex].text : '';
+    },
+
+    abrirMotivo() {
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalMotivo')).show();
+      setTimeout(() => document.getElementById('{{ form.motivo.id_for_label }}').focus(), 300);
+    },
+  };
+}
+</script>
 {% endblock %}

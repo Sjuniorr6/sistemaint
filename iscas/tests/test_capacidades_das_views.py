@@ -63,6 +63,7 @@ CAPACIDADE_ESPERADA = {
     "manutencao": Capacidade.BAIXAR_MANUTENCAO,
     "manutencao_retorno": Capacidade.BAIXAR_MANUTENCAO,
     "registrar_retorno": Capacidade.BAIXAR_MANUTENCAO,
+    "api_unidades_com_cliente": Capacidade.BAIXAR_MANUTENCAO,
 
     "solicitacao_lista": Capacidade.VER_SOLICITACAO,
     "solicitacao_detalhe": Capacidade.VER_SOLICITACAO,

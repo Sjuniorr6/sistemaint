@@ -8,13 +8,14 @@ from iscas.enums import (
     FormaEntrega,
     OrigemAtribuicao,
     StatusSolicitacao,
+    TipoModelo,
     TipoMovimentacao,
     UF_CHOICES,
 )
 from iscas.models.cadastro import Agente, Cliente, Deposito, ModeloEquipamento
 from iscas.models.config import ConfiguracaoIscas
 from iscas.models.operacao import Solicitacao
-from iscas.selectors import agentes_que_atendem, unidades_uteis_por_modelo
+from iscas.selectors import agentes_que_atendem, unidades_uteis_por_tipo
 
 
 class SolicitacaoForm(forms.ModelForm):
@@ -245,30 +246,32 @@ class AtribuicaoForm(forms.Form):
         "Faça uma escolha válida". Quem opera precisa saber POR QUE não serve.
         O selector recebe qualquer custódia — o nome do parâmetro é histórico.
         """
-        if self.solicitacao is not None and not unidades_uteis_por_modelo(
+        if self.solicitacao is not None and not unidades_uteis_por_tipo(
             agente=origem, solicitacao=self.solicitacao
         ):
             raise forms.ValidationError(
-                f"{origem} não tem nenhuma unidade disponível dos modelos que "
-                "faltam nesta solicitação."
+                f"{origem} não tem nenhuma isca disponível do tipo que "
+                "falta nesta solicitação."
             )
 
 
+class _UnidadeComModelo(forms.ModelMultipleChoiceField):
+    """Rótulo `modelo — identificador`: o grupo é por tipo e mistura modelos."""
+
+    def label_from_instance(self, unidade):
+        return f"{unidade.modelo.nome} — {unidade.identificador}"
+
+
 class EscolhaUnidadesForm(forms.Form):
-    """Quais unidades do agente vão para o cliente (ISC-RF-25).
+    """Quais unidades da origem vão para o cliente (ISC-RF-25).
 
-    Um campo de múltipla escolha POR MODELO em falta, cada um listando as
-    unidades daquele agente naquele modelo. Dois ganhos sobre a quantidade
-    digitada:
+    Um campo de múltipla escolha POR TIPO em falta, listando as unidades da
+    origem daquele tipo, de qualquer modelo — o pedido é por tipo. A reserva
+    continua por unidade: o histórico responde "onde está esta isca"
+    (ISC-RN-03) em vez de "saíram três".
 
-    1. **Rastreio.** A reserva grava a unidade exata, então o histórico
-       responde "onde está esta isca" (ISC-RN-03) em vez de "saíram três".
-    2. **Um agente, vários modelos.** Se o pedido tem dois modelos e o agente
-       tem os dois, os dois são escolhidos numa atribuição só — antes era
-       preciso vincular o mesmo agente duas vezes (ISC-RN-10).
-
-    Campos são montados dinamicamente porque os modelos em falta variam por
-    solicitação; o nome é `unidades_<modelo_id>`.
+    Campos montados dinamicamente porque os tipos em falta variam por
+    solicitação; o nome é `unidades_<TIPO>`.
     """
 
     PREFIXO = "unidades_"
@@ -282,27 +285,30 @@ class EscolhaUnidadesForm(forms.Form):
         if agente is None or solicitacao is None:
             return
 
-        for modelo, falta, disponiveis in unidades_uteis_por_modelo(
+        for tipo, falta, disponiveis in unidades_uteis_por_tipo(
             agente=agente, solicitacao=solicitacao
         ):
-            # O teto é o menor entre o que falta no pedido e o que o agente
-            # tem: pedir mais que o pedido fura o contrato, mais que o estoque
-            # fura o saldo.
+            # O teto é o menor entre o que falta no pedido e o que a origem
+            # tem: mais que o pedido fura o contrato, mais que o estoque fura
+            # o saldo.
             teto = min(falta, disponiveis.count())
-            self.limites[modelo.pk] = {"modelo": modelo, "falta": falta, "teto": teto}
-            self.fields[f"{self.PREFIXO}{modelo.pk}"] = forms.ModelMultipleChoiceField(
+            self.limites[tipo] = {
+                "tipo": tipo, "rotulo": TipoModelo(tipo).label,
+                "falta": falta, "teto": teto,
+            }
+            self.fields[f"{self.PREFIXO}{tipo}"] = _UnidadeComModelo(
                 queryset=disponiveis,
                 required=False,
-                label=modelo.nome,
+                label=TipoModelo(tipo).label,
                 # Checkbox e não `<select multiple>`: escolher oito unidades
                 # com Ctrl+clique é armadilha — um clique solto limpa tudo.
                 widget=forms.CheckboxSelectMultiple,
             )
 
-    def campos_por_modelo(self):
+    def campos_por_tipo(self):
         """Pares (campo do form, dados do limite) para o template iterar."""
-        for modelo_id, limite in self.limites.items():
-            yield self[f"{self.PREFIXO}{modelo_id}"], limite
+        for tipo, limite in self.limites.items():
+            yield self[f"{self.PREFIXO}{tipo}"], limite
 
     def clean(self):
         """Recusa escolha vazia e excesso sobre o que ainda cabe no pedido.
@@ -314,14 +320,14 @@ class EscolhaUnidadesForm(forms.Form):
         dados = super().clean()
         total = 0
 
-        for modelo_id, limite in self.limites.items():
-            escolhidas = dados.get(f"{self.PREFIXO}{modelo_id}") or []
+        for tipo, limite in self.limites.items():
+            escolhidas = dados.get(f"{self.PREFIXO}{tipo}") or []
             quantidade = len(escolhidas)
             total += quantidade
             if quantidade > limite["falta"]:
                 self.add_error(
-                    f"{self.PREFIXO}{modelo_id}",
-                    f"Faltam apenas {limite['falta']} de {limite['modelo']} "
+                    f"{self.PREFIXO}{tipo}",
+                    f"Faltam apenas {limite['falta']} {limite['rotulo'].lower()}(s) "
                     f"nesta solicitação; foram escolhidas {quantidade}.",
                 )
 
@@ -331,21 +337,28 @@ class EscolhaUnidadesForm(forms.Form):
             )
         return dados
 
+    def _escolhidas(self):
+        for tipo in self.limites:
+            yield from self.cleaned_data.get(f"{self.PREFIXO}{tipo}") or []
+
     def itens(self):
-        """`[(modelo, quantidade)]` do que foi escolhido — entrada do service."""
-        return [
-            (limite["modelo"], len(self.cleaned_data[f"{self.PREFIXO}{modelo_id}"]))
-            for modelo_id, limite in self.limites.items()
-            if self.cleaned_data.get(f"{self.PREFIXO}{modelo_id}")
-        ]
+        """`[(modelo, quantidade)]` do que foi escolhido — entrada do service.
+
+        A reserva é por modelo (o livro-razão aloca unidade de um modelo); o
+        tipo é só como o PEDIDO conta.
+        """
+        por_modelo = {}
+        for unidade in self._escolhidas():
+            modelo, quantidade = por_modelo.get(unidade.modelo_id, (unidade.modelo, 0))
+            por_modelo[unidade.modelo_id] = (modelo, quantidade + 1)
+        return list(por_modelo.values())
 
     def unidades_por_modelo(self):
         """`{modelo_id: [Unidade]}` — as unidades exatas a reservar."""
-        return {
-            modelo_id: list(self.cleaned_data[f"{self.PREFIXO}{modelo_id}"])
-            for modelo_id in self.limites
-            if self.cleaned_data.get(f"{self.PREFIXO}{modelo_id}")
-        }
+        resultado = {}
+        for unidade in self._escolhidas():
+            resultado.setdefault(unidade.modelo_id, []).append(unidade)
+        return resultado
 
 
 class ConfirmarEntregaForm(forms.Form):
@@ -410,6 +423,10 @@ class BuscaProximidadeForm(forms.Form):
         min_value=1, max_value=1000, label="Distância máxima (km)",
         widget=forms.NumberInput(attrs={"class": "form-control"}),
     )
+    minimo_disponivel = forms.IntegerField(
+        min_value=0, required=False, label="Mínimo de iscas disponíveis",
+        widget=forms.NumberInput(attrs={"class": "form-control", "placeholder": "qualquer"}),
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -418,7 +435,7 @@ class BuscaProximidadeForm(forms.Form):
         # Tem de onde medir a distância: coordenada da entrega, ou — para os
         # pedidos abertos antes de a entrega ter coordenada própria — a do
         # cadastro do cliente. O `Q` espelha `Solicitacao.coordenada_de_busca`.
-        self.fields["solicitacao"].queryset = (
+        abertas = (
             Solicitacao.objects.filter(
                 Q(entrega_latitude__isnull=False)
                 | Q(cliente__latitude__isnull=False),
@@ -431,6 +448,15 @@ class BuscaProximidadeForm(forms.Form):
             .select_related("cliente")
             .order_by("-aberta_em")
         )
+        # Status não basta: ATRIBUIDA pode estar totalmente coberta. O que
+        # decide é faltar isca — mesma regra da lista de pendentes do mapa.
+        from iscas.services.solicitacao import cobertura_em_lote
+
+        pendentes = [
+            pk for pk, linhas in cobertura_em_lote(list(abertas)).items()
+            if any(linha["falta"] for linha in linhas)
+        ]
+        self.fields["solicitacao"].queryset = abertas.filter(pk__in=pendentes)
         if not self.is_bound:
             self.fields["raio_km"].initial = ConfiguracaoIscas.carregar().raio_padrao_km
 

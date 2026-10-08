@@ -52,6 +52,19 @@
               <td class="text-end fw-bold text-info">{{ saldo.disponivel }}</td>
               <td class="text-end text-muted">{{ saldo.reservado }}</td>
             </tr>
+            <tr>
+              <td colspan="4" class="pt-0 small">
+                <div class="d-flex flex-wrap gap-1 ">
+                {% for u in saldo.unidades %}
+                  <a href="{% url 'iscas:unidade_detalhe' u.identificador %}"
+                     class="badge text-decoration-none {% if u.reservada %}bg-secondary{% else %}bg-dark{% endif %}"
+                     {% if u.reservada %}title="Reservada para uma solicitação"{% endif %}>
+                    {% if u.reservada %}<i class="bi bi-lock-fill"></i> {% endif %}{{ u.identificador }}
+                  </a>
+                {% endfor %}
+              </div>
+              </td>
+            </tr>
           {% empty %}<tr><td colspan="4" class="text-muted">Sem equipamento em custódia.</td></tr>{% endfor %}
           </tbody>
         </table>

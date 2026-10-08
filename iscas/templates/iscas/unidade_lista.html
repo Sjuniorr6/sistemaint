@@ -1,6 +1,43 @@
 {% extends "iscas/base_iscas.html" %}
+{% comment %}
+Unidades agrupadas por quem está com elas (ISC-ADR-07).
+
+A pergunta da tela é "onde estão as iscas?", então a unidade de leitura é a
+custódia — agente, depósito, cliente —, não a isca solta. Cada grupo mostra
+quantas tem e em que situação; as iscas só carregam quando o grupo abre
+(HTMX), para a página não trazer o estoque inteiro de uma vez.
+
+Consumidas e baixadas são histórico e ficam fora por padrão.
+{% endcomment %}
 {% block titulo_iscas %}Unidades{% endblock %}
 {% block iscas_conteudo %}
+<style>
+.unidade-resumo { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .6rem; }
+.unidade-resumo a {
+    display: block; padding: .6rem .8rem; border-radius: .5rem; text-decoration: none;
+    background: var(--iscas-superficie); border: 1px solid var(--iscas-borda); color: var(--iscas-texto);
+}
+.unidade-resumo a.ativo { border-color: var(--iscas-azul); box-shadow: 0 0 0 1px var(--iscas-azul) inset; }
+.unidade-resumo .numero { font-size: 1.5rem; font-weight: 700; line-height: 1.1; }
+.grupo-unidades + .grupo-unidades { border-top: 1px solid var(--iscas-borda); }
+.grupo-unidades__cabeca {
+    display: flex; align-items: center; gap: .75rem; width: 100%; padding: .7rem 1rem;
+    background: transparent; border: 0; color: var(--iscas-texto); text-align: left;
+}
+.grupo-unidades__cabeca:hover { background: rgba(255,255,255,.03); }
+.grupo-unidades__cabeca .bi-chevron-right { transition: transform .15s; color: var(--iscas-texto-fraco); }
+.grupo-unidades__cabeca[aria-expanded="true"] .bi-chevron-right { transform: rotate(90deg); }
+.grupo-unidades__corpo { background: var(--iscas-superficie-alta); }
+.unidade-chip {
+    display: inline-flex; align-items: center; gap: .4rem; padding: .25rem .5rem; border-radius: .4rem;
+    background: var(--iscas-superficie); border: 1px solid var(--iscas-borda); color: var(--iscas-texto);
+    font-size: .8rem;
+}
+.unidade-chip:hover { border-color: var(--iscas-azul); }
+.unidade-chip__id { font-weight: 600; font-variant-numeric: tabular-nums; }
+.unidade-chip__modelo { color: var(--iscas-texto-fraco); }
+</style>
+
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
   <h1 class="h3 mb-0">Unidades</h1>
   <div class="d-flex gap-2 flex-wrap">
@@ -11,60 +48,134 @@
   </div>
 </div>
 
-<form method="get" class="mb-3">
-  <div class="row g-2">
-    <div class="col-12 col-md-4">
-      <input type="search" name="q" value="{{ filtros.q }}" class="form-control form-control-sm" placeholder="Identificador">
-    </div>
-    <div class="col-6 col-md-3">
-      <select name="modelo" class="form-select form-select-sm">
-        <option value="">Todos os modelos</option>
-        {% for modelo in modelos %}
-          <option value="{{ modelo.pk }}" {% if filtros.modelo == modelo.pk|stringformat:"s" %}selected{% endif %}>{{ modelo.nome }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-6 col-md-3">
-      <select name="situacao" class="form-select form-select-sm">
-        <option value="">Todas as situações</option>
-        {% for valor, rotulo in situacoes %}
-          <option value="{{ valor }}" {% if filtros.situacao == valor %}selected{% endif %}>{{ rotulo }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-12 col-md-2">
-      <button class="btn btn-outline-light btn-sm w-100">Filtrar</button>
+{% if not filtros.q %}
+  {# Cartões de situação: cada um é um atalho de filtro; clicar de novo limpa. #}
+  <div class="unidade-resumo mb-3">
+    {% for item in resumo %}
+      <a href="?situacao={% if filtros.situacao != item.valor %}{{ item.valor }}{% endif %}{% if filtros.modelo %}&modelo={{ filtros.modelo }}{% endif %}"
+         class="{% if filtros.situacao == item.valor %}ativo{% endif %}">
+        <div class="iscas-rotulo">{{ item.rotulo }}</div>
+        <div class="numero">{{ item.n }}</div>
+      </a>
+    {% endfor %}
+  </div>
+{% endif %}
+
+<form method="get" class="card iscas-card mb-3" x-data>
+  <div class="card-body py-2">
+    <div class="row g-2 align-items-center">
+      <div class="col-12 col-md-4">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text"><i class="bi bi-person-badge"></i></span>
+          <input type="search" class="form-control" placeholder="Filtrar por agente, depósito ou cliente…"
+                 x-model="$store.filtroUnidades.termo" aria-label="Filtrar grupos pelo nome">
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <select name="modelo" class="form-select form-select-sm" onchange="this.form.submit()" aria-label="Modelo">
+          <option value="">Todos os modelos</option>
+          {% for modelo in modelos %}
+            <option value="{{ modelo.pk }}" {% if filtros.modelo == modelo.pk|stringformat:"s" %}selected{% endif %}>{{ modelo.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
+          <input type="search" name="q" value="{{ filtros.q }}" class="form-control" placeholder="Buscar pelo ID da isca">
+        </div>
+      </div>
+      <div class="col-12 col-md-2 d-flex align-items-center gap-2">
+        {% if filtros.situacao %}<input type="hidden" name="situacao" value="{{ filtros.situacao }}">{% endif %}
+        <div class="form-check form-switch mb-0 small">
+          <input class="form-check-input" type="checkbox" id="encerradas" name="encerradas" value="1"
+                 {% if filtros.encerradas %}checked{% endif %} onchange="this.form.submit()">
+          <label class="form-check-label" for="encerradas">Consumidas e baixadas</label>
+        </div>
+      </div>
     </div>
   </div>
 </form>
 
-<div class="card iscas-card">
-  <div class="card-body p-0 tabela-rolavel">
-    <table class="table table-dark table-hover iscas-tabela mb-0">
-      <thead><tr><th>Identificador</th><th>Modelo</th><th>Custódia atual</th><th>Desde</th><th>Situação</th></tr></thead>
-      <tbody>
-      {% for unidade in pagina %}
-        <tr>
-          <td><a href="{% url 'iscas:unidade_detalhe' unidade.identificador %}">{{ unidade.identificador }}</a></td>
-          <td class="small">{{ unidade.modelo.nome }}</td>
-          <td class="small">{{ unidade.custodia_atual }}</td>
-          <td class="small text-muted">{{ unidade.custodia_desde|date:"d/m/Y" }}</td>
-          <td>
-            <span class="badge badge-situacao
-              {% if unidade.situacao == 'BAIXADA' or unidade.situacao == 'CONSUMIDA' %}bg-secondary
-              {% elif unidade.situacao == 'COM_CLIENTE' %}bg-warning text-dark
-              {% elif unidade.situacao == 'RESERVADA' or unidade.situacao == 'EM_ROTA' %}bg-info
-              {% elif unidade.situacao == 'EM_MANUTENCAO' %}bg-danger
-              {% else %}bg-success{% endif %}">
-              {{ unidade.situacao }}
-            </span>
-          </td>
-        </tr>
-      {% empty %}<tr><td colspan="5" class="text-muted">Nenhuma unidade encontrada.</td></tr>{% endfor %}
-      </tbody>
-    </table>
+{% if filtros.q %}
+  {# Busca por ID: lista plana — quem procura uma isca específica não quer abrir grupos. #}
+  <div class="d-flex justify-content-between align-items-center mb-2 small">
+    <span class="text-muted">Resultado para “{{ filtros.q }}”</span>
+    <a href="?">Voltar à visão por grupos</a>
   </div>
-</div>
+  <div class="card iscas-card">
+    <div class="card-body p-0 tabela-rolavel">
+      <table class="table table-dark table-hover iscas-tabela mb-0">
+        <thead><tr><th>ID</th><th>Modelo</th><th>Com quem</th><th>Desde</th><th>Situação</th></tr></thead>
+        <tbody>
+        {% for unidade in pagina %}
+          <tr>
+            <td><a href="{% url 'iscas:unidade_detalhe' unidade.identificador %}">{{ unidade.identificador }}</a></td>
+            <td class="small">{{ unidade.modelo.nome }}</td>
+            <td class="small">{{ unidade.custodia_atual }}</td>
+            <td class="small text-muted">{{ unidade.custodia_desde|date:"d/m/Y" }}</td>
+            <td>{% include "iscas/_badge_situacao.html" with valor=unidade.situacao rotulo=unidade.situacao_display n=None %}</td>
+          </tr>
+        {% empty %}<tr><td colspan="5" class="text-muted">Nenhuma isca com esse ID.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% include "iscas/_paginacao.html" %}
 
-{% include "iscas/_paginacao.html" %}
+{% else %}
+  {% for secao in secoes %}
+    <div class="card iscas-card mb-3" x-data
+         x-show="$store.filtroUnidades.secaoVisivel($el)">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi {{ secao.icone }}"></i> {{ secao.titulo }}</span>
+        <span class="badge bg-secondary">{{ secao.total }} isca(s) · {{ secao.grupos|length }}</span>
+      </div>
+      <div>
+        {% for grupo in secao.grupos %}
+          <div class="grupo-unidades" data-nome="{{ grupo.nome|lower }} {{ grupo.local|lower }}"
+               x-show="$store.filtroUnidades.casa($el.dataset.nome)">
+            <button type="button" class="grupo-unidades__cabeca" data-bs-toggle="collapse"
+                    data-bs-target="#grupo{{ grupo.custodia.pk }}" aria-expanded="false"
+                    aria-controls="grupo{{ grupo.custodia.pk }}">
+              <i class="bi bi-chevron-right"></i>
+              <span class="flex-grow-1">
+                <span class="fw-semibold">{{ grupo.nome }}</span>
+                {% if grupo.local %}<span class="text-muted small"> | {{ grupo.local }}</span>{% endif %}
+                <span class="d-block mt-1">
+                  {% for s in grupo.situacoes %}
+                    {% include "iscas/_badge_situacao.html" with valor=s.valor rotulo=s.rotulo n=s.n %}
+                  {% endfor %}
+                </span>
+              </span>
+              <span class="fs-5 fw-bold text-info">{{ grupo.total }}</span>
+            </button>
+            <div class="collapse grupo-unidades__corpo" id="grupo{{ grupo.custodia.pk }}"
+                 hx-get="{% url 'iscas:unidade_lista' %}?custodia={{ grupo.custodia.pk }}{% if filtros.modelo %}&modelo={{ filtros.modelo }}{% endif %}{% if filtros.situacao %}&situacao={{ filtros.situacao }}{% endif %}{% if filtros.encerradas %}&encerradas=1{% endif %}"
+                 hx-trigger="show.bs.collapse once">
+              <div class="p-3 small text-muted">Carregando…</div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  {% empty %}
+    <div class="card iscas-card"><div class="card-body text-muted">Nenhuma isca neste filtro.</div></div>
+  {% endfor %}
+{% endif %}
+
+<script>
+document.addEventListener('alpine:init', () => {
+  const normalizar = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  Alpine.store('filtroUnidades', {
+    termo: '',
+    casa(nome) { return !this.termo || normalizar(nome).includes(normalizar(this.termo)); },
+    // Esconde a seção inteira quando nenhum grupo dela casa com o filtro.
+    secaoVisivel(el) {
+      if (!this.termo) return true;
+      return [...el.querySelectorAll('.grupo-unidades')].some(g => this.casa(g.dataset.nome));
+    },
+  });
+});
+</script>
 {% endblock %}

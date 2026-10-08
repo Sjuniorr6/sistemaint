@@ -78,7 +78,7 @@ def custodia_de(entidade):
     return custodia
 
 
-def _validar_origem(unidades, origem, *, permitir_terminal=False):
+def _validar_origem(unidades, origem, *, tipo=None, permitir_terminal=False):
     """Toda unidade precisa estar na origem declarada e não ser terminal.
 
     A checagem de custódia é o que impede um lançamento de "mover" uma unidade
@@ -94,7 +94,7 @@ def _validar_origem(unidades, origem, *, permitir_terminal=False):
         )
     if permitir_terminal:
         return
-    terminais = [u for u in unidades if _eh_terminal(u)]
+    terminais = [u for u in unidades if _eh_terminal(u, tipo)]
     if terminais:
         exemplos = ", ".join(u.identificador for u in terminais[:5])
         raise UnidadeTerminal(
@@ -103,11 +103,19 @@ def _validar_origem(unidades, origem, *, permitir_terminal=False):
         )
 
 
-def _eh_terminal(unidade) -> bool:
-    """CONSUMIDA (descartável com cliente) ou BAIXADA — não há saída."""
+def _eh_terminal(unidade, tipo=None) -> bool:
+    """BAIXADA não tem saída; CONSUMIDA só sai por devolução (ISC-RN-05).
+
+    Descartável com cliente é consumida, mas o cliente pode devolvê-la quando
+    ela apresenta defeito, para ser substituída. Esse é o ÚNICO caminho: um
+    lançamento de RETORNO com origem no cliente. Transferência, entrega ou
+    qualquer outro tipo continuam recusando.
+    """
     tipo_custodia = unidade.custodia_atual.tipo
     if tipo_custodia == TipoCustodia.BAIXA:
         return True
+    if tipo_custodia == TipoCustodia.CLIENTE and tipo == TipoMovimentacao.RETORNO:
+        return False
     return (
         tipo_custodia == TipoCustodia.CLIENTE
         and unidade.modelo.tipo == TipoModelo.DESCARTAVEL
@@ -186,7 +194,7 @@ def registrar_movimentacao(
     if len(unidades) != len(set(ids)):
         raise MovimentacaoInvalida("Alguma unidade informada não existe mais.")
 
-    _validar_origem(unidades, origem, permitir_terminal=permitir_terminal)
+    _validar_origem(unidades, origem, tipo=tipo, permitir_terminal=permitir_terminal)
 
     momento = ocorrido_em or timezone.now()
 

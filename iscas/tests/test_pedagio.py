@@ -66,7 +66,7 @@ def test_pedagio_sobrevive_aos_dois_passos(
     reenviados = dict(re.findall(r'type="hidden" name="(\w+)" value="([^"]*)"', passo_2))
     client.post(url, {
         **reenviados, "confirmar": "1",
-        f"unidades_{modelo_descartavel.pk}": [u.pk for u in unidades_com_agente[:2]],
+        f"unidades_{modelo_descartavel.tipo}": [u.pk for u in unidades_com_agente[:2]],
     })
 
     assert pedido.atribuicoes.get().valor_pedagio == Decimal("30.00")

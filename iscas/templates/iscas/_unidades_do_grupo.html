@@ -1,0 +1,19 @@
+{# Unidades de uma custódia, carregadas quando o grupo abre (HTMX). #}
+<div class="d-flex flex-wrap gap-2 p-3">
+  {% for unidade in unidades %}
+    <a href="{% url 'iscas:unidade_detalhe' unidade.identificador %}"
+       class="unidade-chip text-decoration-none"
+       title="{{ unidade.modelo.nome }} · desde {{ unidade.custodia_desde|date:'d/m/Y' }}">
+      <span class="unidade-chip__id">{{ unidade.identificador }}</span>
+      <span class="unidade-chip__modelo">{{ unidade.modelo.nome }}</span>
+      {% include "iscas/_badge_situacao.html" with valor=unidade.situacao rotulo=unidade.situacao_display n=None %}
+    </a>
+  {% empty %}
+    <span class="small text-muted">Nenhuma unidade neste filtro.</span>
+  {% endfor %}
+</div>
+{% if cortado %}
+  <div class="small text-warning px-3 pb-3">
+    Mostrando as primeiras {{ limite }}. Use o filtro de modelo ou de situação para refinar.
+  </div>
+{% endif %}

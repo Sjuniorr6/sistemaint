@@ -15,9 +15,7 @@ depois "de qual modelo?".
   <div>
     <h1 class="h3 mb-0">Saldos</h1>
     <div class="small text-muted">
-      {{ total_geral.total }} unidade(s) em custódia ·
-      <span class="text-info">{{ total_geral.disponivel }} disponível(is)</span> ·
-      {{ total_geral.reservado }} reservada(s)
+      {{ total_geral.total }} unidade(s) em custódia
     </div>
   </div>
   <div class="d-flex gap-2">
@@ -75,9 +73,7 @@ vira link. Duplicar a tabela era o que fazia as duas divergirem com o tempo.
         <thead>
           <tr>
             <th>{{ grupo.rotulo }}</th>
-            <th class="text-end d-none d-sm-table-cell" style="width:6rem">Total</th>
-            <th class="text-end" style="width:7rem">Disponível</th>
-            <th class="text-end d-none d-md-table-cell" style="width:7rem">Reservado</th>
+            <th class="text-end" style="width:6rem">Total</th>
             <th style="width:3rem"></th>
           </tr>
         </thead>
@@ -93,32 +89,22 @@ vira link. Duplicar a tabela era o que fazia as duas divergirem com o tempo.
               {% else %}
                 {{ bloco.entidade.nome }}
               {% endif %}
-              <div class="small text-muted">
-                {{ bloco.modelos }} modelo(s)
-                {# No celular as colunas de total e reservado somem; o número #}
-                {# essencial delas volta aqui, para a linha não mentir. #}
-                <span class="d-sm-none">· {{ bloco.total }} no total</span>
-                <span class="d-md-none">· {{ bloco.reservado }} reservada(s)</span>
-              </div>
+              {% if bloco.entidade.cidade %}<span class="text-muted"> | {{ bloco.entidade.cidade }}</span>{% endif %}
+              {% if bloco.entidade.uf %}<span class="text-muted"> | {{ bloco.entidade.uf|upper }}</span>{% endif %}
+              <div class="small text-muted">{{ bloco.modelos }} modelo(s)</div>
             </td>
-            <td class="text-end d-none d-sm-table-cell">{{ bloco.total }}</td>
-            <td class="text-end fw-bold {% if bloco.disponivel %}text-info{% else %}text-muted{% endif %}">
-              {{ bloco.disponivel }}
-            </td>
-            <td class="text-end d-none d-md-table-cell {% if bloco.reservado %}text-warning{% else %}text-muted{% endif %}">
-              {{ bloco.reservado }}
+            <td class="text-end fw-bold {% if bloco.total %}text-info{% else %}text-muted{% endif %}">
+              {{ bloco.total }}
             </td>
             <td class="text-end text-muted"><i class="bi bi-chevron-down"></i></td>
           </tr>
           <tr class="collapse" id="detalhe{{ grupo.prefixo }}{{ bloco.entidade.pk }}">
-            <td colspan="5" class="p-0">
+            <td colspan="3" class="p-0">
               <table class="table table-dark table-sm mb-0" style="background:#21252a">
                 <thead>
                   <tr class="small text-muted">
                     <th class="ps-4">Modelo</th>
                     <th class="text-end" style="width:6rem">Total</th>
-                    <th class="text-end" style="width:7rem">Disponível</th>
-                    <th class="text-end" style="width:7rem">Reservado</th>
                     <th style="width:3rem"></th>
                   </tr>
                 </thead>
@@ -128,12 +114,17 @@ vira link. Duplicar a tabela era o que fazia as duas divergirem com o tempo.
                     <td class="ps-4 small">
                       {{ saldo.modelo__nome }}
                       <span class="badge bg-dark ms-1">{{ saldo.modelo__codigo|default_if_none:saldo.modelo__nome }}</span>
+                      <div class="d-flex flex-wrap gap-1 mt-1">
+                {% for u in saldo.unidades %}
+                  <a href="{% url 'iscas:unidade_detalhe' u.identificador %}"
+                     class="badge text-decoration-none {% if u.reservada %}bg-secondary{% else %}bg-dark{% endif %}"
+                     {% if u.reservada %}title="Reservada para uma solicitação"{% endif %}>
+                    {% if u.reservada %}<i class="bi bi-lock-fill"></i> {% endif %}{{ u.identificador }}
+                  </a>
+                {% endfor %}
+              </div>
                     </td>
-                    <td class="text-end small">{{ saldo.total }}</td>
-                    <td class="text-end small fw-bold text-info">{{ saldo.disponivel }}</td>
-                    <td class="text-end small {% if saldo.reservado %}text-warning{% else %}text-muted{% endif %}">
-                      {{ saldo.reservado }}
-                    </td>
+                    <td class="text-end small fw-bold">{{ saldo.total }}</td>
                     <td></td>
                   </tr>
                 {% endfor %}
@@ -143,7 +134,7 @@ vira link. Duplicar a tabela era o que fazia as duas divergirem com o tempo.
           </tr>
         {% empty %}
           <tr>
-            <td colspan="5" class="text-muted p-4 text-center">
+            <td colspan="3" class="text-muted p-4 text-center">
               {% if busca %}
                 Nenhum resultado para “{{ busca }}”.
                 <a href="?{% if mostrar_zerados %}sem_saldo=1{% endif %}">Limpar busca</a>.
@@ -160,7 +151,8 @@ vira link. Duplicar a tabela era o que fazia as duas divergirem com o tempo.
 {% endfor %}
 
 <div class="form-text small mt-2">
-  Clique numa linha para ver o detalhe por modelo.
+  Clique numa linha para ver o detalhe por modelo e os IDs das iscas
+  (<i class="bi bi-lock-fill"></i> = reservada para uma solicitação).
   Saldo é sempre derivado do livro-razão — nenhum número aqui é campo editável.
 </div>
 {% endblock %}

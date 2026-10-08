@@ -94,9 +94,9 @@ class TestBuscaPorSolicitacao:
 
         assert agente_json["cobre_tudo"] is False
         assert agente_json["disponivel"] == 3 + 5  # 3 do pedido + os 5 que tem
-        por_modelo = {m["codigo"]: m for m in agente_json["por_modelo"]}
-        assert por_modelo[modelo_retornavel.codigo]["cobre"] == 5
-        assert por_modelo[modelo_retornavel.codigo]["falta"] == 20
+        por_tipo = {t["tipo"]: t for t in agente_json["por_tipo"]}
+        assert por_tipo[modelo_retornavel.tipo]["cobre"] == 5
+        assert por_tipo[modelo_retornavel.tipo]["falta"] == 20
 
     def test_solicitacao_ja_coberta_nao_tem_o_que_buscar(
         self, client, operador_logado, cliente, agente,
@@ -171,7 +171,7 @@ def test_mapa_renderiza_com_busca_por_solicitacao(
     solicitacao = solicitacao_service.abrir_solicitacao(
         cliente=cliente, itens=[(modelo_descartavel, 3)], autor=operador
     )
-    resposta = client.get(reverse("iscas:mapa"))
+    resposta = client.get(reverse("iscas:painel"))
     conteudo = resposta.content.decode()
 
     assert resposta.status_code == 200
@@ -179,9 +179,6 @@ def test_mapa_renderiza_com_busca_por_solicitacao(
     assert 'id="id_solicitacao"' in conteudo
     assert f"Solicitação #{solicitacao.pk}" in conteudo
     assert 'id="id_cliente"' not in conteudo
-    # Os pinos de solicitacao agora abrem em leque quando coincidem.
-    assert "markerClusterGroup" in conteudo
-    assert "spiderfyOnMaxZoom" in conteudo
 
 
 def test_busca_htmx_por_solicitacao(

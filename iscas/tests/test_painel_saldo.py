@@ -130,3 +130,34 @@ class TestConteudo:
 
         assert agente.nome in nomes
         assert agente2.nome not in nomes
+
+
+@pytest.mark.parametrize("rota", ["saldo", "perfil"])
+def test_mostra_os_ids_das_iscas_com_reservadas_marcadas(
+    rota, client, operador_logado, agente, unidades_com_agente,
+    cliente, modelo_descartavel, operador,
+):
+    solicitacao = solicitacao_service.abrir_solicitacao(
+        cliente=cliente, itens=[(modelo_descartavel, 1)], autor=operador
+    )
+    solicitacao_service.criar_atribuicao(
+        solicitacao=solicitacao, agente=agente,
+        itens=[(modelo_descartavel, 1)], autor=operador,
+    )
+    url = (
+        reverse("iscas:painel_saldo") if rota == "saldo"
+        else reverse("iscas:agente_detalhe", args=[agente.pk])
+    )
+
+    resposta = client.get(url)
+    if rota == "saldo":
+        bloco = next(b for b in resposta.context["agentes"] if b["entidade"].pk == agente.pk)
+        [linha] = bloco["saldos"]
+    else:
+        [linha] = resposta.context["saldos"]
+
+    assert {u["identificador"] for u in linha["unidades"]} == {
+        u.identificador for u in unidades_com_agente
+    }
+    assert sum(u["reservada"] for u in linha["unidades"]) == 1
+    assert 'title="Reservada para uma solicitação"' in resposta.content.decode()

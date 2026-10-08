@@ -80,7 +80,7 @@ def montar_texto_entrega(solicitacao) -> str:
     """
     cliente = solicitacao.cliente
     itens = list(solicitacao.itens.select_related("modelo"))
-    tipos = {item.modelo.tipo for item in itens}
+    tipos = {item.tipo for item in itens}
     identificadores = _unidades_vinculadas(solicitacao)
 
     linhas = [
@@ -100,15 +100,23 @@ def montar_texto_entrega(solicitacao) -> str:
         f"ID: {' / '.join(identificadores)}",
     ]
 
-    # Uma linha por modelo: um preço único mentiria sobre qual item custa
-    # quanto quando a solicitação mistura modelos.
+    # Uma linha por item: um preço único mentiria sobre qual item custa
+    # quanto quando a solicitação mistura tipos. Pedido antigo ainda nomeia o
+    # modelo; pedido novo é só por tipo.
     for item in itens:
-        linhas.append(f"Modelo: {item.modelo}")
+        if item.modelo_id:
+            linhas.append(f"Modelo: {item.modelo}")
+        else:
+            linhas.append(f"Tipo: {item.get_tipo_display()} ({item.quantidade})")
         if item.valor_unitario is not None:
             linhas.append(f"Valor isca: {_moeda(item.valor_unitario)}")
 
     if solicitacao.valor_cliente is not None:
         linhas.append(f"Valor total: {_moeda(solicitacao.valor_cliente)}")
+    if solicitacao.valor_assinatura_mensal is not None:
+        linhas.append(
+            f"Assinatura mensal: {_moeda(solicitacao.valor_assinatura_mensal)}"
+        )
 
     # Receita = material + o que se cobra por cada entrega. A linha só aparece
     # quando há frete cobrado: sem ela, repetiria o "Valor total" acima.

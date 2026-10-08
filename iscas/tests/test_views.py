@@ -45,7 +45,6 @@ class TestPermissoes:
         "iscas:cliente_lista",
         "iscas:modelo_lista",
         "iscas:unidade_lista",
-        "iscas:mapa",
         "iscas:solicitacao_lista",
         "iscas:painel_saldo",
         "iscas:retornaveis",
@@ -73,7 +72,7 @@ class TestTelasPrincipais:
     def test_painel_carrega(self, client, operador_logado, unidades_no_deposito):
         resposta = client.get(reverse("iscas:painel"))
         assert resposta.status_code == 200
-        assert b"Painel operacional" in resposta.content
+        assert b'id="mapa-operacional"' in resposta.content
 
     def test_lista_de_agentes_mostra_cpf_mascarado(
         self, client, operador_logado, agente
@@ -98,10 +97,10 @@ class TestTelasPrincipais:
         assert resposta.status_code == 200
         assert unidade.identificador.encode() in resposta.content
 
-    def test_mapa_carrega(self, client, operador_logado, agente):
-        resposta = client.get(reverse("iscas:mapa"))
-        assert resposta.status_code == 200
-        assert b"leaflet" in resposta.content.lower()
+    def test_rota_antiga_do_mapa_leva_ao_painel(self, client, operador_logado):
+        resposta = client.get(reverse("iscas:mapa"), {"solicitacao": "7"})
+        assert resposta.status_code == 302
+        assert resposta["Location"] == reverse("iscas:painel") + "?solicitacao=7#mapa-operacional"
 
     def test_painel_de_saldo(
         self, client, operador_logado, unidades_com_agente, agente
@@ -234,7 +233,7 @@ class TestFluxoPelasViews:
             {
                 "agente": agente.pk,
                 "confirmar": "1",
-                f"unidades_{modelo_descartavel.pk}": [
+                f"unidades_{modelo_descartavel.tipo}": [
                     u.pk for u in unidades_com_agente[:5]
                 ],
             },

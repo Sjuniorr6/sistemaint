@@ -7,7 +7,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from iscas.enums import StatusSolicitacao
+from iscas.enums import StatusSolicitacao, TipoModelo
 from iscas.forms import (
     AtribuicaoForm,
     ConfirmarEntregaForm,
@@ -15,7 +15,7 @@ from iscas.forms import (
     MotivoForm,
     SolicitacaoForm,
 )
-from iscas.models.cadastro import Agente, ModeloEquipamento
+from iscas.models.cadastro import Agente
 from iscas.models.config import ConfiguracaoIscas
 from iscas.models.operacao import Atribuicao, Solicitacao
 from iscas.enums import Capacidade
@@ -103,11 +103,9 @@ def restaurar(request, pk):
 @exige(Capacidade.CRIAR_SOLICITACAO)
 def criar(request):
     """Abertura da solicitação com um ou mais itens (ISC-RF-22)."""
-    modelos = ModeloEquipamento.objects.order_by("nome")
-
     if request.method == "POST":
         form = SolicitacaoForm(request.POST)
-        itens = _itens_do_post(request.POST, modelos)
+        itens = _itens_do_post(request.POST)
         if form.is_valid() and itens:
             dados = form.cleaned_data
             try:
@@ -124,6 +122,7 @@ def criar(request):
                     # saiu do form justamente para não ser injetável.
                     solicitante_nome=dados.get("solicitante_nome", ""),
                     exigir_valor=True,
+                    valor_assinatura_mensal=_assinatura_do_post(request.POST),
                     # Contato e endereço desta entrega: o form já trouxe do
                     # cadastro e o operador pôde ajustar.
                     **{
@@ -150,7 +149,7 @@ def criar(request):
                     )
                 return redirect("iscas:solicitacao_detalhe", pk=solicitacao.pk)
         elif not itens:
-            messages.error(request, "Informe ao menos um modelo com quantidade.")
+            messages.error(request, "Informe a quantidade de ao menos um tipo de isca.")
     else:
         form = SolicitacaoForm(initial=_initial_do_comercial(request.user))
 
@@ -159,7 +158,7 @@ def criar(request):
         "iscas/solicitacao_form.html",
         # `config` traz a URL dos tiles do mapa de entrega — mesma fonte que os
         # formulários de cadastro usam.
-        {"form": form, "modelos": modelos, "config": ConfiguracaoIscas.carregar()},
+        {"form": form, "tipos": TipoModelo.choices, "config": ConfiguracaoIscas.carregar()},
     )
 
 
@@ -233,12 +232,15 @@ def _totais_visiveis(usuario, solicitacao) -> dict:
     ve_cliente = pode(usuario, Capacidade.VER_VALOR_CLIENTE)
     ve_custo = pode(usuario, Capacidade.VER_CUSTO_AGENTE)
 
+    # Assinatura é valor do cliente: segue a mesma visibilidade.
+    totais["assinatura_mensal"] = solicitacao.valor_assinatura_mensal
     if not ve_cliente:
         # O valor da ENTREGA continua visível a quem vincula agente (decisão do
         # negócio), mas o do material e a receita total, não — senão a soma
         # revelaria o valor da solicitação por subtração.
         totais["valor_cliente"] = None
         totais["receita_total"] = None
+        totais["assinatura_mensal"] = None
     if not ve_custo:
         totais["custo_agentes"] = None
         totais["tem_custo_incompleto"] = False
@@ -251,15 +253,31 @@ def _totais_visiveis(usuario, solicitacao) -> dict:
     return totais
 
 
-def _itens_do_post(post, modelos):
-    """Extrai `(modelo, quantidade, valor_unitario)` dos campos dinâmicos.
+def _assinatura_do_post(post):
+    """Valor da assinatura mensal, ou `None` se vazio/malformado.
+
+    `None` com retornável no pedido faz o service recusar com mensagem de
+    negócio — melhor que gravar zero como se fosse cortesia.
+    """
+    bruto = (post.get("valor_assinatura_mensal") or "").strip().replace(",", ".")
+    if not bruto:
+        return None
+    try:
+        valor = Decimal(bruto)
+    except InvalidOperation:
+        return None
+    return valor if valor >= 0 else None
+
+
+def _itens_do_post(post):
+    """Extrai `(tipo, quantidade, valor_unitario)` das linhas por tipo.
 
     Preço ausente ou malformado vira `None`, e o service recusa a mistura com
     mensagem de negócio — melhor que um total silenciosamente parcial.
     """
     itens = []
-    for modelo in modelos:
-        bruto = post.get(f"quantidade_{modelo.pk}", "").strip()
+    for tipo in TipoModelo.values:
+        bruto = post.get(f"quantidade_{tipo}", "").strip()
         if not bruto:
             continue
         try:
@@ -269,12 +287,12 @@ def _itens_do_post(post, modelos):
         if quantidade <= 0:
             continue
 
-        preco_bruto = (post.get(f"preco_{modelo.pk}", "") or "").strip()
+        preco_bruto = (post.get(f"preco_{tipo}", "") or "").strip()
         try:
             unitario = Decimal(preco_bruto.replace(",", ".")) if preco_bruto else None
         except InvalidOperation:
             unitario = None
-        itens.append((modelo, quantidade, unitario))
+        itens.append((tipo, quantidade, unitario))
     return itens
 
 

@@ -74,7 +74,7 @@ class TestFormatoGeoJSON:
     ):
         item = _geojson(client)["features"][0]["properties"]["itens"][0]
 
-        assert item["modelo"] == modelo_descartavel.nome
+        assert item["tipo"] == modelo_descartavel.tipo
         assert item["solicitado"] == 10
         assert item["atribuido"] == 0
         assert item["falta"] == 10
@@ -191,19 +191,6 @@ class TestListaSoMostraOQuePrecisaDeAgente:
         assert len(features) == 1
         assert features[0]["properties"]["falta_total"] == 0
 
-    def test_a_tela_separa_a_lista_dos_marcadores(self, client, operador_logado):
-        """A lista itera `descobertas`; o switch do mapa conta `solicitacoes`.
-
-        O filtro roda no navegador, então o que dá para afirmar daqui é a
-        ligação: se a lista voltar a iterar a coleção completa, as cobertas
-        reaparecem — que é exatamente o defeito corrigido.
-        """
-        # sabotagem: trocar `s in descobertas` por `s in solicitacoes` → vermelho
-        conteudo = client.get(reverse("iscas:mapa")).content.decode()
-
-        assert 'x-for="s in descobertas"' in conteudo
-        assert "get descobertas()" in conteudo
-
 
 class TestClienteSemCoordenada:
     """ISC-RN-12 aplicado à demanda: ausência sinalizada, não silenciosa."""
@@ -237,11 +224,11 @@ class TestPermissao:
 
 class TestTelaDoMapa:
     def test_mapa_carrega_a_camada(self, client, operador_logado):
-        conteudo = client.get(reverse("iscas:mapa")).content.decode()
+        conteudo = client.get(reverse("iscas:painel")).content.decode()
 
         assert "api/solicitacoes.geojson" in conteudo
         assert "carregarSolicitacoes" in conteudo
-        assert "mostrarSolicitacoes" in conteudo
+        assert "desenharSolicitacoes" in conteudo
 
     def test_javascript_do_mapa_e_valido(self, client, operador_logado):
         """Guarda contra o SyntaxError que já derrubou este script antes."""
@@ -255,7 +242,7 @@ class TestTelaDoMapa:
         if not node:
             pytest.skip("node não disponível")
 
-        html = client.get(reverse("iscas:mapa")).content.decode()
+        html = client.get(reverse("iscas:painel")).content.decode()
         codigo = "\n".join(
             b for b in re.findall(r"<script[^>]*>(.*?)</script>", html, re.S) if b.strip()
         )
@@ -336,11 +323,11 @@ class TestCoberturaEmLote:
 
         for solicitacao in (primeira, segunda):
             individual = {
-                linha["modelo"].pk: (linha["solicitado"], linha["atribuido"], linha["falta"])
+                linha["tipo"]: (linha["solicitado"], linha["atribuido"], linha["falta"])
                 for linha in cobertura(solicitacao)
             }
             agregado = {
-                linha["modelo"].pk: (linha["solicitado"], linha["atribuido"], linha["falta"])
+                linha["tipo"]: (linha["solicitado"], linha["atribuido"], linha["falta"])
                 for linha in lote[solicitacao.pk]
             }
             assert agregado == individual, f"divergência na solicitação #{solicitacao.pk}"

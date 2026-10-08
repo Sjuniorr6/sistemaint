@@ -10,6 +10,9 @@ de manutenção. Trocar para arquivos locais é substituir estas tags.
 
 {% block title %}{% block titulo_iscas %}Iscas Fast{% endblock %} | Iscas Fast |{% endblock %}
 
+{# Todas as telas do Iscas Fast usam a largura disponível — o mapa principalmente. #}
+{% block container_class %}container-fluid{% endblock %}
+
 {% block content %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
@@ -199,6 +202,9 @@ de manutenção. Trocar para arquivos locais é substituir estas tags.
 .iscas-app .page-item.disabled .page-link { background-color: var(--iscas-superficie-alta); color: var(--iscas-texto-fraco); }
 .iscas-app hr.dropdown-divider { border-color: var(--iscas-borda); }
 
+/* Sem esta regra o `x-cloak` não esconde nada: o elemento aparece até o
+   Alpine carregar. */
+[x-cloak] { display: none !important; }
 #mapa, .mapa-caixa { height: 520px; border-radius: .5rem; z-index: 1; }
 /* O Leaflet injeta texto escuro nos popups; o app não pode sobrescrever. */
 .leaflet-popup-content { color: #1a1a1a; }
@@ -245,11 +251,6 @@ de manutenção. Trocar para arquivos locais é substituir estas tags.
       <i class="bi bi-speedometer2"></i> Painel
     </a>
     {% endif %}
-    {% if cap.VER_MAPA %}
-    <a class="iscas-nav-link {% if secao == 'mapa' %}ativo{% endif %}" href="{% url 'iscas:mapa' %}">
-      <i class="bi bi-geo-alt"></i> Mapa
-    </a>
-    {% endif %}
     {% if cap.VER_SOLICITACAO %}
     <a class="iscas-nav-link {% if secao == 'solicitacoes' %}ativo{% endif %}" href="{% url 'iscas:solicitacao_lista' %}">
       <i class="bi bi-clipboard-check"></i> Solicitações
@@ -268,7 +269,7 @@ de manutenção. Trocar para arquivos locais é substituir estas tags.
       <i class="bi bi-upc-scan"></i> Unidades
     </a>
     <a class="iscas-nav-link {% if secao == 'retornaveis' %}ativo{% endif %}" href="{% url 'iscas:retornaveis' %}">
-      <i class="bi bi-arrow-repeat"></i> Retornáveis
+      <i class="bi bi-arrow-return-left"></i> Devolução
     </a>
     <a class="iscas-nav-link {% if secao == 'extrato' %}ativo{% endif %}" href="{% url 'iscas:extrato' %}">
       <i class="bi bi-journal-text"></i> Extrato
@@ -310,9 +311,14 @@ de manutenção. Trocar para arquivos locais é substituir estas tags.
   {% endif %}
 
   {% if cap.CRIAR_SOLICITACAO %}
-  <a class="iscas-nav-acao" href="{% url 'iscas:solicitacao_criar' %}">
-    <i class="bi bi-plus-lg"></i> Nova solicitação
-  </a>
+    <a class="btn btn-outline-light btn-sm" style="margin-left: auto;" href="{% url 'iscas:solicitacao_criar' %}">
+      <i class="bi bi-plus-lg"></i> Nova solicitação
+    </a>
+  {% endif %}
+  {% if cap.MOVIMENTAR_ESTOQUE %}
+    <a href="{% url 'iscas:entrada' %}" class="btn btn btn-outline-light btn-sm">
+      <i class="bi bi-box-arrow-in-down"></i> Entrada de estoque
+    </a>
   {% endif %}
 </nav>
 
@@ -326,6 +332,8 @@ de manutenção. Trocar para arquivos locais é substituir estas tags.
 {% endif %}
 
 {% block iscas_conteudo %}{% endblock %}
+
+{% if solicitacoes_pendentes %}{% include "iscas/_aviso_pendentes.html" %}{% endif %}
 
 </div>{# .iscas-app #}
 {% endblock %}

@@ -32,7 +32,6 @@ from iscas.services.exceptions import (
     MovimentacaoInvalida,
     TipoModeloImutavel,
     UnidadeIndisponivel,
-    UnidadeTerminal,
 )
 
 pytestmark = pytest.mark.django_db
@@ -216,8 +215,9 @@ class TestRetornaveis:
     def test_retorno_devolve_ao_deposito(
         self, retornaveis_com_cliente, deposito, modelo_retornavel, operador
     ):
-        movimentacao = retorno_service.registrar_retorno(
-            unidades=retornaveis_com_cliente[:3], destino=deposito, autor=operador
+        [movimentacao] = retorno_service.registrar_devolucao(
+            unidades=retornaveis_com_cliente[:3], destino=deposito,
+            motivo="fim do uso", autor=operador,
         )
         assert movimentacao.tipo == TipoMovimentacao.RETORNO
         assert saldo_service.saldo_em_custodia(deposito, modelo=modelo_retornavel) == 3
@@ -225,24 +225,11 @@ class TestRetornaveis:
     def test_retorno_devolve_ao_agente(
         self, retornaveis_com_cliente, agente, modelo_retornavel, operador
     ):
-        retorno_service.registrar_retorno(
-            unidades=retornaveis_com_cliente[:2], destino=agente, autor=operador
+        retorno_service.registrar_devolucao(
+            unidades=retornaveis_com_cliente[:2], destino=agente,
+            motivo="fim do uso", autor=operador,
         )
         assert saldo_service.saldo_disponivel(agente, modelo=modelo_retornavel) == 2
-
-    def test_descartavel_entregue_nao_pode_retornar(
-        self, unidades_com_agente, agente, cliente, deposito, operador
-    ):
-        """ISC-RN-05: rejeita mesmo por id direto, não só na UI."""
-        custodia_service.registrar_movimentacao(
-            tipo=TipoMovimentacao.ENTREGA,
-            origem=agente, destino=cliente,
-            unidades=unidades_com_agente[:3], autor=operador,
-        )
-        with pytest.raises(UnidadeTerminal, match="descartável"):
-            retorno_service.registrar_retorno(
-                unidades=unidades_com_agente[:3], destino=deposito, autor=operador
-            )
 
     def test_descartavel_nao_aparece_na_lista_de_retornaveis(
         self, unidades_com_agente, agente, cliente, operador

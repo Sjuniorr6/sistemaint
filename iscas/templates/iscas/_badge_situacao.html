@@ -1,0 +1,9 @@
+{# Uma cor por situação, em um lugar só. Espera `valor`, `rotulo` e opcionalmente `n`. #}
+<span class="badge badge-situacao
+  {% if valor == 'EM_DEPOSITO' %}bg-success
+  {% elif valor == 'COM_AGENTE' %}bg-primary
+  {% elif valor == 'RESERVADA' %}bg-warning text-dark
+  {% elif valor == 'EM_ROTA' %}bg-info text-dark
+  {% elif valor == 'COM_CLIENTE' %}bg-light text-dark
+  {% elif valor == 'EM_MANUTENCAO' %}bg-danger
+  {% else %}bg-secondary{% endif %}">{% if n is not None %}{{ n }} {% endif %}{{ rotulo }}</span>

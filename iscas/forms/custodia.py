@@ -460,7 +460,11 @@ class RetornoManutencaoForm(_OrigemCustodiaMixin):
 
 
 class RetornoForm(forms.Form):
-    """Retorno de retornável em posse de cliente (ISC-RF-32)."""
+    """Devolução de iscas em posse de cliente (ISC-RF-32).
+
+    O registro usa o momento atual; o motivo é obrigatório e vira a
+    justificativa do lançamento.
+    """
 
     destino_deposito = forms.ModelChoiceField(
         queryset=Deposito.objects.all(), required=False, label="Depósito de destino",
@@ -475,12 +479,13 @@ class RetornoForm(forms.Form):
         widget=forms.HiddenInput(),
         help_text="IDs das unidades selecionadas, separados por vírgula.",
     )
-    ocorrido_em = forms.DateTimeField(
-        required=False, label="Data efetiva do retorno",
-        widget=forms.DateTimeInput(
-            attrs={"class": "form-control", "type": "datetime-local"},
-            format="%Y-%m-%dT%H:%M",
-        ),
+    motivo = forms.CharField(
+        label="Motivo da devolução",
+        widget=forms.Textarea(attrs={
+            "class": "form-control", "rows": 3,
+            "placeholder": "Ex.: isca com defeito, cliente encerrou o uso…",
+        }),
+        error_messages={"required": "Informe o motivo da devolução."},
     )
 
     def clean(self):
@@ -491,7 +496,7 @@ class RetornoForm(forms.Form):
 
         ids = [p.strip() for p in (dados.get("unidades") or "").split(",") if p.strip()]
         if not ids:
-            raise forms.ValidationError("Selecione ao menos uma unidade para retorno.")
+            raise forms.ValidationError("Selecione ao menos uma isca para devolução.")
         dados["ids_unidades"] = ids
         return dados
 

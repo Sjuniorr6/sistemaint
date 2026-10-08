@@ -25,8 +25,8 @@ def _post_solicitacao(cliente, modelo, **extra):
         "entrega_cidade": "Sao Paulo", "entrega_uf": "SP", "entrega_cep": "",
         "prazo_desejado": "", "observacao": "",
         "solicitante_nome": "Maria Compras",
-        f"quantidade_{modelo.pk}": "2",
-        f"preco_{modelo.pk}": "225.00",
+        f"quantidade_{modelo.tipo}": "2",
+        f"preco_{modelo.tipo}": "225.00",
     }
     dados.update(extra)
     return dados
@@ -54,7 +54,7 @@ class TestCriacao:
         """Quem bloqueia é o service (`exigir_valor=True`), não o form."""
         antes = Solicitacao.objects.count()
         dados = _post_solicitacao(cliente, modelo_descartavel)
-        dados[f"preco_{modelo_descartavel.pk}"] = preco
+        dados[f"preco_{modelo_descartavel.tipo}"] = preco
         resposta = client.post(reverse("iscas:solicitacao_criar"), dados)
 
         assert resposta.status_code == 200
@@ -125,7 +125,7 @@ class TestAtribuicaoEmDoisPassos:
             "agente": agente.pk,
             "valor_agente": "75.50",
             "confirmar": "1",
-            f"unidades_{modelo_descartavel.pk}": [
+            f"unidades_{modelo_descartavel.tipo}": [
                 u.pk for u in unidades_com_agente[:2]
             ],
         })
@@ -151,7 +151,7 @@ class TestAtribuicaoEmDoisPassos:
             "origem_tipo": OrigemAtribuicao.RETIRADA_BASE,
             "deposito": deposito.pk,
             "confirmar": "1",
-            f"unidades_{modelo_descartavel.pk}": [
+            f"unidades_{modelo_descartavel.tipo}": [
                 u.pk for u in unidades_no_deposito[:2]
             ],
         })
@@ -169,7 +169,7 @@ class TestAtribuicaoEmDoisPassos:
         client.post(reverse("iscas:solicitacao_atribuir", args=[pedido.pk]), {
             "agente": agente.pk,
             "confirmar": "1",
-            f"unidades_{modelo_descartavel.pk}": [
+            f"unidades_{modelo_descartavel.tipo}": [
                 u.pk for u in unidades_com_agente[:2]
             ],
         })
@@ -352,7 +352,7 @@ class TestValorDaEntregaNaTela:
 
         client.post(url, {
             **dados, "confirmar": "1",
-            f"unidades_{modelo_descartavel.pk}": [
+            f"unidades_{modelo_descartavel.tipo}": [
                 u.pk for u in unidades_com_agente[:2]
             ],
         })
@@ -458,7 +458,7 @@ class TestFormaEntregaNaTela:
 
         client.post(url, {
             **dados, "confirmar": "1",
-            f"unidades_{modelo_descartavel.pk}": [
+            f"unidades_{modelo_descartavel.tipo}": [
                 u.pk for u in unidades_com_agente[:2]
             ],
         })
@@ -474,7 +474,7 @@ class TestFormaEntregaNaTela:
         """O POST que o app sempre mandou não muda de significado."""
         client.post(reverse("iscas:solicitacao_atribuir", args=[pedido.pk]), {
             "agente": agente.pk, "confirmar": "1",
-            f"unidades_{modelo_descartavel.pk}": [
+            f"unidades_{modelo_descartavel.tipo}": [
                 u.pk for u in unidades_com_agente[:2]
             ],
         })

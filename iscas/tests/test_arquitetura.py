@@ -201,8 +201,8 @@ class TestReconciliacao:
         )
         solicitacao_service.confirmar_entrega(atribuicao=a3, autor=operador)
         retornadas = list(retorno_service.retornaveis_em_posse(cliente=cliente)[:3])
-        retorno_service.registrar_retorno(
-            unidades=retornadas, destino=deposito, autor=operador
+        retorno_service.registrar_devolucao(
+            unidades=retornadas, destino=deposito, motivo="fim do uso", autor=operador
         )
 
         # Baixa, manutenção e estorno — os caminhos menos trilhados.

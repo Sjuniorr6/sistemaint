@@ -10,7 +10,7 @@ from django.shortcuts import get_object_or_404
 from iscas import selectors
 from iscas.models.cadastro import Agente, Cliente, ModeloEquipamento
 from iscas.models.operacao import Solicitacao
-from iscas.enums import Capacidade
+from iscas.enums import Capacidade, TipoModelo
 from iscas.permissions import exige
 from iscas.services.cep import CepIndisponivel, CepInvalido, buscar_cep
 from iscas.services.geo import agentes_para_solicitacao, agentes_proximos
@@ -127,7 +127,15 @@ def _proximidade_por_solicitacao(request, raio_km):
             status=400,
         )
 
-    resultados = agentes_para_solicitacao(solicitacao=solicitacao, raio_km=raio_km)
+    # Mínimo de iscas disponíveis dos tipos em falta. Vazio ou inválido =
+    # sem mínimo: o campo é um filtro opcional, não um dado obrigatório.
+    try:
+        minimo = max(int(request.GET.get("minimo") or 0), 0)
+    except ValueError:
+        minimo = 0
+    resultados = agentes_para_solicitacao(
+        solicitacao=solicitacao, raio_km=raio_km, minimo_disponivel=minimo
+    )
 
     return JsonResponse(
         {
@@ -142,8 +150,8 @@ def _proximidade_por_solicitacao(request, raio_km):
                 "cliente": cliente.nome_razao_social,
                 "status_display": solicitacao.get_status_display(),
                 "falta": [
-                    {"modelo": modelo.nome, "codigo": modelo.codigo or "", "falta": falta}
-                    for modelo, falta in selectors.modelos_em_falta(solicitacao)
+                    {"tipo": tipo, "rotulo": TipoModelo(tipo).label, "falta": falta}
+                    for tipo, falta in selectors.tipos_em_falta(solicitacao)
                 ],
             },
             "agentes": [
@@ -157,7 +165,8 @@ def _proximidade_por_solicitacao(request, raio_km):
                     "distancia_km": round(item["distancia_km"], 2),
                     "disponivel": item["disponivel"],
                     "cobre_tudo": item["cobre_tudo"],
-                    "por_modelo": item["por_modelo"],
+                    "disponivel_total": item["disponivel_total"],
+                    "por_tipo": item["por_tipo"],
                 }
                 for item in resultados
             ],
@@ -361,3 +370,40 @@ def saldo_agente(request, agente_id):
             ],
         }
     )
+
+
+@exige(Capacidade.BAIXAR_MANUTENCAO)
+def unidades_com_cliente(request):
+    """Iscas em posse de cliente cujo ID contém `q` — seletor da devolução.
+
+    Só custódia CLIENTE: isca com agente ou em depósito se move pela
+    transferência, não pela devolução. Limitado a 20 — é busca digitada, e o
+    operador refina o termo em vez de rolar uma lista.
+    """
+    from iscas.enums import TipoCustodia
+    from iscas.models.custodia import Unidade
+
+    termo = (request.GET.get("q") or "").strip()
+    if not termo:
+        return JsonResponse({"unidades": []})
+
+    unidades = (
+        Unidade.objects.filter(
+            custodia_atual__tipo=TipoCustodia.CLIENTE,
+            identificador__icontains=termo,
+        )
+        .select_related("modelo", "custodia_atual__cliente")
+        .order_by("identificador")[:20]
+    )
+    return JsonResponse({
+        "unidades": [
+            {
+                "id": unidade.pk,
+                "identificador": unidade.identificador,
+                "modelo": unidade.modelo.nome,
+                "tipo": unidade.modelo.get_tipo_display(),
+                "cliente": unidade.custodia_atual.cliente.nome_razao_social,
+            }
+            for unidade in unidades
+        ]
+    })

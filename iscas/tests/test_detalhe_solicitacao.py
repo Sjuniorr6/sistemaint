@@ -41,7 +41,7 @@ class TestEstrutura:
         assert "Entrega e cobertura" in conteudo
         # Os dois conteudos continuam presentes apos a fusao dos cartoes.
         assert pedido.endereco_entrega in conteudo
-        assert modelo_descartavel.nome in conteudo
+        assert modelo_descartavel.get_tipo_display() in conteudo
 
     def test_acoes_destrutivas_sao_modais(self, client, operador_logado, pedido):
         """Botao que abre modal, e nao formulario aberto ocupando a coluna."""
@@ -194,6 +194,6 @@ class TestAgenteVindoDoMapa:
     def test_mapa_chega_com_a_solicitacao_escolhida(
         self, client, operador_logado, pedido
     ):
-        resposta = client.get(reverse("iscas:mapa"), {"solicitacao": pedido.pk})
+        resposta = client.get(reverse("iscas:painel"), {"solicitacao": pedido.pk})
 
         assert f'<option value="{pedido.pk}" selected>' in resposta.content.decode()

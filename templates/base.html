@@ -225,7 +225,8 @@
 
     <div class="container-fluid">
         <main class="py-3">
-            <div class="container mt-4">
+            {# Apps que precisam de largura total sobrescrevem este bloco. #}
+            <div class="{% block container_class %}container{% endblock %} mt-4">
                 <!-- Bloco de conteúdo principal -->
                 {% block content %}
                 {% endblock %}

@@ -33,18 +33,18 @@ def unidades_disponiveis(entidade, *, modelo=None):
     )
 
 
-def unidades_disponiveis_por_modelos(modelos):
-    """Unidades sem reserva ativa, de qualquer agente, nos modelos dados.
+def unidades_disponiveis_por_tipos(tipos):
+    """Unidades sem reserva ativa, de qualquer agente ativo, dos tipos dados.
 
     Diferente de `unidades_disponiveis()`, que parte de UMA custódia: aqui a
-    varredura é por modelo, atravessando agentes. É o que permite perguntar
-    "quem pode atender este pedido?" numa consulta só, em vez de iterar o
-    cadastro de agentes e contar saldo um a um (N+1).
+    varredura atravessa agentes. É o que permite perguntar "quem pode atender
+    este pedido?" numa consulta só, em vez de contar saldo agente a agente.
+    O pedido é por tipo, então qualquer modelo do tipo serve.
     """
     from iscas.enums import TipoCustodia
 
     return Unidade.objects.filter(
-        modelo_id__in=list(modelos),
+        modelo__tipo__in=list(tipos),
         custodia_atual__tipo=TipoCustodia.AGENTE,
         custodia_atual__agente__is_active=True,
     ).exclude(Exists(_reserva_ativa_subquery()))
@@ -126,6 +126,37 @@ def saldo_por_modelo_em_lote(custodias):
     for linha in linhas:
         agrupado.setdefault(linha["custodia_atual_id"], []).append(linha)
     return agrupado
+
+
+def anexar_identificadores(custodias, saldos_por_custodia):
+    """Põe em cada linha de saldo os IDs das unidades daquele modelo.
+
+    Uma consulta para todas as custódias, separada de
+    `saldo_por_modelo_em_lote` de propósito: o mapa e as listagens usam o
+    saldo sem precisar de IDs, e não devem pagar por eles.
+
+    Cada linha ganha `unidades`: lista de `{"identificador", "reservada"}`.
+    Reservada continua com o agente, mas presa a uma solicitação.
+    """
+    ids = [c.pk for c in custodias]
+    if not ids:
+        return saldos_por_custodia
+
+    por_chave = {}
+    for custodia_id, modelo_id, identificador, reservada in (
+        Unidade.objects.filter(custodia_atual_id__in=ids)
+        .annotate(reservada=Exists(_reserva_ativa_subquery()))
+        .order_by("identificador")
+        .values_list("custodia_atual_id", "modelo_id", "identificador", "reservada")
+    ):
+        por_chave.setdefault((custodia_id, modelo_id), []).append(
+            {"identificador": identificador, "reservada": reservada}
+        )
+
+    for custodia_id, linhas in saldos_por_custodia.items():
+        for linha in linhas:
+            linha["unidades"] = por_chave.get((custodia_id, linha["modelo"]), [])
+    return saldos_por_custodia
 
 
 def tem_saldo(entidade) -> bool:

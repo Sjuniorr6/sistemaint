@@ -1,0 +1,81 @@
+{% comment %}
+Pop-up fixo de solicitações pendentes — em todas as páginas do app, para quem
+atende, até não sobrar nenhuma com isca a atribuir.
+
+Pode ser minimizado, nunca fechado: a pendência continua existindo. Minimizar
+guarda o maior #id visto; uma solicitação nova (id maior) reabre sozinha. No
+painel começa minimizado — o mapa já lista as pendentes ali.
+{% endcomment %}
+<style>
+.aviso-pendentes {
+    position: fixed; right: 16px; bottom: 16px; z-index: 1070; width: 340px; max-width: calc(100vw - 32px);
+    background: var(--iscas-superficie-alta); color: var(--iscas-texto);
+    border: 1px solid rgba(248,113,113,.6); border-radius: .6rem;
+    box-shadow: 0 8px 28px rgba(0,0,0,.5);
+}
+.aviso-pendentes__cabeca {
+    display: flex; align-items: center; gap: .5rem; width: 100%; padding: .6rem .8rem;
+    background: rgba(248,113,113,.14); border: 0; color: var(--iscas-texto); border-radius: .6rem .6rem 0 0;
+}
+.aviso-pendentes.minimizado .aviso-pendentes__cabeca { border-radius: .6rem; }
+.aviso-pendentes__lista { max-height: 260px; overflow-y: auto; }
+.aviso-pendentes__item {
+    display: block; padding: .5rem .8rem; color: var(--iscas-texto); text-decoration: none;
+    border-top: 1px solid var(--iscas-borda); font-size: .85rem;
+}
+.aviso-pendentes__item:hover { background: rgba(255,255,255,.04); color: var(--iscas-texto); }
+.aviso-pendentes .pulso { width: .55rem; height: .55rem; border-radius: 50%; background: var(--iscas-erro);
+    box-shadow: 0 0 0 0 rgba(248,113,113,.7); animation: aviso-pulso 1.8s infinite; }
+@keyframes aviso-pulso { 70% { box-shadow: 0 0 0 8px rgba(248,113,113,0); } 100% { box-shadow: 0 0 0 0 rgba(248,113,113,0); } }
+@media (prefers-reduced-motion: reduce) { .aviso-pendentes .pulso { animation: none; } }
+</style>
+
+<aside class="aviso-pendentes" role="status" aria-live="polite"
+       x-data="avisoPendentes({{ ultimo_pendente_id }}, {% if secao == 'painel' %}true{% else %}false{% endif %})"
+       :class="{ minimizado: minimizado }">
+  <button type="button" class="aviso-pendentes__cabeca" @click="alternar()"
+          :aria-expanded="(!minimizado).toString()">
+    <span class="pulso"></span>
+    <strong class="small flex-grow-1 text-start">
+      {{ solicitacoes_pendentes|length }} solicitaç{{ solicitacoes_pendentes|length|pluralize:"ão,ões" }}
+      pendente{{ solicitacoes_pendentes|length|pluralize }}
+    </strong>
+    <i class="bi" :class="minimizado ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+  </button>
+  <div x-show="!minimizado" x-cloak>
+    <div class="aviso-pendentes__lista">
+      {% for item in solicitacoes_pendentes|slice:":8" %}
+        <a class="aviso-pendentes__item" href="{% url 'iscas:solicitacao_detalhe' item.solicitacao.pk %}">
+          <div class="d-flex justify-content-between gap-2">
+            <span class="fw-semibold text-truncate">{{ item.solicitacao.cliente }}</span>
+            <span class="badge bg-danger flex-shrink-0">#{{ item.solicitacao.pk }}</span>
+          </div>
+          <div class="small" style="color:var(--iscas-texto-suave)">
+            faltam {{ item.falta }} isca{{ item.falta|pluralize }} ·
+            aberta há {{ item.solicitacao.aberta_em|timesince }}
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+    <div class="d-flex justify-content-between align-items-center px-3 py-2 small border-top border-secondary">
+      {% if solicitacoes_pendentes|length > 8 %}<span class="text-muted">+{{ solicitacoes_pendentes|length|add:"-8" }} outras</span>{% else %}<span></span>{% endif %}
+      <a href="{% url 'iscas:painel' %}#mapa-operacional">Ver no mapa</a>
+    </div>
+  </div>
+</aside>
+
+<script>
+function avisoPendentes(ultimoId, comecaMinimizado) {
+  const CHAVE = 'iscasAvisoMinimizadoAte';
+  const lido = () => { try { return Number(localStorage.getItem(CHAVE)) || 0; } catch (e) { return 0; } };
+  return {
+    // Minimizado só se o operador já minimizou vendo esta mesma leva: uma
+    // solicitação nova (id maior que o guardado) reabre o aviso.
+    minimizado: comecaMinimizado || lido() >= ultimoId,
+    alternar() {
+      this.minimizado = !this.minimizado;
+      try { localStorage.setItem(CHAVE, this.minimizado ? String(ultimoId) : '0'); } catch (e) {}
+    },
+  };
+}
+</script>

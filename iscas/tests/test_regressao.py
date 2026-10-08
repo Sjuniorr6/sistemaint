@@ -294,7 +294,7 @@ class TestCoordenadaNoJavaScript:
             ("iscas:agente_criar", False),
             ("iscas:agente_detalhe", True),
             ("iscas:cliente_criar", False),
-            ("iscas:mapa", False),
+            ("iscas:painel", False),
         ],
     )
     def test_javascript_servido_e_sintaticamente_valido(

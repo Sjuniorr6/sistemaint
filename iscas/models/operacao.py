@@ -21,6 +21,7 @@ from iscas.enums import (
     OrigemAtribuicao,
     StatusAtribuicao,
     StatusSolicitacao,
+    TipoModelo,
 )
 from iscas.models.base import BaseModel, LogModel
 
@@ -67,6 +68,15 @@ class Solicitacao(BaseModel):
         max_digits=10, decimal_places=2, null=True, blank=True,
         validators=[MinValueValidator(Decimal("0.00"))],
         verbose_name="Valor cobrado do cliente",
+    )
+    # Mensalidade que o cliente paga enquanto está com isca RETORNÁVEL.
+    # Recorrente: fica FORA de `valor_cliente` e da margem da entrega. Só
+    # existe com retornável no pedido — regra do service, porque os itens
+    # estão em outra tabela e um CheckConstraint não os enxerga.
+    valor_assinatura_mensal = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(Decimal("0.00"))],
+        verbose_name="Assinatura mensal",
     )
 
     # — Dados de contato e entrega, copiados do cliente na abertura —
@@ -126,6 +136,13 @@ class Solicitacao(BaseModel):
             models.CheckConstraint(
                 condition=Q(valor_cliente__gte=0) | Q(valor_cliente__isnull=True),
                 name="iscas_sol_valor_cliente_nao_negativo",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(valor_assinatura_mensal__gte=0)
+                    | Q(valor_assinatura_mensal__isnull=True)
+                ),
+                name="iscas_sol_assinatura_nao_negativa",
             ),
         ]
 
@@ -236,7 +253,13 @@ class Solicitacao(BaseModel):
 
 
 class ItemSolicitacao(models.Model):
-    """Quanto de cada modelo o cliente pediu."""
+    """Quantas iscas de cada TIPO o cliente pediu.
+
+    O pedido é por tipo (descartável/retornável): qualquer modelo do tipo
+    atende. `modelo` só existe nas linhas abertas antes dessa mudança — elas
+    ficam como estavam (modelo e preço originais) e a cobertura as soma pelo
+    `tipo`, preenchido a partir do modelo na migração 0015.
+    """
 
     solicitacao = models.ForeignKey(
         "iscas.Solicitacao",
@@ -244,11 +267,18 @@ class ItemSolicitacao(models.Model):
         related_name="itens",
         verbose_name="Solicitação",
     )
+    tipo = models.CharField(
+        max_length=20, choices=TipoModelo.choices, db_index=True,
+        verbose_name="Tipo",
+    )
+    # Legado: NULL em todo pedido novo.
     modelo = models.ForeignKey(
         "iscas.ModeloEquipamento",
         on_delete=models.PROTECT,
+        null=True,
+        blank=True,
         related_name="itens_solicitacao",
-        verbose_name="Modelo",
+        verbose_name="Modelo (pedidos antigos)",
     )
     quantidade = models.PositiveIntegerField(verbose_name="Quantidade")
     # Preço por unidade deste modelo. O total da solicitação
@@ -271,6 +301,14 @@ class ItemSolicitacao(models.Model):
             models.UniqueConstraint(
                 fields=["solicitacao", "modelo"], name="iscas_item_modelo_unico"
             ),
+            # Um item por tipo nos pedidos novos. Condicional porque pedidos
+            # antigos podem ter dois modelos do mesmo tipo, cada um com seu
+            # preço — e reescrevê-los inventaria um unitário médio.
+            models.UniqueConstraint(
+                fields=["solicitacao", "tipo"],
+                condition=Q(modelo__isnull=True),
+                name="iscas_item_tipo_unico",
+            ),
             models.CheckConstraint(
                 condition=Q(quantidade__gt=0), name="iscas_item_qtd_positiva"
             ),
@@ -283,7 +321,7 @@ class ItemSolicitacao(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.quantidade}× {self.modelo}"
+        return f"{self.quantidade}× {self.modelo or self.get_tipo_display()}"
 
 
 class Atribuicao(BaseModel):
