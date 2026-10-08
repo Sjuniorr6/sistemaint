@@ -3233,3 +3233,34 @@ def test_recepcao_aceita_sem_requisicao_ve_o_botao_de_criar(
     assert link in client.get(url).content.decode()
     _requisicao_para(chamado)
     assert link not in client.get(url).content.decode()  # com requisição, some
+
+
+class TestExclusaoDeEventoPeloAdmin:
+    """Evento é trilha de auditoria: só superusuário apaga, e só pelo admin."""
+
+    @pytest.fixture
+    def evento(self, user_quality, outro_quality):
+        return _abrir(user_quality, outro_quality).eventos.first()
+
+    # sabotagem: devolver a permissão de modelo em has_delete_permission → vermelho
+    @pytest.mark.parametrize("superusuario, apaga", [(True, True), (False, False)])
+    def test_so_superusuario_apaga_pelo_admin(self, client, evento, superusuario, apaga):
+        from django.contrib.auth.models import Permission
+
+        usuario = User.objects.create_user(
+            username="admin_evento", password="x", is_staff=True, is_superuser=superusuario
+        )
+        # Staff com a permissão de modelo: prova que ela sozinha não basta.
+        usuario.user_permissions.add(Permission.objects.get(codename="delete_chamadoevento"))
+        client.force_login(usuario)
+
+        client.post(
+            reverse("admin:chamados_chamadoevento_delete", args=[evento.pk]), {"post": "yes"}
+        )
+
+        assert ChamadoEvento.objects.filter(pk=evento.pk).exists() is not apaga
+
+    # sabotagem: remover a trava de delete() do model → vermelho
+    def test_codigo_do_sistema_continua_sem_poder_apagar(self, evento):
+        with pytest.raises(ValidationError):
+            evento.delete()

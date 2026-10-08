@@ -171,7 +171,16 @@ class chamadoeventoadmin(admin.ModelAdmin):
         return False  # append-only
 
     def has_delete_permission(self, request, obj=None):
-        return False
+        # Correção manual da trilha (evento lançado por engano): só
+        # superusuário. A permissão de modelo sozinha não basta — staff com
+        # `delete_chamadoevento` continua sem apagar. O admin registra a
+        # exclusão no LogEntry (quem e quando).
+        return request.user.is_superuser
+
+    def delete_model(self, request, obj):
+        # `ChamadoEvento.delete()` recusa de propósito: o código do sistema
+        # nunca apaga evento. Este é o único caminho, e é explícito.
+        type(obj).objects.filter(pk=obj.pk).delete()
 
 
 class passagemsetoradmin(admin.ModelAdmin):
