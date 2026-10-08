@@ -309,12 +309,52 @@
                             <i class="bi bi-file-text-fill"></i>
                             Dados da Requisição
                         </h5>
-                            {% comment %} Modelos da requisição: só leitura (definidos na criação). {% endcomment %}
-                            <div class="mb-3">
+                            {% comment %} Modelos da requisição: a quantidade de cada um é
+                              editável; tipo de produto, customização e valor unitário
+                              não. Ao salvar, total de equipamentos e valor total são
+                              recalculados pelos modelos. {% endcomment %}
+                            <div class="mb-4">
                                 <label class="fw-semibold">Modelos da requisição</label>
-                                {% include 'partials/_itens_requisicao.html' with registro=form.instance %}
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-dark align-middle mb-1">
+                                        <thead>
+                                            <tr>
+                                                <th>Tipo de produto</th>
+                                                <th>Customização</th>
+                                                <th class="text-end">Valor unitário</th>
+                                                <th style="width: 160px;">Quantidade</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for item, campo in form.linhas_quantidade %}
+                                                <tr>
+                                                    <td class="fw-semibold">{{ item.tipo_produto }}</td>
+                                                    <td>{{ item.customizacao|default:"—" }}</td>
+                                                    <td class="text-end">R$ {{ item.valor_unitario|floatformat:2 }}</td>
+                                                    <td>
+                                                        {{ campo }}
+                                                        {% for e in campo.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                                                    </td>
+                                                </tr>
+                                            {% empty %}
+                                                <tr><td colspan="4">{{ form.instance.tipo_produto }} ({{ form.instance.numero_de_equipamentos|default:0 }})</td></tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <small class="helptext">O total de equipamentos e o valor total (modelos + taxa de envio) são recalculados ao salvar.</small>
                             </div>
-                            {{ form.as_p }}
+                            {% with quantidades=form.campos_de_quantidade %}
+                                {% for field in form %}
+                                    {% if field.name not in quantidades %}
+                                        <p>
+                                            {{ field.label_tag }} {{ field }}
+                                            {% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}
+                                            {{ field.errors }}
+                                        </p>
+                                    {% endif %}
+                                {% endfor %}
+                            {% endwith %}
                     </div>
                         
                         <div class="action-buttons">

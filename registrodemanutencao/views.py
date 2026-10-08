@@ -332,13 +332,18 @@ class FormulariosUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateV
             *args, instance=self.object, initial=[{'id_equipamento': n} for n in numeros],
         )
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["editar_itens"] = True  # nºs de cada tipo de produto editáveis
+        return kwargs
+
     def post(self, request, *args, **kwargs):
         self.object = self.get_object()
         self.chamado = self._chamado()
 
         objeto_original = registrodemanutencao.objects.get(pk=self.object.pk)
 
-        form = self.form_class(request.POST, request.FILES, instance=self.object)
+        form = self.form_class(request.POST, request.FILES, instance=self.object, editar_itens=True)
         imagens_formset = self._formset_imagens(request.POST, request.FILES)
 
         if form.is_valid() and imagens_formset.is_valid():
@@ -356,9 +361,17 @@ class FormulariosUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateV
                 usuario=self.request.user
             )
 
-        self.object = form.save()
-        imagens_formset.instance = self.object
-        imagens_formset.save()
+        from django.db import transaction
+
+        from .services import atualizar_numeros_entrada
+
+        # Nºs editados por tipo de produto: quantidade e resumo recalculados
+        # junto (o backup acima já guardou os itens anteriores).
+        with transaction.atomic():
+            self.object = form.save()
+            atualizar_numeros_entrada(self.object, form.numeros_por_item())
+            imagens_formset.instance = self.object
+            imagens_formset.save()
 
         if self.chamado is not None:
             messages.success(self.request, f"Manutenção do chamado {self.chamado.protocolo} registrada.")

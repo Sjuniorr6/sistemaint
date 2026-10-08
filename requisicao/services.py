@@ -2,6 +2,13 @@
 from django.db import transaction
 
 
+def valor_total_da(requisicao, itens):
+    """Valor total da requisição: soma dos modelos (quantidade × valor unitário)
+    MAIS a taxa de envio. Regra única para criação, edição e a sobra da
+    expedição parcial."""
+    return sum(i.valor_total for i in itens) + (requisicao.taxa_envio or 0)
+
+
 def criar_requisicao(requisicao, itens, chamado=None):
     """Grava a requisição e os seus modelos (itens) numa transação.
 
@@ -12,8 +19,8 @@ def criar_requisicao(requisicao, itens, chamado=None):
 
     Os campos de resumo da requisição são DERIVADOS dos itens — a API dos
     parceiros, o kanban, a expedição parcial e o faturamento leem por eles:
-    `numero_de_equipamentos` (total), `valor_total` (soma) e, do primeiro item,
-    `tipo_produto`, `tipo_customizacao` e `valor_unitario`.
+    `numero_de_equipamentos` (total), `valor_total` (ver `valor_total_da`) e, do
+    primeiro item, `tipo_produto`, `tipo_customizacao` e `valor_unitario`.
 
     O e-mail com o PDF do protocolo sai depois do commit: disparado no post_save
     (como antes), o PDF seria gerado sem os itens.
@@ -27,7 +34,7 @@ def criar_requisicao(requisicao, itens, chamado=None):
         requisicao.tipo_customizacao = primeiro.customizacao or None
         requisicao.valor_unitario = primeiro.valor_unitario
         requisicao.numero_de_equipamentos = str(sum(i.quantidade for i in itens))
-        requisicao.valor_total = sum(i.valor_total for i in itens)
+        requisicao.valor_total = valor_total_da(requisicao, itens)
         requisicao._skip_signals = True
         requisicao.save()
         for item in itens:
@@ -119,3 +126,24 @@ def eh_carregador_cabo(requisicao):
 
 def tem_varios_modelos(requisicao):
     return len(requisicao.itens.all()) > 1
+
+
+def atualizar_quantidades(requisicao, quantidades):
+    """Edição: grava a nova quantidade de cada modelo e recalcula o resumo da
+    requisição (total de equipamentos e valor total) na mesma transação.
+
+    `quantidades`: {pk do ItemRequisicao: quantidade}. Modelo, customização e
+    valor unitário não mudam aqui.
+    """
+    itens = list(requisicao.itens.all())
+    for item in itens:
+        if item.pk in quantidades:
+            item.quantidade = quantidades[item.pk]
+    with transaction.atomic():
+        from requisicao.models import ItemRequisicao
+
+        ItemRequisicao.objects.bulk_update(itens, ["quantidade"])
+        requisicao.numero_de_equipamentos = str(sum(i.quantidade for i in itens))
+        requisicao.valor_total = valor_total_da(requisicao, itens)
+        requisicao.save(update_fields=["numero_de_equipamentos", "valor_total"])
+    return requisicao

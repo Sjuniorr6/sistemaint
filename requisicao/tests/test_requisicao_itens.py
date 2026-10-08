@@ -176,3 +176,83 @@ def test_falha_de_email_nao_derruba_a_criacao(client_req, cliente, produtos, mon
 
     assert resp.status_code == 302
     assert Requisicoes.objects.count() == 1
+
+
+
+@pytest.fixture
+def client_edicao_req(client, db):
+    user = User.objects.create_user(username="editor", password="x")
+    user.user_permissions.add(Permission.objects.get(codename="change_requisicoes"))
+    client.force_login(user)
+    return client
+
+
+def _dados_da_tela(resp):
+    """POST com os valores que a própria tela de edição renderizou."""
+    form = resp.context["form"]
+    return {campo.name: campo.value() for campo in form if campo.value() is not None}
+
+
+@pytest.mark.django_db
+def test_edicao_altera_quantidades_e_ids_e_recalcula_o_resumo(client_edicao_req, cliente, produtos):
+    req = _requisicao(cliente, (produtos["Isca 4G"], 2), (produtos["Isca 2G"], 1), status="Pendente")
+    req.itens.update(valor_unitario=Decimal("10"))
+    i4g, i2g = req.itens.order_by("id")
+    url = reverse("RequisicaoUpdateView", args=[req.pk])
+    dados = _dados_da_tela(client_edicao_req.get(url))
+    dados.update({f"quantidade_{i4g.pk}": 5, f"quantidade_{i2g.pk}": 1, "id_equipamentos": "111 222"})
+
+    resp = client_edicao_req.post(url, dados)
+
+    req.refresh_from_db()
+    assert resp.status_code == 302
+    assert list(req.itens.order_by("id").values_list("quantidade", flat=True)) == [5, 1]
+    # sabotagem: não recalcular o resumo em atualizar_quantidades → vermelho
+    assert (req.numero_de_equipamentos, req.valor_total, req.id_equipamentos) == (
+        "6", Decimal("60.00"), "111 222")
+
+
+@pytest.mark.django_db
+def test_edicao_recusa_quantidade_zero_sem_gravar(client_edicao_req, cliente, produtos):
+    req = _requisicao(cliente, (produtos["Isca 4G"], 2), status="Pendente")
+    item = req.itens.get()
+    url = reverse("RequisicaoUpdateView", args=[req.pk])
+    dados = _dados_da_tela(client_edicao_req.get(url))
+    dados[f"quantidade_{item.pk}"] = 0
+
+    resp = client_edicao_req.post(url, dados)
+
+    assert resp.status_code == 200
+    item.refresh_from_db()
+    assert item.quantidade == 2
+
+
+@pytest.mark.django_db
+def test_edicao_da_requisicao_exige_login(client, cliente, produtos):
+    """A view ativa não exigia login: qualquer pessoa com o link editava."""
+    req = _requisicao(cliente, (produtos["Isca 4G"], 2), status="Pendente")
+
+    resp = client.get(reverse("RequisicaoUpdateView", args=[req.pk]))
+
+    # sabotagem: tirar PermissionRequiredMixin/LoginRequiredMixin da view → vermelho
+    assert resp.status_code == 302 and "login" in resp.url.lower()
+
+
+
+@pytest.mark.django_db
+def test_valor_total_soma_a_taxa_de_envio_na_criacao_e_na_edicao(client_req, cliente, produtos):
+    User.objects.get(username="comercial").user_permissions.add(
+        Permission.objects.get(codename="change_requisicoes"))
+    dados = _post(cliente, (produtos["Isca 4G"].pk, "2", "", "10.50"), (produtos["Isca 2G"].pk, "1", "", "8"))
+    dados["taxa_envio"] = "15.50"
+    client_req.post(reverse("requisicoescrateview"), dados)
+    req = Requisicoes.objects.get()
+    # sabotagem: tirar a taxa_envio de valor_total_da → vermelho
+    assert req.valor_total == Decimal("44.50")  # 2×10,50 + 1×8 + 15,50
+
+    url = reverse("RequisicaoUpdateView", args=[req.pk])
+    edicao = _dados_da_tela(client_req.get(url))
+    edicao["taxa_envio"] = "5"  # taxa alterada na própria edição
+    client_req.post(url, edicao)
+    req.refresh_from_db()
+    assert req.valor_total == Decimal("34.00")  # 29 + 5

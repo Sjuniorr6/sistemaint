@@ -139,6 +139,45 @@ class FormulariosUpdateForm(forms.ModelForm):
     customização, contrato e quantidade moram nos itens (ItemEntrada) e são só
     leitura aqui — o template os exibe a partir de `object.itens`."""
 
+    def __init__(self, *args, editar_itens=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Edição (registrodemanutencao_update): os nºs de cada tipo de produto
+        # ficam editáveis; a quantidade é recalculada pela contagem. Tipo de
+        # produto, customização e contrato não mudam aqui.
+        self.itens_editaveis = []
+        if editar_itens and self.instance.pk:
+            for item in self.instance.itens.select_related('tipo_produto'):
+                # O nome contém "numero_equipamento": o JS da tela aplica a mesma
+                # limpeza de prefixos de leitor que já fazia nesse campo.
+                nome = f'numero_equipamento_{item.pk}'
+                self.fields[nome] = forms.CharField(
+                    initial="\n".join(separar_numeros(item.numero_equipamento)),
+                    label=f'Nºs — {item.tipo_produto or "sem produto"}',
+                    widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+                )
+                self.itens_editaveis.append((item, nome))
+
+    def linhas_numeros(self):
+        """[(item, BoundField dos nºs)] para o template."""
+        return [(item, self[nome]) for item, nome in self.itens_editaveis]
+
+    def numeros_por_item(self):
+        """{pk do item: [nºs]} do cleaned_data (após is_valid)."""
+        return {item.pk: separar_numeros(self.cleaned_data[nome]) for item, nome in self.itens_editaveis}
+
+    def clean(self):
+        cleaned = super().clean()
+        vistos = set()
+        for item, nome in self.itens_editaveis:
+            numeros = separar_numeros(cleaned.get(nome, ''))
+            if not numeros:
+                self.add_error(nome, "Informe ao menos um nº.")
+            repetidos = sorted({n for n in numeros if n in vistos or numeros.count(n) > 1})
+            if repetidos:
+                self.add_error(nome, f"Nº repetido na entrada ({', '.join(repetidos)}).")
+            vistos.update(numeros)
+        return cleaned
+
     class Meta:
         model = registrodemanutencao
         fields = [

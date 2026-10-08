@@ -156,6 +156,8 @@ def _post_update(registro, id_equipamento):
         "imagens-MIN_NUM_FORMS": "0", "imagens-MAX_NUM_FORMS": "1000",
         "imagens-0-id_equipamento": id_equipamento, "imagens-0-tipo_problema": "Oxidação",
         "imagens-0-faturamento": "", "imagens-0-observacao2": "",
+        # A tela manda os nºs atuais de cada tipo de produto (campos editáveis).
+        **{f"numero_equipamento_{i.pk}": i.numero_equipamento for i in registro.itens.all()},
     }
 
 
@@ -226,3 +228,35 @@ def test_detalhe_abre_com_laudo_sem_foto(client_edicao, cliente, isca_4g):
 
     assert resp.status_code == 200
     assert "ID: 111" in resp.content.decode()
+
+
+
+@pytest.mark.django_db
+def test_edicao_altera_os_numeros_e_recalcula_quantidades(client_edicao, cliente, isca_4g, isca_2g):
+    registro = _entrada(cliente, isca_4g, isca_2g)
+    i4g, i2g = registro.itens.order_by("id")
+    dados = _post_update(registro, "")
+    dados.update({"imagens-TOTAL_FORMS": "0",
+                  f"numero_equipamento_{i4g.pk}": "111\n222\n333", f"numero_equipamento_{i2g.pk}": "444"})
+
+    client_edicao.post(reverse("FormulariosUpdateView", args=[registro.pk]), dados)
+
+    registro.refresh_from_db()
+    assert list(registro.itens.order_by("id").values_list("numero_equipamento", "quantidade")) == [
+        ("111 222 333", 3), ("444", 1)]
+    # sabotagem: não recalcular o resumo em atualizar_numeros_entrada → vermelho
+    assert (registro.numero_equipamento, registro.quantidade) == ("111 222 333 444", 4)
+
+
+@pytest.mark.django_db
+def test_edicao_recusa_numero_repetido_entre_tipos_sem_gravar(client_edicao, cliente, isca_4g, isca_2g):
+    registro = _entrada(cliente, isca_4g, isca_2g)
+    i4g, i2g = registro.itens.order_by("id")
+    dados = _post_update(registro, "")
+    dados.update({"imagens-TOTAL_FORMS": "0",
+                  f"numero_equipamento_{i4g.pk}": "111", f"numero_equipamento_{i2g.pk}": "111"})
+
+    resp = client_edicao.post(reverse("FormulariosUpdateView", args=[registro.pk]), dados)
+
+    assert "Nº repetido na entrada (111)." in resp.content.decode()
+    assert list(registro.itens.values_list("numero_equipamento", flat=True)) == ["1", "1"]

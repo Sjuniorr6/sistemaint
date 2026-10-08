@@ -2819,6 +2819,7 @@ def test_laudo_vem_com_uma_linha_por_equipamento_e_ignora_linha_nao_preenchida(
         dados.update({f"imagens-{i}-id_equipamento": numero, f"imagens-{i}-tipo_problema": "",
                       f"imagens-{i}-faturamento": "", f"imagens-{i}-observacao2": ""})
     dados["imagens-1-tipo_problema"] = "Oxidação"  # só EQ-2 foi preenchido
+    dados.update({f"numero_equipamento_{i.pk}": i.numero_equipamento for i in entrada.itens.all()})
 
     resp = client.post(url, dados)
 

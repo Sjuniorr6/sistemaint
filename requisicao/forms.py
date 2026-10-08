@@ -51,15 +51,44 @@ class RequisicaoForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         editable_fields = kwargs.pop('editable_fields', None)
+        editar_itens = kwargs.pop('editar_itens', False)
         super().__init__(*args, **kwargs)
-        
+
         self.fields['nome'].queryset = Clientes.objects.all()
         self.fields['nome'].empty_label = "Selecione um cliente"
+
+        # Edição (requisicao_update): quantidade editável por modelo. O valor
+        # total passa a ser a soma dos modelos, então os campos de valor soltos
+        # saem — editados à mão seriam sobrescritos ao salvar.
+        self.itens_editaveis = []
+        if editar_itens and self.instance.pk:
+            self.fields.pop('valor_unitario', None)
+            self.fields.pop('valor_total', None)
+            for item in self.instance.itens.select_related('tipo_produto'):
+                nome = f'quantidade_{item.pk}'
+                self.fields[nome] = forms.IntegerField(
+                    min_value=1,
+                    initial=item.quantidade,
+                    label=f'Quantidade — {item.tipo_produto}',
+                    widget=forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
+                )
+                self.itens_editaveis.append((item, nome))
 
         if editable_fields:
             for field_name in self.fields:
                 if field_name not in editable_fields:
                     self.fields[field_name].widget.attrs['readonly'] = 'readonly'
+
+    def linhas_quantidade(self):
+        """[(item, BoundField da quantidade)] para o template da edição."""
+        return [(item, self[nome]) for item, nome in self.itens_editaveis]
+
+    def campos_de_quantidade(self):
+        return [nome for _, nome in self.itens_editaveis]
+
+    def quantidades(self):
+        """{pk do item: quantidade} do cleaned_data (após is_valid)."""
+        return {item.pk: self.cleaned_data[nome] for item, nome in self.itens_editaveis}
 
 
 class requisicaoFormup(forms.ModelForm):

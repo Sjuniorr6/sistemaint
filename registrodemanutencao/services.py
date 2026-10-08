@@ -104,3 +104,28 @@ def resumo_itens(registro):
             for i in itens
         ),
     }
+
+
+def atualizar_numeros_entrada(entrada, numeros_por_item):
+    """Edição: troca os nºs de cada tipo de produto e recalcula a quantidade do
+    item e o resumo da entrada (todos os nºs e o total) na mesma transação.
+
+    `numeros_por_item`: {pk do ItemEntrada: [nºs]}. Tipo de produto,
+    customização e contrato não mudam aqui.
+    """
+    from django.db import transaction
+
+    from .models import ItemEntrada
+
+    itens = list(entrada.itens.all())
+    for item in itens:
+        if item.pk in numeros_por_item:
+            numeros = numeros_por_item[item.pk]
+            item.numero_equipamento = " ".join(numeros)
+            item.quantidade = len(numeros)
+    with transaction.atomic():
+        ItemEntrada.objects.bulk_update(itens, ["numero_equipamento", "quantidade"])
+        entrada.numero_equipamento = " ".join(i.numero_equipamento for i in itens if i.numero_equipamento)
+        entrada.quantidade = sum(i.quantidade for i in itens)
+        entrada.save(update_fields=["numero_equipamento", "quantidade"])
+    return entrada

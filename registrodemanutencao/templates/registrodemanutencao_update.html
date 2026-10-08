@@ -112,10 +112,41 @@
 
                 </div>
 
-                <!-- Tipos de produto da entrada (somente leitura: definidos na criação) -->
+                {% comment %} Tipos de produto da entrada: os nºs de cada um são editáveis
+                  (um por linha); a quantidade é recalculada ao salvar. Tipo de
+                  produto, customização e contrato não mudam aqui. {% endcomment %}
                 <div class="mb-3">
                     <label class="fw-semibold">Equipamentos da entrada ({{ form.instance.quantidade|default:0 }} no total):</label>
-                    {% include 'partials/_itens_entrada.html' with registro=form.instance %}
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-1">
+                            <thead>
+                                <tr>
+                                    <th>Tipo de produto</th>
+                                    <th>Customização</th>
+                                    <th>Contrato</th>
+                                    <th style="min-width: 260px;">Nº dos equipamentos</th>
+                                    <th class="text-end">Qtd.</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item, campo in form.linhas_numeros %}
+                                    <tr>
+                                        <td class="fw-semibold">{{ item.tipo_produto|default:"—" }}</td>
+                                        <td>{{ item.customizacao|default:"—" }}</td>
+                                        <td>{{ item.tipo_contrato|default:"—" }}</td>
+                                        <td>
+                                            {{ campo }}
+                                            {% for e in campo.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                                        </td>
+                                        <td class="text-end">{{ item.quantidade }}</td>
+                                    </tr>
+                                {% empty %}
+                                    <tr><td colspan="5" class="text-muted">Nenhum tipo de produto registrado.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <small class="text-muted">Um nº por linha. A quantidade é recalculada ao salvar.</small>
                 </div>
 
                 <!-- Observações -->
@@ -364,9 +395,10 @@
         bloquearRepetidos();
     }
 
-    // Impede que a tecla ENTER submeta o formulário involuntariamente
+    // Impede que a tecla ENTER submeta o formulário involuntariamente (na caixa
+    // de nºs ela quebra a linha: um nº por linha).
     document.addEventListener("keydown", function (e) {
-        if (e.key === "Enter") {
+        if (e.key === "Enter" && e.target.tagName !== "TEXTAREA") {
             e.preventDefault();
         }
     });

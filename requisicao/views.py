@@ -252,7 +252,27 @@ class RequisicaoUpdateView(PermissionRequiredMixin, LoginRequiredMixin, UpdateVi
         return response
 
 
-class Requisicao2UpdateView(PermissionRequiredMixin, LoginRequiredMixin, UpdateView):
+class EdicaoComQuantidadesMixin:
+    """Edição da requisição com a quantidade de cada modelo editável: grava os
+    campos da requisição e as quantidades, recalculando o resumo (total de
+    equipamentos e valor total), tudo na mesma transação."""
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["editar_itens"] = True
+        return kwargs
+
+    def form_valid(self, form):
+        from requisicao.services import atualizar_quantidades
+
+        form.instance.data_alteracao = timezone.now()
+        with transaction.atomic():
+            self.object = form.save()
+            atualizar_quantidades(self.object, form.quantidades())
+        return redirect(self.get_success_url())
+
+
+class Requisicao2UpdateView(EdicaoComQuantidadesMixin, PermissionRequiredMixin, LoginRequiredMixin, UpdateView):
     model = Requisicoes
     form_class = forms.RequisicaoForm
     template_name = "requisicao_update.html"
@@ -2023,17 +2043,18 @@ from .models import Requisicoes
 from .forms import RequisicaoForm  # Supondo que você tenha um form para Requisicao
 
 
-class RequisicaoUpdateView(UpdateView):
+class RequisicaoUpdateView(
+    EdicaoComQuantidadesMixin, PermissionRequiredMixin, LoginRequiredMixin, UpdateView
+):
+    # Esta definição substitui a de cima (mesmo nome) e não exigia login nem
+    # permissão: qualquer pessoa com o link editava a requisição.
     model = Requisicoes
     form_class = RequisicaoForm  # Você pode usar um ModelForm ou o form padrão
     template_name = "requisicao_update.html"
     success_url = reverse_lazy(
         "requisicoes_list"
     )  # Redireciona para a lista após a atualização
-
-    def form_valid(self, form):
-        form.instance.data_alteracao = timezone.now()
-        return super().form_valid(form)
+    permission_required = "requisicao.change_requisicoes"
 
 
 # ============== EXPEDIÇÃO PARCIAL ==============
@@ -2169,9 +2190,11 @@ def expedir_requisicao_parcial(request):
                 valor_unitario = (
                     float(requisicao.valor_unitario) if requisicao.valor_unitario else 0
                 )
+                # Mesma regra da criação: modelos + taxa de envio (a sobra herda a
+                # taxa da original — ver services.valor_total_da).
                 valor_total_novo = (
                     valor_unitario * quantidade_restante if valor_unitario > 0 else 0
-                )
+                ) + float(requisicao.taxa_envio or 0)
 
                 # Cria nova requisição SEM disparar signals problemáticos
                 try:

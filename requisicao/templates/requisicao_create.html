@@ -233,7 +233,7 @@
               e valor unitário. "Adicionar novo modelo" abre outro bloco (ex.: isca 4G
               + isca 2G na mesma requisição). Os names levam o id do bloco
               (item_<id>_<campo>) e o form monta um ItemRequisicao por bloco. O valor
-              total é a soma dos blocos (recalculado no servidor). Ao repostar com
+              total é a soma dos blocos + a taxa de envio (recalculado no servidor). Ao repostar com
               erro, os blocos voltam do form (json_script). {% endcomment %}
             {{ form.blocos_itens|json_script:"blocos-itens" }}
             <div x-data="requisicaoItens()">
@@ -299,7 +299,7 @@
                         <input type="text" class="form-control" :value="totalQuantidade" readonly>
                     </div>
                     <div class="col-md-6 mb-3">
-                        <label class="form-label">Valor Total</label>
+                        <label class="form-label">Valor Total (com taxa de envio)</label>
                         <input type="text" class="form-control" :value="totalValor" readonly>
                     </div>
                 </div>
@@ -372,6 +372,7 @@
         return {
             seq: 0,
             blocos: [],
+            taxa: '',
             bloco: function (b) {
                 return {
                     id: this.seq++,
@@ -391,15 +392,22 @@
                 return this.blocos.reduce(function (s, b) { return s + (parseInt(b.quantidade, 10) || 0); }, 0);
             },
             get totalValor() {
+                // Modelos (quantidade × valor unitário) + taxa de envio.
                 var total = this.blocos.reduce(function (s, b) {
                     return s + (parseInt(b.quantidade, 10) || 0) * (parseFloat(b.valor_unitario) || 0);
-                }, 0);
+                }, 0) + (parseFloat(String(this.taxa).replace(',', '.')) || 0);
                 return total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
             },
             init: function () {
                 var self = this;
                 var iniciais = JSON.parse(document.getElementById('blocos-itens').textContent);
                 this.blocos = iniciais.map(function (b) { return self.bloco(b); });
+                // A taxa de envio fica em outra seção da tela: acompanha o campo.
+                var campoTaxa = document.getElementById('id_taxa_envio');
+                if (campoTaxa) {
+                    this.taxa = campoTaxa.value;
+                    campoTaxa.addEventListener('input', function (e) { self.taxa = e.target.value; });
+                }
             }
         };
     }
