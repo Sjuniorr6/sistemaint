@@ -94,6 +94,16 @@ def test_recusa_modelo_invalido_sem_gravar(client_req, cliente, produtos, blocos
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("custom", ["Termo branco + D.F ", "Termo branco slim + D.F +EQT  "])
+def test_aceita_customizacao_com_espaco_no_fim_e_grava_a_chave(client_req, cliente, produtos, custom):
+    resp = client_req.post(reverse("requisicoescrateview"), _post(
+        cliente, (produtos["Isca 4G"].pk, "1", custom, "1")))
+
+    assert resp.status_code == 302
+    assert ItemRequisicao.objects.get().customizacao == custom
+
+
+@pytest.mark.django_db
 def test_requisicao_mista_aparece_na_configuracao_e_no_tecnico(cliente, produtos):
     from requisicao.services import (
         PRODUTOS_LISTA_TECNICO, PRODUTOS_SETOR_TECNICO, com_algum_item_em, com_algum_item_fora,

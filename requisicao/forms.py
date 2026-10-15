@@ -379,7 +379,9 @@ class ItensRequisicaoField(forms.Field):
         blocos = value or []
         if not blocos:
             raise forms.ValidationError("Informe ao menos um modelo de equipamento.")
-        customizacoes = {v for v, _ in Requisicoes.customizacoes}
+        # Algumas chaves de `customizacoes` têm espaço no fim e o widget faz
+        # strip(): compara sem o espaço e grava a chave original.
+        customizacoes = {v.strip(): v for v, _ in Requisicoes.customizacoes}
         ids = {b["tipo_produto"] for b in blocos if b["tipo_produto"].isdigit()}
         produtos = {str(p.pk): p for p in Produto.objects.filter(pk__in=ids)}
 
@@ -406,7 +408,7 @@ class ItensRequisicaoField(forms.Field):
             itens.append(ItemRequisicao(
                 tipo_produto=produto,
                 quantidade=quantidade,
-                customizacao=b["customizacao"],
+                customizacao=customizacoes.get(b["customizacao"], b["customizacao"]),
                 valor_unitario=valor,
                 numeros_referencia=b["numeros"],
             ))
